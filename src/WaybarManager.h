@@ -33,6 +33,13 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QVariantList trayApps READ trayApps NOTIFY activeWindowChanged)
     Q_PROPERTY(QVariantList clipboardItems READ clipboardItems NOTIFY clipboardChanged)
 
+    // Музыкальный плеер (MPRIS2 + демо-режим)
+    Q_PROPERTY(bool mediaActive READ mediaActive NOTIFY mediaChanged)
+    Q_PROPERTY(bool mediaPlaying READ mediaPlaying NOTIFY mediaChanged)
+    Q_PROPERTY(QString mediaTitle READ mediaTitle NOTIFY mediaChanged)
+    Q_PROPERTY(QString mediaPositionText READ mediaPositionText NOTIFY mediaChanged)
+    Q_PROPERTY(bool mediaDemoMode READ mediaDemoMode WRITE setMediaDemoMode NOTIFY mediaChanged)
+
     // Системные метрики и графики для встроенного монитора (btop)
     Q_PROPERTY(int cpuUsage READ cpuUsage NOTIFY sysStatsChanged)
     Q_PROPERTY(int cpuTemp READ cpuTemp NOTIFY sysStatsChanged)
@@ -106,6 +113,18 @@ public:
     QVariantList trayApps() const { return m_trayApps; }
     QVariantList clipboardItems() const { return m_clipboardItems; }
 
+    bool mediaActive() const { return m_mediaDemoMode || m_mediaActive; }
+    bool mediaPlaying() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoPlaying : m_mediaPlaying; }
+    QString mediaTitle() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoTracks.value(m_demoTrackIdx) : m_mediaTitle; }
+    QString mediaPositionText() const;
+    bool mediaDemoMode() const { return m_mediaDemoMode; }
+    void setMediaDemoMode(bool v);
+    Q_INVOKABLE void toggleMediaDemo();
+    Q_INVOKABLE void mediaPlayPause();
+    Q_INVOKABLE void mediaPrev();
+    Q_INVOKABLE void mediaNext();
+    Q_INVOKABLE void mediaSeek(int deltaSec);
+
     int cpuUsage() const { return m_cpuUsage; }
     int cpuTemp() const { return m_cpuTemp; }
     int memPercent() const { return m_memPercent; }
@@ -172,6 +191,7 @@ signals:
     void workspacesChanged();
     void activeWindowChanged();
     void clipboardChanged();
+    void mediaChanged();
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
@@ -190,6 +210,7 @@ private:
     void pollHyprState();
     void pollSysStats();
     void pollFastState();
+    void pollMediaState();
     void pollWeather();
 
     bool m_posBottom = false;
@@ -213,6 +234,21 @@ private:
     int m_trayTick = 0;
     QVariantList m_clipboardItems;
     QStringList m_rawClipboardLines;
+
+    bool m_mediaActive = false;
+    bool m_mediaPlaying = false;
+    QString m_mediaTitle;
+    QString m_activeMprisService;
+    bool m_mediaDemoMode = true;
+    bool m_demoPlaying = true;
+    int m_demoTrackIdx = 0;
+    int m_demoPosSec = 42;
+    int m_realPosSec = 0;
+    QStringList m_demoTracks = {
+        "The Weeknd — Blinding Lights",
+        "Daft Punk — Instant Crush",
+        "Kavinsky — Nightcall"
+    };
 
     int m_cpuUsage = 0;
     int m_cpuTemp = 40;

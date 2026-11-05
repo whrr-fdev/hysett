@@ -13,6 +13,8 @@
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
+#include <QDBusVariant>
+#include <QDBusArgument>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <signal.h>
@@ -519,7 +521,159 @@ void WaybarManager::killProcess(int pid) {
     }
 }
 
+QString WaybarManager::mediaPositionText() const {
+    int sec = (m_mediaDemoMode && !m_mediaActive) ? m_demoPosSec : m_realPosSec;
+    sec = std::max(0, sec);
+    return QString("%1:%2").arg(sec / 60, 2, 10, QChar('0')).arg(sec % 60, 2, 10, QChar('0'));
+}
+
+void WaybarManager::setMediaDemoMode(bool v) {
+    if (m_mediaDemoMode != v) {
+        m_mediaDemoMode = v;
+        if (v) m_demoPlaying = true;
+        saveState(false);
+        emit mediaChanged();
+    }
+}
+
+void WaybarManager::toggleMediaDemo() {
+    setMediaDemoMode(!m_mediaDemoMode);
+}
+
+void WaybarManager::mediaPlayPause() {
+    if (m_mediaDemoMode && !m_mediaActive) {
+        m_demoPlaying = !m_demoPlaying;
+        emit mediaChanged();
+        return;
+    }
+    if (!m_activeMprisService.isEmpty()) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(m_activeMprisService, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "PlayPause");
+        QDBusConnection::sessionBus().asyncCall(msg);
+    } else {
+        QProcess::startDetached("playerctl", {"play-pause"});
+    }
+    QTimer::singleShot(80, this, &WaybarManager::pollMediaState);
+}
+
+void WaybarManager::mediaPrev() {
+    if (m_mediaDemoMode && !m_mediaActive) {
+        m_demoTrackIdx = (m_demoTrackIdx + m_demoTracks.size() - 1) % m_demoTracks.size();
+        m_demoPosSec = 0;
+        m_demoPlaying = true;
+        emit mediaChanged();
+        return;
+    }
+    if (!m_activeMprisService.isEmpty()) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(m_activeMprisService, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Previous");
+        QDBusConnection::sessionBus().asyncCall(msg);
+    } else {
+        QProcess::startDetached("playerctl", {"previous"});
+    }
+    QTimer::singleShot(120, this, &WaybarManager::pollMediaState);
+}
+
+void WaybarManager::mediaNext() {
+    if (m_mediaDemoMode && !m_mediaActive) {
+        m_demoTrackIdx = (m_demoTrackIdx + 1) % m_demoTracks.size();
+        m_demoPosSec = 0;
+        m_demoPlaying = true;
+        emit mediaChanged();
+        return;
+    }
+    if (!m_activeMprisService.isEmpty()) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(m_activeMprisService, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Next");
+        QDBusConnection::sessionBus().asyncCall(msg);
+    } else {
+        QProcess::startDetached("playerctl", {"next"});
+    }
+    QTimer::singleShot(120, this, &WaybarManager::pollMediaState);
+}
+
+void WaybarManager::mediaSeek(int deltaSec) {
+    if (m_mediaDemoMode && !m_mediaActive) {
+        m_demoPosSec = std::clamp(m_demoPosSec + deltaSec, 0, 215);
+        emit mediaChanged();
+        return;
+    }
+    if (!m_activeMprisService.isEmpty()) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(m_activeMprisService, "/org/mpris/MediaPlayer2", "org.mpris.MediaPlayer2.Player", "Seek");
+        msg << qlonglong(deltaSec) * 1000000LL;
+        QDBusConnection::sessionBus().asyncCall(msg);
+    } else {
+        QString arg = deltaSec >= 0 ? QString("%1+").arg(deltaSec) : QString("%1-").arg(std::abs(deltaSec));
+        QProcess::startDetached("playerctl", {"position", arg});
+    }
+}
+
+void WaybarManager::pollMediaState() {
+    QString foundService;
+    bool isPlaying = false;
+    QString trackText;
+
+    if (auto *ifc = QDBusConnection::sessionBus().interface()) {
+        const QStringList services = ifc->registeredServiceNames().value();
+        for (const QString &srv : services) {
+            if (!srv.startsWith("org.mpris.MediaPlayer2.")) continue;
+            QDBusMessage stMsg = QDBusMessage::createMethodCall(srv, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get");
+            stMsg << "org.mpris.MediaPlayer2.Player" << "PlaybackStatus";
+            QDBusMessage stRep = QDBusConnection::sessionBus().call(stMsg, QDBus::Block, 25);
+            if (stRep.type() != QDBusMessage::ReplyMessage || stRep.arguments().isEmpty()) continue;
+            QString status = stRep.arguments().first().value<QDBusVariant>().variant().toString();
+            if (status == "Stopped") continue;
+
+            QDBusMessage mdMsg = QDBusMessage::createMethodCall(srv, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get");
+            mdMsg << "org.mpris.MediaPlayer2.Player" << "Metadata";
+            QDBusMessage mdRep = QDBusConnection::sessionBus().call(mdMsg, QDBus::Block, 25);
+            QString title, artist;
+            if (mdRep.type() == QDBusMessage::ReplyMessage && !mdRep.arguments().isEmpty()) {
+                QVariant v = mdRep.arguments().first().value<QDBusVariant>().variant();
+                QVariantMap meta;
+                if (v.canConvert<QDBusArgument>()) {
+                    const QDBusArgument arg = v.value<QDBusArgument>();
+                    arg >> meta;
+                } else {
+                    meta = v.toMap();
+                }
+                title = meta.value("xesam:title").toString().trimmed();
+                QStringList artists = meta.value("xesam:artist").toStringList();
+                if (!artists.isEmpty()) artist = artists.first().trimmed();
+                else artist = meta.value("xesam:artist").toString().trimmed();
+            }
+            if (title.isEmpty()) continue;
+            QString full = artist.isEmpty() ? title : (artist + " — " + title);
+            if (status == "Playing" || foundService.isEmpty()) {
+                foundService = srv;
+                isPlaying = (status == "Playing");
+                trackText = full;
+                if (isPlaying) break;
+            }
+        }
+    }
+
+    bool nextActive = !foundService.isEmpty();
+    if (nextActive && !foundService.isEmpty()) {
+        QDBusMessage posMsg = QDBusMessage::createMethodCall(foundService, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get");
+        posMsg << "org.mpris.MediaPlayer2.Player" << "Position";
+        QDBusMessage posRep = QDBusConnection::sessionBus().call(posMsg, QDBus::Block, 20);
+        if (posRep.type() == QDBusMessage::ReplyMessage && !posRep.arguments().isEmpty()) {
+            qlonglong us = posRep.arguments().first().value<QDBusVariant>().variant().toLongLong();
+            m_realPosSec = int(std::max(0LL, us / 1000000LL));
+        }
+    } else if (m_mediaDemoMode && m_demoPlaying) {
+        m_demoPosSec = (m_demoPosSec + 1) % 215;
+    }
+
+    if (m_activeMprisService != foundService || m_mediaActive != nextActive || m_mediaPlaying != isPlaying || m_mediaTitle != trackText || (m_mediaDemoMode && m_demoPlaying) || isPlaying) {
+        m_activeMprisService = foundService;
+        m_mediaActive = nextActive;
+        m_mediaPlaying = isPlaying;
+        m_mediaTitle = trackText;
+        emit mediaChanged();
+    }
+}
+
 void WaybarManager::pollFastState() {
+    pollMediaState();
     QProcess *wp = new QProcess(this);
     connect(wp, &QProcess::finished, this, [this, wp]() {
         QString out = QString::fromUtf8(wp->readAllStandardOutput()).trimmed();

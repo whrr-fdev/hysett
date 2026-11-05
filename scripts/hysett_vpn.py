@@ -14,60 +14,84 @@ RU_DOMAIN_SUFFIXES = [
     "mail.ru", "avito.ru", "2gis.com", "kinopoisk.ru", "rutube.ru", "dzen.ru"
 ]
 
-def read_sub_url():
+def read_sub_urls():
+    urls = []
     if os.path.exists(SUB_FILE):
-        with open(SUB_FILE, "r") as f:
-            u = f.read().strip()
-            if u: return u
-    return ""
+        with open(SUB_FILE, "r", encoding="utf-8") as f:
+            for line in f:
+                u = line.strip()
+                if u and u not in urls:
+                    urls.append(u)
+    return urls
 
-def write_sub_url(u):
-    with open(SUB_FILE, "w") as f:
-        f.write(u.strip() + "\n")
+def write_sub_urls(urls):
+    clean = []
+    for u in urls:
+        u = u.strip()
+        if u and u not in clean:
+            clean.append(u)
+    with open(SUB_FILE, "w", encoding="utf-8") as f:
+        for u in clean:
+            f.write(u + "\n")
     os.chmod(SUB_FILE, 0o600)
 
 def load_state():
-    st = {"server_name": "StealthSurf VPN", "ru_direct": True, "port": 2080}
+    st = {
+        "server_name": "VPN",
+        "ru_direct": True,
+        "port": 2080,
+        "selected_index": 0,
+        "servers": []
+    }
     if os.path.exists(STATE_FILE):
         try:
-            with open(STATE_FILE, "r") as f:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
                 st.update(json.load(f))
         except Exception:
             pass
     if "url" in st:
-        if not os.path.exists(SUB_FILE) and st["url"]:
-            write_sub_url(st["url"])
+        if st["url"]:
+            cur = read_sub_urls()
+            if st["url"] not in cur:
+                cur.append(st["url"])
+                write_sub_urls(cur)
         del st["url"]
+    if not st["servers"] and "outbound" in st and isinstance(st["outbound"], dict):
+        st["servers"] = [{"name": st.get("server_name", "Server 1"), "outbound": st["outbound"]}]
     return st
 
 def save_state(st):
     os.makedirs(CONF_DIR, exist_ok=True)
-    if "url" in st: del st["url"]
-    with open(STATE_FILE, "w") as f:
+    if "url" in st:
+        del st["url"]
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
         json.dump(st, f, ensure_ascii=False, indent=2)
 
 def parse_uri(uri):
     u = urllib.parse.urlsplit(uri)
     scheme = u.scheme.lower()
-    name = urllib.parse.unquote(u.fragment or "StealthSurf Server").strip()
+    name = urllib.parse.unquote(u.fragment or "VPN Server").strip()
     q = dict(urllib.parse.parse_qsl(u.query))
     host = u.hostname or ""
     port = int(u.port or 443)
+    if not host:
+        return None, None
 
     if scheme == "vless":
         ob = {
             "type": "vless", "tag": "proxy",
             "server": host, "server_port": port,
-            "uuid": u.username or "",
+            "uuid": urllib.parse.unquote(u.username or ""),
             "packet_encoding": "xudp"
         }
-        if q.get("flow"): ob["flow"] = q["flow"]
+        if q.get("flow"):
+            ob["flow"] = q["flow"]
     elif scheme == "trojan":
-        ob = {"type": "trojan", "tag": "proxy", "server": host, "server_port": port, "password": u.username or ""}
+        ob = {"type": "trojan", "tag": "proxy", "server": host, "server_port": port, "password": urllib.parse.unquote(u.username or "")}
     elif scheme in ("hy2", "hysteria2"):
-        ob = {"type": "hysteria2", "tag": "proxy", "server": host, "server_port": port, "password": u.username or ""}
+        ob = {"type": "hysteria2", "tag": "proxy", "server": host, "server_port": port, "password": urllib.parse.unquote(u.username or "")}
     elif scheme == "ss":
-        userinfo = u.username or ""
+        userinfo = urllib.parse.unquote(u.username or "")
         if ":" not in userinfo:
             pad = len(userinfo) % 4
             if pad: userinfo += "=" * (4 - pad)
@@ -85,6 +109,8 @@ def parse_uri(uri):
             "server_name": q.get("sni", q.get("peer", host)),
             "utls": {"enabled": True, "fingerprint": q.get("fp", "chrome")}
         }
+        if q.get("alpn"):
+            tls["alpn"] = [x.strip() for x in q["alpn"].split(",") if x.strip()]
         if sec == "reality":
             tls["reality"] = {"enabled": True, "public_key": q.get("pbk", ""), "short_id": q.get("sid", "")}
         ob["tls"] = tls
@@ -94,81 +120,141 @@ def parse_uri(uri):
         ob["transport"] = {"type": "ws", "path": q.get("path", "/"), "headers": {"Host": q.get("host", host)}}
     elif net_type == "grpc":
         ob["transport"] = {"type": "grpc", "service_name": q.get("serviceName", "")}
+    elif net_type in ("http", "h2"):
+        ob["transport"] = {"type": "http", "path": q.get("path", "/")}
     return name, ob
 
-def build_config(outbound, ru_direct):
-    # Совместимо с sing-box 1.11 .. 1.14+ (action: "sniff" в route.rules вместо удаленных полей в inbound)
+def has_cap_net_admin(sb_bin):
+    try:
+        out = subprocess.check_output(["getcap", sb_bin], text=True, stderr=subprocess.DEVNULL)
+        return "cap_net_admin" in out
+    except Exception:
+        return False
+
+def build_config(outbound, ru_direct, use_tun=False):
     clean_ob = dict(outbound)
     clean_ob["tag"] = "proxy"
+
+    inbounds = [
+        {
+            "type": "mixed",
+            "tag": "mixed-in",
+            "listen": "127.0.0.1",
+            "listen_port": 2080,
+            "set_system_proxy": False
+        }
+    ]
+    if use_tun:
+        inbounds.insert(0, {
+            "type": "tun",
+            "tag": "tun-in",
+            "interface_name": "singbox_tun0",
+            "address": ["172.19.0.1/30"],
+            "mtu": 1400,
+            "auto_route": True,
+            "strict_route": False,
+            "stack": "system"
+        })
+
     rules = [
         {"action": "sniff"},
+        {"protocol": "dns", "action": "hijack-dns"},
         {"ip_is_private": True, "outbound": "direct"}
     ]
     if ru_direct:
         rules.append({"domain_suffix": RU_DOMAIN_SUFFIXES, "outbound": "direct"})
+
     return {
-        "log": {"level": "warn"},
-        "inbounds": [
-            {
-                "type": "mixed",
-                "tag": "mixed-in",
-                "listen": "127.0.0.1",
-                "listen_port": 2080
-            }
-        ],
+        "log": {"level": "info"},
+        "dns": {
+            "servers": [
+                {"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}
+            ],
+            "final": "dns-direct"
+        },
+        "inbounds": inbounds,
         "outbounds": [
             clean_ob,
             {"type": "direct", "tag": "direct"}
         ],
         "route": {
+            "default_domain_resolver": "dns-direct",
+            "auto_detect_interface": True,
             "rules": rules,
             "final": "proxy"
         }
     }
 
-def fetch_subscription():
-    st = load_state()
-    url = read_sub_url()
-    if not url:
-        return st.get("server_name", "StealthSurf VPN")
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    req = urllib.request.Request(url, headers={"User-Agent": "v2rayN/6.45 sing-box/1.14"})
-    with opener.open(req, timeout=10) as r:
-        raw = r.read().decode("utf-8", errors="ignore").strip()
-
+def parse_subscription_content(raw):
+    found = []
     if "://" not in raw and not raw.startswith("{"):
         pad = len(raw) % 4
         if pad: raw += "=" * (4 - pad)
-        try: raw = base64.b64decode(raw).decode("utf-8", errors="ignore")
+        try:
+            raw = base64.b64decode(raw).decode("utf-8", errors="ignore")
         except Exception:
-            try: raw = base64.urlsafe_b64decode(raw).decode("utf-8", errors="ignore")
-            except Exception: pass
+            try:
+                raw = base64.urlsafe_b64decode(raw).decode("utf-8", errors="ignore")
+            except Exception:
+                pass
 
     if raw.startswith("{"):
-        data = json.loads(raw)
-        for ob in data.get("outbounds", []):
-            if ob.get("type") in ("vless", "trojan", "hysteria2", "shadowsocks", "vmess"):
-                ob["tag"] = "proxy"
-                st["outbound"] = ob
-                st["server_name"] = ob.get("server", "StealthSurf JSON")
-                save_state(st)
-                with open(SB_CONF, "w") as f:
-                    json.dump(build_config(ob, st.get("ru_direct", True)), f, indent=2)
-                return st["server_name"]
+        try:
+            data = json.loads(raw)
+            for idx, ob in enumerate(data.get("outbounds", [])):
+                if ob.get("type") in ("vless", "trojan", "hysteria2", "shadowsocks", "vmess"):
+                    ob["tag"] = "proxy"
+                    nm = ob.get("tag_name") or ob.get("server") or f"Server {idx+1}"
+                    found.append({"name": nm, "outbound": ob})
+        except Exception:
+            pass
+        return found
 
     for line in raw.splitlines():
         line = line.strip()
         if any(line.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
             name, ob = parse_uri(line)
             if ob:
-                st["outbound"] = ob
-                st["server_name"] = name
-                save_state(st)
-                with open(SB_CONF, "w") as f:
-                    json.dump(build_config(ob, st.get("ru_direct", True)), f, indent=2)
-                return name
-    save_state(st)
-    return st.get("server_name", "StealthSurf VPN")
+                found.append({"name": name, "outbound": ob})
+    return found
+
+def fetch_subscriptions():
+    st = load_state()
+    urls = read_sub_urls()
+    if not urls:
+        return st
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    all_servers = []
+    for u in urls:
+        if any(u.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
+            name, ob = parse_uri(u)
+            if ob:
+                all_servers.append({"name": name, "outbound": ob})
+            continue
+        for ua in ("v2rayN/6.45", "SFA/1.11.0 sing-box/1.11.0", "ClashMetaForAndroid/2.10.1"):
+            try:
+                req = urllib.request.Request(u, headers={"User-Agent": ua})
+                with opener.open(req, timeout=10) as r:
+                    raw = r.read().decode("utf-8", errors="ignore").strip()
+                parsed = parse_subscription_content(raw)
+                if parsed:
+                    all_servers.extend(parsed)
+                    break
+            except Exception as e:
+                print(f"Fetch error ({u}): {e}", file=sys.stderr)
+
+    if all_servers:
+        st["servers"] = all_servers
+        idx = min(max(0, st.get("selected_index", 0)), len(all_servers) - 1)
+        st["selected_index"] = idx
+        st["server_name"] = all_servers[idx]["name"]
+        st["outbound"] = all_servers[idx]["outbound"]
+        save_state(st)
+        sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
+        with open(SB_CONF, "w", encoding="utf-8") as f:
+            json.dump(build_config(st["outbound"], st.get("ru_direct", True), has_cap_net_admin(sb_bin)), f, indent=2)
+    return st
 
 def wait_port(port, timeout=3.5):
     t0 = time.time()
@@ -192,7 +278,6 @@ def set_desktop_proxy(enable):
             ("org.gnome.system.proxy", "ignore-hosts", "['localhost', '127.0.0.0/8', '::1', '*.ru', '*.su', '*.xn--p1ai', '*vk.com', '*yandex.net', '*ozon.ru', '*wb.ru', '*sberbank.ru', '*tbank.ru', '*gosuslugi.ru']")
         ]:
             subprocess.run(["gsettings", "set", schema, key, val], stderr=subprocess.DEVNULL)
-        # Также синхронизируем KDE kioslaverc (так как XDG_CURRENT_DESKTOP=KDE)
         if shutil.which("kwriteconfig6"):
             subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "ProxyType", "1"], stderr=subprocess.DEVNULL)
             subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "httpProxy", "http://127.0.0.1:2080"], stderr=subprocess.DEVNULL)
@@ -211,14 +296,20 @@ def stop_vpn():
 def start_vpn():
     stop_vpn()
     st = load_state()
-    if "outbound" not in st or not os.path.exists(SB_CONF):
-        try: fetch_subscription()
-        except Exception as e: print("Fetch error:", e, file=sys.stderr)
-        st = load_state()
-    if "outbound" in st:
-        with open(SB_CONF, "w") as f:
-            json.dump(build_config(st["outbound"], st.get("ru_direct", True)), f, indent=2)
+    if not st.get("servers") and "outbound" not in st:
+        st = fetch_subscriptions()
+    servers = st.get("servers", [])
+    if servers:
+        idx = min(max(0, st.get("selected_index", 0)), len(servers) - 1)
+        st["outbound"] = servers[idx]["outbound"]
+        st["server_name"] = servers[idx]["name"]
+        save_state(st)
+    if "outbound" not in st:
+        return False
     sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
+    use_tun = has_cap_net_admin(sb_bin)
+    with open(SB_CONF, "w", encoding="utf-8") as f:
+        json.dump(build_config(st["outbound"], st.get("ru_direct", True), use_tun), f, indent=2)
     if os.path.exists(sb_bin) and os.path.exists(SB_CONF):
         subprocess.Popen([sb_bin, "run", "-c", SB_CONF], stdout=open("/tmp/singbox_vpn.log", "w"), stderr=subprocess.STDOUT)
         if wait_port(2080, 3.5):
@@ -228,22 +319,71 @@ def start_vpn():
             stop_vpn()
     return False
 
+def dump_status_json():
+    st = load_state()
+    urls = read_sub_urls()
+    srv_names = [s.get("name", f"Server {i+1}") for i, s in enumerate(st.get("servers", []))]
+    out = {
+        "server_name": st.get("server_name", "VPN"),
+        "ru_direct": st.get("ru_direct", True),
+        "selected_index": st.get("selected_index", 0),
+        "servers": srv_names,
+        "urls": urls
+    }
+    print(json.dumps(out, ensure_ascii=False))
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
-    if cmd == "update":
+    if cmd == "status":
+        dump_status_json()
+    elif cmd == "update":
         if len(sys.argv) > 2 and sys.argv[2].strip():
-            write_sub_url(sys.argv[2])
-        print(fetch_subscription())
-    elif cmd == "get_url":
-        print(read_sub_url())
+            urls = read_sub_urls()
+            u = sys.argv[2].strip()
+            if u not in urls:
+                urls.append(u)
+                write_sub_urls(urls)
+        fetch_subscriptions()
+        dump_status_json()
+    elif cmd == "add_url":
+        if len(sys.argv) > 2 and sys.argv[2].strip():
+            urls = read_sub_urls()
+            u = sys.argv[2].strip()
+            if u not in urls:
+                urls.append(u)
+                write_sub_urls(urls)
+            fetch_subscriptions()
+        dump_status_json()
+    elif cmd == "remove_url":
+        if len(sys.argv) > 2:
+            idx = int(sys.argv[2])
+            urls = read_sub_urls()
+            if 0 <= idx < len(urls):
+                urls.pop(idx)
+                write_sub_urls(urls)
+                fetch_subscriptions()
+        dump_status_json()
+    elif cmd == "select_server":
+        if len(sys.argv) > 2:
+            idx = int(sys.argv[2])
+            st = load_state()
+            servers = st.get("servers", [])
+            if 0 <= idx < len(servers):
+                st["selected_index"] = idx
+                st["server_name"] = servers[idx]["name"]
+                st["outbound"] = servers[idx]["outbound"]
+                save_state(st)
+                if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0:
+                    start_vpn()
+        dump_status_json()
     elif cmd == "set_ru":
         st = load_state()
         st["ru_direct"] = (sys.argv[2] == "1")
         save_state(st)
-        if "outbound" in st:
-            with open(SB_CONF, "w") as f:
-                json.dump(build_config(st["outbound"], st["ru_direct"]), f, indent=2)
         if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0:
             start_vpn()
-    elif cmd == "start": start_vpn()
-    elif cmd == "stop": stop_vpn()
+        dump_status_json()
+    elif cmd == "start":
+        start_vpn()
+    elif cmd == "stop":
+        stop_vpn()

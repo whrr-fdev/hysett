@@ -81,6 +81,9 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool vpnActive READ vpnActive NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnServerName READ vpnServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnSubUrl READ vpnSubUrl WRITE setVpnSubUrl NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnSubUrls READ vpnSubUrls NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnServers READ vpnServers NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vpnSelectedServer READ vpnSelectedServer NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnRuDirect READ vpnRuDirect WRITE setVpnRuDirect NOTIFY sysStatsChanged)
 
     // Погода Gismeteo (Сейчас, Завтра, Неделя, Месяц)
@@ -193,6 +196,12 @@ public:
     void setVpnRuDirect(bool v);
     Q_INVOKABLE void toggleVpn();
     Q_INVOKABLE void updateVpnSubscription();
+    QStringList vpnSubUrls() const { return m_vpnSubUrls; }
+    QStringList vpnServers() const { return m_vpnServers; }
+    int vpnSelectedServer() const { return m_vpnSelectedServer; }
+    Q_INVOKABLE void addVpnSubUrl(const QString &u);
+    Q_INVOKABLE void removeVpnSubUrl(int idx);
+    Q_INVOKABLE void selectVpnServer(int idx);
 
     QString weatherText() const { return m_weatherText; }
     QVariantMap weatherDetails() const { return m_weatherDetails; }
@@ -331,6 +340,10 @@ private:
     bool m_vpnRuDirect = true;
     QString m_vpnServerName = "StealthSurf VPN";
     QString m_vpnSubUrl = "";
+    QStringList m_vpnSubUrls;
+    QStringList m_vpnServers;
+    int m_vpnSelectedServer = 0;
+    void syncVpnStateFromScript(const QByteArray &raw);
 
     QString m_weatherText = "☁️ +3°C";
     QVariantMap m_weatherDetails;

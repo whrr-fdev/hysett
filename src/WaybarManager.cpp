@@ -90,6 +90,9 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     }
     pollWeather();
     QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
+    QProcess *vpInit = new QProcess(this);
+    connect(vpInit, &QProcess::finished, this, [this, vpInit]() { syncVpnStateFromScript(vpInit->readAllStandardOutput()); vpInit->deleteLater(); });
+    vpInit->start("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py", "status"});
 
     m_sysTimer = new QTimer(this);
     m_sysTimer->setInterval(450);
@@ -1158,16 +1161,62 @@ void WaybarManager::toggleVpn() {
     emit sysStatsChanged();
 }
 
+void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
+    QJsonDocument doc = QJsonDocument::fromJson(raw.trimmed());
+    if (!doc.isObject()) return;
+    QJsonObject o = doc.object();
+    m_vpnServerName = o["server_name"].toString(m_vpnServerName);
+    m_vpnRuDirect = o["ru_direct"].toBool(m_vpnRuDirect);
+    m_vpnSelectedServer = o["selected_index"].toInt(0);
+    QStringList srvs;
+    for (const auto &v : o["servers"].toArray()) srvs.append(v.toString());
+    m_vpnServers = srvs;
+    QStringList urls;
+    for (const auto &v : o["urls"].toArray()) urls.append(v.toString());
+    m_vpnSubUrls = urls;
+    if (!urls.isEmpty()) m_vpnSubUrl = urls.first();
+    emit sysStatsChanged();
+}
+
 void WaybarManager::updateVpnSubscription() {
     QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        QString name = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
+        syncVpnStateFromScript(p->readAllStandardOutput());
         p->deleteLater();
-        if (!name.isEmpty()) m_vpnServerName = name;
-        emit sysStatsChanged();
     });
-    p->start("/usr/bin/python3", {script, "update", m_vpnSubUrl});
+    p->start("/usr/bin/python3", {script, "update"});
+}
+
+void WaybarManager::addVpnSubUrl(const QString &u) {
+    if (u.trimmed().isEmpty()) return;
+    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        syncVpnStateFromScript(p->readAllStandardOutput());
+        p->deleteLater();
+    });
+    p->start("/usr/bin/python3", {script, "add_url", u.trimmed()});
+}
+
+void WaybarManager::removeVpnSubUrl(int idx) {
+    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        syncVpnStateFromScript(p->readAllStandardOutput());
+        p->deleteLater();
+    });
+    p->start("/usr/bin/python3", {script, "remove_url", QString::number(idx)});
+}
+
+void WaybarManager::selectVpnServer(int idx) {
+    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        syncVpnStateFromScript(p->readAllStandardOutput());
+        p->deleteLater();
+    });
+    p->start("/usr/bin/python3", {script, "select_server", QString::number(idx)});
 }
 
 void WaybarManager::setVpnRuDirect(bool v) {

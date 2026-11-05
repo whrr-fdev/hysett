@@ -23,30 +23,26 @@ ScrollView {
             RowLayout {
                 Layout.fillWidth: true
                 Text {
-                    text: "󰦝  VPN и обход блокировок (StealthSurf / Sing-box)"
+                    text: "󰦝  VPN"
                     color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true
                     Layout.fillWidth: true
                 }
                 StyledButton {
-                    text: "󰑐  Обновить подписку"
+                    text: "󰑐  Обновить подписки"
                     implicitHeight: 24
                     onClicked: if (Waybar) Waybar.updateVpnSubscription()
-                }
-                StyledButton {
-                    text: "Открыть Throne GUI"
-                    implicitHeight: 24
-                    onClicked: if (Waybar) Waybar.runCommand("throne")
                 }
             }
 
             // ГЛАВНАЯ КАРТОЧКА ВКЛЮЧЕНИЯ VPN
             GlassPanel {
-                Layout.fillWidth: true; implicitHeight: 86
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true; implicitHeight: 82
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 16; spacing: 16
 
                     Rectangle {
-                        width: 48; height: 48
+                        width: 46; height: 46
                         radius: (Theme && Theme.isRounded) ? 14 : 0
                         color: (Waybar && Waybar.vpnActive) ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.08)
                         border.color: Qt.rgba(1, 1, 1, 0.20); border.width: 1
@@ -59,13 +55,11 @@ ScrollView {
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 3
                         Text {
-                            text: Waybar ? Waybar.vpnServerName : "StealthSurf VPN"
+                            text: Waybar ? Waybar.vpnServerName : "VPN"
                             color: "#ffffff"; font.pixelSize: Config.fontSize + 2; font.bold: true
                         }
                         Text {
-                            text: (Waybar && Waybar.vpnActive)
-                                  ? "●  Подключено (Активен туннель / прокси 127.0.0.1:2080, ~15 МБ ОЗУ)"
-                                  : "○  Отключено (Нажмите тумблер справа для быстрого подключения)"
+                            text: (Waybar && Waybar.vpnActive) ? "●  Подключено" : "○  Отключено"
                             color: (Waybar && Waybar.vpnActive) ? "#69f0ae" : "#888888"
                             font.pixelSize: Config.fontSize - 1
                         }
@@ -78,14 +72,59 @@ ScrollView {
                 }
             }
 
+            // СПИСОК СЕРВЕРОВ ИЗ ПОДПИСОК
+            GlassPanel {
+                objectName: "atmoObstacle"
+                visible: Waybar && Waybar.vpnServers.length > 0
+                Layout.fillWidth: true
+                implicitHeight: srvCol.implicitHeight + 24
+
+                ColumnLayout {
+                    id: srvCol
+                    anchors.fill: parent; anchors.margins: 14; spacing: 8
+
+                    Text {
+                        text: "Доступные серверы (" + (Waybar ? Waybar.vpnServers.length : 0) + ")"
+                        color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                    }
+
+                    Repeater {
+                        model: Waybar ? Waybar.vpnServers : []
+                        delegate: Rectangle {
+                            Layout.fillWidth: true; implicitHeight: 30
+                            property bool isSel: Waybar && Waybar.vpnSelectedServer === index
+                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                            color: isSel ? (Config ? Config.m3Primary : "#ffffff") : (srvMa.containsMouse ? Qt.rgba(1,1,1,0.10) : Qt.rgba(1,1,1,0.04))
+                            border.color: isSel ? "transparent" : Qt.rgba(1,1,1,0.14); border.width: 1
+
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                                Text {
+                                    text: (parent.parent.isSel ? "✓  " : "") + modelData
+                                    color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                    font.pixelSize: Config.fontSize
+                                    font.bold: parent.parent.isSel
+                                    Layout.fillWidth: true; elide: Text.ElideRight
+                                }
+                            }
+                            MouseArea {
+                                id: srvMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: if (Waybar) Waybar.selectVpnServer(index)
+                            }
+                        }
+                    }
+                }
+            }
+
             // КАРТОЧКА МАРШРУТИЗАЦИИ РФ ДОМЕНОВ БЕЗ VPN
             GlassPanel {
+                objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: ruRow.implicitHeight + 24
                 RowLayout {
                     id: ruRow; anchors.fill: parent; anchors.margins: 14; spacing: 12
                     ColumnLayout {
                         Layout.fillWidth: true; spacing: 3
-                        Text { text: "Прямой маршрут для российских сайтов (RU Direct Routing)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+                        Text { text: "Прямой маршрут для российских сайтов (RU Direct)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
                         Text { text: "Домены .ru, .рф, .su, Госуслуги, Банки, ВК, Яндекс, Ozon и WB работают напрямую без VPN"; color: "#888888"; font.pixelSize: Config.fontSize - 1 }
                     }
                     StyledSwitch {
@@ -95,36 +134,58 @@ ScrollView {
                 }
             }
 
-            // КАРТОЧКА ПОДПИСКИ
+            // КАРТОЧКА УПРАВЛЕНИЯ НЕСКОЛЬКИМИ ССЫЛКАМИ ПОДПИСОК
             GlassPanel {
+                objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: subCol.implicitHeight + 24
                 ColumnLayout {
                     id: subCol; anchors.fill: parent; anchors.margins: 14; spacing: 10
-                    Text { text: "Ссылка на подписку (Subscription URL)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+                    Text { text: "Ссылки на подписки и ключи (vless://, trojan://, https://...)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
                         TextField {
                             id: subUrlField
                             Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
                             color: "#ffffff"; font.pixelSize: 11
-                            text: Waybar ? Waybar.vpnSubUrl : ""
-                            onEditingFinished: if (Waybar) Waybar.vpnSubUrl = text
+                            placeholderText: "Вставьте ссылку на подписку или vless:// ключ..."
+                            placeholderTextColor: "#777777"
                             background: Rectangle { radius: (Theme && Theme.isRounded) ? 6 : 0; color: Qt.rgba(1,1,1,0.06); border.color: Qt.rgba(1,1,1,0.18) }
                         }
                         StyledButton {
-                            text: "Сохранить и применить"
+                            text: "+ Добавить"
                             implicitHeight: 28
                             onClicked: {
-                                if (Waybar) {
-                                    Waybar.vpnSubUrl = subUrlField.text
-                                    Waybar.updateVpnSubscription()
+                                if (Waybar && subUrlField.text.trim().length > 0) {
+                                    Waybar.addVpnSubUrl(subUrlField.text.trim())
+                                    subUrlField.text = ""
                                 }
                             }
                         }
                     }
-                    Text {
-                        text: "Совет: для работы легкого режима без окна Throne убедитесь, что установлен пакет sing-box (sudo pacman -S sing-box)."
-                        color: "#888888"; font.pixelSize: Config.fontSize - 1
+
+                    Repeater {
+                        model: Waybar ? Waybar.vpnSubUrls : []
+                        delegate: Rectangle {
+                            Layout.fillWidth: true; implicitHeight: 28
+                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                            color: Qt.rgba(1, 1, 1, 0.04)
+                            border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+
+                            RowLayout {
+                                anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 8
+                                Text {
+                                    text: (index + 1) + ". " + modelData
+                                    color: "#cccccc"; font.pixelSize: 10
+                                    Layout.fillWidth: true; elide: Text.ElideMiddle
+                                }
+                                StyledButton {
+                                    text: "✕"
+                                    implicitWidth: 20; implicitHeight: 20
+                                    onClicked: if (Waybar) Waybar.removeVpnSubUrl(index)
+                                }
+                            }
+                        }
                     }
                 }
             }

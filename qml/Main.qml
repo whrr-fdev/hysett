@@ -475,7 +475,7 @@ ApplicationWindow {
             readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
             readonly property bool uniformMode: Waybar ? Waybar.uniformBarSpacing : true
             readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
-            readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && ((Waybar && Waybar.trayApps.length > 0) || editMode)
+            readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && ((Waybar && (Waybar.trayApps.length > 0 || Waybar.vpnActive)) || editMode)
             readonly property int macroGapsCount: 4 + (centerTitlePill.visible ? 1 : 0) + (trayBlockVis ? 1 : 0)
             readonly property real baseGroupGap: Waybar ? Waybar.groupSpacing : 6
             readonly property real macroStepGap: baseGroupGap + (macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0)
@@ -726,16 +726,7 @@ ApplicationWindow {
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") }
                 }
 
-                // Индикатор VPN
-                Rectangle {
-                    visible: Waybar ? Waybar.vpnActive : false
-                    width: 34; height: topBarContainer.pillHeight - 4
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: (Theme && Theme.isRounded) ? 5 : 0
-                    color: "transparent"; border.color: "#ffffff"; border.width: 1
-                    Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
-                }
+
 
                 Repeater {
                     model: Waybar ? Waybar.rightBarOrder : ["sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"]
@@ -749,7 +740,7 @@ ApplicationWindow {
                             var _t = Waybar ? Waybar.trayApps : []
                             if (modKey === "sep") return true
                             if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
-                            if (modKey === "tray") return (Waybar && Waybar.trayApps.length > 0) || topBarContainer.editMode
+                            if (modKey === "tray") return (Waybar && (Waybar.trayApps.length > 0 || Waybar.vpnActive)) || topBarContainer.editMode
                             return true
                         }
                         visible: modVis
@@ -809,6 +800,26 @@ ApplicationWindow {
                                 anchors.fill: parent
                                 Row {
                                     id: trayRow; anchors.centerIn: parent; spacing: 7
+                                    Item {
+                                        visible: Waybar ? Waybar.vpnActive : false
+                                        width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "󰦝"
+                                            color: Config ? Config.m3Primary : "#69f0ae"
+                                            font.pixelSize: 13
+                                        }
+                                        MouseArea {
+                                            enabled: !topBarContainer.editMode
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: (mouse) => {
+                                                if (mouse.button === Qt.RightButton && Waybar) Waybar.toggleVpn()
+                                                else root.openDrawerWithMode("settings", 26)
+                                            }
+                                        }
+                                    }
                                     Repeater {
                                         model: (modKey === "tray" && Waybar) ? Waybar.trayApps : []
                                         delegate: Item {

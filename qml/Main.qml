@@ -508,11 +508,12 @@ ApplicationWindow {
 
             Rectangle {
                 id: centerTitlePill; z: 5
-                visible: root.winModVis && (root.isCenteredBar || (Waybar && Waybar.activeWindowTitle.length > 0))
-                x: Math.round((parent.width - width) * 0.5)
+                readonly property int availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 18)
+                visible: root.winModVis && availGap > 40 && (root.isCenteredBar || (Waybar && Waybar.activeWindowTitle.length > 0))
+                width: root.isCenteredBar ? Math.min(198, availGap) : Math.min(360, Math.min(availGap, winLbl.implicitWidth + 16))
+                x: leftBarRow.x + leftBarRow.width + 6 + Math.max(0, Math.round((availGap - width) * 0.5))
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
-                width: root.isCenteredBar ? 198 : Math.min(360, winLbl.implicitWidth + 16)
                 radius: topBarContainer.pillRadius
                 color: (Waybar && Waybar.activeWindowTitle.length > 0) ? topBarContainer.pillColor : "transparent"
                 Text { id: winLbl; anchors.centerIn: parent; width: Math.min(parent.width - 10, implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: "#ececec"; font.pixelSize: 10; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }

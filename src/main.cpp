@@ -243,7 +243,7 @@ int main(int argc, char *argv[]) {
                 strutWin->setMask(QRegion(0, 0, 1, 1));
                 auto updateStrut = [&]() {
                     int pos = waybarManager.barPosition();
-                    int thick = waybarManager.barHeight() + waybarManager.marginTop() + 4 + (pos >= 2 ? 12 : 0);
+                    int thick = waybarManager.barHeight() + waybarManager.marginTop() + waybarManager.marginBottom() + (pos >= 2 ? 12 : 0);
                     if (pos <= 1) { strutWin->setWidth(1920); strutWin->setHeight(thick); }
                     else { strutWin->setWidth(thick); strutWin->setHeight(1080); }
                     if (auto *sls = LayerShellQt::Window::get(strutWin)) {
@@ -255,6 +255,10 @@ int main(int argc, char *argv[]) {
                         else if (pos == 2) sls->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom));
                         else sls->setAnchors(LayerShellQt::Window::Anchors(LayerShellQt::Window::AnchorRight | LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom));
                         sls->setScope(QStringLiteral("hysett-strut"));
+                    }
+                    if (strutWin->isVisible()) {
+                        strutWin->hide();
+                        strutWin->show();
                     }
                 };
                 updateStrut();

@@ -11,7 +11,7 @@ RU_DOMAIN_SUFFIXES = [
     "yandex.com", "yandex.net", "ya.ru", "vk.com", "vkuseraudio.net", "userapi.com",
     "gosuslugi.ru", "sberbank.ru", "sber.ru", "tbank.ru", "tinkoff.ru",
     "ozon.ru", "ozonusercontent.com", "wb.ru", "wildberries.ru",
-    "mail.ru", "avito.ru", "2gis.com", "kinopoisk.ru", "rutube.ru", "dzen.ru"
+    "mail.ru", "avito.ru", "2gis.com", "kinopoisk.ru", "rutube.ru", "dzen.ru", "2ip.ru", "2ip.io", "2ip.me"
 ]
 
 def read_sub_urls():
@@ -157,9 +157,8 @@ def build_config(outbound, ru_direct, use_tun=False):
         })
 
     rules = [
-        {"action": "sniff", "timeout": "300ms"},
+        {"action": "sniff"},
         {"protocol": "dns", "action": "hijack-dns"},
-        {"domain": ["mozilla.cloudflare-dns.com", "use-application-dns.net"], "action": "reject"},
         {"ip_is_private": True, "outbound": "direct"}
     ]
     if ru_direct:

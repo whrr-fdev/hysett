@@ -800,15 +800,15 @@ ApplicationWindow {
                                 anchors.fill: parent
                                 Row {
                                     id: trayRow; anchors.centerIn: parent; spacing: 7
-                                    Item {
+                                    Rectangle {
                                         visible: Waybar ? Waybar.vpnActive : false
-                                        width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
-                                        Text {
-                                            anchors.centerIn: parent
-                                            text: "󰦝"
-                                            color: Config ? Config.m3Primary : "#69f0ae"
-                                            font.pixelSize: 13
-                                        }
+                                        width: 32; height: topBarContainer.pillHeight - 4
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        radius: (Theme && Theme.isRounded) ? 5 : 0
+                                        color: "transparent"
+                                        border.color: "#ffffff"
+                                        border.width: 1
+                                        Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent

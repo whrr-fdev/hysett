@@ -6,7 +6,6 @@ import "../components"
 
 Item {
     id: sysMonRoot
-    property string procFilter: ""
 
     Timer {
         interval: 2000
@@ -42,7 +41,7 @@ Item {
                 Layout.fillWidth: true
             }
             StyledButton {
-                text: "󰍹  Открыть полный Btop"
+                text: "btop"
                 implicitHeight: 24
                 onClicked: if (Waybar) Waybar.runCommand("kitty --class waybar-btop -e btop")
             }
@@ -160,34 +159,58 @@ Item {
             }
         }
 
-        // СПИСОК ПРОЦЕССОВ С ФИЛЬТРАМИ ПО ПРОЦУ (CPU) И ПО ОЗУ (RAM)
+        // СПИСОК ПРОЦЕССОВ С КЛИКАБЕЛЬНЫМИ КОЛОНКАМИ CPU И RAM
         GlassPanel {
             objectName: "atmoObstacle"
             Layout.fillWidth: true; Layout.fillHeight: true
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 10; spacing: 6
+
+                // Шапка таблицы с кликабельными колонками CPU и RAM
                 RowLayout {
-                    Layout.fillWidth: true; spacing: 10
-                    Text { text: "Активные процессы"; color: "#ffffff"; font.pixelSize: 12; font.bold: true }
-                    SegmentedButton {
-                        options: [" По процу (CPU)", "󰍛 По ОЗУ (RAM)"]
-                        selectedIndex: Waybar ? Waybar.processSortMode : 0
-                        onSelected: (idx) => { if (Waybar) Waybar.processSortMode = idx }
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 10; Layout.rightMargin: 8
+                    spacing: 10
+
+                    Text { text: "PID"; color: "#777777"; font.pixelSize: 10; font.bold: true; Layout.preferredWidth: 64 }
+                    Text { text: "Активные процессы"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
+
+                    Item {
+                        Layout.preferredWidth: 64; implicitHeight: 20
+                        Text {
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            text: (Waybar && Waybar.processSortMode === 0) ? "CPU ↓" : "CPU"
+                            color: (Waybar && Waybar.processSortMode === 0) ? (Config ? Config.m3Primary : "#ffffff") : (cpuColMa.containsMouse ? "#ffffff" : "#888888")
+                            font.pixelSize: 11; font.bold: true
+                        }
+                        MouseArea {
+                            id: cpuColMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: if (Waybar) Waybar.processSortMode = 0
+                        }
                     }
-                    Item { Layout.fillWidth: true }
-                    TextField {
-                        Layout.preferredWidth: 190; implicitHeight: 24; leftPadding: 8; rightPadding: 8
-                        color: "#ffffff"; font.pixelSize: 11; placeholderText: "Поиск процесса..."; placeholderTextColor: "#777777"
-                        onTextChanged: sysMonRoot.procFilter = text.toLowerCase()
-                        background: Rectangle { radius: (Theme && Theme.isRounded) ? 6 : 0; color: Qt.rgba(1,1,1,0.06); border.color: Qt.rgba(1,1,1,0.16) }
+
+                    Item {
+                        Layout.preferredWidth: 72; implicitHeight: 20
+                        Text {
+                            anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            text: (Waybar && Waybar.processSortMode === 1) ? "RAM ↓" : "RAM"
+                            color: (Waybar && Waybar.processSortMode === 1) ? (Config ? Config.m3Primary : "#ffffff") : (ramColMa.containsMouse ? "#ffffff" : "#888888")
+                            font.pixelSize: 11; font.bold: true
+                        }
+                        MouseArea {
+                            id: ramColMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                            onClicked: if (Waybar) Waybar.processSortMode = 1
+                        }
                     }
+
+                    Item { Layout.preferredWidth: 22 }
                 }
+
                 ListView {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
                     model: Waybar ? Waybar.processList : []
                     delegate: Rectangle {
-                        property bool vis: sysMonRoot.procFilter.length === 0 || modelData.name.toLowerCase().indexOf(sysMonRoot.procFilter) !== -1
-                        width: ListView.view.width; height: vis ? 26 : 0; visible: vis
+                        width: ListView.view.width; height: 26
                         radius: (Theme && Theme.isRounded) ? 6 : 0
                         color: Qt.rgba(1, 1, 1, 0.03); border.color: Qt.rgba(1, 1, 1, 0.08); border.width: 1
                         RowLayout {
@@ -195,19 +218,19 @@ Item {
                             Text { text: "PID " + modelData.pid; color: "#888888"; font.pixelSize: 10; Layout.preferredWidth: 64 }
                             Text { text: modelData.name; color: "#ffffff"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text {
-                                text: " " + modelData.cpu
-                                color: (Waybar && Waybar.processSortMode === 0) ? "#a8c7fa" : "#bbbbbb"
+                                text: modelData.cpu
+                                color: (Waybar && Waybar.processSortMode === 0) ? "#ffffff" : "#aaaaaa"
                                 font.pixelSize: 11
                                 font.bold: (Waybar && Waybar.processSortMode === 0)
-                                Layout.preferredWidth: 68
+                                Layout.preferredWidth: 64
                                 horizontalAlignment: Text.AlignRight
                             }
                             Text {
-                                text: "󰍛 " + modelData.mem
-                                color: (Waybar && Waybar.processSortMode === 1) ? "#80d8ff" : "#cccccc"
+                                text: modelData.mem
+                                color: (Waybar && Waybar.processSortMode === 1) ? "#ffffff" : "#aaaaaa"
                                 font.pixelSize: 11
                                 font.bold: (Waybar && Waybar.processSortMode === 1)
-                                Layout.preferredWidth: 74
+                                Layout.preferredWidth: 72
                                 horizontalAlignment: Text.AlignRight
                             }
                             StyledButton { text: "✕"; isIconOnly: true; implicitHeight: 20; implicitWidth: 22; onClicked: if (Waybar) Waybar.killProcess(modelData.pid) }

@@ -79,7 +79,9 @@ ApplicationWindow {
     readonly property int customBarW: Waybar ? Math.min(maxAvailBarW, Waybar.barWidth) : maxAvailBarW
 
     readonly property bool winModVis: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("window")) : true
-    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winModVis ? 200 : 0) + rightBarRow.implicitWidth + 18)
+    readonly property bool hasWinTitle: winModVis && Waybar && Waybar.activeWindowTitle.length > 0
+    readonly property real winPillTargetW: hasWinTitle ? Math.min(220, winLbl.implicitWidth + 16) : 0
+    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (hasWinTitle ? (winPillTargetW + 6) : 0) + rightBarRow.implicitWidth + 14)
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
     Behavior on smoothBaseBarW { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
@@ -508,19 +510,106 @@ ApplicationWindow {
                     Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                 }
+
+                // Плеер музыки между погодой и заголовком окна
+                Rectangle {
+                    id: mediaPlayerPill
+                    readonly property bool mediaVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("media")) : true) && (Waybar ? Waybar.mediaActive : false)
+                    visible: width > 0.5
+                    opacity: mediaVis ? 1.0 : 0.0
+                    clip: true
+                    height: topBarContainer.pillHeight
+                    width: mediaVis ? (mediaInnerRow.implicitWidth + 12) : 0
+                    Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: 180 } }
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius
+                    color: topBarContainer.pillColor
+
+                    WheelHandler {
+                        onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) }
+                    }
+
+                    Row {
+                        id: mediaInnerRow
+                        height: topBarContainer.pillHeight
+                        anchors.centerIn: parent
+                        spacing: 4
+
+                        Item {
+                            width: 13; height: topBarContainer.pillHeight
+                            Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                            MouseArea {
+                                id: prevMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: (mouse) => {
+                                    if (!Waybar) return
+                                    if (mouse.button === Qt.RightButton) Waybar.mediaSeek(-10)
+                                    else Waybar.mediaPrev()
+                                }
+                            }
+                        }
+
+                        Item {
+                            width: 13; height: topBarContainer.pillHeight
+                            Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                            MouseArea {
+                                id: playMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: if (Waybar) Waybar.mediaPlayPause()
+                            }
+                        }
+
+                        Item {
+                            width: 13; height: topBarContainer.pillHeight
+                            Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                            MouseArea {
+                                id: nextMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                onClicked: (mouse) => {
+                                    if (!Waybar) return
+                                    if (mouse.button === Qt.RightButton) Waybar.mediaSeek(10)
+                                    else Waybar.mediaNext()
+                                }
+                            }
+                        }
+
+                        Item {
+                            width: Math.min(145, mediaTrackLbl.implicitWidth)
+                            height: topBarContainer.pillHeight
+                            Text {
+                                id: mediaTrackLbl
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: parent.width
+                                text: Waybar ? Waybar.mediaTitle : ""
+                                color: "#ffffff"
+                                font.pixelSize: 10
+                                font.bold: true
+                                elide: Text.ElideRight
+                            }
+                            MouseArea {
+                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                onClicked: if (Waybar) Waybar.mediaPlayPause()
+                            }
+                        }
+                    }
+                }
             }
 
             Rectangle {
                 id: centerTitlePill; z: 5
                 readonly property real availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 14)
-                visible: root.winModVis && availGap > 40 && (root.isCenteredBar || (Waybar && Waybar.activeWindowTitle.length > 0))
-                width: root.isCenteredBar ? Math.min(194, availGap) : Math.min(360, Math.min(availGap, winLbl.implicitWidth + 16))
+                visible: width > 0.5 && availGap > 24
+                opacity: root.hasWinTitle ? 1.0 : 0.0
+                clip: true
+                width: root.hasWinTitle ? Math.min(availGap, root.winPillTargetW) : 0
+                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                Behavior on opacity { NumberAnimation { duration: 160 } }
                 x: leftBarRow.x + leftBarRow.width + 5 + Math.max(0, (availGap - width) * 0.5)
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
-                color: (Waybar && Waybar.activeWindowTitle.length > 0) ? topBarContainer.pillColor : "transparent"
-                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(parent.width - 10, implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: "#ececec"; font.pixelSize: 10; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+                color: topBarContainer.pillColor
+                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 12), implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: "#ececec"; font.pixelSize: 10; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             }
 

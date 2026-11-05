@@ -465,143 +465,191 @@ ApplicationWindow {
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
 
+            readonly property bool editMode: Waybar ? Waybar.barEditMode : false
+            readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
+
             Row {
                 id: leftBarRow; z: 5
                 anchors.left: parent.left; anchors.leftMargin: 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 4
 
-                Rectangle {
-                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("launcher")) : true
-                    width: topBarContainer.pillHeight + 2; height: topBarContainer.pillHeight
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                    Text { anchors.centerIn: parent; text: ""; font.pixelSize: 13; color: "#ffffff" }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
-                }
-
-                Rectangle {
-                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("workspaces")) : true
-                    height: topBarContainer.pillHeight; width: wsRow.implicitWidth + 2
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                    WheelHandler { onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
-                    Row {
-                        id: wsRow; anchors.centerIn: parent; spacing: 0
-                        Repeater {
-                            model: Waybar ? Waybar.workspaces : []
-                            delegate: Rectangle {
-                                property bool act: modelData.active === true
-                                property bool occ: (modelData.windows || 0) > 0
-                                width: 20; height: topBarContainer.pillHeight - 4
-                                anchors.verticalCenter: parent.verticalCenter
-                                radius: (Theme && Theme.isRounded) ? height / 2 : 0
-                                color: act ? (Config ? Config.m3Primary : "#ffffff") : (occ ? Qt.rgba(1,1,1,0.10) : "transparent")
-                                Text { anchors.centerIn: parent; text: modelData.id; font.pixelSize: 10; font.bold: parent.act; color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.occ ? "#ffffff" : "#767b8a") }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id) }
-                            }
-                        }
-                    }
-                }
-
-                Rectangle {
-                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("weather")) : true
-                    height: topBarContainer.pillHeight; width: wLbl.implicitWidth + 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                    Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
-                }
-
-                // Плеер музыки между погодой и заголовком окна
-                Rectangle {
-                    id: mediaPlayerPill
-                    readonly property bool mediaVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("media")) : true) && (Waybar ? Waybar.mediaActive : false)
-                    visible: width > 0.5
-                    opacity: mediaVis ? 1.0 : 0.0
-                    clip: true
-                    height: topBarContainer.pillHeight
-                    width: mediaVis ? (mediaInnerRow.implicitWidth + 12) : 0
-                    Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                    Behavior on opacity { NumberAnimation { duration: 180 } }
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius
-                    color: topBarContainer.pillColor
-
-                    WheelHandler {
-                        onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) }
-                    }
-
-                    Row {
-                        id: mediaInnerRow
-                        height: topBarContainer.pillHeight
-                        anchors.centerIn: parent
+                Repeater {
+                    model: Waybar ? Waybar.leftBarOrder : ["launcher", "workspaces", "weather", "media"]
+                    delegate: Row {
+                        id: leftModWrap
                         spacing: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        readonly property string modKey: modelData
+                        readonly property bool modVis: {
+                            var _ = Waybar ? Waybar.hiddenBarModules : ""
+                            var _m = Waybar ? Waybar.mediaActive : false
+                            if (modKey === "sep") return true
+                            if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
+                            if (modKey === "media") return (Waybar ? Waybar.mediaActive : false) || topBarContainer.editMode
+                            return true
+                        }
+                        visible: modVis
 
-                        Item {
-                            width: 13; height: topBarContainer.pillHeight
-                            Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                            MouseArea {
-                                id: prevMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: (mouse) => {
-                                    if (!Waybar) return
-                                    if (mouse.button === Qt.RightButton) Waybar.mediaSeek(-10)
-                                    else Waybar.mediaPrev()
-                                }
-                            }
+                        // Вертикальный разделитель между блоками
+                        Rectangle {
+                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep"
+                            width: 1; height: topBarContainer.pillHeight - 5
+                            anchors.verticalCenter: parent.verticalCenter
+                            color: Qt.rgba(1, 1, 1, 0.22)
                         }
 
                         Item {
-                            width: 13; height: topBarContainer.pillHeight
-                            Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                            MouseArea {
-                                id: playMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: if (Waybar) Waybar.mediaPlayPause()
-                            }
-                        }
-
-                        Item {
-                            width: 13; height: topBarContainer.pillHeight
-                            Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                            MouseArea {
-                                id: nextMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                onClicked: (mouse) => {
-                                    if (!Waybar) return
-                                    if (mouse.button === Qt.RightButton) Waybar.mediaSeek(10)
-                                    else Waybar.mediaNext()
-                                }
-                            }
-                        }
-
-                        Item {
-                            width: 12; height: topBarContainer.pillHeight
-                            Text { anchors.centerIn: parent; text: "«"; color: rwMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"; font.pixelSize: 11; font.bold: true }
-                            MouseArea { id: rwMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaSeek(-10) }
-                        }
-
-                        Item {
-                            width: 12; height: topBarContainer.pillHeight
-                            Text { anchors.centerIn: parent; text: "»"; color: ffMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"; font.pixelSize: 11; font.bold: true }
-                            MouseArea { id: ffMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaSeek(10) }
-                        }
-
-                        Item {
-                            width: Math.min(155, mediaTrackLbl.implicitWidth)
+                            id: leftModBody
                             height: topBarContainer.pillHeight
-                            Text {
-                                id: mediaTrackLbl
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: parent.width
-                                text: Waybar ? (Waybar.mediaTitle + "  " + Waybar.mediaPositionText) : ""
-                                color: "#ffffff"
-                                font.pixelSize: 10
-                                font.bold: true
-                                elide: Text.ElideRight
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: {
+                                if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
+                                if (modKey === "launcher") return topBarContainer.pillHeight + 2
+                                if (modKey === "workspaces") return wsRow.implicitWidth + 2
+                                if (modKey === "weather") return wLbl.implicitWidth + 10
+                                if (modKey === "media") return mediaInnerRow.implicitWidth + 10
+                                return 0
                             }
-                            MouseArea {
-                                anchors.fill: parent; cursorShape: Qt.PointingHandCursor
-                                onClicked: if (Waybar) Waybar.mediaPlayPause()
+
+                            // Контент: sep
+                            Rectangle {
+                                visible: modKey === "sep"
+                                anchors.centerIn: parent
+                                width: 1; height: topBarContainer.pillHeight - 4
+                                color: Qt.rgba(1, 1, 1, 0.32)
+                            }
+
+                            // Контент: launcher (лого Arch поднято ровно на 1 пиксель)
+                            Item {
+                                visible: modKey === "launcher"
+                                anchors.fill: parent
+                                Text { anchors.centerIn: parent; anchors.verticalCenterOffset: -1; text: ""; font.pixelSize: 13; color: "#ffffff" }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
+                            }
+
+                            // Контент: workspaces
+                            Item {
+                                visible: modKey === "workspaces"
+                                anchors.fill: parent
+                                WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
+                                Row {
+                                    id: wsRow; anchors.centerIn: parent; spacing: 0
+                                    Repeater {
+                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                        delegate: Rectangle {
+                                            property bool act: modelData.active === true
+                                            property bool occ: (modelData.windows || 0) > 0
+                                            width: 20; height: topBarContainer.pillHeight - 4
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            radius: (Theme && Theme.isRounded) ? height / 2 : 0
+                                            color: act ? (Config ? Config.m3Primary : "#ffffff") : (occ ? Qt.rgba(1,1,1,0.10) : "transparent")
+                                            Text { anchors.centerIn: parent; text: modelData.id; font.pixelSize: 10; font.bold: parent.act; color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.occ ? "#ffffff" : "#767b8a") }
+                                            MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id) }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Контент: weather
+                            Item {
+                                visible: modKey === "weather"
+                                anchors.fill: parent
+                                Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
+                            }
+
+                            // Контент: media (без двойных стрелочек, клик по треку открывает вкладку Музыки 27)
+                            Item {
+                                visible: modKey === "media"
+                                anchors.fill: parent
+                                clip: true
+                                WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
+                                Row {
+                                    id: mediaInnerRow
+                                    height: topBarContainer.pillHeight
+                                    anchors.centerIn: parent
+                                    spacing: 4
+
+                                    Item {
+                                        width: 12; height: topBarContainer.pillHeight
+                                        Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                                        MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
+                                    }
+
+                                    Item {
+                                        width: 12; height: topBarContainer.pillHeight
+                                        Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                                        MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
+                                    }
+
+                                    Item {
+                                        width: 12; height: topBarContainer.pillHeight
+                                        Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                                        MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
+                                    }
+
+                                    Item {
+                                        width: Math.min(155, mediaTrackLbl.implicitWidth)
+                                        height: topBarContainer.pillHeight
+                                        Text {
+                                            id: mediaTrackLbl
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: parent.width
+                                            text: Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер"
+                                            color: "#ffffff"
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                        }
+                                        MouseArea {
+                                            enabled: !topBarContainer.editMode
+                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            onClicked: root.openDrawerWithMode("settings", 27)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Оверлей режима редактирования: перетаскивание мышкой (ЛКМ) и скрытие (ПКМ или клик по ✕)
+                            Rectangle {
+                                visible: topBarContainer.editMode
+                                anchors.fill: parent
+                                radius: 4
+                                color: leftDragMa.pressed ? Qt.rgba(0.4, 0.7, 1.0, 0.28) : Qt.rgba(1, 1, 1, 0.08)
+                                border.color: Config ? Config.m3Primary : "#a8c7fa"
+                                border.width: 1
+
+                                Rectangle {
+                                    width: 10; height: 10; radius: 5
+                                    anchors.right: parent.right; anchors.top: parent.top; anchors.margins: -2
+                                    color: "#ff5555"
+                                    Text { anchors.centerIn: parent; text: "✕"; color: "#ffffff"; font.pixelSize: 7; font.bold: true }
+                                }
+
+                                MouseArea {
+                                    id: leftDragMa
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    cursorShape: Qt.SizeHorCursor
+                                    property real pressX: 0
+                                    onPressed: (mouse) => {
+                                        if (mouse.button === Qt.RightButton || (mouse.x > width - 11 && mouse.y < 11)) {
+                                            if (Waybar) Waybar.removeBarItemAt("left", index)
+                                            mouse.accepted = true
+                                            return
+                                        }
+                                        pressX = mouse.x
+                                    }
+                                    onPositionChanged: (mouse) => {
+                                        if (!(pressedButtons & Qt.LeftButton) || !Waybar) return
+                                        var dx = mouse.x - pressX
+                                        if (dx > 22 && index + 1 < Waybar.leftBarOrder.length) {
+                                            Waybar.moveBarModule("left", index, index + 1)
+                                        } else if (dx < -22 && index > 0) {
+                                            Waybar.moveBarModule("left", index, index - 1)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -628,10 +676,10 @@ ApplicationWindow {
 
             Row {
                 id: rightBarRow; z: 5
-                anchors.right: parent.right; anchors.rightMargin: 3; anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: Waybar ? Waybar.spacing : 6
 
-                // Индикатор записи экрана с плавной анимацией ширины
+                // Индикатор записи экрана
                 Rectangle {
                     property bool isRec: Waybar ? Waybar.recording : false
                     visible: width > 0.5
@@ -650,105 +698,212 @@ ApplicationWindow {
                         height: topBarContainer.pillHeight
                         anchors.centerIn: parent
                         spacing: 5
+                        Rectangle { width: 8; height: 8; radius: 4; color: "#ff4d4d"; anchors.verticalCenter: parent.verticalCenter }
+                        Text { text: Waybar ? Waybar.recordingTimeText : "00:00"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") }
+                }
+
+                // Индикатор VPN
+                Rectangle {
+                    visible: Waybar ? Waybar.vpnActive : false
+                    width: 34; height: topBarContainer.pillHeight - 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: (Theme && Theme.isRounded) ? 5 : 0
+                    color: "transparent"; border.color: "#ffffff"; border.width: 1
+                    Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
+                }
+
+                Repeater {
+                    model: Waybar ? Waybar.rightBarOrder : ["sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"]
+                    delegate: Row {
+                        id: rightModWrap
+                        spacing: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        readonly property string modKey: modelData
+                        readonly property bool modVis: {
+                            var _ = Waybar ? Waybar.hiddenBarModules : ""
+                            var _t = Waybar ? Waybar.trayApps : []
+                            if (modKey === "sep") return true
+                            if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
+                            if (modKey === "tray") return (Waybar && Waybar.trayApps.length > 0) || topBarContainer.editMode
+                            return true
+                        }
+                        visible: modVis
+
                         Rectangle {
-                            width: 8; height: 8; radius: 4
-                            color: "#ff4d4d"
+                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep"
+                            width: 1; height: topBarContainer.pillHeight - 5
                             anchors.verticalCenter: parent.verticalCenter
+                            color: Qt.rgba(1, 1, 1, 0.22)
                         }
-                        Text {
-                            text: Waybar ? Waybar.recordingTimeText : "00:00"
-                            color: "#ffffff"
-                            font.pixelSize: 10
-                            font.bold: true
+
+                        Item {
+                            id: rightModBody
+                            height: topBarContainer.pillHeight
                             anchors.verticalCenter: parent.verticalCenter
-                        }
-                    }
+                            width: {
+                                if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
+                                if (modKey === "sysinfo") return sysRow.implicitWidth + 6
+                                if (modKey === "tray") return Math.max(16, trayRow.implicitWidth + 6)
+                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 14
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 2
+                                if (modKey === "language") return 20
+                                if (modKey === "clock") return barClockText.implicitWidth + 2
+                                if (modKey === "power") return 13
+                                return 0
+                            }
 
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh")
-                    }
-                }
+                            Rectangle {
+                                visible: modKey === "sep"
+                                anchors.centerIn: parent
+                                width: 1; height: topBarContainer.pillHeight - 4
+                                color: Qt.rgba(1, 1, 1, 0.32)
+                            }
 
-                Rectangle {
-                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("sysinfo")) : true
-                    height: topBarContainer.pillHeight; width: sysRow.implicitWidth + 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                    Row {
-                        id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 2
-                        Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                        Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                        Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                    }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
-                }
+                            Item {
+                                visible: modKey === "sysinfo"
+                                anchors.fill: parent
+                                Row {
+                                    id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 2
+                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
+                            }
 
-                Rectangle {
-                    visible: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && Waybar && Waybar.trayApps.length > 0
-                    height: topBarContainer.pillHeight; width: trayRow.implicitWidth + 10
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                    Row {
-                        id: trayRow; anchors.centerIn: parent; spacing: 7
-                        Repeater {
-                            model: Waybar ? Waybar.trayApps : []
-                            delegate: Item {
-                                id: trayItemDel; width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
-                                Image { anchors.fill: parent; source: "image://appicon/" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
+                            Item {
+                                visible: modKey === "tray"
+                                anchors.fill: parent
+                                Row {
+                                    id: trayRow; anchors.centerIn: parent; spacing: 7
+                                    Repeater {
+                                        model: (modKey === "tray" && Waybar) ? Waybar.trayApps : []
+                                        delegate: Item {
+                                            id: trayItemDel; width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
+                                            Image { anchors.fill: parent; source: "image://appicon/" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
+                                            MouseArea {
+                                                enabled: !topBarContainer.editMode
+                                                anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
+                                                onClicked: (mouse) => {
+                                                    if (mouse.button === Qt.RightButton) {
+                                                        var gp = trayItemDel.mapToItem(sceneRoot, trayItemDel.width * 0.5, 0)
+                                                        root.openTrayContextMenu(modelData, gp.x)
+                                                    } else {
+                                                        root.drawerOpen = false
+                                                        if (Waybar) Waybar.activateTrayApp(modelData.class, modelData.sniService || "")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Item {
+                                visible: modKey === "bluetooth"
+                                anchors.fill: parent
+                                Text { anchors.centerIn: parent; text: "󰂯"; color: "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) }
+                            }
+
+                            Item {
+                                visible: modKey === "network"
+                                anchors.fill: parent
+                                Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) }
+                            }
+
+                            Item {
+                                visible: modKey === "clipboard"
+                                anchors.fill: parent
+                                Text { anchors.centerIn: parent; text: "󰅌"; color: (root.drawerOpen && root.drawerMode === "clipboard") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) }
+                            }
+
+                            Item {
+                                visible: modKey === "volume"
+                                anchors.fill: parent
+                                Row {
+                                    id: volInnerRow; anchors.centerIn: parent; spacing: 4
+                                    Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : "#ffffff"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                                }
+                                WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
+                            }
+
+                            Item {
+                                visible: modKey === "language"
+                                anchors.fill: parent
+                                Text { anchors.centerIn: parent; text: Waybar ? Waybar.kbLayout : "RU"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 25) }
+                            }
+
+                            Item {
+                                visible: modKey === "clock"
+                                anchors.fill: parent
+                                Text {
+                                    id: barClockText; anchors.centerIn: parent
+                                    text: Qt.formatDateTime(new Date(), "hh:mm")
+                                    color: (root.drawerOpen && root.drawerMode === "calendar") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"
+                                    font.pixelSize: 10; font.bold: true
+                                    Timer { interval: 1000; running: modKey === "clock"; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") }
+                                }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar") }
+                            }
+
+                            Item {
+                                visible: modKey === "power"
+                                anchors.fill: parent
+                                Text { anchors.centerIn: parent; text: "⏻"; color: "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") }
+                            }
+
+                            // Оверлей режима редактирования для правого блока
+                            Rectangle {
+                                visible: topBarContainer.editMode
+                                anchors.fill: parent
+                                radius: 4
+                                color: rightDragMa.pressed ? Qt.rgba(0.4, 0.7, 1.0, 0.28) : Qt.rgba(1, 1, 1, 0.08)
+                                border.color: Config ? Config.m3Primary : "#a8c7fa"
+                                border.width: 1
+
+                                Rectangle {
+                                    width: 10; height: 10; radius: 5
+                                    anchors.right: parent.right; anchors.top: parent.top; anchors.margins: -2
+                                    color: "#ff5555"
+                                    Text { anchors.centerIn: parent; text: "✕"; color: "#ffffff"; font.pixelSize: 7; font.bold: true }
+                                }
+
                                 MouseArea {
-                                    anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
-                                    onClicked: (mouse) => {
-                                        if (mouse.button === Qt.RightButton) {
-                                            var gp = trayItemDel.mapToItem(sceneRoot, trayItemDel.width * 0.5, 0)
-                                            root.openTrayContextMenu(modelData, gp.x)
-                                        } else {
-                                            root.drawerOpen = false
-                                            if (Waybar) Waybar.activateTrayApp(modelData.class, modelData.sniService || "")
+                                    id: rightDragMa
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    cursorShape: Qt.SizeHorCursor
+                                    property real pressX: 0
+                                    onPressed: (mouse) => {
+                                        if (mouse.button === Qt.RightButton || (mouse.x > width - 11 && mouse.y < 11)) {
+                                            if (Waybar) Waybar.removeBarItemAt("right", index)
+                                            mouse.accepted = true
+                                            return
+                                        }
+                                        pressX = mouse.x
+                                    }
+                                    onPositionChanged: (mouse) => {
+                                        if (!(pressedButtons & Qt.LeftButton) || !Waybar) return
+                                        var dx = mouse.x - pressX
+                                        if (dx > 18 && index + 1 < Waybar.rightBarOrder.length) {
+                                            Waybar.moveBarModule("right", index, index + 1)
+                                        } else if (dx < -18 && index > 0) {
+                                            Waybar.moveBarModule("right", index, index - 1)
                                         }
                                     }
                                 }
                             }
                         }
-                    }
-                }
-
-                Rectangle {
-                    height: topBarContainer.pillHeight; width: ctrlRow.implicitWidth + 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                    Row {
-                        id: ctrlRow; anchors.centerIn: parent; spacing: 5
-                        Rectangle {
-                            visible: Waybar ? Waybar.vpnActive : false
-                            width: 34; height: topBarContainer.pillHeight - 4
-                            anchors.verticalCenter: parent.verticalCenter
-                            radius: (Theme && Theme.isRounded) ? 5 : 0
-                            color: "transparent"
-                            border.color: "#ffffff"
-                            border.width: 1
-                            Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
-                        }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("bluetooth")) : true; width: 12; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰂯"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) } }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("network")) : true; width: 12; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) } }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("clipboard")) : true; width: 12; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰅌"; color: (root.drawerOpen && root.drawerMode === "clipboard") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) } }
-                        Item {
-                            visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("volume")) : true
-                            width: volInnerRow.implicitWidth; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter
-                            Row { id: volInnerRow; anchors.centerIn: parent; spacing: 4; Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : "#ffffff"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } }
-                            WheelHandler { onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
-                        }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("language")) : true; width: 20; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: Waybar ? Waybar.kbLayout : "RU"; color: "#ffffff"; font.pixelSize: 10; font.bold: true } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 25) } }
-                        Item {
-                            visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("clock")) : true
-                            width: barClockText.implicitWidth; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter
-                            Text { id: barClockText; anchors.centerIn: parent; text: Qt.formatDateTime(new Date(), "hh:mm"); color: (root.drawerOpen && root.drawerMode === "calendar") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 10; font.bold: true; Timer { interval: 1000; running: true; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") } }
-                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar") }
-                        }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("power")) : true; width: 11; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "⏻"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") } }
                     }
                 }
             }
@@ -1420,7 +1575,8 @@ ApplicationWindow {
                             "views/ClipboardView.qml",
                             "views/PowerView.qml",
                             "views/LanguageView.qml",
-                            "views/VpnView.qml"
+                            "views/VpnView.qml",
+                            "views/MusicView.qml"
                         ]
 
                         Loader {

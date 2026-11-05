@@ -33,12 +33,23 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QVariantList trayApps READ trayApps NOTIFY activeWindowChanged)
     Q_PROPERTY(QVariantList clipboardItems READ clipboardItems NOTIFY clipboardChanged)
 
-    // Музыкальный плеер (MPRIS2 + демо-режим)
+    // Музыкальный плеер (MPRIS2 + демо-режим + таймер автоскрытия)
     Q_PROPERTY(bool mediaActive READ mediaActive NOTIFY mediaChanged)
+    Q_PROPERTY(bool hasRealMedia READ hasRealMedia NOTIFY mediaChanged)
     Q_PROPERTY(bool mediaPlaying READ mediaPlaying NOTIFY mediaChanged)
     Q_PROPERTY(QString mediaTitle READ mediaTitle NOTIFY mediaChanged)
     Q_PROPERTY(QString mediaPositionText READ mediaPositionText NOTIFY mediaChanged)
+    Q_PROPERTY(QString mediaDurationText READ mediaDurationText NOTIFY mediaChanged)
+    Q_PROPERTY(int mediaPosSec READ mediaPosSec NOTIFY mediaChanged)
+    Q_PROPERTY(int mediaLengthSec READ mediaLengthSec NOTIFY mediaChanged)
     Q_PROPERTY(bool mediaDemoMode READ mediaDemoMode WRITE setMediaDemoMode NOTIFY mediaChanged)
+    Q_PROPERTY(int mediaHideTimeout READ mediaHideTimeout WRITE setMediaHideTimeout NOTIFY stateChanged)
+
+    // Разделители и режим редактирования панели задач (Drag & Drop)
+    Q_PROPERTY(bool barSeparators READ barSeparators WRITE setBarSeparators NOTIFY stateChanged)
+    Q_PROPERTY(bool barEditMode READ barEditMode WRITE setBarEditMode NOTIFY stateChanged)
+    Q_PROPERTY(QStringList leftBarOrder READ leftBarOrder NOTIFY stateChanged)
+    Q_PROPERTY(QStringList rightBarOrder READ rightBarOrder NOTIFY stateChanged)
 
     // Системные метрики и графики для встроенного монитора (btop)
     Q_PROPERTY(int cpuUsage READ cpuUsage NOTIFY sysStatsChanged)
@@ -113,17 +124,35 @@ public:
     QVariantList trayApps() const { return m_trayApps; }
     QVariantList clipboardItems() const { return m_clipboardItems; }
 
-    bool mediaActive() const { return m_mediaDemoMode || m_mediaActive; }
+    bool mediaActive() const;
+    bool hasRealMedia() const { return m_mediaActive; }
     bool mediaPlaying() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoPlaying : m_mediaPlaying; }
     QString mediaTitle() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoTracks.value(m_demoTrackIdx) : m_mediaTitle; }
     QString mediaPositionText() const;
+    QString mediaDurationText() const;
+    int mediaPosSec() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoPosSec : m_realPosSec; }
+    int mediaLengthSec() const { return (m_mediaDemoMode && !m_mediaActive) ? 215 : std::max(1, m_realLenSec); }
     bool mediaDemoMode() const { return m_mediaDemoMode; }
     void setMediaDemoMode(bool v);
+    int mediaHideTimeout() const { return m_mediaHideTimeout; }
+    void setMediaHideTimeout(int sec);
     Q_INVOKABLE void toggleMediaDemo();
     Q_INVOKABLE void mediaPlayPause();
     Q_INVOKABLE void mediaPrev();
     Q_INVOKABLE void mediaNext();
     Q_INVOKABLE void mediaSeek(int deltaSec);
+    Q_INVOKABLE void seekToSecond(int sec);
+
+    bool barSeparators() const { return m_barSeparators; }
+    void setBarSeparators(bool v);
+    bool barEditMode() const { return m_barEditMode; }
+    void setBarEditMode(bool v);
+    QStringList leftBarOrder() const { return m_leftBarOrder; }
+    QStringList rightBarOrder() const { return m_rightBarOrder; }
+    Q_INVOKABLE void moveBarModule(const QString &side, int fromIdx, int toIdx);
+    Q_INVOKABLE void addBarSeparator(const QString &side);
+    Q_INVOKABLE void removeBarItemAt(const QString &side, int idx);
+    Q_INVOKABLE void resetBarOrder();
 
     int cpuUsage() const { return m_cpuUsage; }
     int cpuTemp() const { return m_cpuTemp; }
@@ -244,6 +273,14 @@ private:
     int m_demoTrackIdx = 0;
     int m_demoPosSec = 42;
     int m_realPosSec = 0;
+    int m_realLenSec = 215;
+    int m_mediaHideTimeout = 15;
+    int m_mediaPausedSec = 0;
+
+    bool m_barSeparators = false;
+    bool m_barEditMode = false;
+    QStringList m_leftBarOrder = {"launcher", "workspaces", "weather", "media"};
+    QStringList m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     QStringList m_demoTracks = {
         "The Weeknd — Blinding Lights",
         "Daft Punk — Instant Crush",

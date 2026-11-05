@@ -163,6 +163,7 @@ Rectangle {
                     model: [
                         { title: "Поиск", icon: "󰍉", idx: 16 },
                         { title: "Погода", icon: "󰖙", idx: 20 },
+                        { title: "Музыка", icon: "󰎆", idx: 27 },
                         { title: "Монитор", icon: "", idx: 21 },
                         { title: "Календарь", icon: "", idx: 22 },
                         { title: "Буфер", icon: "󰅌", idx: 23 },

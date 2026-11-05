@@ -162,6 +162,10 @@ void WaybarManager::loadState() {
             else if (k == "centered_bar") m_centeredBar = (v == "1" || v == "true");
             else if (k == "fixed_title_width") m_fixedTitleWidth = (v == "1" || v == "true");
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
+            else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
+            else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
+            else if (k == "left_bar_order" && !v.isEmpty()) m_leftBarOrder = v.split(',', Qt::SkipEmptyParts);
+            else if (k == "right_bar_order" && !v.isEmpty()) m_rightBarOrder = v.split(',', Qt::SkipEmptyParts);
             else {
                 for (int i = 0; i < m_specs.size(); ++i) {
                     QVariantMap m = m_specs[i].toMap();
@@ -190,6 +194,10 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "centered_bar=" << (m_centeredBar ? "1" : "0") << "\n";
         out << "fixed_title_width=" << (m_fixedTitleWidth ? "1" : "0") << "\n";
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
+        out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
+        out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
+        out << "left_bar_order=" << m_leftBarOrder.join(',') << "\n";
+        out << "right_bar_order=" << m_rightBarOrder.join(',') << "\n";
         for (const auto &item : m_specs) {
             QVariantMap m = item.toMap();
             out << m["key"].toString() << "=" << QString::number(m["value"].toDouble(), 'f', m["dec"].toInt()) << "\n";
@@ -521,19 +529,97 @@ void WaybarManager::killProcess(int pid) {
     }
 }
 
+bool WaybarManager::mediaActive() const {
+    bool hasAny = m_mediaDemoMode || m_mediaActive;
+    if (!hasAny) return false;
+    if (!mediaPlaying() && m_mediaHideTimeout > 0 && m_mediaPausedSec >= m_mediaHideTimeout) {
+        return false;
+    }
+    return true;
+}
+
 QString WaybarManager::mediaPositionText() const {
     int sec = (m_mediaDemoMode && !m_mediaActive) ? m_demoPosSec : m_realPosSec;
     sec = std::max(0, sec);
     return QString("%1:%2").arg(sec / 60, 2, 10, QChar('0')).arg(sec % 60, 2, 10, QChar('0'));
 }
 
+QString WaybarManager::mediaDurationText() const {
+    int sec = mediaLengthSec();
+    return QString("%1:%2").arg(sec / 60, 2, 10, QChar('0')).arg(sec % 60, 2, 10, QChar('0'));
+}
+
 void WaybarManager::setMediaDemoMode(bool v) {
     if (m_mediaDemoMode != v) {
         m_mediaDemoMode = v;
-        if (v) m_demoPlaying = true;
+        if (v) {
+            m_demoPlaying = true;
+            m_mediaPausedSec = 0;
+        }
         saveState(false);
         emit mediaChanged();
     }
+}
+
+void WaybarManager::setMediaHideTimeout(int sec) {
+    sec = std::clamp(sec, 0, 600);
+    if (m_mediaHideTimeout != sec) {
+        m_mediaHideTimeout = sec;
+        saveState(false);
+        emit mediaChanged();
+    }
+}
+
+void WaybarManager::seekToSecond(int sec) {
+    int cur = mediaPosSec();
+    mediaSeek(sec - cur);
+}
+
+void WaybarManager::setBarSeparators(bool v) {
+    if (m_barSeparators != v) {
+        m_barSeparators = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::setBarEditMode(bool v) {
+    if (m_barEditMode != v) {
+        m_barEditMode = v;
+        emit stateChanged();
+    }
+}
+
+void WaybarManager::moveBarModule(const QString &side, int fromIdx, int toIdx) {
+    QStringList &list = (side == "left") ? m_leftBarOrder : m_rightBarOrder;
+    if (fromIdx < 0 || fromIdx >= list.size() || toIdx < 0 || toIdx >= list.size() || fromIdx == toIdx) return;
+    list.move(fromIdx, toIdx);
+    saveState(false);
+}
+
+void WaybarManager::addBarSeparator(const QString &side) {
+    QStringList &list = (side == "left") ? m_leftBarOrder : m_rightBarOrder;
+    int pos = std::max(1, int(list.size()) / 2);
+    list.insert(pos, "sep");
+    saveState(false);
+}
+
+void WaybarManager::removeBarItemAt(const QString &side, int idx) {
+    QStringList &list = (side == "left") ? m_leftBarOrder : m_rightBarOrder;
+    if (idx < 0 || idx >= list.size()) return;
+    QString key = list[idx];
+    if (key == "sep") {
+        list.removeAt(idx);
+        saveState(false);
+    } else {
+        setBarModuleVisible(key, false);
+    }
+}
+
+void WaybarManager::resetBarOrder() {
+    m_leftBarOrder = {"launcher", "workspaces", "weather", "media"};
+    m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
+    m_hiddenBarModules.clear();
+    saveState(false);
 }
 
 void WaybarManager::toggleMediaDemo() {
@@ -543,6 +629,7 @@ void WaybarManager::toggleMediaDemo() {
 void WaybarManager::mediaPlayPause() {
     if (m_mediaDemoMode && !m_mediaActive) {
         m_demoPlaying = !m_demoPlaying;
+        if (m_demoPlaying) m_mediaPausedSec = 0;
         emit mediaChanged();
         return;
     }
@@ -560,6 +647,7 @@ void WaybarManager::mediaPrev() {
         m_demoTrackIdx = (m_demoTrackIdx + m_demoTracks.size() - 1) % m_demoTracks.size();
         m_demoPosSec = 0;
         m_demoPlaying = true;
+        m_mediaPausedSec = 0;
         emit mediaChanged();
         return;
     }
@@ -577,6 +665,7 @@ void WaybarManager::mediaNext() {
         m_demoTrackIdx = (m_demoTrackIdx + 1) % m_demoTracks.size();
         m_demoPosSec = 0;
         m_demoPlaying = true;
+        m_mediaPausedSec = 0;
         emit mediaChanged();
         return;
     }
@@ -663,13 +752,18 @@ void WaybarManager::pollMediaState() {
         m_demoPosSec = (m_demoPosSec + 1) % 215;
     }
 
-    if (m_activeMprisService != foundService || m_mediaActive != nextActive || m_mediaPlaying != isPlaying || m_mediaTitle != trackText || (m_mediaDemoMode && m_demoPlaying) || isPlaying) {
-        m_activeMprisService = foundService;
-        m_mediaActive = nextActive;
-        m_mediaPlaying = isPlaying;
-        m_mediaTitle = trackText;
-        emit mediaChanged();
+    m_activeMprisService = foundService;
+    m_mediaActive = nextActive;
+    m_mediaPlaying = isPlaying;
+    m_mediaTitle = trackText;
+
+    bool effPlaying = (m_mediaDemoMode && !m_mediaActive) ? m_demoPlaying : m_mediaPlaying;
+    if (effPlaying) {
+        m_mediaPausedSec = 0;
+    } else {
+        m_mediaPausedSec = std::min(3600, m_mediaPausedSec + 1);
     }
+    emit mediaChanged();
 }
 
 void WaybarManager::pollFastState() {

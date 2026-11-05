@@ -88,6 +88,72 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
+                implicitHeight: editCol.implicitHeight + 20
+
+                ColumnLayout {
+                    id: editCol
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Редактирование блоков и разделители панели"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
+                        StyledButton {
+                            text: (Waybar && Waybar.barEditMode) ? "✓ Готово (Выйти из ред.)" : "✎ Режим перетаскивания на панели"
+                            implicitHeight: 24
+                            isActive: Waybar ? Waybar.barEditMode : false
+                            onClicked: if (Waybar) Waybar.barEditMode = !Waybar.barEditMode
+                        }
+                        StyledButton {
+                            text: "↺ Сбросить порядок"
+                            implicitHeight: 24
+                            onClicked: if (Waybar) Waybar.resetBarOrder()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Вертикальные разделители между всеми блоками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                        StyledButton {
+                            text: "+ Разделитель слева"
+                            implicitHeight: 22
+                            onClicked: if (Waybar) Waybar.addBarSeparator("left")
+                        }
+                        StyledButton {
+                            text: "+ Разделитель справа"
+                            implicitHeight: 22
+                            onClicked: if (Waybar) Waybar.addBarSeparator("right")
+                        }
+                        StyledSwitch {
+                            checked: Waybar ? Waybar.barSeparators : false
+                            onToggled: if (Waybar) Waybar.barSeparators = checked
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Автоскрытие плеера музыки при паузе:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        StyledSlider {
+                            Layout.fillWidth: true
+                            from: 0; to: 120; stepSize: 5
+                            value: Waybar ? Waybar.mediaHideTimeout : 15
+                            onMoved: if (Waybar) Waybar.mediaHideTimeout = Math.round(value)
+                        }
+                        Text {
+                            text: (Waybar && Waybar.mediaHideTimeout === 0) ? "Выкл" : ((Waybar ? Waybar.mediaHideTimeout : 15) + " сек")
+                            color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight
+                        }
+                    }
+                }
+            }
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
                 implicitHeight: modsCol.implicitHeight + 20
 
                 ColumnLayout {

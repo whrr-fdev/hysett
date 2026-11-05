@@ -149,7 +149,8 @@ ApplicationWindow {
                                    : ((isCenteredBar || customBarW < maxAvailBarW) ? barTop : (barRectY + barH))
 
     property bool modalOpen: false
-    readonly property bool anyModalActive: modalOpen || (Monitors && Monitors.revertDialogActive)
+    property bool barSavePromptOpen: false
+    readonly property bool anyModalActive: modalOpen || barSavePromptOpen || (Monitors && Monitors.revertDialogActive)
     readonly property bool isWindowExpanded: isWallpaperExpanded
 
     property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.59
@@ -157,6 +158,14 @@ ApplicationWindow {
 
     Behavior on wallpapersLiveOpacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
     Behavior on wallpapersLiveBlur { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
+    function requestCloseDrawer() {
+        if (Waybar && Waybar.barEditMode) {
+            root.barSavePromptOpen = true
+            return
+        }
+        root.drawerOpen = false
+    }
 
     function syncInputMask() {
         if (Waybar) {
@@ -248,7 +257,7 @@ ApplicationWindow {
     Connections {
         target: Waybar
         function onStateChanged() { root.syncInputMask() }
-        function onCloseDrawerRequested() { if (root.drawerOpen) root.drawerOpen = false }
+        function onCloseDrawerRequested() { if (root.drawerOpen) root.requestCloseDrawer() }
     }
 
     function syncWallpapersModeState() {
@@ -359,7 +368,8 @@ ApplicationWindow {
         sequence: "Escape"
         onActivated: {
             if (root.isWallpaperExpanded) root.isWallpaperExpanded = false
-            else if (!root.anyModalActive && root.drawerOpen) root.drawerOpen = false
+            else if (root.barSavePromptOpen) root.barSavePromptOpen = false
+            else if (!root.anyModalActive && root.drawerOpen) root.requestCloseDrawer()
         }
     }
     Shortcut {
@@ -408,7 +418,7 @@ ApplicationWindow {
                 var inNotif = root.notifOpen && (mouse.x >= root.notifX && mouse.x <= root.notifX + root.notifW &&
                                gy >= root.notifY && gy <= root.notifY + root.animNotifH)
                 if (!inDrawer && !inNotif && !root.anyModalActive) {
-                    root.drawerOpen = false
+                    root.requestCloseDrawer()
                 } else {
                     mouse.accepted = false
                 }
@@ -504,7 +514,7 @@ ApplicationWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return topBarContainer.pillHeight + 2
+                                if (modKey === "launcher") return topBarContainer.pillHeight + 7
                                 if (modKey === "workspaces") return wsRow.implicitWidth + 2
                                 if (modKey === "weather") return wLbl.implicitWidth + 10
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 10
@@ -523,7 +533,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; anchors.verticalCenterOffset: -1; text: ""; font.pixelSize: 13; color: "#ffffff" }
+                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: -2; anchors.verticalCenterOffset: -1; text: ""; font.pixelSize: 13; color: "#ffffff" }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 
@@ -1739,6 +1749,77 @@ ApplicationWindow {
                     property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.55
                     property vector3d u_custom_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
                     fragmentShader: "qrc:/shaders/qml/shaders/cursor_fx.frag.qsb"
+                }
+
+                // Модальный диалог сохранения при выходе из режима перетаскивания панели задач
+                Rectangle {
+                    visible: root.barSavePromptOpen
+                    anchors.fill: parent
+                    z: 990
+                    color: Qt.rgba(0, 0, 0, 0.55)
+
+                    MouseArea { anchors.fill: parent; onClicked: {} }
+
+                    GlassPanel {
+                        anchors.centerIn: parent
+                        width: 340
+                        implicitHeight: savePromptCol.implicitHeight + 28
+                        radius: (Theme && Theme.isRounded) ? 14 : 0
+
+                        ColumnLayout {
+                            id: savePromptCol
+                            anchors.fill: parent
+                            anchors.margins: 16
+                            spacing: 12
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Сохранить изменения панели?"
+                                color: "#ffffff"
+                                font.pixelSize: 13
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Вы находитесь в режиме редактирования панели задач. Сохранить новое расположение блоков перед закрытием?"
+                                color: "#cccccc"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+
+                            RowLayout {
+                                Layout.alignment: Qt.AlignHCenter
+                                spacing: 8
+
+                                StyledButton {
+                                    text: "✓ Сохранить"
+                                    isActive: true
+                                    onClicked: {
+                                        root.barSavePromptOpen = false
+                                        if (Waybar) Waybar.confirmBarEdit()
+                                        root.drawerOpen = false
+                                    }
+                                }
+
+                                StyledButton {
+                                    text: "✕ Не сохранять"
+                                    onClicked: {
+                                        root.barSavePromptOpen = false
+                                        if (Waybar) Waybar.cancelBarEdit()
+                                        root.drawerOpen = false
+                                    }
+                                }
+
+                                StyledButton {
+                                    text: "Отмена"
+                                    onClicked: root.barSavePromptOpen = false
+                                }
+                            }
+                        }
+                    }
                 }
 
                 ShaderEffect {

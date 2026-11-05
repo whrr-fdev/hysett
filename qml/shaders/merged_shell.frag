@@ -60,14 +60,15 @@ float sceneSdf(vec2 p) {
         vec2 dCenter = u_drawer_rect.xy + dHalf;
         float dDrw = sdRoundedBox(p - dCenter, dHalf, u_radius * 1.35);
 
+        // Единая колонна от верха панели до низа окна в зоне пересечения: убирает внутренний шов и ореол на стыке!
         float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
         float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
-        float ny1 = min(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y) - min(8.0, u_bar_rect.w * 0.45);
-        float ny2 = max(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y) + min(8.0, u_drawer_rect.w * 0.45);
+        float ny1 = min(u_bar_rect.y, u_drawer_rect.y);
+        float ny2 = max(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y + u_drawer_rect.w);
         if (nx2 > nx1 && ny2 > ny1) {
             vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
             vec2 nCenter = vec2(nx1, ny1) + nHalf;
-            float dNeck = sdRoundedBox(p - nCenter, nHalf, 0.0);
+            float dNeck = sdRoundedBox(p - nCenter, nHalf, u_radius);
             dDrw = min(dDrw, dNeck);
         }
 

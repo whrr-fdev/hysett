@@ -25,23 +25,21 @@ Item {
         }
 
         var w = Math.max(400, gridWrapper.width)
-        var cardH = 58
-        var gap = 10
+        var cardH = 44
+        var gap = 7
 
         if (welcomeRoot.isSearching) {
-            // При поиске: карточки выстраиваются в ОДНУ центральную колонку и поднимаются выше!
             var singleW = Math.min(440, Math.round(w * 0.56))
             var startX = Math.round((w - singleW) / 2)
             for (var m = 0; m < visList.length; ++m) {
                 var item = visList[m]
                 item.targetX = startX
-                item.targetY = m * (cardH + 8)
+                item.targetY = m * (cardH + 6)
                 item.targetW = singleW
             }
-            welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 8))
+            welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 6))
         } else {
-            // В обычном режиме: сетка из 4 колонок
-            var cols = 4
+            var cols = 5
             var colW = Math.floor((w - (cols - 1) * gap) / cols)
             for (var k = 0; k < visList.length; ++k) {
                 var card = visList[k]
@@ -88,7 +86,8 @@ Item {
         Item {
             id: scrollArea
             width: welcomeScroll.availableWidth
-            height: Math.max(welcomeScroll.availableHeight, gridWrapper.y + welcomeRoot.visibleCardsHeight + 36)
+            height: Math.max(welcomeScroll.availableHeight, gridWrapper.y + welcomeRoot.visibleCardsHeight + 24)
+            implicitHeight: height
 
             Item {
                 id: mainContainer
@@ -104,7 +103,7 @@ Item {
                     y: {
                         if (welcomeRoot.isSearching) return 26
                         var upperSpace = Math.max(heroBlock.implicitHeight + 32, Math.round((welcomeScroll.availableHeight - welcomeRoot.visibleCardsHeight) * 0.44))
-                        return Math.max(22, Math.round((upperSpace - heroBlock.implicitHeight) / 2))
+                        return 14
                     }
 
                     Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
@@ -219,7 +218,7 @@ Item {
                             return heroWrapper.y + heroWrapper.height + 20
                         }
 
-                        var minTop = heroWrapper.y + heroWrapper.height + 24
+                        var minTop = heroWrapper.y + heroWrapper.height + 14
                         var midBottom = Math.round(heroWrapper.y + heroWrapper.height + (welcomeScroll.availableHeight - (heroWrapper.y + heroWrapper.height) - welcomeRoot.visibleCardsHeight) / 2)
                         return Math.max(minTop, midBottom)
                     }
@@ -234,7 +233,7 @@ Item {
                         x: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetX : 0
                         y: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetY : 0
                         width: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetW : 220
-                        height: 58
+                        height: 44
                         radius: (Theme && Theme.isRounded) ? 16 : 0
                         color: Qt.rgba(Config ? Config.accentColor.r : 1, Config ? Config.accentColor.g : 1, Config ? Config.accentColor.b : 1, 0.11)
                         border.color: Qt.rgba(Config ? Config.accentColor.r : 1, Config ? Config.accentColor.g : 1, Config ? Config.accentColor.b : 1, 0.50)
@@ -304,7 +303,7 @@ Item {
                             x: targetX
                             y: targetY
                             width: targetW
-                            height: 58
+                            height: 44
                             opacity: matchesFilter ? 1.0 : 0.0
                             scale: matchesFilter ? 1.0 : 0.88
                             visible: opacity > 0.01
@@ -338,7 +337,7 @@ Item {
 
                             contentItem: ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 10
+                                anchors.margins: 7
                                 spacing: 2
 
                                 Text {

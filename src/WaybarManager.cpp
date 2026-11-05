@@ -164,8 +164,8 @@ void WaybarManager::loadState() {
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
-            else if (k == "left_bar_order" && !v.isEmpty()) m_leftBarOrder = v.split(',', Qt::SkipEmptyParts);
-            else if (k == "right_bar_order" && !v.isEmpty()) m_rightBarOrder = v.split(',', Qt::SkipEmptyParts);
+            else if (k == "left_bar_order" && !v.isEmpty()) { m_leftBarOrder = v.split(',', Qt::SkipEmptyParts); m_leftBarOrder.removeAll("sep"); }
+            else if (k == "right_bar_order" && !v.isEmpty()) { m_rightBarOrder = v.split(',', Qt::SkipEmptyParts); m_rightBarOrder.removeAll("sep"); }
             else {
                 for (int i = 0; i < m_specs.size(); ++i) {
                     QVariantMap m = m_specs[i].toMap();
@@ -584,9 +584,27 @@ void WaybarManager::setBarSeparators(bool v) {
 
 void WaybarManager::setBarEditMode(bool v) {
     if (m_barEditMode != v) {
+        if (v) {
+            m_backupLeftOrder = m_leftBarOrder;
+            m_backupRightOrder = m_rightBarOrder;
+            m_backupHiddenModules = m_hiddenBarModules;
+        }
         m_barEditMode = v;
         emit stateChanged();
     }
+}
+
+void WaybarManager::confirmBarEdit() {
+    m_barEditMode = false;
+    saveState(false);
+}
+
+void WaybarManager::cancelBarEdit() {
+    if (!m_backupLeftOrder.isEmpty()) m_leftBarOrder = m_backupLeftOrder;
+    if (!m_backupRightOrder.isEmpty()) m_rightBarOrder = m_backupRightOrder;
+    m_hiddenBarModules = m_backupHiddenModules;
+    m_barEditMode = false;
+    saveState(false);
 }
 
 void WaybarManager::moveBarModule(const QString &side, int fromIdx, int toIdx) {

@@ -4,39 +4,39 @@ import HySett
 
 Slider {
     id: control
-    implicitHeight: 26
+    implicitWidth: 160
+    implicitHeight: 18
+    hoverEnabled: true
 
-    background: Item {
+    background: Rectangle {
         x: control.leftPadding
         y: control.topPadding + control.availableHeight / 2 - height / 2
-        implicitWidth: 180
-        implicitHeight: 10
+        implicitWidth: 160
+        implicitHeight: 4
         width: control.availableWidth
-        height: control.hovered || control.pressed ? 12 : 9
-        Behavior on height { NumberAnimation { duration: 130 } }
+        height: implicitHeight
+        radius: (Theme && Theme.isRounded) ? 2 : 0
+        color: Qt.rgba(1, 1, 1, 0.14)
 
         Rectangle {
-            anchors.fill: parent
-            radius: (Theme && Theme.isRounded) ? height / 2 : 2
-            color: Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.55) : Qt.rgba(1, 1, 1, 0.12)
-        }
-        Rectangle {
-            width: Math.max(height, control.visualPosition * parent.width)
+            width: control.visualPosition * parent.width
             height: parent.height
-            radius: (Theme && Theme.isRounded) ? height / 2 : 2
+            radius: parent.radius
             color: Config ? Config.m3Primary : "#a8c7fa"
-            visible: control.visualPosition > 0.005
         }
     }
 
     handle: Rectangle {
         x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
         y: control.topPadding + control.availableHeight / 2 - height / 2
-        implicitWidth: control.pressed ? 6 : 8
-        implicitHeight: control.pressed ? 24 : 20
-        radius: (Theme && Theme.isRounded) ? width / 2 : 1
-        color: Config ? Config.m3Primary : "#a8c7fa"
-        border.color: Config ? Config.m3Surface : "#111318"
-        border.width: 2
+        implicitWidth: 12
+        implicitHeight: 12
+        radius: (Theme && Theme.isRounded) ? 6 : 0
+        color: control.pressed ? "#ffffff" : (Config ? Config.m3Primary : "#ffffff")
+        border.color: Qt.rgba(0, 0, 0, 0.35)
+        border.width: 1
+        scale: control.pressed || control.hovered ? 1.12 : 1.0
+        Behavior on scale { NumberAnimation { duration: 100 } }
+        Behavior on radius { NumberAnimation { duration: 140 } }
     }
 }

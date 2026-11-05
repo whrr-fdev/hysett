@@ -153,6 +153,8 @@ public:
     Q_INVOKABLE void addBarSeparator(const QString &side);
     Q_INVOKABLE void removeBarItemAt(const QString &side, int idx);
     Q_INVOKABLE void resetBarOrder();
+    Q_INVOKABLE void confirmBarEdit();
+    Q_INVOKABLE void cancelBarEdit();
 
     int cpuUsage() const { return m_cpuUsage; }
     int cpuTemp() const { return m_cpuTemp; }
@@ -268,7 +270,7 @@ private:
     bool m_mediaPlaying = false;
     QString m_mediaTitle;
     QString m_activeMprisService;
-    bool m_mediaDemoMode = true;
+    bool m_mediaDemoMode = false;
     bool m_demoPlaying = true;
     int m_demoTrackIdx = 0;
     int m_demoPosSec = 42;
@@ -279,6 +281,9 @@ private:
 
     bool m_barSeparators = false;
     bool m_barEditMode = false;
+    QStringList m_backupLeftOrder;
+    QStringList m_backupRightOrder;
+    QString m_backupHiddenModules;
     QStringList m_leftBarOrder = {"launcher", "workspaces", "weather", "media"};
     QStringList m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     QStringList m_demoTracks = {

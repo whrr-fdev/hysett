@@ -261,7 +261,7 @@ Rectangle {
             Layout.fillWidth: true
             implicitHeight: 24
             flat: true
-            onClicked: if (ApplicationWindow.window) ApplicationWindow.window.drawerOpen = false
+            onClicked: if (ApplicationWindow.window) ApplicationWindow.window.requestCloseDrawer()
 
             contentItem: Item {
                 anchors.fill: parent

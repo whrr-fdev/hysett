@@ -117,16 +117,7 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 8
                         Text { text: "Вертикальные разделители между всеми блоками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-                        StyledButton {
-                            text: "+ Разделитель слева"
-                            implicitHeight: 22
-                            onClicked: if (Waybar) Waybar.addBarSeparator("left")
-                        }
-                        StyledButton {
-                            text: "+ Разделитель справа"
-                            implicitHeight: 22
-                            onClicked: if (Waybar) Waybar.addBarSeparator("right")
-                        }
+
                         StyledSwitch {
                             checked: Waybar ? Waybar.barSeparators : false
                             onToggled: if (Waybar) Waybar.barSeparators = checked

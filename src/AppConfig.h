@@ -207,7 +207,7 @@ private:
     qreal m_opacity = 0.70;
     qreal m_sidebarOpacity = 0.00;
     qreal m_cardOpacity = 0.10;
-    qreal m_wallpapersOpacity = 0.15;
+    qreal m_wallpapersOpacity = 0.30;
     qreal m_wallpapersBlur = 0.02;
     qreal m_dialogOpacity = 0.45;
     qreal m_dialogBlur = 0.65;

@@ -8,7 +8,7 @@ Item {
     id: wallRoot
 
     property var winObj: ApplicationWindow.window
-    readonly property real curOp: (winObj && !isNaN(winObj.wallpapersLiveOpacity)) ? winObj.wallpapersLiveOpacity : (Config ? Config.wallpapersOpacity : 0.15)
+    readonly property real curOp: (winObj && !isNaN(winObj.wallpapersLiveOpacity)) ? winObj.wallpapersLiveOpacity : (Config ? Config.wallpapersOpacity : 0.30)
     readonly property real curBl: (winObj && !isNaN(winObj.wallpapersLiveBlur)) ? winObj.wallpapersLiveBlur : (Config ? Config.wallpapersBlur : 0.02)
     readonly property bool isExpanded: wallRoot.width > 1050
     property real targetScrollY: 0

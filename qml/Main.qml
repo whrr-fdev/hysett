@@ -153,7 +153,7 @@ ApplicationWindow {
     readonly property bool anyModalActive: modalOpen || barSavePromptOpen || (Monitors && Monitors.revertDialogActive)
     readonly property bool isWindowExpanded: isWallpaperExpanded
 
-    property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.15
+    property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.30
     property real wallpapersLiveBlur: Config ? Config.wallpapersBlur : 0.02
 
     Behavior on wallpapersLiveOpacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
@@ -261,7 +261,7 @@ ApplicationWindow {
     }
 
     function syncWallpapersModeState() {
-        root.wallpapersLiveOpacity = Config ? Config.wallpapersOpacity : 0.15
+        root.wallpapersLiveOpacity = Config ? Config.wallpapersOpacity : 0.30
         root.wallpapersLiveBlur = Config ? Config.wallpapersBlur : 0.02
         root.syncTabBlur()
     }
@@ -428,6 +428,7 @@ ApplicationWindow {
             property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
                                           : (Config ? Config.opacity : 0.85)
+            Behavior on currentOpacity { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
             property color surfCol: Config ? Config.m3Surface : "#111318"
             property color notifBgCol: Mako ? Mako.bgColor : surfCol
             property real notifAlpha: Mako ? Mako.bgOpacity : 0.85
@@ -498,7 +499,7 @@ ApplicationWindow {
                             if (modKey === "media") return (Waybar ? Waybar.mediaActive : false) || topBarContainer.editMode
                             return true
                         }
-                        visible: modVis
+                        visible: modVis && (modKey !== "launcher" || leftModBody.width > 0.5)
 
                         Item {
                             visible: modKey === "weather" && index > 0 && topBarContainer.macroStepGap > 0.5
@@ -518,9 +519,13 @@ ApplicationWindow {
                             id: leftModBody
                             height: topBarContainer.pillHeight
                             anchors.verticalCenter: parent.verticalCenter
+                            clip: true
+                            opacity: (modKey === "launcher" && root.drawerOpen && !topBarContainer.editMode) ? 0.0 : 1.0
+                            Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return topBarContainer.pillHeight + 8
+                                if (modKey === "launcher") return (root.drawerOpen && !topBarContainer.editMode) ? 0 : (topBarContainer.pillHeight + 8)
                                 if (modKey === "workspaces") return wsRow.implicitWidth + 2
                                 if (modKey === "weather") return wLbl.implicitWidth + 10
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 10

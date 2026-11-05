@@ -301,6 +301,38 @@ def stop_vpn():
         time.sleep(0.05)
     time.sleep(0.15)
 
+def country_flag(cc):
+    if not cc or len(cc) != 2 or not cc.isalpha():
+        return "🌐"
+    return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in cc.upper())
+
+def detect_live_location():
+    proxy_handler = urllib.request.ProxyHandler({"http": "http://127.0.0.1:2080", "https": "http://127.0.0.1:2080"})
+    opener = urllib.request.build_opener(proxy_handler)
+    try:
+        req = urllib.request.Request("http://ip-api.com/json/?fields=status,country,countryCode,city&lang=ru", headers={"User-Agent": "curl/8.0"})
+        with opener.open(req, timeout=4.0) as r:
+            d = json.loads(r.read().decode("utf-8", errors="ignore"))
+        if d.get("status") == "success" and d.get("country"):
+            flag = country_flag(d.get("countryCode", ""))
+            country = d.get("country", "")
+            city = d.get("city", "")
+            return f"{flag} {country}" + (f" ({city})" if city else "")
+    except Exception:
+        pass
+    try:
+        req = urllib.request.Request("https://ipinfo.io/json", headers={"User-Agent": "curl/8.0"})
+        with opener.open(req, timeout=4.0) as r:
+            d = json.loads(r.read().decode("utf-8", errors="ignore"))
+        cc = d.get("country", "")
+        city = d.get("city", "")
+        if cc:
+            flag = country_flag(cc)
+            return f"{flag} {cc}" + (f" ({city})" if city else "")
+    except Exception:
+        pass
+    return None
+
 def start_vpn():
     stop_vpn()
     st = load_state()
@@ -322,6 +354,14 @@ def start_vpn():
         subprocess.Popen([sb_bin, "run", "-c", SB_CONF], stdout=open("/tmp/singbox_vpn.log", "w"), stderr=subprocess.STDOUT)
         if wait_port(2080, 3.5):
             set_desktop_proxy(not use_tun)
+            loc = detect_live_location()
+            if loc:
+                st["server_name"] = loc
+                servers = st.get("servers", [])
+                idx = st.get("selected_index", 0)
+                if 0 <= idx < len(servers):
+                    servers[idx]["name"] = loc
+                save_state(st)
             return True
         else:
             stop_vpn()
@@ -393,5 +433,6 @@ if __name__ == "__main__":
         dump_status_json()
     elif cmd == "start":
         start_vpn()
+        dump_status_json()
     elif cmd == "stop":
         stop_vpn()

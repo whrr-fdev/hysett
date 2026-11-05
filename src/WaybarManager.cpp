@@ -1155,8 +1155,13 @@ void WaybarManager::toggleVpn() {
         QProcess::startDetached("pkill", {"-f", "sing-box.*singbox_vpn.json"});
         m_vpnActive = false;
     } else {
-        QProcess::startDetached("/usr/bin/python3", {script, "start"});
         m_vpnActive = true;
+        QProcess *p = new QProcess(this);
+        connect(p, &QProcess::finished, this, [this, p]() {
+            syncVpnStateFromScript(p->readAllStandardOutput());
+            p->deleteLater();
+        });
+        p->start("/usr/bin/python3", {script, "start"});
     }
     emit sysStatsChanged();
 }

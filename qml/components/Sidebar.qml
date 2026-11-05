@@ -31,44 +31,66 @@ Rectangle {
         color: Qt.rgba(1, 1, 1, 0.08)
     }
 
+    // Выделение и ховер вне скролла (HYPRLAND / Настройки / Закрыть)
     Rectangle {
-        id: globalHoverPill
+        id: staticHoverPill
         x: 4
         width: bar.width - 8
         height: 24
         radius: (Theme && Theme.isRounded) ? 12 : 0
         color: Qt.rgba(1, 1, 1, 0.08)
-        opacity: bar.hoveredBtnObj && bar.hoveredBtnObj !== bar.activeBtnObj ? 1.0 : 0.0
-        y: {
-            if (!bar.lastHoveredBtnObj) return 0
-            if (bar.lastHoveredBtnObj === archHeaderItem || bar.lastHoveredBtnObj === setBtn || bar.lastHoveredBtnObj === closeBtn) {
-                return mainColLayout.y + bar.lastHoveredBtnObj.y
-            }
-            return mainColLayout.y + catScroll.y + bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY
-        }
-
+        readonly property bool isStaticTarget: bar.lastHoveredBtnObj === archHeaderItem || bar.lastHoveredBtnObj === setBtn || bar.lastHoveredBtnObj === closeBtn
+        opacity: (bar.hoveredBtnObj && isStaticTarget && bar.hoveredBtnObj !== bar.activeBtnObj) ? 1.0 : 0.0
+        y: isStaticTarget ? (mainColLayout.y + bar.lastHoveredBtnObj.y) : 0
         Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: 90 } }
     }
 
     Rectangle {
-        id: activeCategoryPill
+        id: settingsActivePill
         x: 4
         width: bar.width - 8
         height: 24
         radius: (Theme && Theme.isRounded) ? 12 : 0
         color: Config ? Config.accentColor : "#ffffff"
-        visible: bar.currentIndex > 0 && bar.activeBtnObj !== null && bar.activeBtnObj.opacity > 0.5
-        y: {
-            if (!bar.activeBtnObj) return 34
-            if (bar.activeBtnObj === setBtn) {
-                return mainColLayout.y + setBtn.y
-            }
-            return mainColLayout.y + catScroll.y + bar.activeBtnObj.y - catScroll.contentItem.contentY
+        visible: bar.currentIndex === 17
+        y: mainColLayout.y + setBtn.y
+    }
+
+    // Клип-контейнер строго по границам catScroll (выделение никогда не залезает на HYPRLAND сверху и Настройки снизу!)
+    Item {
+        x: 0
+        y: mainColLayout.y + catScroll.y
+        width: bar.width
+        height: catScroll.height
+        clip: true
+
+        Rectangle {
+            id: globalHoverPill
+            x: 4
+            width: bar.width - 8
+            height: 24
+            radius: (Theme && Theme.isRounded) ? 12 : 0
+            color: Qt.rgba(1, 1, 1, 0.08)
+            readonly property bool isScrollTarget: bar.lastHoveredBtnObj && bar.lastHoveredBtnObj !== archHeaderItem && bar.lastHoveredBtnObj !== setBtn && bar.lastHoveredBtnObj !== closeBtn
+            opacity: (bar.hoveredBtnObj && isScrollTarget && bar.hoveredBtnObj !== bar.activeBtnObj) ? 1.0 : 0.0
+            y: isScrollTarget ? (bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY) : 0
+            Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: 90 } }
         }
 
-        Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-        Behavior on radius { NumberAnimation { duration: 150 } }
+        Rectangle {
+            id: activeCategoryPill
+            x: 4
+            width: bar.width - 8
+            height: 24
+            radius: (Theme && Theme.isRounded) ? 12 : 0
+            color: Config ? Config.accentColor : "#ffffff"
+            visible: bar.currentIndex > 0 && bar.currentIndex !== 17 && bar.activeBtnObj !== null && bar.activeBtnObj.opacity > 0.5
+            y: (bar.activeBtnObj && bar.activeBtnObj !== setBtn) ? (bar.activeBtnObj.y - catScroll.contentItem.contentY) : 0
+            Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            Behavior on radius { NumberAnimation { duration: 150 } }
+        }
     }
 
     ColumnLayout {

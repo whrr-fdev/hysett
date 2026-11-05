@@ -165,7 +165,7 @@ ScrollView {
                             onMoved: Waybar.setSpecValue(index, value)
                         }
                         Text {
-                            text: modelData.dec === 0 ? Math.round(modelData.value) + "px" : Math.round(modelData.value * 100) + "%"
+                            text: modelData.key === "bar_anim_duration" ? (Math.round(modelData.value) + "мс") : (modelData.dec === 0 ? Math.round(modelData.value) + "px" : Math.round(modelData.value * 100) + "%")
                             color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight
                         }
                         StyledButton { text: "↺"; implicitWidth: 22; onClicked: Waybar.resetSpec(index) }

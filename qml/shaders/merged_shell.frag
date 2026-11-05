@@ -60,11 +60,10 @@ float sceneSdf(vec2 p) {
         vec2 dCenter = u_drawer_rect.xy + dHalf;
         float dDrw = sdRoundedBox(p - dCenter, dHalf, u_radius * 1.35);
 
-        // Перешеек (neck) в области соприкосновения панели и окна: полностью убирает внутреннюю границу на стыке!
-        float nx1 = max(u_bar_rect.x, u_drawer_rect.x) + 1.5;
-        float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z) - 1.5;
-        float ny1 = max(u_bar_rect.y, u_drawer_rect.y) - 8.0;
-        float ny2 = min(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y + u_drawer_rect.w) + 8.0;
+        float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
+        float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
+        float ny1 = min(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y) - min(8.0, u_bar_rect.w * 0.45);
+        float ny2 = max(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y) + min(8.0, u_drawer_rect.w * 0.45);
         if (nx2 > nx1 && ny2 > ny1) {
             vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
             vec2 nCenter = vec2(nx1, ny1) + nHalf;
@@ -72,7 +71,10 @@ float sceneSdf(vec2 p) {
             dDrw = min(dDrw, dNeck);
         }
 
-        float k = u_fillet * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+        float leftStep  = abs(u_bar_rect.x - u_drawer_rect.x);
+        float rightStep = abs((u_bar_rect.x + u_bar_rect.z) - (u_drawer_rect.x + u_drawer_rect.z));
+        float sideStep  = (p.x < u_drawer_rect.x + 0.5 * u_drawer_rect.z) ? leftStep : rightStep;
+        float k = u_fillet * clamp((sideStep - 1.5) / 24.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
         d = smin(d, dDrw, k);
     }
 

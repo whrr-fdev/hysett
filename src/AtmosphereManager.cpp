@@ -606,7 +606,7 @@ void AtmosphereCanvas::collectInAppItems(QQuickItem *item, const QRectF &clip, Q
     bool isExplicit = (item->objectName() == "atmoObstacle");
 
     if (!isExplicit && item->parentItem() && item->parentItem()->objectName() == "morphCategoriesLayer") {
-        if (item->width() >= 18 && item->height() >= 14 && !strstr(cls, "Repeater")) {
+        if (strstr(cls, "Button") && item->y() < 120.0) {
             isExplicit = true;
         }
     }

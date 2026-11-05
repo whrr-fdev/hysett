@@ -115,6 +115,7 @@ void WaybarManager::initSpecs() {
     };
     add("bar_width", "Ширина панели (px)", 500.0, 1920.0, 10.0, 1902.0, 0);
     add("bar_height", "Высота панели (px)", 18.0, 48.0, 1.0, 22.0, 0);
+    add("bar_anim_duration", "Анимация ширины панели (мс)", 0.0, 350.0, 10.0, 75.0, 0);
     add("margin_top", "Отступ сверху (px)", 0.0, 30.0, 1.0, 4.0, 0);
     add("margin_bottom", "Отступ снизу (px)", 0.0, 30.0, 1.0, 4.0, 0);
     add("margin_left", "Отступ слева (px)", 0.0, 60.0, 1.0, 10.0, 0);
@@ -134,6 +135,7 @@ qreal WaybarManager::specVal(const QString &key, qreal fallback) const {
 
 int WaybarManager::barWidth() const { return qRound(specVal("bar_width", 1902.0)); }
 int WaybarManager::barHeight() const { return qRound(specVal("bar_height", 22.0)); }
+int WaybarManager::barAnimDuration() const { return qRound(specVal("bar_anim_duration", 75.0)); }
 int WaybarManager::marginTop() const { return qRound(specVal("margin_top", 4.0)); }
 int WaybarManager::marginBottom() const { return qRound(specVal("margin_bottom", 4.0)); }
 int WaybarManager::marginLeft() const { return qRound(specVal("margin_left", 10.0)); }
@@ -157,6 +159,7 @@ void WaybarManager::loadState() {
             else if (k == "hidden_bar_modules") m_hiddenBarModules = v;
             else if (k == "centered_bar") m_centeredBar = (v == "1" || v == "true");
             else if (k == "fixed_title_width") m_fixedTitleWidth = (v == "1" || v == "true");
+            else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else {
                 for (int i = 0; i < m_specs.size(); ++i) {
                     QVariantMap m = m_specs[i].toMap();
@@ -184,6 +187,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "hidden_bar_modules=" << m_hiddenBarModules << "\n";
         out << "centered_bar=" << (m_centeredBar ? "1" : "0") << "\n";
         out << "fixed_title_width=" << (m_fixedTitleWidth ? "1" : "0") << "\n";
+        out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         for (const auto &item : m_specs) {
             QVariantMap m = item.toMap();
             out << m["key"].toString() << "=" << QString::number(m["value"].toDouble(), 'f', m["dec"].toInt()) << "\n";

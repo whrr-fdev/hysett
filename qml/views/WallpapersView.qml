@@ -147,6 +147,7 @@ Item {
                     }
 
                     GlassPanel {
+                        objectName: "atmoObstacle"
                         Layout.fillWidth: true
                         implicitHeight: colAuto.implicitHeight + 16
 
@@ -274,6 +275,7 @@ Item {
                     }
 
                     GlassPanel {
+                        objectName: "atmoObstacle"
                         Layout.fillWidth: true
                         implicitHeight: colPre.implicitHeight + 16
 
@@ -414,6 +416,7 @@ Item {
 
                         Button {
                             id: wallBtn
+                            objectName: "unifiedAtmoCard"
                             anchors.horizontalCenter: parent.horizontalCenter
                             width: 210
                             height: 120
@@ -440,7 +443,6 @@ Item {
                                 }
 
                                 Rectangle {
-                        objectName: "atmoObstacle"
                                     visible: modelData.isVideo
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
@@ -533,6 +535,7 @@ Item {
 
                         Button {
                             id: hWallBtn
+                            objectName: "unifiedAtmoCard"
                             anchors.fill: parent
                             flat: true
                             onClicked: Wallpapers.applyWallpaper(modelData.path)
@@ -557,7 +560,6 @@ Item {
                                 }
 
                                 Rectangle {
-                        objectName: "atmoObstacle"
                                     visible: modelData.isVideo
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom

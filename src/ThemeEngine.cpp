@@ -47,8 +47,9 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
     m_blurTimer->setInterval(45);
     connect(m_blurTimer, &QTimer::timeout, this, [this]() {
         qreal val = m_pendingBlur;
+        int rnd = (m_cornerRadius > 0) ? 12 : 0;
         if (val <= 0.01) {
-            QProcess::startDetached("hyprctl", {"eval", "hl.config({ decoration = { blur = { enabled = false, size = 1, passes = 1 } } })"});
+            QProcess::startDetached("hyprctl", {"eval", QString("hl.config({ decoration = { rounding = %1, rounding_power = 2, blur = { enabled = false, size = 1, passes = 1 } } })").arg(rnd)});
             return;
         }
         int bPasses = 1;
@@ -63,7 +64,7 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
             bPasses = 3;
             bSize = qMax(4, qRound(4.0 + ((val - 0.80) / 0.20) * 5.0));
         }
-        QString cmd = QString("hl.config({ decoration = { blur = { enabled = true, size = %1, passes = %2 } } })").arg(bSize).arg(bPasses);
+        QString cmd = QString("hl.config({ decoration = { rounding = %3, rounding_power = 2, blur = { enabled = true, size = %1, passes = %2 } } })").arg(bSize).arg(bPasses).arg(rnd);
         QProcess::startDetached("hyprctl", {"eval", cmd});
     });
 
@@ -161,6 +162,19 @@ void ThemeEngine::setRoundedState(bool rounded) {
     emit isRoundedChanged();
 
     QString target = rounded ? "rounded" : "square";
+    int rnd = rounded ? 12 : 0;
+    QFile sf(QDir::homePath() + "/.config/hypr/scripts/theme_state.conf");
+    if (sf.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        sf.write((target + "\n").toUtf8());
+        sf.close();
+    }
+    QFile tf(QDir::homePath() + "/.config/hypr/theme.lua");
+    if (tf.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        tf.write(QString("hl.config({ decoration = { rounding = %1, rounding_power = 2 } })\n").arg(rnd).toUtf8());
+        tf.close();
+    }
+    QProcess::startDetached("hyprctl", {"keyword", "decoration:rounding", QString::number(rnd)});
+    QProcess::startDetached("hyprctl", {"eval", QString("hl.config({ decoration = { rounding = %1, rounding_power = 2 } })").arg(rnd)});
     QString scriptPath = QDir::homePath() + "/.config/hypr/scripts/theme_toggle.sh";
     if (QFile::exists(scriptPath)) {
         QProcess::startDetached("/bin/bash", {scriptPath, target});

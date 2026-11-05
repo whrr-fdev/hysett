@@ -37,7 +37,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 1.0
-            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? 200 : 15
+            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 10
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
@@ -55,7 +55,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 0.0
-            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? 240 : 15
+            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 10
             easing.type: Easing.OutQuint
         }
     }
@@ -84,7 +84,7 @@ ApplicationWindow {
     readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 200 : (hasWinTitle ? Math.min(220, winLbl.implicitWidth + 16) : 0))
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 6) : 0) + rightBarRow.implicitWidth + 14)
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
-    Behavior on smoothBaseBarW { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+    Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
     readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, animDrawerW)
     readonly property real barW: baseBarW + (expandedBarW - baseBarW) * barExpandProgress
@@ -461,7 +461,7 @@ ApplicationWindow {
             x: root.barLeft; y: root.barRectY; width: root.barW; height: root.barH; z: 10
             property int pillRadius: (Theme && Theme.isRounded) ? Math.round((height - 4) / 2) : 0
             property int pillHeight: height - 4
-            property color pillColor: (Theme && !Theme.isRounded) ? "transparent" : (Config ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Waybar ? Waybar.pillOpacity : 0.65) : Qt.rgba(0.16, 0.18, 0.22, 0.75))
+            property color pillColor: "transparent"
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
 
@@ -575,13 +575,25 @@ ApplicationWindow {
                         }
 
                         Item {
-                            width: Math.min(145, mediaTrackLbl.implicitWidth)
+                            width: 12; height: topBarContainer.pillHeight
+                            Text { anchors.centerIn: parent; text: "«"; color: rwMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"; font.pixelSize: 11; font.bold: true }
+                            MouseArea { id: rwMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaSeek(-10) }
+                        }
+
+                        Item {
+                            width: 12; height: topBarContainer.pillHeight
+                            Text { anchors.centerIn: parent; text: "»"; color: ffMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"; font.pixelSize: 11; font.bold: true }
+                            MouseArea { id: ffMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaSeek(10) }
+                        }
+
+                        Item {
+                            width: Math.min(155, mediaTrackLbl.implicitWidth)
                             height: topBarContainer.pillHeight
                             Text {
                                 id: mediaTrackLbl
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: parent.width
-                                text: Waybar ? Waybar.mediaTitle : ""
+                                text: Waybar ? (Waybar.mediaTitle + "  " + Waybar.mediaPositionText) : ""
                                 color: "#ffffff"
                                 font.pixelSize: 10
                                 font.bold: true

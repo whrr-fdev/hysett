@@ -17,6 +17,7 @@ class WaybarManager : public QObject {
 
     Q_PROPERTY(int barWidth READ barWidth NOTIFY stateChanged)
     Q_PROPERTY(int barHeight READ barHeight NOTIFY stateChanged)
+    Q_PROPERTY(int barAnimDuration READ barAnimDuration NOTIFY stateChanged)
     Q_PROPERTY(QString hiddenBarModules READ hiddenBarModules WRITE setHiddenBarModules NOTIFY stateChanged)
     Q_PROPERTY(int marginTop READ marginTop NOTIFY stateChanged)
     Q_PROPERTY(int marginBottom READ marginBottom NOTIFY stateChanged)
@@ -86,6 +87,7 @@ public:
 
     int barWidth() const;
     int barHeight() const;
+    int barAnimDuration() const;
     QString hiddenBarModules() const { return m_hiddenBarModules; }
     void setHiddenBarModules(const QString &v);
     Q_INVOKABLE bool isBarModuleVisible(const QString &mod) const;

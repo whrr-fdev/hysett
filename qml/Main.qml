@@ -79,14 +79,16 @@ ApplicationWindow {
     readonly property int customBarW: Waybar ? Math.min(maxAvailBarW, Waybar.barWidth) : maxAvailBarW
 
     readonly property bool winModVis: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("window")) : true
-    readonly property int islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winModVis ? 210 : 0) + rightBarRow.implicitWidth + 20)
-    readonly property int baseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
-    readonly property int expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, Math.round(animDrawerW))
-    readonly property int barW: Math.round(baseBarW + (expandedBarW - baseBarW) * barExpandProgress)
-    readonly property int barLeft: {
+    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winModVis ? 200 : 0) + rightBarRow.implicitWidth + 18)
+    property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
+    Behavior on smoothBaseBarW { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+    readonly property real baseBarW: smoothBaseBarW
+    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, animDrawerW)
+    readonly property real barW: baseBarW + (expandedBarW - baseBarW) * barExpandProgress
+    readonly property real barLeft: {
         if (barPos === 2) return barTop
         if (barPos === 3) return root.width - barW - barTop
-        return (isCenteredBar || customBarW < maxAvailBarW) ? Math.round((root.width - barW) * 0.5) : fullBarLeft
+        return (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - barW) * 0.5) : fullBarLeft
     }
     readonly property int barRectY: (barPos === 1) ? (root.height - barH - barTop) : barTop
 
@@ -124,7 +126,7 @@ ApplicationWindow {
     Behavior on animDrawerW { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
     Behavior on smoothTargetH { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
 
-    readonly property real drawerX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, Math.round(centerAnchorX - effDrawerW * 0.5)))
+    readonly property real drawerX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, centerAnchorX - effDrawerW * 0.5))
     readonly property real drawerY: (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
 
     // Уведомления приходят у правого края экрана (когда панель узкая) и без пустого отступа сверху!
@@ -462,12 +464,12 @@ ApplicationWindow {
 
             Row {
                 id: leftBarRow; z: 5
-                anchors.left: parent.left; anchors.leftMargin: 4; anchors.verticalCenter: parent.verticalCenter
-                spacing: 3
+                anchors.left: parent.left; anchors.leftMargin: 5; anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
 
                 Rectangle {
                     visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("launcher")) : true
-                    width: topBarContainer.pillHeight; height: topBarContainer.pillHeight
+                    width: topBarContainer.pillHeight + 2; height: topBarContainer.pillHeight
                     anchors.verticalCenter: parent.verticalCenter
                     radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                     Text { anchors.centerIn: parent; text: ""; font.pixelSize: 13; color: "#ffffff" }
@@ -510,10 +512,10 @@ ApplicationWindow {
 
             Rectangle {
                 id: centerTitlePill; z: 5
-                readonly property int availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 18)
+                readonly property real availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 14)
                 visible: root.winModVis && availGap > 40 && (root.isCenteredBar || (Waybar && Waybar.activeWindowTitle.length > 0))
-                width: root.isCenteredBar ? Math.min(198, availGap) : Math.min(360, Math.min(availGap, winLbl.implicitWidth + 16))
-                x: leftBarRow.x + leftBarRow.width + 6 + Math.max(0, Math.round((availGap - width) * 0.5))
+                width: root.isCenteredBar ? Math.min(194, availGap) : Math.min(360, Math.min(availGap, winLbl.implicitWidth + 16))
+                x: leftBarRow.x + leftBarRow.width + 5 + Math.max(0, (availGap - width) * 0.5)
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
@@ -527,11 +529,16 @@ ApplicationWindow {
                 anchors.right: parent.right; anchors.rightMargin: 3; anchors.verticalCenter: parent.verticalCenter
                 spacing: Waybar ? Waybar.spacing : 6
 
-                // Индикатор записи экрана (красная точка + время записи MM:SS слева от системной инфы)
+                // Индикатор записи экрана с плавной анимацией ширины
                 Rectangle {
-                    visible: Waybar ? Waybar.recording : false
+                    property bool isRec: Waybar ? Waybar.recording : false
+                    visible: width > 0.5
+                    opacity: isRec ? 1.0 : 0.0
+                    clip: true
                     height: topBarContainer.pillHeight
-                    width: recRow.implicitWidth + 14
+                    width: isRec ? (recRow.implicitWidth + 12) : 0
+                    Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: 180 } }
                     anchors.verticalCenter: parent.verticalCenter
                     radius: topBarContainer.pillRadius
                     color: topBarContainer.pillColor
@@ -564,14 +571,14 @@ ApplicationWindow {
 
                 Rectangle {
                     visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("sysinfo")) : true
-                    height: topBarContainer.pillHeight; width: sysRow.implicitWidth + 14
+                    height: topBarContainer.pillHeight; width: sysRow.implicitWidth + 8
                     anchors.verticalCenter: parent.verticalCenter
                     radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                     Row {
-                        id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 6
-                        Item { width: 46; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                        Item { width: 42; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                        Item { width: 46; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                        id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 2
+                        Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                        Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                        Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
                     }
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
                 }
@@ -610,7 +617,7 @@ ApplicationWindow {
                     anchors.verticalCenter: parent.verticalCenter
                     radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                     Row {
-                        id: ctrlRow; anchors.centerIn: parent; spacing: 8
+                        id: ctrlRow; anchors.centerIn: parent; spacing: 5
                         Rectangle {
                             visible: Waybar ? Waybar.vpnActive : false
                             width: 34; height: topBarContainer.pillHeight - 4
@@ -622,9 +629,9 @@ ApplicationWindow {
                             Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
                             MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
                         }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("bluetooth")) : true; width: 14; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰂯"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) } }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("network")) : true; width: 14; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) } }
-                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("clipboard")) : true; width: 14; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰅌"; color: (root.drawerOpen && root.drawerMode === "clipboard") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) } }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("bluetooth")) : true; width: 12; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰂯"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) } }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("network")) : true; width: 12; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) } }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("clipboard")) : true; width: 12; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰅌"; color: (root.drawerOpen && root.drawerMode === "clipboard") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) } }
                         Item {
                             visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("volume")) : true
                             width: volInnerRow.implicitWidth; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter

@@ -85,6 +85,7 @@ hl.on("hyprland.start", function ()
 
      --hl.exec_cmd("control-center --daemon &")
      hl.exec_cmd("/home/whrr/hysett/build/hysett --daemon &")
+     hl.exec_cmd("/usr/bin/python3 /home/whrr/.config/hypr/scripts/hysett_vpn.py start &")
 end)
 
 

@@ -11,7 +11,7 @@ RU_DOMAIN_SUFFIXES = [
     "yandex.com", "yandex.net", "ya.ru", "vk.com", "vkuseraudio.net", "userapi.com",
     "gosuslugi.ru", "sberbank.ru", "sber.ru", "tbank.ru", "tinkoff.ru",
     "ozon.ru", "ozonusercontent.com", "wb.ru", "wildberries.ru",
-    "mail.ru", "avito.ru", "2gis.com", "kinopoisk.ru", "rutube.ru", "dzen.ru", "2ip.ru", "2ip.io", "2ip.me"
+    "mail.ru", "avito.ru", "2gis.com", "kinopoisk.ru", "rutube.ru", "dzen.ru"
 ]
 
 def read_sub_urls():

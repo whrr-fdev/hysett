@@ -1,0 +1,1457 @@
+import QtQuick
+import QtQuick.Window
+import QtQuick.Controls
+import QtQuick.Layouts
+import HySett
+import "components"
+import "views"
+
+ApplicationWindow {
+    id: root
+    visible: false
+    width: 1920
+    height: 1080
+    title: "Control Center"
+    color: "transparent"
+    flags: Qt.Window | Qt.FramelessWindowHint
+
+    property bool drawerOpen: Config ? !Config.isDaemonStart() : false
+    property string drawerMode: "settings"
+    property bool isWallpaperExpanded: false
+    property int powerSelectedIndex: 0
+    property string clipSearchQuery: ""
+    property int calYear: new Date().getFullYear()
+    property int calMonth: new Date().getMonth()
+
+    property string trayMenuClass: ""
+    property string trayMenuName: ""
+    property string trayMenuSni: ""
+    property real trayMenuTargetX: 1400
+
+    property real barExpandProgress: 0.0
+    property real drawerProgress: 0.0
+    readonly property bool drawerActive: drawerProgress > 0.005 || barExpandProgress > 0.005
+
+    SequentialAnimation {
+        id: openSeqAnim
+        NumberAnimation {
+            target: root; property: "barExpandProgress"
+            to: 1.0
+            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? 200 : 15
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root; property: "drawerProgress"
+            to: 1.0; duration: 300; easing.type: Easing.OutQuint
+        }
+    }
+
+    SequentialAnimation {
+        id: closeSeqAnim
+        NumberAnimation {
+            target: root; property: "drawerProgress"
+            to: 0.0; duration: 240; easing.type: Easing.InOutCubic
+        }
+        NumberAnimation {
+            target: root; property: "barExpandProgress"
+            to: 0.0
+            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? 240 : 15
+            easing.type: Easing.OutQuint
+        }
+    }
+
+    readonly property int notifCount: (Mako && Mako.activePopups) ? Mako.activePopups.length : 0
+    readonly property bool notifOpen: notifCount > 0
+    property real notifProgress: notifOpen ? 1.0 : 0.0
+    readonly property bool notifActive: notifProgress > 0.005
+
+    Behavior on notifProgress {
+        NumberAnimation { duration: 300; easing.type: Easing.OutQuint }
+    }
+
+    readonly property int barPos: Waybar ? Waybar.barPosition : 0
+    readonly property bool isCenteredBar: Waybar ? Waybar.centeredBar : false
+    readonly property int barH: Waybar ? Waybar.barHeight : 22
+    readonly property int barTop: Waybar ? Waybar.marginTop : 4
+    readonly property int fullBarLeft: Math.max(0, (Waybar ? Waybar.marginLeft : 10) - 1)
+    readonly property int fullBarRight: Math.max(0, (Waybar ? Waybar.marginRight : 10) - 1)
+    readonly property int maxAvailBarW: Math.max(400, root.width - fullBarLeft - fullBarRight)
+    readonly property int customBarW: Waybar ? Math.min(maxAvailBarW, Waybar.barWidth) : maxAvailBarW
+
+    readonly property bool winModVis: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("window")) : true
+    readonly property int islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winModVis ? 210 : 0) + rightBarRow.implicitWidth + 20)
+    readonly property int baseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
+    readonly property int expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, Math.round(animDrawerW))
+    readonly property int barW: Math.round(baseBarW + (expandedBarW - baseBarW) * barExpandProgress)
+    readonly property int barLeft: {
+        if (barPos === 2) return barTop
+        if (barPos === 3) return root.width - barW - barTop
+        return (isCenteredBar || customBarW < maxAvailBarW) ? Math.round((root.width - barW) * 0.5) : fullBarLeft
+    }
+    readonly property int barRectY: (barPos === 1) ? (root.height - barH - barTop) : barTop
+
+    readonly property int targetDrawerW: {
+        if (drawerMode === "traymenu") return 230
+        if (drawerMode === "power") return 280
+        if (drawerMode === "calendar") return 300
+        if (drawerMode === "clipboard") return 460
+        return isWallpaperExpanded ? maxAvailBarW : Math.min(860, maxAvailBarW - 120)
+    }
+    readonly property int targetDrawerH: {
+        if (drawerMode === "traymenu") return 196
+        if (drawerMode === "power") return 295
+        if (drawerMode === "calendar") return 285
+        if (drawerMode === "clipboard") return 370
+        return isWallpaperExpanded
+               ? (root.height - (barTop + barH) - 14)
+               : Math.min(540, Config ? Config.windowHeight : 520)
+    }
+
+    property real animDrawerW: targetDrawerW
+    property real smoothTargetH: targetDrawerH
+    // Плавная анимация боковых торчащих кусков при открытии/закрытии из узкой панели!
+    readonly property real wingMix: Math.min(1.0, Math.pow(drawerProgress, 0.42) * 1.15)
+    readonly property real effDrawerW: animDrawerW
+    readonly property real animDrawerH: smoothTargetH * drawerProgress
+
+    property real centerAnchorX: {
+        if (drawerMode === "traymenu") return trayMenuTargetX
+        if (barPos === 2) return barLeft + effDrawerW * 0.5
+        if (barPos === 3) return barLeft + barW - effDrawerW * 0.5
+        return root.width * 0.5
+    }
+    Behavior on centerAnchorX { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+    Behavior on animDrawerW { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+    Behavior on smoothTargetH { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+
+    readonly property real drawerX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, Math.round(centerAnchorX - effDrawerW * 0.5)))
+    readonly property real drawerY: (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
+
+    // Уведомления приходят у правого края экрана (когда панель узкая) и без пустого отступа сверху!
+    readonly property int notifW: Mako ? Mako.width : 320
+    readonly property int notifTargetH: Math.max(44, notifStackCol.implicitHeight + 2)
+    property real smoothNotifTargetH: notifTargetH
+    Behavior on smoothNotifTargetH { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+    readonly property real animNotifH: smoothNotifTargetH * notifProgress
+    readonly property real notifX: {
+        var anc = Mako ? Mako.anchor : "top-right"
+        if (anc.indexOf("left") !== -1) return 10
+        if (anc.indexOf("center") !== -1) return Math.round((root.width - notifW) * 0.5)
+        return root.width - notifW - 10
+    }
+    readonly property real notifY: (barPos === 1)
+                                   ? ((isCenteredBar || customBarW < maxAvailBarW) ? (root.height - animNotifH - barTop) : (barRectY - animNotifH))
+                                   : ((isCenteredBar || customBarW < maxAvailBarW) ? barTop : (barRectY + barH))
+
+    property bool modalOpen: false
+    readonly property bool anyModalActive: modalOpen || (Monitors && Monitors.revertDialogActive)
+    readonly property bool isWindowExpanded: isWallpaperExpanded
+
+    property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.59
+    property real wallpapersLiveBlur: Config ? Config.wallpapersBlur : 0.15
+
+    Behavior on wallpapersLiveOpacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+    Behavior on wallpapersLiveBlur { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
+
+    function syncInputMask() {
+        if (Waybar) {
+            Waybar.syncShellRegion(root, root.drawerActive, root.notifActive,
+                                   Math.round(root.notifX), Math.round(root.notifY),
+                                   Math.round(root.notifW), Math.round(root.animNotifH))
+        }
+    }
+
+    function openDrawerWithMode(mode, tabIdx) {
+        if (root.drawerOpen) {
+            if (mode === "settings" && tabIdx !== undefined) {
+                if (root.drawerMode === "settings" && pageController.currentIndex === tabIdx) {
+                    root.drawerOpen = false
+                    return
+                }
+                root.drawerMode = "settings"
+                if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
+                if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
+                pageController.switchPage(tabIdx)
+                return
+            }
+            if (root.drawerMode === mode && tabIdx === undefined) {
+                root.drawerOpen = false
+                return
+            }
+        }
+
+        root.isWallpaperExpanded = false
+        root.drawerMode = mode
+        if (mode === "clipboard" && Waybar) {
+            root.clipSearchQuery = ""
+            Qt.callLater(() => Waybar.refreshClipboard())
+        } else if (mode === "calendar") {
+            var now = new Date()
+            root.calYear = now.getFullYear()
+            root.calMonth = now.getMonth()
+        } else if (mode === "power") {
+            root.powerSelectedIndex = 0
+        } else if (mode === "settings" && tabIdx !== undefined) {
+            if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
+            if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
+            pageController.switchPage(tabIdx)
+        }
+        root.drawerOpen = true
+    }
+
+    function openTrayContextMenu(appData, globalX) {
+        if (root.drawerOpen && root.drawerMode === "traymenu" && root.trayMenuClass === appData.class) {
+            root.drawerOpen = false
+            return
+        }
+        root.trayMenuClass = appData.class
+        root.trayMenuName = appData.name || appData.class
+        root.trayMenuSni = appData.sniService || ""
+        root.trayMenuTargetX = globalX
+        root.drawerMode = "traymenu"
+        root.drawerOpen = true
+    }
+
+    onDrawerOpenChanged: {
+        openSeqAnim.stop()
+        closeSeqAnim.stop()
+        if (drawerOpen) openSeqAnim.start()
+        else closeSeqAnim.start()
+        syncInputMask()
+        if (!drawerOpen) {
+            modalOpen = false
+            trailActive = false
+            isWallpaperExpanded = false
+            root.mousePos = Qt.point(-500, -500)
+            if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
+        } else {
+            syncTabBlur()
+        }
+    }
+    onDrawerActiveChanged: {
+        syncInputMask()
+        if (!drawerActive && Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
+    }
+    onNotifActiveChanged: syncInputMask()
+
+    Component.onCompleted: {
+        Qt.callLater(syncInputMask)
+        if (drawerOpen) applyPendingLaunchCmd()
+    }
+    Connections {
+        target: Waybar
+        function onStateChanged() { root.syncInputMask() }
+        function onCloseDrawerRequested() { if (root.drawerOpen) root.drawerOpen = false }
+    }
+
+    function syncWallpapersModeState() {
+        if (root.isWindowExpanded) {
+            root.wallpapersLiveOpacity = 0.0
+            root.wallpapersLiveBlur = 0.0
+        } else {
+            root.wallpapersLiveOpacity = Config ? Config.wallpapersOpacity : 0.59
+            root.wallpapersLiveBlur = Config ? Config.wallpapersBlur : 0.15
+        }
+        root.syncTabBlur()
+    }
+    onIsWindowExpandedChanged: syncWallpapersModeState()
+
+    property point mousePos: Qt.point(-500, -500)
+    property point trail1: Qt.point(-500, -500)
+    property point trail2: Qt.point(-500, -500)
+    property point trail3: Qt.point(-500, -500)
+    property bool trailActive: false
+    property point clickPos: Qt.point(-500, -500)
+    property real liquidTime: 0.0
+
+    function handleExternalTrigger() {
+        if (!Config) return
+        var cmd = Config.consumeLaunchCmd()
+        if (cmd === "wallpaper") {
+            root.drawerMode = "settings"; pageController.jumpToPageInstant(14); root.isWallpaperExpanded = true; root.drawerOpen = true; root.syncWallpapersModeState()
+        } else if (cmd === "apps") {
+            root.openDrawerWithMode("settings", 12)
+        } else if (cmd === "search") {
+            root.openDrawerWithMode("settings", 16)
+        } else if (cmd === "power") {
+            root.openDrawerWithMode("power")
+        } else if (cmd === "clipboard") {
+            root.openDrawerWithMode("clipboard")
+        } else {
+            root.openDrawerWithMode("settings")
+        }
+    }
+
+    function applyPendingLaunchCmd() {
+        if (!Config) return
+        var cmd = Config.consumeLaunchCmd()
+        if (cmd === "wallpaper") {
+            root.drawerMode = "settings"; pageController.jumpToPageInstant(14); root.isWallpaperExpanded = true; root.syncWallpapersModeState()
+        } else if (cmd === "apps") {
+            root.drawerMode = "settings"; pageController.jumpToPageInstant(12)
+        } else if (cmd === "search") {
+            root.drawerMode = "settings"; pageController.jumpToPageInstant(16)
+        } else if (cmd === "power") {
+            root.drawerMode = "power"
+        } else if (cmd === "clipboard") {
+            root.drawerMode = "clipboard"; if (Waybar) Qt.callLater(() => Waybar.refreshClipboard())
+        }
+    }
+
+    function syncTabBlur() {
+        if (!Theme || !Config) return
+        if (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass) {
+            var targetBlur = root.isWindowExpanded ? 0.0 : root.wallpapersLiveBlur
+            Theme.applyEffectiveBlur(targetBlur)
+        } else {
+            Theme.applyEffectiveBlur(Theme.windowBlur)
+        }
+    }
+
+    function triggerClickRipple(cx, cy) {
+        if (Config && Config.clickFlashIntensity <= 0.01) return
+        clickPos = Qt.point(cx, cy)
+        clickAnim.restart()
+    }
+
+    function triggerPowerAction(idx) {
+        root.drawerOpen = false
+        if (!Waybar) return
+        if (idx === 0) Waybar.runCommand("hyprlock")
+        else if (idx === 1) Waybar.runCommand("hyprlock & systemctl suspend")
+        else if (idx === 2) Waybar.runCommand("hyprlock & systemctl hibernate")
+        else if (idx === 3) Waybar.runCommand("hyprshutdown --post-cmd \"bash -c 'pkill -KILL -u $(whoami)'\"")
+        else if (idx === 4) Waybar.runCommand("systemctl reboot")
+        else if (idx === 5) Waybar.runCommand("systemctl poweroff")
+    }
+
+    NumberAnimation on liquidTime {
+        from: 0.0; to: 628.3185; duration: 120000
+        loops: Animation.Infinite
+        running: root.drawerActive
+    }
+
+    Timer {
+        id: trailTimer
+        interval: 16
+        running: root.drawerActive && root.trailActive
+        repeat: true
+        onTriggered: {
+            root.trail1 = Qt.point(root.trail1.x + (root.mousePos.x - root.trail1.x) * 0.38,
+                                   root.trail1.y + (root.mousePos.y - root.trail1.y) * 0.38)
+            root.trail2 = Qt.point(root.trail2.x + (root.trail1.x - root.trail2.x) * 0.30,
+                                   root.trail2.y + (root.trail1.y - root.trail2.y) * 0.30)
+            root.trail3 = Qt.point(root.trail3.x + (root.trail2.x - root.trail3.x) * 0.24,
+                                   root.trail3.y + (root.trail2.y - root.trail3.y) * 0.24)
+            var d = Math.abs(root.mousePos.x - root.trail3.x) + Math.abs(root.mousePos.y - root.trail3.y)
+            if (d < 0.8) root.trailActive = false
+        }
+    }
+
+    Shortcut {
+        sequence: "Escape"
+        onActivated: {
+            if (root.isWallpaperExpanded) root.isWallpaperExpanded = false
+            else if (!root.anyModalActive && root.drawerOpen) root.drawerOpen = false
+        }
+    }
+    Shortcut {
+        sequence: "Up"
+        enabled: root.drawerOpen && root.drawerMode === "power"
+        onActivated: root.powerSelectedIndex = (root.powerSelectedIndex + 5) % 6
+    }
+    Shortcut {
+        sequence: "Down"
+        enabled: root.drawerOpen && root.drawerMode === "power"
+        onActivated: root.powerSelectedIndex = (root.powerSelectedIndex + 1) % 6
+    }
+    Shortcut {
+        sequence: "Return"
+        enabled: root.drawerOpen && root.drawerMode === "power"
+        onActivated: root.triggerPowerAction(root.powerSelectedIndex)
+    }
+
+    Item {
+        id: sceneRoot
+        anchors.fill: parent
+
+
+        // Отслеживание мыши в глобальных координатах сцены (свет курсора плавно переходит на панель задач!)
+        HoverHandler {
+            enabled: root.drawerActive
+            onPointChanged: {
+                if (root.mousePos.x < -100) {
+                    root.trail1 = point.position; root.trail2 = point.position; root.trail3 = point.position
+                }
+                root.mousePos = point.position; root.trailActive = true
+            }
+        }
+
+        MouseArea {
+            x: 0
+            y: root.barTop + root.barH
+            width: parent.width
+            height: parent.height - y
+            enabled: root.drawerOpen
+            z: 1
+            onPressed: (mouse) => {
+                var gy = mouse.y + y
+                var inDrawer = (mouse.x >= root.drawerX && mouse.x <= root.drawerX + root.animDrawerW &&
+                                gy >= root.drawerY && gy <= root.drawerY + root.animDrawerH)
+                var inNotif = root.notifOpen && (mouse.x >= root.notifX && mouse.x <= root.notifX + root.notifW &&
+                               gy >= root.notifY && gy <= root.notifY + root.animNotifH)
+                if (!inDrawer && !inNotif && !root.anyModalActive) {
+                    root.drawerOpen = false
+                } else {
+                    mouse.accepted = false
+                }
+            }
+        }
+
+        // ЕДИНЫЙ GLSL-ШЕЙДЕР (ПАНЕЛЬ + ОКНО + УВЕДОМЛЕНИЯ + СВЕТ КУРСОРА НА ПАНЕЛИ И ОКНЕ)
+        ShaderEffect {
+            id: mergedShellBg
+            anchors.fill: parent
+            z: 2
+            property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
+                                          ? Math.max(0.18, root.wallpapersLiveOpacity)
+                                          : (Config ? Config.opacity : 0.85)
+            property color surfCol: Config ? Config.m3Surface : "#111318"
+            property color notifBgCol: Mako ? Mako.bgColor : surfCol
+            property real notifAlpha: Mako ? Mako.bgOpacity : 0.85
+            property color outCol: (root.notifActive && Mako && Mako.popupCritical) ? Mako.criticalBorderColor : (Config ? Config.m3Outline : "#444854")
+
+            property vector2d u_resolution: Qt.vector2d(width, height)
+            property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.barH)
+            property vector4d u_drawer_rect: Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
+            property vector4d u_notif_rect: Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
+            property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
+            property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
+            property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, (root.drawerActive || root.notifActive) ? 0.36 : 0.16)
+            property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
+            property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
+            property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88
+            property real u_radius: (Theme && Theme.isRounded) ? 11.0 : 0.0
+            property real u_fillet: (Theme && Theme.isRounded) ? 20.0 : 0.0
+            property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0
+            property real u_time: root.liquidTime * (Config ? Config.borderGlowSpeed : 1.0)
+            property real u_glow_intensity: (root.drawerActive && Config && Config.borderGlowEnabled) ? Config.borderGlowIntensity : 0.0
+            property real u_glow_spread: Config ? Config.borderGlowSpread : 0.45
+            property real u_glow_mode: Config ? Config.borderGlowColorMode : 4
+            property real u_glow_dir: Config ? Config.borderGlowDirection : 0
+            property real u_cursor_strength: Config ? Config.cursorGlowIntensity : 0.65
+            property vector2d u_mouse: Qt.vector2d(root.mousePos.x, root.mousePos.y)
+            property vector2d u_trail1: Qt.vector2d(root.trail1.x, root.trail1.y)
+            property vector2d u_trail2: Qt.vector2d(root.trail2.x, root.trail2.y)
+            fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
+        }
+
+        // =====================================================================
+        // ВСТРОЕННАЯ ПАНЕЛЬ ЗАДАЧ (НА ВСЮ ШИРИНУ ИЛИ ОСТРОВОК ПО ЦЕНТРУ)
+        // =====================================================================
+        Item {
+            id: topBarContainer
+            x: root.barLeft; y: root.barRectY; width: root.barW; height: root.barH; z: 10
+            property int pillRadius: (Theme && Theme.isRounded) ? Math.round((height - 4) / 2) : 0
+            property int pillHeight: height - 4
+            property color pillColor: (Theme && !Theme.isRounded) ? "transparent" : (Config ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Waybar ? Waybar.pillOpacity : 0.65) : Qt.rgba(0.16, 0.18, 0.22, 0.75))
+
+            MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+
+            Row {
+                id: leftBarRow; z: 5
+                anchors.left: parent.left; anchors.leftMargin: 4; anchors.verticalCenter: parent.verticalCenter
+                spacing: 3
+
+                Rectangle {
+                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("launcher")) : true
+                    width: topBarContainer.pillHeight; height: topBarContainer.pillHeight
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                    Text { anchors.centerIn: parent; text: ""; font.pixelSize: 13; color: "#ffffff" }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
+                }
+
+                Rectangle {
+                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("workspaces")) : true
+                    height: topBarContainer.pillHeight; width: wsRow.implicitWidth + 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                    WheelHandler { onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
+                    Row {
+                        id: wsRow; anchors.centerIn: parent; spacing: 0
+                        Repeater {
+                            model: Waybar ? Waybar.workspaces : []
+                            delegate: Rectangle {
+                                property bool act: modelData.active === true
+                                property bool occ: (modelData.windows || 0) > 0
+                                width: 20; height: topBarContainer.pillHeight - 4
+                                anchors.verticalCenter: parent.verticalCenter
+                                radius: (Theme && Theme.isRounded) ? height / 2 : 0
+                                color: act ? (Config ? Config.m3Primary : "#ffffff") : (occ ? Qt.rgba(1,1,1,0.10) : "transparent")
+                                Text { anchors.centerIn: parent; text: modelData.id; font.pixelSize: 10; font.bold: parent.act; color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.occ ? "#ffffff" : "#767b8a") }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id) }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("weather")) : true
+                    height: topBarContainer.pillHeight; width: wLbl.implicitWidth + 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                    Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
+                }
+            }
+
+            Rectangle {
+                id: centerTitlePill; z: 5
+                visible: root.winModVis && (root.isCenteredBar || (Waybar && Waybar.activeWindowTitle.length > 0))
+                x: Math.round((parent.width - width) * 0.5)
+                anchors.verticalCenter: parent.verticalCenter
+                height: topBarContainer.pillHeight
+                width: root.isCenteredBar ? 198 : Math.min(360, winLbl.implicitWidth + 16)
+                radius: topBarContainer.pillRadius
+                color: (Waybar && Waybar.activeWindowTitle.length > 0) ? topBarContainer.pillColor : "transparent"
+                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(parent.width - 10, implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: "#ececec"; font.pixelSize: 10; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+            }
+
+            Row {
+                id: rightBarRow; z: 5
+                anchors.right: parent.right; anchors.rightMargin: 3; anchors.verticalCenter: parent.verticalCenter
+                spacing: Waybar ? Waybar.spacing : 6
+
+                Rectangle {
+                    visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("sysinfo")) : true
+                    height: topBarContainer.pillHeight; width: sysRow.implicitWidth + 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                    Row {
+                        id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 6
+                        Item { width: 46; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                        Item { width: 42; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                        Item { width: 46; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
+                }
+
+                Rectangle {
+                    visible: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && Waybar && Waybar.trayApps.length > 0
+                    height: topBarContainer.pillHeight; width: trayRow.implicitWidth + 10
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                    Row {
+                        id: trayRow; anchors.centerIn: parent; spacing: 7
+                        Repeater {
+                            model: Waybar ? Waybar.trayApps : []
+                            delegate: Item {
+                                id: trayItemDel; width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
+                                Image { anchors.fill: parent; source: "image://appicon/" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
+                                MouseArea {
+                                    anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton) {
+                                            var gp = trayItemDel.mapToItem(sceneRoot, trayItemDel.width * 0.5, 0)
+                                            root.openTrayContextMenu(modelData, gp.x)
+                                        } else {
+                                            root.drawerOpen = false
+                                            if (Waybar) Waybar.activateTrayApp(modelData.class, modelData.sniService || "")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Rectangle {
+                    height: topBarContainer.pillHeight; width: ctrlRow.implicitWidth + 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                    Row {
+                        id: ctrlRow; anchors.centerIn: parent; spacing: 8
+                        Rectangle {
+                            visible: Waybar ? Waybar.vpnActive : false
+                            width: 34; height: topBarContainer.pillHeight - 4
+                            anchors.verticalCenter: parent.verticalCenter
+                            radius: (Theme && Theme.isRounded) ? 5 : 0
+                            color: "transparent"
+                            border.color: "#ffffff"
+                            border.width: 1
+                            Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
+                        }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("bluetooth")) : true; width: 14; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰂯"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) } }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("network")) : true; width: 14; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) } }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("clipboard")) : true; width: 14; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "󰅌"; color: (root.drawerOpen && root.drawerMode === "clipboard") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) } }
+                        Item {
+                            visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("volume")) : true
+                            width: volInnerRow.implicitWidth; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter
+                            Row { id: volInnerRow; anchors.centerIn: parent; spacing: 4; Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : "#ffffff"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } }
+                            WheelHandler { onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
+                        }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("language")) : true; width: 20; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: Waybar ? Waybar.kbLayout : "RU"; color: "#ffffff"; font.pixelSize: 10; font.bold: true } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 25) } }
+                        Item {
+                            visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("clock")) : true
+                            width: barClockText.implicitWidth; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter
+                            Text { id: barClockText; anchors.centerIn: parent; text: Qt.formatDateTime(new Date(), "hh:mm"); color: (root.drawerOpen && root.drawerMode === "calendar") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 10; font.bold: true; Timer { interval: 1000; running: true; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") } }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar") }
+                        }
+                        Item { visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("power")) : true; width: 11; height: topBarContainer.pillHeight; anchors.verticalCenter: parent.verticalCenter; Text { anchors.centerIn: parent; text: "⏻"; color: "#ffffff"; font.pixelSize: 12 } MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") } }
+                    }
+                }
+            }
+        }
+
+        // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (РАЗДЕЛИТЕЛЬНЫЕ ЛИНИИ + СЧЕТЧИК "+N СКРЫТЫХ")
+        Item {
+            id: notifClipBox
+            x: root.notifX; y: root.notifY; width: root.notifW; height: root.animNotifH
+            clip: true; visible: root.notifActive; z: 8
+
+            Column {
+                id: notifStackCol
+                width: root.notifW
+                y: -(1.0 - root.notifProgress) * 18
+                opacity: Math.min(1.0, root.notifProgress * 1.35)
+                spacing: 0; topPadding: 0; bottomPadding: 2
+
+                Repeater {
+                    model: Mako ? Mako.activePopups : []
+                    delegate: Item {
+                        width: root.notifW
+                        height: Math.max(42, notifTextCol.implicitHeight + (Mako ? Mako.padding : 10))
+
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; anchors.topMargin: 5; anchors.bottomMargin: 5; spacing: 8
+                            Image { visible: Mako && Mako.icons && modelData.icon && modelData.icon.length > 0; source: visible ? ("image://appicon/" + modelData.icon) : ""; Layout.preferredWidth: 22; Layout.preferredHeight: 22; sourceSize: Qt.size(22, 22); Layout.alignment: Qt.AlignVCenter }
+                            ColumnLayout {
+                                id: notifTextCol; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: 1
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text { text: modelData.summary; color: modelData.critical ? (Mako ? Mako.criticalBorderColor : "#ff6b6b") : (Mako ? Mako.textColor : "#ffffff"); font.pixelSize: Mako ? Mako.fontSize : 11; font.bold: true; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                    Text { text: "✕"; color: "#888888"; font.pixelSize: 9; Layout.alignment: Qt.AlignTop }
+                                }
+                                Text { text: modelData.body; color: Mako ? Qt.lighter(Mako.textColor, 0.85) : "#cccccc"; font.pixelSize: Mako ? Math.max(8, Mako.fontSize - 1) : 10; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                            }
+                        }
+
+                        // Разделительная линия между уведомлениями
+                        Rectangle {
+                            visible: index < root.notifCount - 1 || (Mako && Mako.hiddenPopupCount > 0)
+                            anchors.bottom: parent.bottom
+                            anchors.left: parent.left; anchors.right: parent.right
+                            anchors.leftMargin: 10; anchors.rightMargin: 10
+                            height: 1
+                            color: Qt.rgba(1, 1, 1, 0.14)
+                        }
+
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Mako) Mako.dismissPopup(modelData.id) }
+                    }
+                }
+
+                // Плашка "+N скрытых", если уведомлений больше лимита maxVisible
+                Item {
+                    visible: Mako && Mako.hiddenPopupCount > 0
+                    width: root.notifW
+                    height: visible ? 24 : 0
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: "+" + (Mako ? Mako.hiddenPopupCount : 0) + " скрытых"
+                        color: "#aaaaaa"
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: if (Mako) Mako.dismissAll()
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // ВЫЕЗЖАЮЩИЙ КОНТЕЙНЕР (СИММЕТРИЧНЫЙ ПО ЦЕНТРУ!)
+        // =====================================================================
+        Item {
+            id: drawerClipBox
+            x: root.drawerX
+            y: root.drawerY
+            width: root.effDrawerW
+            height: root.animDrawerH
+            clip: true
+            visible: root.drawerActive
+            z: 5
+
+            Item {
+                id: drawerInner
+                width: root.effDrawerW
+                height: root.targetDrawerH
+                y: -(1.0 - root.drawerProgress) * (root.targetDrawerH * 0.32)
+                opacity: Math.min(1.0, root.drawerProgress * 1.35)
+
+                MouseArea {
+                    anchors.fill: parent; z: 1000
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton; hoverEnabled: false
+                    onPressed: (mouse) => { root.triggerClickRipple(mouse.x, mouse.y); mouse.accepted = false }
+                }
+
+                // 0. ПКМ-МЕНЮ ТРЕЯ
+                Item {
+                    anchors.fill: parent
+                    visible: root.drawerMode === "traymenu"
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 12; spacing: 5
+                        Text {
+                            text: root.trayMenuName
+                            color: "#ffffff"; font.pixelSize: 12; font.bold: true
+                            Layout.alignment: Qt.AlignHCenter; Layout.bottomMargin: 2
+                        }
+                        Repeater {
+                            model: [
+                                { label: "󰖲  Открыть / Развернуть", act: 0 },
+                                { label: "󰁁  На текущий стол", act: 1 },
+                                { label: "󰘕  Свернуть в трей", act: 2 },
+                                { label: "󰍜  Меню приложения", act: 3 },
+                                { label: "✕  Выйти из программы", act: 4 }
+                            ]
+                            delegate: Rectangle {
+                                Layout.fillWidth: true; Layout.fillHeight: true
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: tmMouse.containsMouse ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
+                                border.color: tmMouse.containsMouse ? "transparent" : Qt.rgba(1,1,1,0.14)
+                                border.width: 1
+                                Text {
+                                    anchors.centerIn: parent; text: modelData.label; font.pixelSize: 11
+                                    color: tmMouse.containsMouse ? (Config ? Config.accentTextColor : "#000000") : (modelData.act === 4 ? "#ff6b6b" : "#ffffff")
+                                }
+                                MouseArea {
+                                    id: tmMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        root.drawerOpen = false
+                                        if (Waybar) Waybar.trayContextAction(root.trayMenuClass, root.trayMenuSni, modelData.act)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 1. POWER MENU
+                Item {
+                    anchors.fill: parent
+                    visible: root.drawerMode === "power"
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 16; spacing: 6
+                        Text { text: "Power Menu"; color: "#ffffff"; font.pixelSize: 13; font.bold: true; Layout.alignment: Qt.AlignHCenter; Layout.bottomMargin: 2 }
+                        Repeater {
+                            model: [
+                                { label: "󰌾   Lock", idx: 0 },
+                                { label: "󰒲   Sleep", idx: 1 },
+                                { label: "󰤄   Hibernate", idx: 2 },
+                                { label: "󰍃   Logout", idx: 3 },
+                                { label: "󰜉   Reboot", idx: 4 },
+                                { label: "⏻   Shutdown", idx: 5 }
+                            ]
+                            delegate: Rectangle {
+                                Layout.fillWidth: true; Layout.fillHeight: true
+                                property bool isSel: root.powerSelectedIndex === modelData.idx || pmMouse.containsMouse
+                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                color: isSel ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
+                                border.color: isSel ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.18)
+                                border.width: 1
+                                Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 12; font.bold: parent.isSel; color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff" }
+                                MouseArea { id: pmMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.powerSelectedIndex = modelData.idx; onClicked: root.triggerPowerAction(modelData.idx) }
+                            }
+                        }
+                    }
+                }
+
+                // 2. БУФЕР ОБМЕНА (БЕЗ ПРОЛАГОВ: АСИНХРОННЫЕ ПРЕВЬЮ И КЭШ)
+                Item {
+                    anchors.fill: parent
+                    visible: root.drawerMode === "clipboard"
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 14; spacing: 8
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text { text: "󰅌  История буфера обмена"; color: "#ffffff"; font.pixelSize: 13; font.bold: true; Layout.fillWidth: true }
+                            StyledButton { text: "Очистить"; implicitHeight: 22; onClicked: if (Waybar) Waybar.clearClipboard() }
+                        }
+                        TextField {
+                            Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
+                            color: "#ffffff"; font.pixelSize: 11; placeholderText: "Поиск в буфере..."; placeholderTextColor: "#777777"
+                            text: root.clipSearchQuery
+                            onTextChanged: root.clipSearchQuery = text.toLowerCase()
+                            background: GlassPanel { radius: (Theme && Theme.isRounded) ? 10 : 0 }
+                        }
+                        ListView {
+                            Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
+                            cacheBuffer: 400
+                            model: Waybar ? Waybar.clipboardItems : []
+                            delegate: Rectangle {
+                                property bool matches: root.clipSearchQuery.length === 0 || modelData.label.toLowerCase().indexOf(root.clipSearchQuery) !== -1
+                                width: ListView.view.width
+                                height: matches ? (modelData.isImage ? 54 : 32) : 0
+                                visible: matches
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: clipItemMouse.containsMouse ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
+                                border.color: clipItemMouse.containsMouse ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.16)
+                                border.width: 1
+                                RowLayout {
+                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
+                                    Text {
+                                        text: modelData.label
+                                        color: clipItemMouse.containsMouse ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true
+                                    }
+                                    Image {
+                                        visible: modelData.isImage && modelData.thumb.length > 0
+                                        source: visible ? ("file://" + modelData.thumb) : ""
+                                        asynchronous: true
+                                        Layout.preferredWidth: 44; Layout.preferredHeight: 44
+                                        fillMode: Image.PreserveAspectCrop
+                                    }
+                                }
+                                MouseArea {
+                                    id: clipItemMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (Waybar) Waybar.selectClipboardItem(modelData.index)
+                                        root.drawerOpen = false
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3. КАЛЕНДАРЬ
+                Item {
+                    anchors.fill: parent
+                    visible: root.drawerMode === "calendar"
+                    ColumnLayout {
+                        anchors.fill: parent; anchors.margins: 14; spacing: 8
+                        RowLayout {
+                            Layout.fillWidth: true
+                            StyledButton {
+                                text: "‹"; isIconOnly: true; implicitHeight: 24; implicitWidth: 24
+                                onClicked: {
+                                    if (root.calMonth === 0) { root.calMonth = 11; root.calYear-- }
+                                    else root.calMonth--
+                                }
+                            }
+                            Text {
+                                Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                                text: ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][root.calMonth] + " " + root.calYear
+                                color: "#ffffff"; font.pixelSize: 13; font.bold: true
+                            }
+                            StyledButton {
+                                text: "›"; isIconOnly: true; implicitHeight: 24; implicitWidth: 24
+                                onClicked: {
+                                    if (root.calMonth === 11) { root.calMonth = 0; root.calYear++ }
+                                    else root.calMonth++
+                                }
+                            }
+                        }
+                        GridLayout {
+                            Layout.fillWidth: true; columns: 7; columnSpacing: 4; rowSpacing: 4
+                            Repeater {
+                                model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
+                                delegate: Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData; color: "#888888"; font.pixelSize: 10; font.bold: true }
+                            }
+                            Repeater {
+                                model: 42
+                                delegate: Rectangle {
+                                    Layout.fillWidth: true; Layout.preferredHeight: 26
+                                    property var cellInfo: {
+                                        var firstDay = (new Date(root.calYear, root.calMonth, 1).getDay() + 6) % 7
+                                        var daysInM = new Date(root.calYear, root.calMonth + 1, 0).getDate()
+                                        var dNum = index - firstDay + 1
+                                        var valid = (dNum >= 1 && dNum <= daysInM)
+                                        var now = new Date()
+                                        var isToday = valid && (dNum === now.getDate() && root.calMonth === now.getMonth() && root.calYear === now.getFullYear())
+                                        return { day: valid ? dNum : "", valid: valid, today: isToday }
+                                    }
+                                    radius: (Theme && Theme.isRounded) ? 6 : 0
+                                    color: cellInfo.today ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
+                                    border.color: cellInfo.today ? "transparent" : (cellInfo.valid ? Qt.rgba(1,1,1,0.08) : "transparent")
+                                    border.width: 1
+                                    Text {
+                                        anchors.centerIn: parent; text: parent.cellInfo.day
+                                        color: parent.cellInfo.today ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        font.pixelSize: 11; font.bold: parent.cellInfo.today
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. ОСНОВНЫЕ ВКЛАДКИ НАСТРОЕК
+                Item {
+                    id: scaledRoot
+                    visible: root.drawerMode === "settings"
+                    width: parent.width / (Config ? Config.uiScale : 1.0)
+                    height: parent.height / (Config ? Config.uiScale : 1.0)
+                    scale: Config ? Config.uiScale : 1.0
+                    transformOrigin: Item.TopLeft
+                    clip: true
+                    layer.enabled: root.anyModalActive && Config && Config.dialogBlur > 0.01
+                    layer.smooth: true
+                    layer.effect: ShaderEffect {
+                        property vector2d u_resolution: Qt.vector2d(scaledRoot.width, scaledRoot.height)
+                        property real u_blur: Config ? Config.dialogBlur : 0.65
+                        fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                    }
+                    Item {
+                    id: pageController
+                    anchors.fill: parent
+                    clip: true
+
+                    property int currentIndex: 0
+                    property int previousIndex: 0
+                    property bool inTransition: false
+                    property int sidebarW: 136
+
+                    onCurrentIndexChanged: {
+                        root.syncWallpapersModeState()
+                    }
+
+                    function basePageX(idx) { return idx === 0 ? 0 : sidebarW }
+                    function basePageW(idx) { return idx === 0 ? pageController.width : (pageController.width - sidebarW) }
+
+                    function stopAllTransitions() {
+                        pageSlideAnim.stop()
+                        pageFadeAnim.stop()
+                        depthTransition.stop()
+                        bounceTransition.stop()
+                        vortexTransition.stop()
+                        blackholeTransition.stop()
+                        portalTransition.stop()
+                        shatterTransition.stop()
+                    }
+
+                    function jumpToPageInstant(targetIdx) {
+                        stopAllTransitions()
+                        inTransition = false
+                        for (var i = 0; i < pageRepeater.count; ++i) {
+                            var p = pageRepeater.itemAt(i)
+                            if (p) {
+                                p.visible = (i === targetIdx)
+                                p.opacity = (i === targetIdx) ? 1.0 : 0.0
+                                p.x = basePageX(i)
+                                p.y = 0
+                                p.scale = 1.0
+                                p.rotation = 0
+                                p.vortexProgress = 0.0
+                            }
+                        }
+                        previousIndex = targetIdx
+                        currentIndex = targetIdx
+                        var tp = pageRepeater.itemAt(targetIdx)
+                        if (tp && tp.item && tp.item.focusSearchInput) Qt.callLater(tp.item.focusSearchInput)
+                    }
+
+                    function resetToWelcomeInstant() {
+                        jumpToPageInstant(0)
+                    }
+
+                    function runTransition(mode, oldPage, newPage, oldIdx, newIdx, toForward) {
+                        stopAllTransitions()
+                        var dur = Math.max(40, Config.animDuration)
+                        var oldBaseX = basePageX(oldIdx)
+                        var newBaseX = basePageX(newIdx)
+                        var w = basePageW(newIdx)
+
+                        oldPage.x = oldBaseX; oldPage.y = 0; oldPage.scale = 1.0; oldPage.rotation = 0; oldPage.opacity = 1.0; oldPage.vortexProgress = 0.0; oldPage.vortexDir = 1.0; oldPage.vortexMode = 0.0
+                        newPage.x = newBaseX; newPage.y = 0; newPage.scale = 1.0; newPage.rotation = 0; newPage.opacity = 0.0; newPage.vortexProgress = 0.0; newPage.vortexDir = -1.0; newPage.vortexMode = 0.0
+
+                        if (mode === "none" || dur <= 15) {
+                            oldPage.visible = false; oldPage.opacity = 0.0
+                            newPage.visible = true; newPage.opacity = 1.0
+                            inTransition = false
+                            return
+                        }
+
+                        inTransition = true
+
+                        if (mode === "slide") {
+                            var offset = toForward ? w * 0.45 : -w * 0.45
+                            newPage.x = newBaseX + offset; newPage.opacity = 0.0; newPage.visible = true
+                            slideOutAnim.target = oldPage; slideOutAnim.from = oldBaseX; slideOutAnim.to = oldBaseX - offset * 0.6; slideOutAnim.duration = dur
+                            slideOutOp.target = oldPage; slideOutOp.duration = dur * 0.85
+                            slideInAnim.target = newPage; slideInAnim.from = newPage.x; slideInAnim.to = newBaseX; slideInAnim.duration = dur
+                            slideInOp.target = newPage; slideInOp.duration = dur
+                            pageSlideAnim.start()
+                        } else if (mode === "depth") {
+                            newPage.scale = toForward ? 1.12 : 0.88; newPage.visible = true
+                            depthOutOp.target = oldPage; depthOutOp.duration = dur
+                            depthOutSc.target = oldPage; depthOutSc.to = toForward ? 0.86 : 1.12; depthOutSc.duration = dur
+                            depthInOp.target = newPage; depthInOp.duration = dur
+                            depthInSc.target = newPage; depthInSc.from = newPage.scale; depthInSc.duration = dur
+                            depthTransition.start()
+                        } else if (mode === "bounce") {
+                            newPage.y = toForward ? 70 : -70; newPage.scale = 0.94; newPage.visible = true
+                            bounceOutOp.target = oldPage; bounceOutOp.duration = dur * 0.75
+                            bounceOutY.target = oldPage; bounceOutY.to = toForward ? -40 : 40; bounceOutY.duration = dur
+                            bounceInOp.target = newPage; bounceInOp.duration = dur
+                            bounceInY.target = newPage; bounceInY.from = newPage.y; bounceInY.duration = dur * 1.15
+                            bounceInSc.target = newPage; bounceInSc.duration = dur * 1.15
+                            bounceTransition.start()
+                        } else if (mode === "blackhole") {
+                            var dir = toForward ? 1.0 : -1.0
+                            oldPage.vortexMode = 0.0
+                            oldPage.vortexDir = dir
+                            oldPage.vortexProgress = 0.0
+                            oldPage.scale = 1.0
+                            oldPage.rotation = 0
+                            oldPage.opacity = 1.0
+                            oldPage.visible = true
+
+                            newPage.vortexMode = 0.0
+                            newPage.vortexDir = -dir
+                            newPage.vortexProgress = 0.65
+                            newPage.scale = 0.04
+                            newPage.rotation = -140 * dir
+                            newPage.opacity = 0.0
+                            newPage.visible = true
+
+                            bhOutVortex.target = oldPage; bhOutVortex.duration = 380
+                            bhOutSc.target = oldPage; bhOutSc.duration = 380
+                            bhOutRot.target = oldPage; bhOutRot.to = 200 * dir; bhOutRot.duration = 380
+                            bhOutOp.target = oldPage; bhOutOp.duration = 380
+
+                            bhInDelay.duration = 270
+                            bhInVortex.target = newPage; bhInVortex.duration = 370
+                            bhInSc.target = newPage; bhInSc.duration = 370
+                            bhInRot.target = newPage; bhInRot.from = -140 * dir; bhInRot.duration = 370
+                            bhInOp.target = newPage; bhInOp.duration = 240
+
+                            blackholeTransition.start()
+                        } else if (mode === "portal") {
+                            var pdir = toForward ? 1.0 : -1.0
+                            oldPage.vortexMode = 1.0
+                            oldPage.vortexProgress = 0.0
+                            oldPage.scale = 1.0
+                            oldPage.rotation = 0
+                            oldPage.opacity = 1.0
+                            oldPage.visible = true
+
+                            newPage.vortexMode = 1.0
+                            newPage.vortexProgress = 0.75
+                            newPage.scale = 0.16
+                            newPage.rotation = 35 * pdir
+                            newPage.opacity = 0.0
+                            newPage.visible = true
+
+                            portalOutWave.target = oldPage; portalOutWave.duration = 340
+                            portalOutSc.target = oldPage; portalOutSc.duration = 340
+                            portalOutRot.target = oldPage; portalOutRot.to = -35 * pdir; portalOutRot.duration = 340
+                            portalOutOp.target = oldPage; portalOutOp.duration = 320
+
+                            portalInDelay.duration = 200
+                            portalInWave.target = newPage; portalInWave.duration = 380
+                            portalInSc.target = newPage; portalInSc.duration = 380
+                            portalInRot.target = newPage; portalInRot.from = 35 * pdir; portalInRot.duration = 380
+                            portalInOp.target = newPage; portalInOp.duration = 240
+
+                            portalTransition.start()
+                        } else if (mode === "shatter") {
+                            var sdir = toForward ? 1.0 : -1.0
+                            oldPage.vortexMode = 2.0
+                            oldPage.vortexDir = sdir
+                            oldPage.vortexProgress = 0.0
+                            oldPage.scale = 1.0
+                            oldPage.opacity = 1.0
+                            oldPage.visible = true
+
+                            newPage.vortexMode = 2.0
+                            newPage.vortexDir = -sdir
+                            newPage.vortexProgress = 0.85
+                            newPage.scale = 1.16
+                            newPage.x = newBaseX + 90 * sdir
+                            newPage.opacity = 0.0
+                            newPage.visible = true
+
+                            shatterOutProg.target = oldPage; shatterOutProg.duration = 300
+                            shatterOutSc.target = oldPage; shatterOutSc.duration = 300
+                            shatterOutX.target = oldPage; shatterOutX.from = oldBaseX; shatterOutX.to = oldBaseX - 90 * sdir; shatterOutX.duration = 300
+                            shatterOutOp.target = oldPage; shatterOutOp.duration = 280
+
+                            shatterInDelay.duration = 140
+                            shatterInProg.target = newPage; shatterInProg.duration = 320
+                            shatterInSc.target = newPage; shatterInSc.duration = 320
+                            shatterInX.target = newPage; shatterInX.from = newPage.x; shatterInX.to = newBaseX; shatterInX.duration = 320
+                            shatterInOp.target = newPage; shatterInOp.duration = 220
+
+                            shatterTransition.start()
+                        } else if (mode === "vortex") {
+                            newPage.x = newBaseX + (toForward ? 110 : -110); newPage.y = toForward ? 28 : -28; newPage.scale = 0.90; newPage.visible = true
+                            vortexOutOp.target = oldPage; vortexOutOp.duration = dur * 0.8
+                            vortexOutX.target = oldPage; vortexOutX.from = oldBaseX; vortexOutX.to = oldBaseX + (toForward ? -80 : 80); vortexOutX.duration = dur
+                            vortexOutSc.target = oldPage; vortexOutSc.duration = dur
+                            vortexInOp.target = newPage; vortexInOp.duration = dur
+                            vortexInX.target = newPage; vortexInX.from = newPage.x; vortexInX.to = newBaseX; vortexInX.duration = dur
+                            vortexInY.target = newPage; vortexInY.from = newPage.y; vortexInY.duration = dur
+                            vortexInSc.target = newPage; vortexInSc.duration = dur
+                            vortexTransition.start()
+                        } else {
+                            newPage.visible = true
+                            fadeOldAnim.target = oldPage; fadeOldAnim.from = 1.0; fadeOldAnim.to = 0.0; fadeOldAnim.duration = dur
+                            fadeNewAnim.target = newPage; fadeNewAnim.from = 0.0; fadeNewAnim.to = 1.0; fadeNewAnim.duration = dur
+                            pageFadeAnim.start()
+                        }
+                    }
+
+                    function switchPage(targetIdx) {
+                        if (targetIdx === currentIndex) return
+                        inTransition = true
+                        previousIndex = currentIndex
+                        currentIndex = targetIdx
+                        var oldPage = pageRepeater.itemAt(previousIndex)
+                        var newPage = pageRepeater.itemAt(targetIdx)
+                        if (!oldPage || !newPage) {
+                            jumpToPageInstant(targetIdx)
+                            return
+                        }
+                        var isWelcomeTransition = (previousIndex === 0 || targetIdx === 0)
+                        var mode = isWelcomeTransition ? Config.welcomeAnimType : Config.animType
+                        runTransition(mode, oldPage, newPage, previousIndex, targetIdx, targetIdx > previousIndex)
+                    }
+
+                    function cleanupTransition() {
+                        var p = pageRepeater.itemAt(pageController.previousIndex)
+                        if (p && pageController.previousIndex !== pageController.currentIndex) {
+                            p.visible = false
+                            p.x = basePageX(pageController.previousIndex)
+                            p.y = 0
+                            p.scale = 1.0
+                            p.rotation = 0
+                            p.opacity = 0.0
+                            p.vortexProgress = 0.0
+                        }
+                        var cur = pageRepeater.itemAt(pageController.currentIndex)
+                        if (cur) {
+                            cur.visible = true
+                            cur.x = basePageX(pageController.currentIndex)
+                            cur.y = 0
+                            cur.scale = 1.0
+                            cur.rotation = 0
+                            cur.opacity = 1.0
+                            cur.vortexProgress = 0.0
+                        }
+                        inTransition = false
+                        if (cur && cur.item && cur.item.focusSearchInput) Qt.callLater(cur.item.focusSearchInput)
+                    }
+
+                    ParallelAnimation {
+                        id: pageSlideAnim
+                        NumberAnimation { id: slideOutAnim; property: "x"; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: slideOutOp; property: "opacity"; from: 1.0; to: 0.0 }
+                        NumberAnimation { id: slideInAnim; property: "x"; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: slideInOp; property: "opacity"; from: 0.0; to: 1.0 }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: pageFadeAnim
+                        NumberAnimation { id: fadeOldAnim; property: "opacity" }
+                        NumberAnimation { id: fadeNewAnim; property: "opacity" }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: depthTransition
+                        NumberAnimation { id: depthOutOp; property: "opacity"; from: 1.0; to: 0.0 }
+                        NumberAnimation { id: depthOutSc; property: "scale"; from: 1.0; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: depthInOp; property: "opacity"; from: 0.0; to: 1.0 }
+                        NumberAnimation { id: depthInSc; property: "scale"; to: 1.0; easing.type: Easing.OutCubic }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: bounceTransition
+                        NumberAnimation { id: bounceOutOp; property: "opacity"; from: 1.0; to: 0.0 }
+                        NumberAnimation { id: bounceOutY; property: "y"; from: 0; easing.type: Easing.OutQuad }
+                        NumberAnimation { id: bounceInOp; property: "opacity"; from: 0.0; to: 1.0 }
+                        NumberAnimation { id: bounceInY; property: "y"; to: 0; easing.type: Easing.OutBack }
+                        NumberAnimation { id: bounceInSc; property: "scale"; from: 0.94; to: 1.0; easing.type: Easing.OutBack }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: vortexTransition
+                        NumberAnimation { id: vortexOutOp; property: "opacity"; from: 1.0; to: 0.0 }
+                        NumberAnimation { id: vortexOutX; property: "x"; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: vortexOutSc; property: "scale"; from: 1.0; to: 0.90; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: vortexInOp; property: "opacity"; from: 0.0; to: 1.0 }
+                        NumberAnimation { id: vortexInX; property: "x"; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: vortexInY; property: "y"; to: 0; easing.type: Easing.OutCubic }
+                        NumberAnimation { id: vortexInSc; property: "scale"; from: 0.90; to: 1.0; easing.type: Easing.OutCubic }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: blackholeTransition
+                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: bhOutSc; property: "scale"; from: 1.0; to: 0.02; easing.type: Easing.InBack; easing.overshoot: 0.6 }
+                        NumberAnimation { id: bhOutRot; property: "rotation"; from: 0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: bhOutOp; property: "opacity"; from: 1.0; to: 0.0; easing.type: Easing.InExpo }
+                        SequentialAnimation {
+                            PauseAnimation { id: bhInDelay }
+                            ParallelAnimation {
+                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 0.65; to: 0.0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: bhInSc; property: "scale"; from: 0.04; to: 1.0; easing.type: Easing.OutBack; easing.overshoot: 0.85 }
+                                NumberAnimation { id: bhInRot; property: "rotation"; to: 0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: bhInOp; property: "opacity"; from: 0.0; to: 1.0; easing.type: Easing.OutCubic }
+                            }
+                        }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: portalTransition
+                        NumberAnimation { id: portalOutWave; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: portalOutSc; property: "scale"; from: 1.0; to: 1.85; easing.type: Easing.InCubic }
+                        NumberAnimation { id: portalOutRot; property: "rotation"; from: 0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: portalOutOp; property: "opacity"; from: 1.0; to: 0.0; easing.type: Easing.InQuad }
+                        SequentialAnimation {
+                            PauseAnimation { id: portalInDelay }
+                            ParallelAnimation {
+                                NumberAnimation { id: portalInWave; property: "vortexProgress"; from: 0.75; to: 0.0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: portalInSc; property: "scale"; from: 0.16; to: 1.0; easing.type: Easing.OutBack; easing.overshoot: 0.75 }
+                                NumberAnimation { id: portalInRot; property: "rotation"; to: 0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: portalInOp; property: "opacity"; from: 0.0; to: 1.0; easing.type: Easing.OutCubic }
+                            }
+                        }
+                        onFinished: pageController.cleanupTransition()
+                    }
+                    ParallelAnimation {
+                        id: shatterTransition
+                        NumberAnimation { id: shatterOutProg; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: shatterOutSc; property: "scale"; from: 1.0; to: 0.82; easing.type: Easing.InCubic }
+                        NumberAnimation { id: shatterOutX; property: "x"; easing.type: Easing.InBack }
+                        NumberAnimation { id: shatterOutOp; property: "opacity"; from: 1.0; to: 0.0; easing.type: Easing.InQuad }
+                        SequentialAnimation {
+                            PauseAnimation { id: shatterInDelay }
+                            ParallelAnimation {
+                                NumberAnimation { id: shatterInProg; property: "vortexProgress"; from: 0.85; to: 0.0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: shatterInSc; property: "scale"; from: 1.16; to: 1.0; easing.type: Easing.OutBack; easing.overshoot: 0.8 }
+                                NumberAnimation { id: shatterInX; property: "x"; easing.type: Easing.OutBack; easing.overshoot: 0.7 }
+                                NumberAnimation { id: shatterInOp; property: "opacity"; from: 0.0; to: 1.0; easing.type: Easing.OutCubic }
+                            }
+                        }
+                        onFinished: pageController.cleanupTransition()
+                    }
+
+                    Repeater {
+                        id: pageRepeater
+                        model: [
+                            "views/WelcomeView.qml",
+                            "views/LookSettingsView.qml",
+                            "views/AnimsSettingsView.qml",
+                            "views/CursorSettingsView.qml",
+                            "views/MonitorsSettingsView.qml",
+                            "views/DevicesSettingsView.qml",
+                            "views/NetworkSettingsView.qml",
+                            "views/BluetoothSettingsView.qml",
+                            "views/WaybarSettingsView.qml",
+                            "views/AutostartSettingsView.qml",
+                            "views/BindsSettingsView.qml",
+                            "views/RulesSettingsView.qml",
+                            "views/AppsSettingsView.qml",
+                            "views/ShadersView.qml",
+                            "views/WallpapersView.qml",
+                            "views/WidgetsSettingsView.qml",
+                            "views/SearchView.qml",
+                            "views/AppSettingsView.qml",
+                            "views/MakoSettingsView.qml",
+                            "views/AtmosphereView.qml",
+                            "views/WeatherView.qml",
+                            "views/SysMonView.qml",
+                            "views/CalendarView.qml",
+                            "views/ClipboardView.qml",
+                            "views/PowerView.qml",
+                            "views/LanguageView.qml",
+                            "views/VpnView.qml"
+                        ]
+
+                        Loader {
+                            id: pageLoader
+                            z: (pageController.inTransition && index === pageController.previousIndex) ? 2 : 1
+                            x: index === 0 ? 0 : pageController.sidebarW
+                            width: index === 0 ? pageController.width : (pageController.width - pageController.sidebarW)
+                            height: pageController.height
+                            active: root.drawerActive && (
+                                    index === pageController.currentIndex ||
+                                    (pageController.inTransition && index === pageController.previousIndex))
+                            source: modelData
+                            visible: index === 0
+                            opacity: index === 0 ? 1.0 : 0.0
+                            transformOrigin: Item.Center
+                            property real vortexProgress: 0.0
+                            property real vortexDir: 1.0
+                            property real vortexMode: 0.0
+                            layer.enabled: pageController.inTransition && vortexProgress > 0.001
+                            layer.smooth: true
+                            layer.effect: ShaderEffect {
+                                property vector2d u_resolution: Qt.vector2d(pageLoader.width, pageLoader.height)
+                                property real u_progress: pageLoader.vortexProgress
+                                property real u_direction: pageLoader.vortexDir
+                                property real u_mode: pageLoader.vortexMode
+                                fragmentShader: "qrc:/shaders/qml/shaders/vortex_suck.frag.qsb"
+                            }
+
+                            onLoaded: {
+                                if ((index === 12 || index === 16) && item && item.focusSearchInput && index === pageController.currentIndex) Qt.callLater(item.focusSearchInput)
+                                if (index === 0 && item) {
+                                    item.navigateTo.connect((target) => pageController.switchPage(target))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Sidebar {
+                    id: sidebar
+                    width: 136
+                    height: parent.height
+                    property bool showBar: pageController.currentIndex > 0 && !(blackholeTransition.running && pageController.previousIndex === 0 && bhInOp.target && bhInOp.target.opacity < 0.05)
+                    x: showBar ? 0 : -136
+                    opacity: showBar ? 1.0 : 0.0
+                    visible: opacity > 0.01
+                    currentIndex: pageController.currentIndex
+                    onCategorySelected: (idx) => pageController.switchPage(idx)
+                    onReturnToWelcome: () => pageController.switchPage(0)
+
+                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                    Behavior on opacity { NumberAnimation { duration: 160 } }
+                }
+
+                ShaderEffectSource {
+                    id: pageSceneSource
+                    sourceItem: pageController
+                    anchors.fill: pageController
+                    visible: false
+                    live: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled && (Atmosphere.rainEnabled || Atmosphere.snowEnabled)
+                }
+
+                AtmosphereCanvas {
+                    id: inAppWaterMap
+                    roundedTheme: (Theme && Theme.isRounded) ? true : false
+                    anchors.fill: parent
+                    visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                    enabled: false
+                    globalMode: false
+                    renderPass: 0
+                    activeRunning: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                    cursorPos: Qt.point((root.mousePos.x - root.drawerX) / (Config ? Config.uiScale : 1.0),
+                                        (root.mousePos.y - root.drawerY) / (Config ? Config.uiScale : 1.0))
+                }
+
+                ShaderEffectSource {
+                    id: inAppWaterMapSource
+                    sourceItem: inAppWaterMap
+                    anchors.fill: parent
+                    visible: false
+                    hideSource: true
+                    smooth: true
+                    live: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                }
+
+                AtmosphereCanvas {
+                    id: inAppOverlayMap
+                    anchors.fill: parent
+                    visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                    enabled: false
+                    globalMode: false
+                    renderPass: 1
+                    masterCanvas: inAppWaterMap
+                    activeRunning: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                }
+
+                ShaderEffectSource {
+                    id: inAppOverlayMapSource
+                    sourceItem: inAppOverlayMap
+                    anchors.fill: parent
+                    visible: false
+                    hideSource: true
+                    smooth: true
+                    live: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                }
+
+                ShaderEffect {
+                    id: inAppAtmosphereShader
+                    anchors.fill: parent
+                    z: 95
+                    enabled: false
+                    visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                    property vector2d u_resolution: Qt.vector2d(width, height)
+                    property real u_has_scene: 1.0
+                    property real u_refraction_strength: 1.15 * (Atmosphere ? Atmosphere.dropRefraction : 1.0)
+                    property real u_time: root.liquidTime * (Config ? Config.borderGlowSpeed : 1.0)
+                    property vector2d u_mouse: Qt.vector2d((root.mousePos.x - root.drawerX) / (Config ? Config.uiScale : 1.0), (root.mousePos.y - root.drawerY) / (Config ? Config.uiScale : 1.0))
+                    property real u_cursor_strength: Config ? Config.cursorGlowIntensity : 0.65
+                    property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
+                    property real u_border_strength: 0.0
+                    property real u_border_spread: Config ? Config.borderGlowSpread : 0.45
+                    property real u_border_color_mode: Config ? Config.borderGlowColorMode : 0
+                    property vector3d u_border_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(1, 1, 1)
+                    property real idleBoost: (Atmosphere && Atmosphere.idleFogEnabled) ? (inAppWaterMap.idleFogBoost * Atmosphere.idleFogStrength) : 0.0
+                    property real baseSpread: Atmosphere ? ((Atmosphere.snowEnabled && !Atmosphere.rainEnabled) ? Atmosphere.snowScreenFrostSpread : Atmosphere.fogSpread) : 0.45
+                    property real baseInt: Atmosphere ? ((Atmosphere.snowEnabled && !Atmosphere.rainEnabled) ? Atmosphere.snowScreenFrostIntensity : Atmosphere.fogIntensity) : 0.65
+                    property bool inAppMistOn: Atmosphere ? ((Atmosphere.snowEnabled && !Atmosphere.rainEnabled) ? Atmosphere.snowScreenFrostEnabled : Atmosphere.condensationEnabled) : false
+                    property real effSpread: Math.min(1.0, baseSpread + idleBoost * (1.0 - baseSpread) * 0.78)
+                    property real effInt: Math.min(0.995, baseInt + idleBoost * (0.995 - baseInt))
+                    property real u_fog_strength: (inAppMistOn && !(Atmosphere.globalOverlayEnabled && Atmosphere.syncWithOverlay)) ? (Math.round(effSpread * 100) + effInt) : 0.0
+                    property real u_lightning: inAppWaterMap.lightningFlash
+                    property real u_lightning_x: inAppWaterMap.lightningPosX
+                    property real u_drop_tint_strength: Atmosphere ? Atmosphere.dropTintStrength : 0.20
+                    property real u_drop_highlight: Atmosphere ? Atmosphere.dropHighlightStrength : 1.0
+                    property vector3d u_drop_tint_color: Atmosphere ? Atmosphere.effectiveDropTintVec : Qt.vector3d(0.015, 0.015, 0.018)
+                    property real u_wipe_strength: Atmosphere ? Atmosphere.wipeTrailStrength : 0.55
+                    property real u_frost_strength: (Atmosphere && Atmosphere.snowEnabled) ? (((Atmosphere.snowFrostStyle === 0 && Atmosphere.snowVelvetFlakesEnabled) ? 3 : Atmosphere.snowFrostStyle) * 10.0 + Atmosphere.snowFrostPatternStrength) : 0.0
+                    property real u_idle_fog_boost: (Atmosphere && Atmosphere.condensationEnabled && Atmosphere.idleFogEnabled && !(Atmosphere.globalOverlayEnabled && Atmosphere.syncWithOverlay)) ? (inAppWaterMap.idleFogBoost * Atmosphere.idleFogStrength) : 0.0
+                    property variant u_waterMap: inAppWaterMapSource
+                    property variant u_overlayMap: inAppOverlayMapSource
+                    property variant u_scene: pageSceneSource
+                    fragmentShader: "qrc:/shaders/qml/shaders/atmosphere_fx.frag.qsb"
+                }
+            }
+
+                            ShaderEffect {
+                    id: cursorFollowItem
+                    width: 240; height: 240
+                    x: (root.mousePos.x - root.drawerX) - 120; y: (root.mousePos.y - root.drawerY) - 120
+                    z: 97; enabled: false
+                    visible: root.drawerActive && Config && Config.cursorGlowIntensity > 0.01 && root.mousePos.x > -100
+                    property vector2d u_size: Qt.vector2d(240, 240)
+                    property vector2d u_origin: Qt.vector2d(x, y)
+                    property vector2d u_mouse: Qt.vector2d(root.mousePos.x - root.drawerX, root.mousePos.y - root.drawerY)
+                    property vector2d u_trail1: Qt.vector2d(root.trail1.x - root.drawerX, root.trail1.y - root.drawerY)
+                    property vector2d u_trail2: Qt.vector2d(root.trail2.x - root.drawerX, root.trail2.y - root.drawerY)
+                    property vector2d u_trail3: Qt.vector2d(root.trail3.x - root.drawerX, root.trail3.y - root.drawerY)
+                    property real u_cursor_strength: Config ? Config.cursorGlowIntensity : 0.65
+                    property real u_liquid_enabled: (Theme && (Theme.controlsLiquidGlass || Theme.glassRefraction > 0.01)) ? 1.0 : 0.0
+                    property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.55
+                    property vector3d u_custom_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
+                    fragmentShader: "qrc:/shaders/qml/shaders/cursor_fx.frag.qsb"
+                }
+
+                ShaderEffect {
+                    id: clickFxItem
+                    width: 280; height: 280
+                    x: root.clickPos.x - 140; y: root.clickPos.y - 140
+                    z: 98; enabled: false
+                    visible: clickAnim.running
+                    property real u_progress: 0.0
+                    property real u_intensity: Config ? Config.clickFlashIntensity : 0.70
+                    property real u_shape: Config ? Config.clickFlashShape : 0
+                    property vector3d u_custom_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
+                    NumberAnimation on u_progress { id: clickAnim; from: 0.001; to: 1.0; duration: 460; running: false; easing.type: Easing.OutCubic }
+                    fragmentShader: "qrc:/shaders/qml/shaders/click_fx.frag.qsb"
+                }
+            }
+        }
+    }
+}

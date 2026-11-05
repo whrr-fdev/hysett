@@ -1,0 +1,1 @@
+/home/whrr/WaybarDynamicTheme/scripts/WaybarTheme.sh

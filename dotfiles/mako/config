@@ -1,0 +1,35 @@
+font=JetBrainsMono NF Bold 11
+background-color=#0a0a0aee
+border-color=#ffffff40
+border-size=1
+border-radius=0
+progress-color=#ffffff26
+
+anchor=top-right
+margin=20,20
+
+width=350
+height=150
+padding=12
+text-alignment=left
+
+icon-path=/usr/share/icons/Papirus
+max-icon-size=32
+
+default-timeout=7000
+ignore-timeout=0
+
+format=<b>%s</b>\n%b
+text-color=#ffffff
+
+[urgency=high]
+border-color=#ff5555aa
+default-timeout=5000
+
+# Клик по уведомлению скриншота открывает папку Screens
+[app-name=screenshot]
+on-touch=exec nautilus ~/Pictures/Screens
+
+# Клик по уведомлению видео открывает папку Records
+[app-name=video_rec]
+on-touch=exec nautilus ~/Videos/Records

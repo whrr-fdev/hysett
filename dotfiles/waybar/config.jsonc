@@ -1,0 +1,51 @@
+{
+    "margin-top": 8,
+    "height": 30,
+    "reload_style_on_change": true,
+    "layer": "bottom",
+    "position": "top",
+    "margin-left": 10,
+    "margin-right": 10,
+    "spacing": 6,
+
+    "modules-left": [
+        "group/linuxpill",
+        "group/wspill",
+        "group/weatherpill"
+    ],
+    "modules-center": [
+        "hyprland/window"
+    ],
+    "modules-right": [
+        "custom/recorder",
+        "group/syspill",
+        "group/traypill",
+        "group/rightpill"
+    ],
+
+    "group/linuxpill": {
+        "orientation": "horizontal",
+        "modules": ["custom/linux"]
+    },
+
+    "group/wspill": {
+        "orientation": "horizontal",
+        "modules": ["hyprland/workspaces"]
+    },
+
+    "group/weatherpill": {
+        "orientation": "horizontal",
+        "modules": ["custom/weather"]
+    },
+
+    "group/syspill": {
+        "orientation": "horizontal",
+        "modules": ["cpu", "temperature", "memory"]
+    },
+
+    "custom/recorder": {
+        "exec": "~/.config/hypr/scripts/recorder_status.sh",
+        "return-type": "json",
+        "interval": 1,
+        "signal": 9,
+        "tooltip": false,

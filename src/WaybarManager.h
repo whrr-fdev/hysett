@@ -1,0 +1,247 @@
+#pragma once
+#include <QObject>
+#include <QVariantList>
+#include <QVariantMap>
+#include <QTimer>
+#include <QSocketNotifier>
+#include <QQuickWindow>
+
+class WaybarManager : public QObject {
+    Q_OBJECT
+
+    Q_PROPERTY(bool posBottom READ posBottom WRITE setPosBottom NOTIFY stateChanged)
+    Q_PROPERTY(int barPosition READ barPosition WRITE setBarPosition NOTIFY stateChanged)
+    Q_PROPERTY(bool centeredBar READ centeredBar WRITE setCenteredBar NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList specs READ specs NOTIFY stateChanged)
+
+    Q_PROPERTY(int barWidth READ barWidth NOTIFY stateChanged)
+    Q_PROPERTY(int barHeight READ barHeight NOTIFY stateChanged)
+    Q_PROPERTY(QString hiddenBarModules READ hiddenBarModules WRITE setHiddenBarModules NOTIFY stateChanged)
+    Q_PROPERTY(int marginTop READ marginTop NOTIFY stateChanged)
+    Q_PROPERTY(int marginBottom READ marginBottom NOTIFY stateChanged)
+    Q_PROPERTY(int marginLeft READ marginLeft NOTIFY stateChanged)
+    Q_PROPERTY(int marginRight READ marginRight NOTIFY stateChanged)
+    Q_PROPERTY(int spacing READ spacing NOTIFY stateChanged)
+    Q_PROPERTY(qreal barOpacity READ barOpacity NOTIFY stateChanged)
+    Q_PROPERTY(qreal pillOpacity READ pillOpacity NOTIFY stateChanged)
+
+    Q_PROPERTY(QVariantList workspaces READ workspaces NOTIFY workspacesChanged)
+    Q_PROPERTY(int activeWorkspace READ activeWorkspace NOTIFY workspacesChanged)
+    Q_PROPERTY(QString activeWindowTitle READ activeWindowTitle NOTIFY activeWindowChanged)
+    Q_PROPERTY(QVariantList trayApps READ trayApps NOTIFY activeWindowChanged)
+    Q_PROPERTY(QVariantList clipboardItems READ clipboardItems NOTIFY clipboardChanged)
+
+    // Системные метрики и графики для встроенного монитора (btop)
+    Q_PROPERTY(int cpuUsage READ cpuUsage NOTIFY sysStatsChanged)
+    Q_PROPERTY(int cpuTemp READ cpuTemp NOTIFY sysStatsChanged)
+    Q_PROPERTY(int memPercent READ memPercent NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString memUsageText READ memUsageText NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString memDetailText READ memDetailText NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList cpuHistory READ cpuHistory NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList tempHistory READ tempHistory NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList memHistory READ memHistory NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vramPercent READ vramPercent NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vramDetailText READ vramDetailText NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList vramHistory READ vramHistory NOTIFY sysStatsChanged)
+    Q_PROPERTY(int netPercent READ netPercent NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString netSpeedText READ netSpeedText NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList netHistory READ netHistory NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList processList READ processList NOTIFY processesChanged)
+
+    // Звук, раскладка, сеть
+    Q_PROPERTY(int volume READ volume NOTIFY audioChanged)
+    Q_PROPERTY(bool muted READ muted NOTIFY audioChanged)
+    Q_PROPERTY(QString kbLayout READ kbLayout NOTIFY kbLayoutChanged)
+    Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
+    Q_PROPERTY(bool btConnected READ btConnected NOTIFY sysStatsChanged)
+    Q_PROPERTY(bool netConnected READ netConnected NOTIFY sysStatsChanged)
+    Q_PROPERTY(bool vpnActive READ vpnActive NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnServerName READ vpnServerName NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnSubUrl READ vpnSubUrl WRITE setVpnSubUrl NOTIFY sysStatsChanged)
+    Q_PROPERTY(bool vpnRuDirect READ vpnRuDirect WRITE setVpnRuDirect NOTIFY sysStatsChanged)
+
+    // Погода Gismeteo (Сейчас, Завтра, Неделя, Месяц)
+    Q_PROPERTY(QString weatherText READ weatherText NOTIFY weatherChanged)
+    Q_PROPERTY(QVariantMap weatherDetails READ weatherDetails NOTIFY weatherChanged)
+    Q_PROPERTY(QVariantList weatherHourly READ weatherHourly NOTIFY weatherChanged)
+    Q_PROPERTY(QVariantList weatherTomorrow READ weatherTomorrow NOTIFY weatherChanged)
+    Q_PROPERTY(QVariantList weatherWeek READ weatherWeek NOTIFY weatherChanged)
+    Q_PROPERTY(QVariantList weatherMonth READ weatherMonth NOTIFY weatherChanged)
+
+public:
+    explicit WaybarManager(QObject *parent = nullptr);
+    ~WaybarManager() override;
+
+    bool posBottom() const { return m_posBottom; }
+    void setPosBottom(bool v);
+    int barPosition() const { return m_barPosition; }
+    void setBarPosition(int v);
+    bool centeredBar() const { return m_centeredBar; }
+    void setCenteredBar(bool v);
+    QVariantList specs() const { return m_specs; }
+
+    int barWidth() const;
+    int barHeight() const;
+    QString hiddenBarModules() const { return m_hiddenBarModules; }
+    void setHiddenBarModules(const QString &v);
+    Q_INVOKABLE bool isBarModuleVisible(const QString &mod) const;
+    Q_INVOKABLE void setBarModuleVisible(const QString &mod, bool visible);
+    int marginTop() const;
+    int marginBottom() const;
+    int marginLeft() const;
+    int marginRight() const;
+    int spacing() const;
+    qreal barOpacity() const;
+    qreal pillOpacity() const;
+
+    QVariantList workspaces() const { return m_workspaces; }
+    int activeWorkspace() const { return m_activeWorkspace; }
+    QString activeWindowTitle() const { return m_activeWindowTitle; }
+    QVariantList trayApps() const { return m_trayApps; }
+    QVariantList clipboardItems() const { return m_clipboardItems; }
+
+    int cpuUsage() const { return m_cpuUsage; }
+    int cpuTemp() const { return m_cpuTemp; }
+    int memPercent() const { return m_memPercent; }
+    QString memUsageText() const { return m_memUsageText; }
+    QString memDetailText() const { return m_memDetailText; }
+    QVariantList cpuHistory() const { return m_cpuHistory; }
+    QVariantList tempHistory() const { return m_tempHistory; }
+    QVariantList memHistory() const { return m_memHistory; }
+    int vramPercent() const { return m_vramPercent; }
+    QString vramDetailText() const { return m_vramDetailText; }
+    QVariantList vramHistory() const { return m_vramHistory; }
+    int netPercent() const { return m_netPercent; }
+    QString netSpeedText() const { return m_netSpeedText; }
+    QVariantList netHistory() const { return m_netHistory; }
+    Q_INVOKABLE void switchKbLayout();
+    QVariantList processList() const { return m_processList; }
+
+    int volume() const { return m_volume; }
+    bool muted() const { return m_muted; }
+    QString kbLayout() const { return m_kbLayout; }
+    bool recording() const { return m_recording; }
+    bool btConnected() const { return m_btConnected; }
+    bool netConnected() const { return m_netConnected; }
+    bool vpnActive() const { return m_vpnActive; }
+    QString vpnServerName() const { return m_vpnServerName; }
+    QString vpnSubUrl() const { return m_vpnSubUrl; }
+    void setVpnSubUrl(const QString &u);
+    bool vpnRuDirect() const { return m_vpnRuDirect; }
+    void setVpnRuDirect(bool v);
+    Q_INVOKABLE void toggleVpn();
+    Q_INVOKABLE void updateVpnSubscription();
+
+    QString weatherText() const { return m_weatherText; }
+    QVariantMap weatherDetails() const { return m_weatherDetails; }
+    QVariantList weatherHourly() const { return m_weatherHourly; }
+    QVariantList weatherTomorrow() const { return m_weatherTomorrow; }
+    QVariantList weatherWeek() const { return m_weatherWeek; }
+    QVariantList weatherMonth() const { return m_weatherMonth; }
+
+    Q_INVOKABLE void setSpecValue(int index, qreal val);
+    Q_INVOKABLE void resetSpec(int index);
+    Q_INVOKABLE void restartWaybar();
+
+    Q_INVOKABLE void switchWorkspace(int wsId);
+    Q_INVOKABLE void stepWorkspace(int dir);
+    Q_INVOKABLE void changeVolume(int deltaPercent);
+    Q_INVOKABLE void setVolumeExact(int percent);
+    Q_INVOKABLE void toggleMute();
+    Q_INVOKABLE void runCommand(const QString &cmd);
+    Q_INVOKABLE void activateTrayApp(const QString &cls, const QString &sniService = "");
+    Q_INVOKABLE void trayContextAction(const QString &cls, const QString &sniService, int actionIdx);
+    Q_INVOKABLE void refreshClipboard();
+    Q_INVOKABLE void selectClipboardItem(int index);
+    Q_INVOKABLE void clearClipboard();
+    Q_INVOKABLE void refreshProcesses();
+    Q_INVOKABLE void killProcess(int pid);
+    Q_INVOKABLE void refreshWeather();
+    Q_INVOKABLE void syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH);
+
+signals:
+    void stateChanged();
+    void closeDrawerRequested();
+    void workspacesChanged();
+    void activeWindowChanged();
+    void clipboardChanged();
+    void sysStatsChanged();
+    void processesChanged();
+    void audioChanged();
+    void kbLayoutChanged();
+    void weatherChanged();
+    void recordingChanged();
+
+private:
+    void initSpecs();
+    void loadState();
+    void saveState(bool updatePosition);
+    qreal specVal(const QString &key, qreal fallback) const;
+
+    void connectHyprEventSocket();
+    void onHyprEventReady();
+    void pollHyprState();
+    void pollSysStats();
+    void pollFastState();
+    void pollWeather();
+
+    bool m_posBottom = false;
+    int m_barPosition = 0;
+    QString m_hiddenBarModules;
+    bool m_centeredBar = false;
+    QVariantList m_specs;
+    QVariantList m_defaults;
+
+    int m_hyprEventFd = -1;
+    QSocketNotifier *m_hyprNotifier = nullptr;
+    QTimer *m_sysTimer = nullptr;
+    QTimer *m_fastTimer = nullptr;
+    QTimer *m_weatherTimer = nullptr;
+
+    QVariantList m_workspaces;
+    int m_activeWorkspace = 1;
+    QString m_activeWindowTitle;
+    QVariantList m_trayApps;
+    int m_trayTick = 0;
+    QVariantList m_clipboardItems;
+    QStringList m_rawClipboardLines;
+
+    int m_cpuUsage = 0;
+    int m_cpuTemp = 40;
+    int m_memPercent = 20;
+    QString m_memUsageText = "0.0G";
+    QString m_memDetailText = "0.0 / 16.0 GB";
+    QVariantList m_cpuHistory;
+    QVariantList m_tempHistory;
+    QVariantList m_memHistory;
+    int m_vramPercent = 12;
+    QString m_vramDetailText = "0.8 / 8.0 GB";
+    QVariantList m_vramHistory;
+    int m_netPercent = 5;
+    QString m_netSpeedText = "↓ 0 KB/s  ↑ 0 KB/s";
+    QVariantList m_netHistory;
+    qulonglong m_prevNetRx = 0;
+    qulonglong m_prevNetTx = 0;
+    qint64 m_prevNetMs = 0;
+    QVariantList m_processList;
+    qulonglong m_prevCpuIdle = 0;
+    qulonglong m_prevCpuTotal = 0;
+
+    int m_volume = 50;
+    bool m_muted = false;
+    QString m_kbLayout = "RU";
+    bool m_recording = false;
+    bool m_btConnected = false;
+    bool m_netConnected = true;
+    bool m_vpnActive = false;
+    bool m_vpnRuDirect = true;
+    QString m_vpnServerName = "StealthSurf VPN";
+    QString m_vpnSubUrl = "";
+
+    QString m_weatherText = "☁️ +3°C";
+    QVariantMap m_weatherDetails;
+    QVariantList m_weatherHourly;
+    QVariantList m_weatherTomorrow;
+    QVariantList m_weatherWeek;
+    QVariantList m_weatherMonth;
+};

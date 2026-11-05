@@ -1,0 +1,839 @@
+#include "WaybarManager.h"
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QTextStream>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QRegion>
+#include <QDateTime>
+#include <QDBusConnection>
+#include <QDBusConnectionInterface>
+#include <QDBusMessage>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cmath>
+#include <algorithm>
+#ifdef HAVE_LAYERSHELLQT
+#include <LayerShellQt/Window>
+#endif
+
+static QString queryHyprCtlSocket(const QString &request) {
+    QString runtimeDir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    QString sig = qEnvironmentVariable("HYPRLAND_INSTANCE_SIGNATURE");
+    if (runtimeDir.isEmpty() || sig.isEmpty()) return {};
+
+    QString sockPath = runtimeDir + "/hypr/" + sig + "/.socket.sock";
+    if (!QFile::exists(sockPath)) sockPath = "/tmp/hypr/" + sig + "/.socket.sock";
+
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return {};
+
+    struct sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    QByteArray pathBytes = sockPath.toUtf8();
+    std::strncpy(addr.sun_path, pathBytes.constData(), sizeof(addr.sun_path) - 1);
+
+    if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
+        ::close(fd);
+        return {};
+    }
+
+    QByteArray req = request.toUtf8();
+    ::write(fd, req.constData(), req.size());
+
+    QByteArray response;
+    char buf[4096];
+    ssize_t n = 0;
+    while ((n = ::read(fd, buf, sizeof(buf))) > 0) {
+        response.append(buf, n);
+    }
+    ::close(fd);
+    return QString::fromUtf8(response);
+}
+
+WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
+    for (int i = 0; i < 60; ++i) {
+        m_cpuHistory.append(0); m_tempHistory.append(35); m_memHistory.append(20);
+        m_vramHistory.append(10); m_netHistory.append(0);
+    }
+
+    initSpecs();
+    m_specs = m_defaults;
+    loadState();
+
+    QProcess::startDetached("killall", {"-q", "waybar"});
+    // Сбрасываем старый ручной addreserved, чтобы панель не сдвигалась вниз (отступ держит strutWin!)
+
+    m_weatherDetails = {{"temp", "+3°C"}, {"feels", "+1°C"}, {"wind", "3.0"}, {"humidity", "80"}, {"desc", "Пасмурно"}, {"icon", "☁️"}, {"isRain", false}, {"isSnow", false}};
+
+    connectHyprEventSocket();
+    pollHyprState();
+    pollSysStats();
+    pollFastState();
+    QFile subF(QDir::homePath() + "/.config/hysett_vpn_sub.txt");
+    if (subF.open(QIODevice::ReadOnly)) { m_vpnSubUrl = QString::fromUtf8(subF.readAll()).trimmed(); subF.close(); }
+    pollWeather();
+    QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
+
+    m_sysTimer = new QTimer(this);
+    m_sysTimer->setInterval(450);
+    connect(m_sysTimer, &QTimer::timeout, this, &WaybarManager::pollSysStats);
+    m_sysTimer->start();
+
+    m_fastTimer = new QTimer(this);
+    m_fastTimer->setInterval(1200);
+    connect(m_fastTimer, &QTimer::timeout, this, &WaybarManager::pollFastState);
+    m_fastTimer->start();
+
+    m_weatherTimer = new QTimer(this);
+    m_weatherTimer->setInterval(600000);
+    connect(m_weatherTimer, &QTimer::timeout, this, &WaybarManager::pollWeather);
+    m_weatherTimer->start();
+}
+
+WaybarManager::~WaybarManager() {
+    if (m_hyprNotifier) {
+        m_hyprNotifier->setEnabled(false);
+        delete m_hyprNotifier;
+    }
+    if (m_hyprEventFd >= 0) ::close(m_hyprEventFd);
+}
+
+void WaybarManager::initSpecs() {
+    auto add = [this](const QString &key, const QString &label, qreal min, qreal max, qreal step, qreal def, int dec) {
+        QVariantMap m;
+        m["key"] = key; m["label"] = label; m["min"] = min; m["max"] = max;
+        m["step"] = step; m["def_val"] = def; m["value"] = def; m["dec"] = dec;
+        m_defaults.append(m);
+    };
+    add("bar_width", "Ширина панели (px)", 500.0, 1920.0, 10.0, 1902.0, 0);
+    add("bar_height", "Высота панели (px)", 18.0, 48.0, 1.0, 22.0, 0);
+    add("margin_top", "Отступ сверху (px)", 0.0, 30.0, 1.0, 4.0, 0);
+    add("margin_bottom", "Отступ снизу (px)", 0.0, 30.0, 1.0, 4.0, 0);
+    add("margin_left", "Отступ слева (px)", 0.0, 60.0, 1.0, 10.0, 0);
+    add("margin_right", "Отступ справа (px)", 0.0, 60.0, 1.0, 10.0, 0);
+    add("spacing", "Расстояние между модулями (px)", 2.0, 24.0, 1.0, 6.0, 0);
+    add("bar_opacity", "Прозрачность фона панели", 0.1, 1.0, 0.05, 0.88, 2);
+    add("pill_opacity", "Прозрачность пилюль модулей", 0.05, 1.0, 0.05, 0.65, 2);
+}
+
+qreal WaybarManager::specVal(const QString &key, qreal fallback) const {
+    for (const auto &it : m_specs) {
+        QVariantMap m = it.toMap();
+        if (m["key"].toString() == key) return m["value"].toDouble();
+    }
+    return fallback;
+}
+
+int WaybarManager::barWidth() const { return qRound(specVal("bar_width", 1902.0)); }
+int WaybarManager::barHeight() const { return qRound(specVal("bar_height", 22.0)); }
+int WaybarManager::marginTop() const { return qRound(specVal("margin_top", 4.0)); }
+int WaybarManager::marginBottom() const { return qRound(specVal("margin_bottom", 4.0)); }
+int WaybarManager::marginLeft() const { return qRound(specVal("margin_left", 10.0)); }
+int WaybarManager::marginRight() const { return qRound(specVal("margin_right", 10.0)); }
+int WaybarManager::spacing() const { return qRound(specVal("spacing", 6.0)); }
+qreal WaybarManager::barOpacity() const { return specVal("bar_opacity", 0.88); }
+qreal WaybarManager::pillOpacity() const { return specVal("pill_opacity", 0.65); }
+
+void WaybarManager::loadState() {
+    QString confPath = QDir::homePath() + "/.config/hypr/scripts/waybar.conf";
+    QFile file(confPath);
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            if (line.isEmpty() || line.startsWith('#')) continue;
+            int eq = line.indexOf('='); if (eq == -1) continue;
+            QString k = line.left(eq).trimmed(), v = line.mid(eq + 1).trimmed();
+            if (k == "pos_bottom") m_posBottom = (v == "1" || v == "true");
+            else if (k == "bar_position") m_barPosition = std::clamp(v.toInt(), 0, 3);
+            else if (k == "hidden_bar_modules") m_hiddenBarModules = v;
+            else if (k == "centered_bar") m_centeredBar = (v == "1" || v == "true");
+            else {
+                for (int i = 0; i < m_specs.size(); ++i) {
+                    QVariantMap m = m_specs[i].toMap();
+                    if (m["key"].toString() == k) {
+                        double val = v.toDouble();
+                        if (k == "bar_height" && val > 26.0) val = 22.0;
+                        m["value"] = val; m_specs[i] = m; break;
+                    }
+                }
+            }
+        }
+        file.close();
+    }
+    saveState(false);
+}
+
+void WaybarManager::saveState(bool updatePosition) {
+    Q_UNUSED(updatePosition);
+    QString confPath = QDir::homePath() + "/.config/hypr/scripts/waybar.conf";
+    QFile file(confPath);
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+        QTextStream out(&file);
+        out << "pos_bottom=" << (m_posBottom ? "1" : "0") << "\n";
+        out << "bar_position=" << m_barPosition << "\n";
+        out << "hidden_bar_modules=" << m_hiddenBarModules << "\n";
+        out << "centered_bar=" << (m_centeredBar ? "1" : "0") << "\n";
+        for (const auto &item : m_specs) {
+            QVariantMap m = item.toMap();
+            out << m["key"].toString() << "=" << QString::number(m["value"].toDouble(), 'f', m["dec"].toInt()) << "\n";
+        }
+    }
+    emit stateChanged();
+}
+
+void WaybarManager::setPosBottom(bool v) { if (m_posBottom != v) { m_posBottom = v; saveState(true); } }
+void WaybarManager::setCenteredBar(bool v) { if (m_centeredBar != v) { m_centeredBar = v; saveState(false); } }
+void WaybarManager::setSpecValue(int index, qreal val) {
+    if (index < 0 || index >= m_specs.size()) return;
+    QVariantMap m = m_specs[index].toMap(); m["value"] = val; m_specs[index] = m; saveState(false);
+}
+void WaybarManager::resetSpec(int index) {
+    if (index < 0 || index >= m_specs.size() || index >= m_defaults.size()) return;
+    m_specs[index] = m_defaults[index].toMap(); saveState(false);
+}
+void WaybarManager::restartWaybar() { QProcess::startDetached("killall", {"-q", "waybar"}); emit stateChanged(); }
+
+void WaybarManager::connectHyprEventSocket() {
+    QString runtimeDir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    QString sig = qEnvironmentVariable("HYPRLAND_INSTANCE_SIGNATURE");
+    if (runtimeDir.isEmpty() || sig.isEmpty()) return;
+    QString sock2 = runtimeDir + "/hypr/" + sig + "/.socket2.sock";
+    if (!QFile::exists(sock2)) sock2 = "/tmp/hypr/" + sig + "/.socket2.sock";
+
+    m_hyprEventFd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (m_hyprEventFd < 0) return;
+    int flags = ::fcntl(m_hyprEventFd, F_GETFL, 0);
+    ::fcntl(m_hyprEventFd, F_SETFL, flags | O_NONBLOCK);
+
+    struct sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    QByteArray pb = sock2.toUtf8();
+    std::strncpy(addr.sun_path, pb.constData(), sizeof(addr.sun_path) - 1);
+    if (::connect(m_hyprEventFd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
+        ::close(m_hyprEventFd); m_hyprEventFd = -1; return;
+    }
+    m_hyprNotifier = new QSocketNotifier(m_hyprEventFd, QSocketNotifier::Read, this);
+    connect(m_hyprNotifier, &QSocketNotifier::activated, this, &WaybarManager::onHyprEventReady);
+}
+
+void WaybarManager::onHyprEventReady() {
+    char buf[4096];
+    ssize_t n = ::read(m_hyprEventFd, buf, sizeof(buf) - 1);
+    if (n <= 0) return;
+    buf[n] = '\0';
+    QString ev = QString::fromUtf8(buf);
+    if (ev.contains("activelayout>>")) {
+        for (const QString &l : ev.split('\n', Qt::SkipEmptyParts)) {
+            if (l.startsWith("activelayout>>")) {
+                QString lang = l.section(',', 1).toLower();
+                QString nextKb = (lang.contains("ru") || lang.contains("russian")) ? "RU" : "EN";
+                if (m_kbLayout != nextKb) { m_kbLayout = nextKb; emit kbLayoutChanged(); }
+            }
+        }
+    }
+    if (ev.contains("workspace>>") || ev.contains("openwindow>>")) {
+        emit closeDrawerRequested();
+    } else if (ev.contains("activewindow>>")) {
+        for (const QString &l : ev.split('\n', Qt::SkipEmptyParts)) {
+            if (l.startsWith("activewindow>>")) {
+                QString winfo = l.mid(14).trimmed();
+                if (!winfo.isEmpty() && winfo != "," && !winfo.contains("HyprSettings", Qt::CaseInsensitive) && !winfo.contains("hypratmooverlay", Qt::CaseInsensitive)) {
+                    emit closeDrawerRequested();
+                }
+            }
+        }
+    }
+    if (ev.contains("workspace") || ev.contains("activewindow") || ev.contains("openwindow") || ev.contains("closewindow")) {
+        pollHyprState();
+    }
+}
+
+void WaybarManager::pollHyprState() {
+    QJsonDocument awDoc = QJsonDocument::fromJson(queryHyprCtlSocket("j/activeworkspace").toUtf8());
+    int newActiveWs = awDoc.object()["id"].toInt(1);
+
+    QJsonDocument wsDoc = QJsonDocument::fromJson(queryHyprCtlSocket("j/workspaces").toUtf8());
+    QMap<int, int> wsWindows;
+    for (int i = 1; i <= 5; ++i) wsWindows[i] = 0;
+    for (const auto &v : wsDoc.array()) {
+        QJsonObject o = v.toObject();
+        int id = o["id"].toInt();
+        if (id > 0 && id != 10) wsWindows[id] = o["windows"].toInt();
+    }
+
+    QVariantList nextList;
+    for (auto it = wsWindows.begin(); it != wsWindows.end(); ++it) {
+        QVariantMap item;
+        item["id"] = it.key(); item["windows"] = it.value(); item["active"] = (it.key() == newActiveWs);
+        nextList.append(item);
+    }
+    if (m_activeWorkspace != newActiveWs || m_workspaces != nextList) {
+        m_activeWorkspace = newActiveWs; m_workspaces = nextList; emit workspacesChanged();
+    }
+
+    QJsonDocument winDoc = QJsonDocument::fromJson(queryHyprCtlSocket("j/activewindow").toUtf8());
+    QJsonObject winObj = winDoc.object();
+    QString cls = winObj["class"].toString();
+    QString title = winObj["title"].toString();
+    if (cls.contains("HyprSettings", Qt::CaseInsensitive) || cls.contains("hypratmooverlay", Qt::CaseInsensitive) || title == "Control Center") {
+        title.clear();
+    }
+    if (title.length() > 42) title = title.left(40) + "…";
+    if (m_activeWindowTitle != title) { m_activeWindowTitle = title; emit activeWindowChanged(); }
+}
+
+void WaybarManager::pollSysStats() {
+    // 1. CPU Usage
+    QFile statFile("/proc/stat");
+    if (statFile.open(QIODevice::ReadOnly)) {
+        QList<QByteArray> parts = statFile.readLine().simplified().split(' ');
+        if (parts.size() >= 5) {
+            qulonglong u = parts[1].toULongLong(), n = parts[2].toULongLong(), s = parts[3].toULongLong(), idle = parts[4].toULongLong();
+            qulonglong iow = parts.value(5).toULongLong(), irq = parts.value(6).toULongLong(), sirq = parts.value(7).toULongLong();
+            qulonglong total = u + n + s + idle + iow + irq + sirq;
+            qulonglong diffT = total - m_prevCpuTotal, diffI = idle - m_prevCpuIdle;
+            if (m_prevCpuTotal > 0 && diffT > 0) m_cpuUsage = std::clamp(int(100ULL * (diffT - diffI) / diffT), 0, 100);
+            m_prevCpuTotal = total; m_prevCpuIdle = idle;
+        }
+        statFile.close();
+    }
+
+    // 2. CPU Temp
+    QFile tf("/sys/class/hwmon/hwmon0/temp1_input");
+    for (int i = 0; i < 6; ++i) {
+        QString c1 = QString("/sys/devices/platform/coretemp.0/hwmon/hwmon%1/temp1_input").arg(i);
+        if (QFile::exists(c1)) { tf.setFileName(c1); break; }
+        QString c2 = QString("/sys/class/hwmon/hwmon%1/temp1_input").arg(i);
+        if (QFile::exists(c2)) { tf.setFileName(c2); break; }
+    }
+    if (tf.open(QIODevice::ReadOnly)) {
+        int raw = tf.readAll().trimmed().toInt();
+        if (raw > 1000) m_cpuTemp = raw / 1000;
+        tf.close();
+    }
+
+    // 3. RAM
+    QFile memFile("/proc/meminfo");
+    if (memFile.open(QIODevice::ReadOnly)) {
+        qulonglong memTotal = 0, memAvail = 0;
+        for (const QByteArray &l : memFile.readAll().split('\n')) {
+            if (l.startsWith("MemTotal:")) memTotal = l.simplified().split(' ').value(1).toULongLong();
+            else if (l.startsWith("MemAvailable:")) { memAvail = l.simplified().split(' ').value(1).toULongLong(); break; }
+        }
+        memFile.close();
+        if (memTotal > 0) {
+            double usedGb = double(memTotal - memAvail) / (1024.0 * 1024.0);
+            double totGb  = double(memTotal) / (1024.0 * 1024.0);
+            m_memPercent = std::clamp(int(100ULL * (memTotal - memAvail) / memTotal), 0, 100);
+            m_memUsageText = QString::number(usedGb, 'f', 1) + "G";
+            m_memDetailText = QString("%1 GB / %2 GB (%3%)").arg(QString::number(usedGb, 'f', 1), QString::number(totGb, 'f', 1)).arg(m_memPercent);
+        }
+    }
+
+    // 3b. Видеопамять (VRAM) из /sys/class/drm/card*/device/mem_info_vram_*
+    qulonglong vUsed = 0, vTot = 0;
+    for (int card = 0; card <= 2; ++card) {
+        QFile fu(QString("/sys/class/drm/card%1/device/mem_info_vram_used").arg(card));
+        QFile ft(QString("/sys/class/drm/card%1/device/mem_info_vram_total").arg(card));
+        if (fu.open(QIODevice::ReadOnly) && ft.open(QIODevice::ReadOnly)) {
+            vUsed = fu.readAll().trimmed().toULongLong();
+            vTot  = ft.readAll().trimmed().toULongLong();
+            fu.close(); ft.close();
+            if (vTot > 0) break;
+        }
+    }
+    if (vTot > 0) {
+        double uGb = double(vUsed) / (1024.0 * 1024.0 * 1024.0);
+        double tGb = double(vTot) / (1024.0 * 1024.0 * 1024.0);
+        m_vramPercent = std::clamp(int(100ULL * vUsed / vTot), 0, 100);
+        m_vramDetailText = QString("%1 GB / %2 GB (%3%)").arg(QString::number(uGb, 'f', 1), QString::number(tGb, 'f', 1)).arg(m_vramPercent);
+    } else {
+        // Fallback оценка VRAM, если драйвер NVIDIA закрытый
+        static int s_nvTick = 0;
+        if (s_nvTick++ % 4 == 0) {
+            QProcess *nv = new QProcess(this);
+            connect(nv, &QProcess::finished, this, [this, nv]() {
+                QString out = QString::fromUtf8(nv->readAllStandardOutput()).trimmed();
+                nv->deleteLater();
+                QStringList p = out.split(',');
+                if (p.size() >= 2) {
+                    double uMb = p[0].trimmed().toDouble(), tMb = p[1].trimmed().toDouble();
+                    if (tMb > 0) {
+                        m_vramPercent = std::clamp(int(100.0 * uMb / tMb), 0, 100);
+                        m_vramDetailText = QString("%1 GB / %2 GB (%3%)").arg(QString::number(uMb/1024.0, 'f', 1), QString::number(tMb/1024.0, 'f', 1)).arg(m_vramPercent);
+                    }
+                }
+            });
+            nv->start("nvidia-smi", {"--query-gpu=memory.used,memory.total", "--format=csv,noheader,nounits"});
+        }
+    }
+
+    // 3c. Скорость сети (RX / TX) напрямую из /proc/net/dev
+    QFile netDev("/proc/net/dev");
+    if (netDev.open(QIODevice::ReadOnly)) {
+        qulonglong rxSum = 0, txSum = 0;
+        const QList<QByteArray> nLines = netDev.readAll().split('\n');
+        for (int i = 2; i < nLines.size(); ++i) {
+            QByteArray nl = nLines[i].trimmed();
+            if (nl.isEmpty() || nl.startsWith("lo:")) continue;
+            int col = nl.indexOf(':');
+            if (col == -1) continue;
+            QList<QByteArray> vals = nl.mid(col + 1).simplified().split(' ');
+            if (vals.size() >= 9) {
+                rxSum += vals[0].toULongLong();
+                txSum += vals[8].toULongLong();
+            }
+        }
+        netDev.close();
+        qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+        if (m_prevNetMs > 0 && nowMs > m_prevNetMs && rxSum >= m_prevNetRx && txSum >= m_prevNetTx) {
+            double dtSec = double(nowMs - m_prevNetMs) / 1000.0;
+            double rxKbs = double(rxSum - m_prevNetRx) / 1024.0 / dtSec;
+            double txKbs = double(txSum - m_prevNetTx) / 1024.0 / dtSec;
+            auto fmtSpd = [](double kbs) {
+                if (kbs >= 1024.0) return QString::number(kbs / 1024.0, 'f', 1) + " MB/s";
+                return QString::number(qRound(kbs)) + " KB/s";
+            };
+            m_netSpeedText = QString("↓ %1   ↑ %2").arg(fmtSpd(rxKbs), fmtSpd(txKbs));
+            m_netPercent = std::clamp(int((rxKbs + txKbs) / 120.0), 0, 100);
+        }
+        m_prevNetRx = rxSum; m_prevNetTx = txSum; m_prevNetMs = nowMs;
+    }
+
+    // Обновляем 60-точечную историю для плавных графиков
+    m_cpuHistory.append(m_cpuUsage); if (m_cpuHistory.size() > 60) m_cpuHistory.removeFirst();
+    m_tempHistory.append(m_cpuTemp); if (m_tempHistory.size() > 60) m_tempHistory.removeFirst();
+    m_memHistory.append(m_memPercent); if (m_memHistory.size() > 60) m_memHistory.removeFirst();
+    m_vramHistory.append(m_vramPercent); if (m_vramHistory.size() > 60) m_vramHistory.removeFirst();
+    m_netHistory.append(m_netPercent); if (m_netHistory.size() > 60) m_netHistory.removeFirst();
+
+    // 4. Живые иконки трея через DBus SNI с кэшем по PID
+    m_trayTick = (m_trayTick + 1) % 1000;
+    if (m_trayTick % 4 != 0) { emit sysStatsChanged(); return; }
+    static QMap<uint, QString> s_pidToSniCache;
+    static int s_scanCounter = 0;
+
+    QDir procDir("/proc");
+    QMap<QString, uint> commToPid;
+    for (const QString &pidStr : procDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        if (!pidStr[0].isDigit()) continue;
+        QFile cf("/proc/" + pidStr + "/comm");
+        if (cf.open(QIODevice::ReadOnly)) {
+            QString cName = QString::fromUtf8(cf.readAll()).trimmed();
+            uint pid = pidStr.toUInt();
+            if (!commToPid.contains(cName) || s_pidToSniCache.contains(pid)) {
+                commToPid[cName] = pid;
+            }
+            cf.close();
+        }
+    }
+
+    QVariantList nextTray;
+    auto addTrayApp = [&](const QString &procName, const QString &cls, const QString &fallbackIcon) {
+        if (!commToPid.contains(procName)) return;
+        uint pid = commToPid[procName];
+        if (!s_pidToSniCache.contains(pid) && (s_scanCounter++ % 5 == 0)) {
+            if (auto *ifc = QDBusConnection::sessionBus().interface()) {
+                for (const QString &srv : ifc->registeredServiceNames().value()) {
+                    if (!srv.startsWith(':')) continue;
+                    if (ifc->servicePid(srv).value() == pid) {
+                        QDBusMessage m = QDBusMessage::createMethodCall(srv, "/StatusNotifierItem", "org.freedesktop.DBus.Properties", "Get");
+                        m << "org.kde.StatusNotifierItem" << "Status";
+                        if (QDBusConnection::sessionBus().call(m, QDBus::Block, 20).type() == QDBusMessage::ReplyMessage) {
+                            s_pidToSniCache[pid] = srv;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+        QString sniSrv = s_pidToSniCache.value(pid);
+        QVariantMap tm;
+        tm["name"] = procName;
+        tm["class"] = cls;
+        tm["sniService"] = sniSrv;
+        if (!sniSrv.isEmpty()) {
+            tm["icon"] = QString("sni:%1|/StatusNotifierItem?t=%2").arg(sniSrv).arg(m_trayTick);
+        } else {
+            tm["icon"] = fallbackIcon;
+        }
+        nextTray.append(tm);
+    };
+    addTrayApp("Throne", "Throne", QFile::exists("/home/whrr/.local/share/Throne/throne.png") ? "/home/whrr/.local/share/Throne/throne.png" : "Throne");
+    addTrayApp("AyuGram", "com.ayugram.desktop", "com.ayugram.desktop");
+    addTrayApp("Telegram", "org.telegram.desktop", "org.telegram.desktop");
+    addTrayApp("Discord", "discord", "discord");
+    addTrayApp("steam", "steam", "steam");
+
+    m_trayApps = nextTray;
+    emit activeWindowChanged();
+    emit sysStatsChanged();
+}
+
+void WaybarManager::refreshProcesses() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        const QStringList lines = QString::fromUtf8(p->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+        p->deleteLater();
+        QVariantList list;
+        for (int i = 1; i < lines.size() && list.size() < 24; ++i) {
+            QStringList parts = lines[i].simplified().split(' ');
+            if (parts.size() < 4) continue;
+            int pid = parts[0].toInt();
+            double cpu = parts[1].toDouble();
+            double rssMb = parts[2].toDouble() / 1024.0;
+            QString comm = parts.mid(3).join(' ');
+            QVariantMap m;
+            m["pid"] = pid;
+            m["cpu"] = QString::number(cpu, 'f', 1) + "%";
+            m["mem"] = QString::number(rssMb, 'f', 0) + " MB";
+            m["name"] = comm;
+            list.append(m);
+        }
+        m_processList = list;
+        emit processesChanged();
+    });
+    p->start("ps", {"-eo", "pid,pcpu,rss,comm", "--sort=-pcpu"});
+}
+
+void WaybarManager::killProcess(int pid) {
+    if (pid > 1) {
+        ::kill(pid, SIGTERM);
+        QTimer::singleShot(250, this, &WaybarManager::refreshProcesses);
+    }
+}
+
+void WaybarManager::pollFastState() {
+    QProcess *wp = new QProcess(this);
+    connect(wp, &QProcess::finished, this, [this, wp]() {
+        QString out = QString::fromUtf8(wp->readAllStandardOutput()).trimmed();
+        wp->deleteLater();
+        if (out.startsWith("Volume:")) {
+            bool isM = out.contains("[MUTED]");
+            int vol = qRound(out.section(' ', 1, 1).toDouble() * 100.0);
+            if (m_volume != vol || m_muted != isM) { m_volume = vol; m_muted = isM; emit audioChanged(); }
+        }
+    });
+    wp->start("wpctl", {"get-volume", "@DEFAULT_AUDIO_SINK@"});
+
+    QProcess *rec = new QProcess(this);
+    connect(rec, &QProcess::finished, this, [this, rec](int code) {
+        rec->deleteLater();
+        bool isRec = (code == 0);
+        if (m_recording != isRec) { m_recording = isRec; emit recordingChanged(); }
+    });
+    rec->start("pgrep", {"-f", "gpu-screen-recorder"});
+}
+
+void WaybarManager::refreshWeather() { pollWeather(); }
+
+void WaybarManager::pollWeather() {
+    // Запускаем расширенный сборщик погоды Open-Meteo (Сейчас + Почасовой + Завтра + Неделя + Месяц)
+    QString pyCode = R"(
+import json, urllib.request, datetime, os
+WMO = {
+    0:("☀️","Ясно",0,0), 1:("🌤️","Преимущ. ясно",0,0), 2:("⛅","Переменная обл.",0,0), 3:("☁️","Пасмурно",0,0),
+    45:("🌫️","Туман",0,0), 48:("🌫️","Изморозь",0,0),
+    51:("🌦️","Морось",1,0), 53:("🌦️","Морось",1,0), 55:("🌧️","Сильная морось",1,0),
+    61:("🌦️","Слабый дождь",1,0), 63:("🌧️","Дождь",1,0), 65:("🌧️","Ливень",1,0),
+    71:("🌨️","Слабый снег",0,1), 73:("🌨️","Снег",0,1), 75:("❄️","Сильный снег",0,1),
+    80:("🌦️","Ливень",1,0), 81:("🌧️","Сильный ливень",1,0), 82:("⛈️","Шквал",1,0),
+    85:("🌨️","Снегопад",0,1), 86:("❄️","Метель",0,1), 95:("⛈️","Гроза",1,0)
+}
+DAYS = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
+url = "https://api.open-meteo.com/v1/forecast?latitude=61.785&longitude=34.3469&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&wind_speed_unit=ms&timezone=auto&forecast_days=16"
+req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0"})
+with urllib.request.urlopen(req, timeout=6) as r:
+    d = json.loads(r.read().decode("utf-8"))
+cur = d["current"]
+t = round(cur["temperature_2m"])
+feels = round(cur["apparent_temperature"])
+code = cur["weather_code"]
+ic, desc, is_r, is_s = WMO.get(code, ("☁️","Облачно",0,0))
+sgn = "+" if t > 0 else ""
+fsgn = "+" if feels > 0 else ""
+out = {
+    "text": f"{ic} {sgn}{t}°C",
+    "details": {"temp": f"{sgn}{t}°C", "feels": f"{fsgn}{feels}°C", "wind": str(cur["wind_speed_10m"]), "humidity": str(cur.get("relative_humidity_2m",75)), "desc": desc, "icon": ic, "isRain": bool(is_r), "isSnow": bool(is_s)},
+    "hourly": [], "tomorrow": [], "week": [], "month": []
+}
+h = d["hourly"]
+for idx in [0, 3, 6, 9, 12, 15, 18, 21]:
+    if idx < len(h["time"]):
+        ht = round(h["temperature_2m"][idx])
+        hic = WMO.get(h["weather_code"][idx], ("☁️","",0,0))[0]
+        out["hourly"].append({"time": h["time"][idx][-5:], "temp": ("+" if ht>0 else "")+str(ht)+"°", "icon": hic, "pop": str(h["precipitation_probability"][idx])+"%"})
+for idx in [24, 27, 30, 33, 36, 39, 42, 45]:
+    if idx < len(h["time"]):
+        ht = round(h["temperature_2m"][idx])
+        hic = WMO.get(h["weather_code"][idx], ("☁️","",0,0))[0]
+        out["tomorrow"].append({"time": h["time"][idx][-5:], "temp": ("+" if ht>0 else "")+str(ht)+"°", "icon": hic, "pop": str(h["precipitation_probability"][idx])+"%"})
+dl = d["daily"]
+for i in range(min(7, len(dl["time"]))):
+    dt = datetime.date.fromisoformat(dl["time"][i])
+    tmax, tmin = round(dl["temperature_2m_max"][i]), round(dl["temperature_2m_min"][i])
+    dic, ddesc, _, _ = WMO.get(dl["weather_code"][i], ("☁️","Облачно",0,0))
+    out["week"].append({"day": ("Сегодня" if i==0 else ("Завтра" if i==1 else DAYS[dt.weekday()]+" "+dt.strftime("%d.%m"))), "icon": dic, "desc": ddesc, "max": ("+" if tmax>0 else "")+str(tmax)+"°", "min": ("+" if tmin>0 else "")+str(tmin)+"°", "pop": str(dl["precipitation_probability_max"][i])+"%"})
+for i in range(28):
+    src = i if i < len(dl["time"]) else (len(dl["time"]) - 1 - (i % 5))
+    dt = datetime.date.fromisoformat(dl["time"][0]) + datetime.timedelta(days=i)
+    tmax, tmin = round(dl["temperature_2m_max"][src]), round(dl["temperature_2m_min"][src])
+    dic = WMO.get(dl["weather_code"][src], ("☁️","",0,0))[0]
+    out["month"].append({"date": dt.strftime("%d.%m"), "day": DAYS[dt.weekday()], "icon": dic, "max": ("+" if tmax>0 else "")+str(tmax)+"°", "min": ("+" if tmin>0 else "")+str(tmin)+"°"})
+print(json.dumps(out, ensure_ascii=False))
+)";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QByteArray raw = p->readAllStandardOutput().trimmed();
+        p->deleteLater();
+        QJsonDocument doc = QJsonDocument::fromJson(raw);
+        if (doc.isObject()) {
+            QJsonObject o = doc.object();
+            m_weatherText = o["text"].toString(m_weatherText);
+            m_weatherDetails = o["details"].toObject().toVariantMap();
+            m_weatherHourly = o["hourly"].toArray().toVariantList();
+            m_weatherTomorrow = o["tomorrow"].toArray().toVariantList();
+            m_weatherWeek = o["week"].toArray().toVariantList();
+            m_weatherMonth = o["month"].toArray().toVariantList();
+            emit weatherChanged();
+        }
+    });
+    p->start("/usr/bin/python3", {"-c", pyCode});
+}
+
+void WaybarManager::switchWorkspace(int wsId) {
+    QProcess::startDetached("hyprctl", {"eval", QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId)});
+    QProcess::startDetached("hyprctl", {"dispatch", QString("hl.dsp.focus({workspace='%1'})").arg(wsId)});
+    QProcess::startDetached("hyprctl", {"dispatch", "workspace", QString::number(wsId)});
+    QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
+}
+
+void WaybarManager::stepWorkspace(int dir) {
+    QString target = dir > 0 ? "e+1" : "e-1";
+    QProcess::startDetached("hyprctl", {"eval", QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target)});
+    QProcess::startDetached("hyprctl", {"dispatch", QString("hl.dsp.focus({workspace='%1'})").arg(target)});
+    QProcess::startDetached("hyprctl", {"dispatch", "workspace", target});
+    QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
+}
+
+void WaybarManager::changeVolume(int deltaPercent) {
+    QString arg = deltaPercent >= 0 ? QString("%1%+").arg(deltaPercent) : QString("%1%-").arg(std::abs(deltaPercent));
+    QProcess::startDetached("wpctl", {"set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", arg});
+    QTimer::singleShot(50, this, &WaybarManager::pollFastState);
+}
+
+void WaybarManager::setVolumeExact(int percent) {
+    percent = std::clamp(percent, 0, 100);
+    QProcess::startDetached("wpctl", {"set-volume", "-l", "1.0", "@DEFAULT_AUDIO_SINK@", QString("%1%").arg(percent)});
+    m_volume = percent; emit audioChanged();
+}
+
+void WaybarManager::toggleMute() {
+    QProcess::startDetached("wpctl", {"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"});
+    QTimer::singleShot(50, this, &WaybarManager::pollFastState);
+}
+
+void WaybarManager::runCommand(const QString &cmd) { QProcess::startDetached("sh", {"-c", cmd}); }
+
+void WaybarManager::activateTrayApp(const QString &cls, const QString &sniService) {
+    if (!sniService.isEmpty()) {
+        QDBusMessage msg = QDBusMessage::createMethodCall(sniService, "/StatusNotifierItem", "org.kde.StatusNotifierItem", "Activate");
+        msg << 0 << 0;
+        QDBusConnection::sessionBus().asyncCall(msg);
+    }
+    if (cls.isEmpty()) return;
+    QJsonDocument clientsDoc = QJsonDocument::fromJson(queryHyprCtlSocket("j/clients").toUtf8());
+    for (const auto &v : clientsDoc.array()) {
+        QJsonObject co = v.toObject();
+        if (co["class"].toString().compare(cls, Qt::CaseInsensitive) == 0 && co["mapped"].toBool()) {
+            QProcess::startDetached("hyprctl", {"eval", QString("for _,w in pairs(hl.get_windows()) do if w.class == '%1' then hl.dispatch(hl.dsp.focus({ window = w })) end end").arg(cls)});
+            QProcess::startDetached("hyprctl", {"dispatch", "focuswindow", "class:" + cls});
+            return;
+        }
+    }
+    if (cls.contains("Throne", Qt::CaseInsensitive)) runCommand("throne");
+    else if (cls.contains("ayugram", Qt::CaseInsensitive)) runCommand("env -u QT_SCALE_FACTOR TDESKTOP_USE_PORTAL=1 DESKTOP_APP_I_KNOW_ABOUT_GTK_INCOMPATIBILITY=1 DESKTOP_APP_DISABLE_GTK_INTEGRATION=1 QT_QPA_PLATFORMTHEME=kde AyuGram");
+    else runCommand(cls.toLower());
+}
+
+void WaybarManager::trayContextAction(const QString &cls, const QString &sniService, int actionIdx) {
+    if (actionIdx == 0) {
+        // Открыть / Показать окно
+        activateTrayApp(cls, sniService);
+    } else if (actionIdx == 1) {
+        // Переместить окно на текущий рабочий стол
+        QProcess::startDetached("hyprctl", {"eval", QString("local ws = hl.get_active_workspace(); for _,w in pairs(hl.get_windows()) do if w.class == '%1' then hl.dispatch(hl.dsp.window.move({ workspace = ws.id, window = w, follow = true })) end end").arg(cls)});
+    } else if (actionIdx == 2) {
+        // Свернуть в трей (закрыть окно)
+        QProcess::startDetached("hyprctl", {"eval", QString("for _,w in pairs(hl.get_windows()) do if w.class == '%1' then hl.dispatch(hl.dsp.window.close({ window = w })) end end").arg(cls)});
+    } else if (actionIdx == 3) {
+        // Вызов нативного контекстного меню SNI (если поддерживается приложением)
+        if (!sniService.isEmpty()) {
+            QDBusMessage msg = QDBusMessage::createMethodCall(sniService, "/StatusNotifierItem", "org.kde.StatusNotifierItem", "ContextMenu");
+            msg << 1600 << 30;
+            QDBusConnection::sessionBus().asyncCall(msg);
+        }
+    } else if (actionIdx == 4) {
+        // Полный выход из приложения
+        if (cls.contains("Throne", Qt::CaseInsensitive)) runCommand("killall -q Throne throne");
+        else if (cls.contains("ayugram", Qt::CaseInsensitive)) runCommand("killall -q AyuGram");
+        else runCommand("pkill -f " + cls);
+        QTimer::singleShot(300, this, &WaybarManager::pollSysStats);
+    }
+}
+
+void WaybarManager::refreshClipboard() {
+    QDir().mkpath("/tmp/cliphist-thumbs");
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QString out = QString::fromUtf8(p->readAllStandardOutput());
+        p->deleteLater();
+        m_rawClipboardLines.clear();
+        QVariantList items;
+        int count = 0;
+        for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+            if (++count > 30) break;
+            m_rawClipboardLines.append(line);
+            int tab = line.indexOf('\t');
+            QString id = (tab != -1) ? line.left(tab).trimmed() : QString::number(count);
+            QString content = (tab != -1) ? line.mid(tab + 1).trimmed() : line;
+            bool isImg = content.contains("[[ binary data");
+            QString thumbPath, label = content;
+            if (isImg) {
+                thumbPath = "/tmp/cliphist-thumbs/" + id + ".png";
+                if (!QFile::exists(thumbPath)) QProcess::startDetached("sh", {"-c", QString("cliphist decode %1 > %2").arg(id, thumbPath)});
+                label = QString("🖼  Скриншот #%1").arg(id);
+            } else {
+                label.replace('\n', ' ');
+                if (label.length() > 68) label = label.left(65) + "…";
+            }
+            QVariantMap m; m["index"] = count - 1; m["id"] = id; m["label"] = label; m["isImage"] = isImg; m["thumb"] = thumbPath;
+            items.append(m);
+        }
+        m_clipboardItems = items;
+        emit clipboardChanged();
+    });
+    p->start("cliphist", {"list"});
+}
+
+void WaybarManager::selectClipboardItem(int index) {
+    if (index < 0 || index >= m_rawClipboardLines.size()) return;
+    QString line = m_rawClipboardLines[index];
+    int tab = line.indexOf('\t');
+    QString id = (tab != -1) ? line.left(tab).trimmed() : "";
+    QString content = (tab != -1) ? line.mid(tab + 1).trimmed() : line;
+    if (content.startsWith("file://")) QProcess::startDetached("sh", {"-c", QString("printf '%s' \"%1\" | wl-copy -t text/uri-list").arg(content)});
+    else if (!id.isEmpty()) QProcess::startDetached("sh", {"-c", QString("cliphist decode %1 | wl-copy").arg(id)});
+}
+
+void WaybarManager::clearClipboard() {
+    QProcess::startDetached("cliphist", {"wipe"});
+    m_clipboardItems.clear(); m_rawClipboardLines.clear(); emit clipboardChanged();
+}
+
+void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH) {
+    if (!win) return;
+    int bh = barHeight() + marginTop() + 6;
+    QRegion reg;
+    if (m_barPosition == 0) reg = QRegion(0, 0, win->width(), bh);
+    else if (m_barPosition == 1) reg = QRegion(0, win->height() - bh, win->width(), bh);
+    else if (m_barPosition == 2) reg = QRegion(0, 0, bh + 16, win->height());
+    else reg = QRegion(win->width() - bh - 16, 0, bh + 16, win->height());
+
+    if (drawerOpen) {
+        reg = QRegion(0, 0, win->width(), win->height());
+    } else if (notifOpen) {
+        reg += QRegion(notifX, notifY, notifW, notifH + 6);
+    }
+    win->setMask(reg);
+
+#ifdef HAVE_LAYERSHELLQT
+    if (auto *ls = LayerShellQt::Window::get(win)) {
+        ls->setExclusiveZone(-1);
+        ls->setKeyboardInteractivity(
+            drawerOpen
+                ? LayerShellQt::Window::KeyboardInteractivityOnDemand
+                : LayerShellQt::Window::KeyboardInteractivityNone
+        );
+    }
+#endif
+    if (drawerOpen) win->requestActivate();
+}
+
+void WaybarManager::setHiddenBarModules(const QString &v) { if (m_hiddenBarModules != v) { m_hiddenBarModules = v; saveState(false); } }
+bool WaybarManager::isBarModuleVisible(const QString &mod) const {
+    if (m_hiddenBarModules.trimmed().isEmpty()) return true;
+    return !m_hiddenBarModules.split(',', Qt::SkipEmptyParts).contains(mod);
+}
+void WaybarManager::setBarModuleVisible(const QString &mod, bool visible) {
+    QStringList parts = m_hiddenBarModules.split(',', Qt::SkipEmptyParts);
+    if (visible) parts.removeAll(mod);
+    else if (!parts.contains(mod)) parts.append(mod);
+    setHiddenBarModules(parts.join(','));
+}
+
+void WaybarManager::setBarPosition(int v) {
+    v = std::clamp(v, 0, 3);
+    if (m_barPosition != v) {
+        m_barPosition = v;
+        m_posBottom = (v == 1);
+        saveState(true);
+    }
+}
+
+void WaybarManager::switchKbLayout() {
+    QProcess::startDetached("hyprctl", {"switchxkblayout", "all", "next"});
+    m_kbLayout = (m_kbLayout == "RU") ? "EN" : "RU";
+    emit kbLayoutChanged();
+}
+
+void WaybarManager::setVpnSubUrl(const QString &u) {
+    if (m_vpnSubUrl != u) {
+        m_vpnSubUrl = u;
+        emit sysStatsChanged();
+    }
+}
+
+void WaybarManager::toggleVpn() {
+    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    if (m_vpnActive) {
+        QProcess::startDetached("/usr/bin/python3", {script, "stop"});
+        // Также гасим tun/ThroneCore если он был запущен через Throne
+        QProcess::startDetached("pkill", {"-f", "sing-box.*singbox_vpn.json"});
+        m_vpnActive = false;
+    } else {
+        QProcess::startDetached("/usr/bin/python3", {script, "start"});
+        m_vpnActive = true;
+    }
+    emit sysStatsChanged();
+}
+
+void WaybarManager::updateVpnSubscription() {
+    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QString name = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
+        p->deleteLater();
+        if (!name.isEmpty()) m_vpnServerName = name;
+        emit sysStatsChanged();
+    });
+    p->start("/usr/bin/python3", {script, "update", m_vpnSubUrl});
+}
+
+void WaybarManager::setVpnRuDirect(bool v) {
+    if (m_vpnRuDirect != v) {
+        m_vpnRuDirect = v;
+        QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+        QProcess::startDetached("/usr/bin/python3", {script, "set_ru", v ? "1" : "0"});
+        emit sysStatsChanged();
+    }
+}

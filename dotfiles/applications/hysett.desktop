@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Hyprland Control Center (HySett)
+GenericName=Центр управления Hyprland
+Comment=Настройки Hyprland, обои, виджеты и глобальный поиск
+Exec=/home/whrr/hysett/build/hysett
+Icon=preferences-system
+Terminal=false
+Categories=Settings;System;DesktopSettings;
+Keywords=hyprland;settings;control;wallpaper;hysett;настройки;обои;

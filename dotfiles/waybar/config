@@ -1,0 +1,199 @@
+{
+    "margin-top": 8,
+    "height": 30,
+    "reload_style_on_change": true,
+    "layer": "bottom",
+    "position": "top",
+    "margin-left": 10,
+    "margin-right": 10,
+    "spacing": 6,
+
+    "modules-left": [
+        "group/linuxpill",
+        "group/wspill",
+        "group/weatherpill"
+    ],
+    "modules-center": [
+        "hyprland/window"
+    ],
+    "modules-right": [
+        "custom/recorder",
+        "group/syspill",
+        "group/traypill",
+        "group/rightpill"
+    ],
+
+    "group/linuxpill": {
+        "orientation": "horizontal",
+        "modules": ["custom/linux"]
+    },
+
+    "group/wspill": {
+        "orientation": "horizontal",
+        "modules": ["hyprland/workspaces"]
+    },
+
+    "group/weatherpill": {
+        "orientation": "horizontal",
+        "modules": ["custom/weather"]
+    },
+
+    "group/syspill": {
+        "orientation": "horizontal",
+        "modules": ["cpu", "temperature", "memory"]
+    },
+
+    "custom/recorder": {
+        "exec": "~/.config/hypr/scripts/recorder_status.sh",
+        "return-type": "json",
+        "interval": 1,
+        "signal": 9,
+        "tooltip": false,
+        "on-click": "~/.config/hypr/scripts/record.sh"
+    },
+
+    "group/traypill": {
+        "orientation": "horizontal",
+        "modules": ["tray"]
+    },
+
+    "group/rightpill": {
+        "orientation": "horizontal",
+        "modules": ["bluetooth", "network", "custom/clipboard", "pulseaudio", "hyprland/language", "clock", "custom/power"]
+    },
+
+    "hyprland/workspaces": {
+        "tooltip": false,
+        "format": "{name}",
+        "on-click": "activate",
+        "on-scroll-up": "hyprctl dispatch \x27hl.dsp.focus({workspace=\"e-1\"})\x27",
+        "on-scroll-down": "hyprctl dispatch \x27hl.dsp.focus({workspace=\"e+1\"})\x27",
+        "persistent-workspaces": {
+            "*": 5
+        }
+    },
+
+    "custom/linux": {
+        "format": "",
+        "tooltip": false,
+        "on-click": "/home/whrr/hysett/build/hysett --search"
+    },
+
+    "custom/weather": {
+        "exec": "/usr/bin/python3 ~/.config/waybar/weather.py",
+        "return-type": "json",
+        "interval": 900,
+        "format": "{}",
+        "on-click": "~/.config/waybar/weather_click.sh",
+        "signal": 8
+    },
+
+    "hyprland/window": {
+        "format": "{title}",
+        "max-length": 40,
+        "separate-outputs": true
+    },
+
+    "cpu": {
+        "interval": 3,
+        "format": "<span font_size=\x2714pt\x27></span> {usage}%",
+        "tooltip-format": "Загрузка CPU: {usage}%",
+        "on-click": "kitty --class waybar-btop -e btop"
+    },
+
+    "temperature": {
+        "interval": 3,
+        "hwmon-path-abs": "/sys/devices/platform/coretemp.0/hwmon",
+        "input-filename": "temp1_input",
+        "critical-threshold": 85,
+        "format": "<span font_size=\x2714pt\x27></span> {temperatureC}°C",
+        "format-critical": "<span font_size=\x2714pt\x27>🔥</span> {temperatureC}°C",
+        "tooltip-format": "Температура CPU: {temperatureC}°C",
+        "on-click": "kitty --class waybar-btop -e btop"
+    },
+
+    "memory": {
+        "interval": 3,
+        "format": "<span font_size=\x2714pt\x27>󰍛</span> {used:0.1f}G",
+        "tooltip-format": "Использовано ОЗУ: {used:0.1f} GB из {total:0.1f} GB ({percentage}%)\nДоступно: {avail:0.1f} GB",
+        "on-click": "kitty --class waybar-btop -e btop"
+    },
+
+    "tray": {
+        "icon-size": 16,
+        "spacing": 10
+    },
+
+    "bluetooth": {
+        "format": "󰂯",
+        "format-disabled": "󰂲",
+        "format-connected": "󰂱",
+        "tooltip-format": "{controller_alias}\t{controller_address}\n\n{num_connections} подключено",
+        "tooltip-format-connected": "{controller_alias}\t{controller_address}\n\n{num_connections} подключено\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "{device_alias}\t{device_address}",
+        "on-click": "blueman-manager"
+    },
+
+    "network": {
+        "format-wifi": "",
+        "format-ethernet": "󰈀",
+        "format-disconnected": "󰖪",
+        "tooltip-format": "Интерфейс: {ifname}\nIP: {ipaddr}/{cidr}\nСигнал: {signaldBm}dBm ({signalStrength}%)",
+        "on-click": "nm-connection-editor"
+    },
+
+    "custom/clipboard": {
+        "format": "<span font_size=\x2714pt\x27>󰅌</span>",
+        "tooltip-format": "История буфера обмена",
+        "on-click": "~/.config/hypr/scripts/clipmenu.sh"
+    },
+
+    "custom/backlight": {
+        "exec": "ddcutil getvcp 10 --brief | awk \x27{print $4}\x27",
+        "interval": 5,
+        "format": "󰃠 {}%",
+        "tooltip-format": "Яркость монитора: {}%",
+        "on-scroll-up": "ddcutil setvcp 10 + 5",
+        "on-scroll-down": "ddcutil setvcp 10 - 5",
+        "on-click": "brightness-controller"
+    },
+
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-muted": "󰝟 Mute",
+        "format-icons": {
+            "default": ["󰕿", "󰖀", "󰕾"]
+        },
+        "tooltip-format": "Устройство: {desc}\nГромкость: {volume}%",
+        "on-click": "pavucontrol",
+        "on-scroll-up": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+",
+        "on-scroll-down": "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+    },
+
+    "clock": {
+        "format": "{:%H:%M}",
+        "format-alt": " {:%d.%m.%Y}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
+        "calendar": {
+            "mode": "month",
+            "on-scroll": 1,
+            "format": {
+                "months": "<span color=\x27#ffffff\x27><b>{}</b></span>",
+                "days": "<span color=\x27#aaaaaa\x27>{}</span>",
+                "today": "<span color=\x27#ffffff\x27><b><u>{}</u></b></span>"
+            }
+        }
+    },
+
+    "custom/power": {
+        "format": "⏻",
+        "tooltip": false,
+        "on-click": "/home/whrr/logout_menu.sh"
+    },
+
+    "hyprland/language": {
+        "format": "{}",
+        "format-en": "EN",
+        "format-ru": "RU"
+    }
+}

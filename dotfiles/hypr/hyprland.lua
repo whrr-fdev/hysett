@@ -68,7 +68,7 @@ hl.on("hyprland.start", function ()
      hl.exec_cmd("/usr/lib/pam_kwallet_init &")
      --hl.exec_cmd("waybar & mako &")
      --hl.exec_cmd("throne")
-     hl.exec_cmd("sh -c 'sleep 2 && hyprctl eval \"for _,w in pairs(hl.get_windows()) do if w.class == \\\"Throne\\\" then hl.dispatch(hl.dsp.window.close({ window = w })) end end\"'")
+     --hl.exec_cmd("sh -c 'sleep 2 && hyprctl eval \"for _,w in pairs(hl.get_windows()) do if w.class == \\\"Throne\\\" then hl.dispatch(hl.dsp.window.close({ window = w })) end end\"'")
 
      hl.exec_cmd("firefox", { workspace = "10 silent" })
      hl.exec_cmd("awww-daemon &")
@@ -85,7 +85,7 @@ hl.on("hyprland.start", function ()
 
      --hl.exec_cmd("control-center --daemon &")
      hl.exec_cmd("/home/whrr/hysett/build/hysett --daemon &")
-     hl.exec_cmd("/usr/bin/python3 /home/whrr/.config/hypr/scripts/hysett_vpn.py start &")
+     hl.exec_cmd("sh -c 'sleep 2 && /usr/bin/python3 /home/whrr/.config/hypr/scripts/hysett_vpn.py start' &")
 end)
 
 

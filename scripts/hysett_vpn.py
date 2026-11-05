@@ -333,7 +333,20 @@ def detect_live_location():
         pass
     return None
 
+def wait_network_ready(timeout=10.0):
+    t0 = time.time()
+    while time.time() - t0 < timeout:
+        try:
+            out = subprocess.check_output(["ip", "route", "show", "default"], text=True, stderr=subprocess.DEVNULL).strip()
+            if out:
+                return True
+        except Exception:
+            pass
+        time.sleep(0.4)
+    return False
+
 def start_vpn():
+    wait_network_ready(10.0)
     stop_vpn()
     st = load_state()
     if not st.get("servers") and "outbound" not in st:

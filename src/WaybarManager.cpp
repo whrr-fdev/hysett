@@ -528,13 +528,23 @@ void WaybarManager::pollSysStats() {
     emit sysStatsChanged();
 }
 
+void WaybarManager::setProcessSortMode(int mode) {
+    mode = std::clamp(mode, 0, 1);
+    if (m_processSortMode != mode) {
+        m_processSortMode = mode;
+        refreshProcesses();
+        emit processesChanged();
+    }
+}
+
 void WaybarManager::refreshProcesses() {
     QProcess *p = new QProcess(this);
+    QString sortArg = (m_processSortMode == 1) ? "--sort=-rss,-pcpu" : "--sort=-pcpu,-rss";
     connect(p, &QProcess::finished, this, [this, p]() {
         const QStringList lines = QString::fromUtf8(p->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
         p->deleteLater();
         QVariantList list;
-        for (int i = 1; i < lines.size() && list.size() < 24; ++i) {
+        for (int i = 1; i < lines.size() && list.size() < 28; ++i) {
             QStringList parts = lines[i].simplified().split(' ');
             if (parts.size() < 4) continue;
             int pid = parts[0].toInt();
@@ -551,7 +561,7 @@ void WaybarManager::refreshProcesses() {
         m_processList = list;
         emit processesChanged();
     });
-    p->start("ps", {"-eo", "pid,pcpu,rss,comm", "--sort=-pcpu"});
+    p->start("ps", {"-eo", "pid,pcpu,rss,comm", sortArg});
 }
 
 void WaybarManager::killProcess(int pid) {

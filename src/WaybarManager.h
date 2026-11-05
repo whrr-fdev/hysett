@@ -69,6 +69,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QString netSpeedText READ netSpeedText NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList netHistory READ netHistory NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList processList READ processList NOTIFY processesChanged)
+    Q_PROPERTY(int processSortMode READ processSortMode WRITE setProcessSortMode NOTIFY processesChanged)
 
     // Звук, раскладка, сеть
     Q_PROPERTY(int volume READ volume NOTIFY audioChanged)
@@ -180,6 +181,8 @@ public:
     QVariantList netHistory() const { return m_netHistory; }
     Q_INVOKABLE void switchKbLayout();
     QVariantList processList() const { return m_processList; }
+    int processSortMode() const { return m_processSortMode; }
+    void setProcessSortMode(int mode);
 
     int volume() const { return m_volume; }
     bool muted() const { return m_muted; }
@@ -325,6 +328,7 @@ private:
     qulonglong m_prevNetTx = 0;
     qint64 m_prevNetMs = 0;
     QVariantList m_processList;
+    int m_processSortMode = 0;
     qulonglong m_prevCpuIdle = 0;
     qulonglong m_prevCpuTotal = 0;
 

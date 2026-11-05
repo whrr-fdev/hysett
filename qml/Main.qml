@@ -155,9 +155,9 @@ ApplicationWindow {
 
     function syncInputMask() {
         if (Waybar) {
-            Waybar.syncShellRegion(root, root.drawerActive, root.notifActive,
+            Waybar.syncShellRegion(root, root.drawerActive, root.notifOpen || root.notifActive,
                                    Math.round(root.notifX), Math.round(root.notifY),
-                                   Math.round(root.notifW), Math.round(root.animNotifH))
+                                   Math.round(root.notifW), Math.round(root.notifTargetH + 12))
         }
     }
 
@@ -233,6 +233,8 @@ ApplicationWindow {
         if (!drawerActive && Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
     }
     onNotifActiveChanged: syncInputMask()
+    onNotifCountChanged: Qt.callLater(syncInputMask)
+    onNotifTargetHChanged: Qt.callLater(syncInputMask)
 
     Component.onCompleted: {
         Qt.callLater(syncInputMask)
@@ -524,6 +526,41 @@ ApplicationWindow {
                 id: rightBarRow; z: 5
                 anchors.right: parent.right; anchors.rightMargin: 3; anchors.verticalCenter: parent.verticalCenter
                 spacing: Waybar ? Waybar.spacing : 6
+
+                // Индикатор записи экрана (красная точка + время записи MM:SS слева от системной инфы)
+                Rectangle {
+                    visible: Waybar ? Waybar.recording : false
+                    height: topBarContainer.pillHeight
+                    width: recRow.implicitWidth + 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius
+                    color: topBarContainer.pillColor
+
+                    Row {
+                        id: recRow
+                        height: topBarContainer.pillHeight
+                        anchors.centerIn: parent
+                        spacing: 5
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: "#ff4d4d"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: Waybar ? Waybar.recordingTimeText : "00:00"
+                            color: "#ffffff"
+                            font.pixelSize: 10
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh")
+                    }
+                }
 
                 Rectangle {
                     visible: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("sysinfo")) : true

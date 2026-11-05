@@ -88,7 +88,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     m_sysTimer->start();
 
     m_fastTimer = new QTimer(this);
-    m_fastTimer->setInterval(1200);
+    m_fastTimer->setInterval(1000);
     connect(m_fastTimer, &QTimer::timeout, this, &WaybarManager::pollFastState);
     m_fastTimer->start();
 
@@ -527,9 +527,29 @@ void WaybarManager::pollFastState() {
 
     QProcess *rec = new QProcess(this);
     connect(rec, &QProcess::finished, this, [this, rec](int code) {
+        QString out = QString::fromUtf8(rec->readAllStandardOutput()).trimmed();
         rec->deleteLater();
-        bool isRec = (code == 0);
-        if (m_recording != isRec) { m_recording = isRec; emit recordingChanged(); }
+        bool isRec = (code == 0 && !out.isEmpty());
+        if (isRec) {
+            if (!m_recording) {
+                m_recordingStartSec = QDateTime::currentSecsSinceEpoch();
+                // Берем точное время старта процесса из /proc/<pid>
+                QString pid = out.split('\n').first().trimmed();
+                QFileInfo fi("/proc/" + pid);
+                if (fi.exists()) m_recordingStartSec = fi.birthTime().isValid() ? fi.birthTime().toSecsSinceEpoch() : fi.lastModified().toSecsSinceEpoch();
+            }
+            qint64 elapsed = std::max(0LL, QDateTime::currentSecsSinceEpoch() - m_recordingStartSec);
+            QString nextTxt = QString("%1:%2").arg(elapsed / 60, 2, 10, QChar('0')).arg(elapsed % 60, 2, 10, QChar('0'));
+            if (!m_recording || m_recordingTimeText != nextTxt) {
+                m_recording = true;
+                m_recordingTimeText = nextTxt;
+                emit recordingChanged();
+            }
+        } else if (m_recording) {
+            m_recording = false;
+            m_recordingTimeText = "00:00";
+            emit recordingChanged();
+        }
     });
     rec->start("pgrep", {"-f", "gpu-screen-recorder"});
 }

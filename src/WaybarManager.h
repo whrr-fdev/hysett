@@ -53,6 +53,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool muted READ muted NOTIFY audioChanged)
     Q_PROPERTY(QString kbLayout READ kbLayout NOTIFY kbLayoutChanged)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
+    Q_PROPERTY(QString recordingTimeText READ recordingTimeText NOTIFY recordingChanged)
     Q_PROPERTY(bool btConnected READ btConnected NOTIFY sysStatsChanged)
     Q_PROPERTY(bool netConnected READ netConnected NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnActive READ vpnActive NOTIFY sysStatsChanged)
@@ -121,6 +122,7 @@ public:
     bool muted() const { return m_muted; }
     QString kbLayout() const { return m_kbLayout; }
     bool recording() const { return m_recording; }
+    QString recordingTimeText() const { return m_recordingTimeText; }
     bool btConnected() const { return m_btConnected; }
     bool netConnected() const { return m_netConnected; }
     bool vpnActive() const { return m_vpnActive; }
@@ -231,6 +233,8 @@ private:
     bool m_muted = false;
     QString m_kbLayout = "RU";
     bool m_recording = false;
+    qint64 m_recordingStartSec = 0;
+    QString m_recordingTimeText = "00:00";
     bool m_btConnected = false;
     bool m_netConnected = true;
     bool m_vpnActive = false;

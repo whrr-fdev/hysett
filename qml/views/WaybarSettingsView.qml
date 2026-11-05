@@ -88,6 +88,26 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
+                implicitHeight: uniRow.implicitHeight + 16
+
+                RowLayout {
+                    id: uniRow
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text { text: "Отступы при расширении узкой панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                    Item { Layout.fillWidth: true }
+                    SegmentedButton {
+                        options: ["Только у заголовка", "Равномерно между блоками"]
+                        selectedIndex: (Waybar && Waybar.uniformBarSpacing) ? 1 : 0
+                        onSelected: (idx) => { if (Waybar) Waybar.uniformBarSpacing = (idx === 1) }
+                    }
+                }
+            }
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
                 implicitHeight: editCol.implicitHeight + 20
 
                 ColumnLayout {

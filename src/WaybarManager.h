@@ -47,6 +47,7 @@ class WaybarManager : public QObject {
 
     // Разделители и режим редактирования панели задач (Drag & Drop)
     Q_PROPERTY(bool barSeparators READ barSeparators WRITE setBarSeparators NOTIFY stateChanged)
+    Q_PROPERTY(bool uniformBarSpacing READ uniformBarSpacing WRITE setUniformBarSpacing NOTIFY stateChanged)
     Q_PROPERTY(bool barEditMode READ barEditMode WRITE setBarEditMode NOTIFY stateChanged)
     Q_PROPERTY(QStringList leftBarOrder READ leftBarOrder NOTIFY stateChanged)
     Q_PROPERTY(QStringList rightBarOrder READ rightBarOrder NOTIFY stateChanged)
@@ -145,6 +146,8 @@ public:
 
     bool barSeparators() const { return m_barSeparators; }
     void setBarSeparators(bool v);
+    bool uniformBarSpacing() const { return m_uniformBarSpacing; }
+    void setUniformBarSpacing(bool v);
     bool barEditMode() const { return m_barEditMode; }
     void setBarEditMode(bool v);
     QStringList leftBarOrder() const { return m_leftBarOrder; }
@@ -280,6 +283,7 @@ private:
     int m_mediaPausedSec = 0;
 
     bool m_barSeparators = false;
+    bool m_uniformBarSpacing = true;
     bool m_barEditMode = false;
     QStringList m_backupLeftOrder;
     QStringList m_backupRightOrder;

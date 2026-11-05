@@ -107,7 +107,7 @@ Rectangle {
             Row {
                 anchors.centerIn: parent
                 spacing: 6
-                Text { text: "󰣇"; color: archMouse.containsMouse ? "#ffffff" : "#cccccc"; font.pixelSize: 13; anchors.verticalCenter: parent.verticalCenter }
+                Image { width: 14; height: 14; sourceSize: Qt.size(28, 28); smooth: true; opacity: archMouse.containsMouse ? 1.0 : 0.85; anchors.verticalCenter: parent.verticalCenter; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
                 Text { text: "HYPRLAND"; color: archMouse.containsMouse ? "#ffffff" : "#aaaaaa"; font.pixelSize: 10; font.bold: false; font.letterSpacing: 1.2; anchors.verticalCenter: parent.verticalCenter }
             }
 

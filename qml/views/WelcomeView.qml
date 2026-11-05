@@ -129,7 +129,7 @@ Item {
 
                                 RowLayout {
                                     spacing: 8
-                                    Text { text: "󰣇"; color: Config ? Config.accentColor : "#ffffff"; font.pixelSize: 18 }
+                                    Image { width: 18; height: 18; sourceSize: Qt.size(36, 36); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
                                     Text { text: "HYPRLAND"; color: "#ffffff"; font.pixelSize: 13; font.bold: false; font.letterSpacing: 2 }
                                 }
 

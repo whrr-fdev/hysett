@@ -164,6 +164,7 @@ void WaybarManager::loadState() {
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
+            else if (k == "uniform_bar_spacing") m_uniformBarSpacing = (v == "1" || v == "true");
             else if (k == "left_bar_order" && !v.isEmpty()) { m_leftBarOrder = v.split(',', Qt::SkipEmptyParts); m_leftBarOrder.removeAll("sep"); }
             else if (k == "right_bar_order" && !v.isEmpty()) { m_rightBarOrder = v.split(',', Qt::SkipEmptyParts); m_rightBarOrder.removeAll("sep"); }
             else {
@@ -196,6 +197,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
+        out << "uniform_bar_spacing=" << (m_uniformBarSpacing ? "1" : "0") << "\n";
         out << "left_bar_order=" << m_leftBarOrder.join(',') << "\n";
         out << "right_bar_order=" << m_rightBarOrder.join(',') << "\n";
         for (const auto &item : m_specs) {
@@ -596,6 +598,13 @@ void WaybarManager::seekToSecond(int sec) {
 void WaybarManager::setBarSeparators(bool v) {
     if (m_barSeparators != v) {
         m_barSeparators = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::setUniformBarSpacing(bool v) {
+    if (m_uniformBarSpacing != v) {
+        m_uniformBarSpacing = v;
         saveState(false);
     }
 }

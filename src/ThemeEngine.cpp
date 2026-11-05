@@ -173,6 +173,23 @@ void ThemeEngine::setRoundedState(bool rounded) {
         tf.write(QString("hl.config({ decoration = { rounding = %1, rounding_power = 2 } })\n").arg(rnd).toUtf8());
         tf.close();
     }
+    QString lookPath = QDir::homePath() + "/.config/hypr/look.lua";
+    QFile lf(lookPath);
+    if (lf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString ltxt = QString::fromUtf8(lf.readAll());
+        lf.close();
+        if (ltxt.contains("rounding")) {
+            ltxt.replace(QRegularExpression("rounding\s*=\s*\d+"), QString("rounding         = %1").arg(rnd));
+        } else {
+            ltxt.replace("decoration = {", QString("decoration = {
+        rounding         = %1,
+        rounding_power   = 2,").arg(rnd));
+        }
+        if (lf.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+            lf.write(ltxt.toUtf8());
+            lf.close();
+        }
+    }
     QProcess::startDetached("hyprctl", {"keyword", "decoration:rounding", QString::number(rnd)});
     QProcess::startDetached("hyprctl", {"eval", QString("hl.config({ decoration = { rounding = %1, rounding_power = 2 } })").arg(rnd)});
     QString scriptPath = QDir::homePath() + "/.config/hypr/scripts/theme_toggle.sh";

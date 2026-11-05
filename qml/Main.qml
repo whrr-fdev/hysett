@@ -477,6 +477,11 @@ ApplicationWindow {
 
             readonly property bool editMode: Waybar ? Waybar.barEditMode : false
             readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
+            readonly property bool uniformMode: Waybar ? Waybar.uniformBarSpacing : true
+            readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
+            readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && ((Waybar && Waybar.trayApps.length > 0) || editMode)
+            readonly property int macroGapsCount: 4 + (centerTitlePill.visible ? 1 : 0) + (trayBlockVis ? 1 : 0)
+            readonly property real macroStepGap: macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0
 
             Row {
                 id: leftBarRow; z: 5
@@ -500,9 +505,15 @@ ApplicationWindow {
                         }
                         visible: modVis
 
+                        Item {
+                            visible: modKey === "weather" && index > 0 && topBarContainer.macroStepGap > 0.5
+                            width: topBarContainer.macroStepGap
+                            height: 1
+                        }
+
                         // Вертикальный разделитель между блоками
                         Rectangle {
-                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep"
+                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep" && modKey !== "workspaces"
                             width: 1; height: topBarContainer.pillHeight - 5
                             anchors.verticalCenter: parent.verticalCenter
                             color: Qt.rgba(1, 1, 1, 0.22)
@@ -533,7 +544,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                Image { anchors.centerIn: parent; anchors.horizontalCenterOffset: -3; width: 13; height: 13; sourceSize: Qt.size(26, 26); smooth: true; source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23ffffff' d='M6.8 2.5L1.5 11.7l5.3 9.2h10.5l2.4-4.2h-9.8l-2.9-5 2.9-5h9.8l-2.4-4.2H6.8z'/><circle cx='18.8' cy='7.4' r='1.7' fill='%23ffffff'/><circle cx='21.5' cy='12.0' r='1.35' fill='%23ffffff'/><circle cx='18.8' cy='16.6' r='1.1' fill='%23ffffff'/></svg>" }
+                                Image { anchors.centerIn: parent; anchors.horizontalCenterOffset: -3; width: 13; height: 13; sourceSize: Qt.size(26, 26); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 
@@ -742,8 +753,16 @@ ApplicationWindow {
                         }
                         visible: modVis
 
+                        Item {
+                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "clock") && index > 0
+                            visible: isMacroBoundary && topBarContainer.macroStepGap > 0.5
+                            width: topBarContainer.macroStepGap
+                            height: 1
+                        }
+
                         Rectangle {
-                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep"
+                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "clock") && index > 0
+                            visible: topBarContainer.showSeps && isMacroBoundary
                             width: 1; height: topBarContainer.pillHeight - 5
                             anchors.verticalCenter: parent.verticalCenter
                             color: Qt.rgba(1, 1, 1, 0.22)

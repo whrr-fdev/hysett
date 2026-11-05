@@ -267,7 +267,12 @@ ScrollView {
                                 { title: Config ? (Config.language, Config.trAuto("󰏘  Шейдеры")) : "󰏘  Шейдеры", idx: 13 },
                                 { title: Config ? (Config.language, Config.trAuto("󰸉  Обои")) : "󰸉  Обои", idx: 14 },
                                 { title: Config ? (Config.language, Config.trAuto("󰕰  Виджеты")) : "󰕰  Виджеты", idx: 15 },
-                                { title: Config ? (Config.language, Config.trAuto("󰖗  Атмосфера")) : "󰖗  Атмосфера", idx: 19 }
+                                { title: "󰎆  Музыка", idx: 27 },
+                                { title: "󰌌  Язык", idx: 25 },
+                                { title: "⏻  Питание", idx: 24 },
+                                { title: "󰦝  VPN", idx: 26 },
+                                { title: Config ? (Config.language, Config.trAuto("󰖗  Атмосфера")) : "󰖗  Атмосфера", idx: 19 },
+                                { title: "✕  Кнопка Закрыть", idx: 99 }
                             ]
 
                             StyledCheckBox {

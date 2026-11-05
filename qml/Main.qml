@@ -477,18 +477,19 @@ ApplicationWindow {
             readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
             readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && ((Waybar && Waybar.trayApps.length > 0) || editMode)
             readonly property int macroGapsCount: 4 + (centerTitlePill.visible ? 1 : 0) + (trayBlockVis ? 1 : 0)
-            readonly property real macroStepGap: macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0
+            readonly property real baseGroupGap: Waybar ? Waybar.groupSpacing : 6
+            readonly property real macroStepGap: baseGroupGap + (macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0)
 
             Row {
                 id: leftBarRow; z: 5
                 anchors.left: parent.left; anchors.leftMargin: 5; anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
+                spacing: Waybar ? Waybar.spacing : 4
 
                 Repeater {
                     model: Waybar ? Waybar.leftBarOrder : ["launcher", "workspaces", "weather", "media"]
                     delegate: Row {
                         id: leftModWrap
-                        spacing: 4
+                        spacing: Waybar ? Waybar.spacing : 4
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property string modKey: modelData
                         readonly property bool modVis: {
@@ -740,7 +741,7 @@ ApplicationWindow {
                     model: Waybar ? Waybar.rightBarOrder : ["sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"]
                     delegate: Row {
                         id: rightModWrap
-                        spacing: 4
+                        spacing: Waybar ? Waybar.spacing : 4
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property string modKey: modelData
                         readonly property bool modVis: {

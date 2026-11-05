@@ -24,6 +24,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int marginLeft READ marginLeft NOTIFY stateChanged)
     Q_PROPERTY(int marginRight READ marginRight NOTIFY stateChanged)
     Q_PROPERTY(int spacing READ spacing NOTIFY stateChanged)
+    Q_PROPERTY(int groupSpacing READ groupSpacing NOTIFY stateChanged)
     Q_PROPERTY(qreal barOpacity READ barOpacity NOTIFY stateChanged)
     Q_PROPERTY(qreal pillOpacity READ pillOpacity NOTIFY stateChanged)
 
@@ -116,6 +117,7 @@ public:
     int marginLeft() const;
     int marginRight() const;
     int spacing() const;
+    int groupSpacing() const;
     qreal barOpacity() const;
     qreal pillOpacity() const;
 

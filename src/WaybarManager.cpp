@@ -81,6 +81,13 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     pollFastState();
     QFile subF(QDir::homePath() + "/.config/hysett_vpn_sub.txt");
     if (subF.open(QIODevice::ReadOnly)) { m_vpnSubUrl = QString::fromUtf8(subF.readAll()).trimmed(); subF.close(); }
+    QFile vstF(QDir::homePath() + "/.config/hypr/scripts/vpn_state.json");
+    if (vstF.open(QIODevice::ReadOnly)) {
+        QJsonObject vo = QJsonDocument::fromJson(vstF.readAll()).object();
+        if (vo.contains("server_name")) m_vpnServerName = vo["server_name"].toString(m_vpnServerName);
+        if (vo.contains("ru_direct")) m_vpnRuDirect = vo["ru_direct"].toBool(true);
+        vstF.close();
+    }
     pollWeather();
     QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
 
@@ -122,7 +129,8 @@ void WaybarManager::initSpecs() {
     add("margin_bottom", "Отступ снизу (px)", 0.0, 30.0, 1.0, 4.0, 0);
     add("margin_left", "Отступ слева (px)", 0.0, 60.0, 1.0, 10.0, 0);
     add("margin_right", "Отступ справа (px)", 0.0, 60.0, 1.0, 10.0, 0);
-    add("spacing", "Расстояние между модулями (px)", 2.0, 24.0, 1.0, 6.0, 0);
+    add("spacing", "Расстояние между модулями (px)", 1.0, 24.0, 1.0, 4.0, 0);
+    add("group_spacing", "Отступ между блоками панели (px)", 0.0, 40.0, 1.0, 6.0, 0);
     add("bar_opacity", "Прозрачность фона панели", 0.1, 1.0, 0.05, 0.88, 2);
     add("pill_opacity", "Прозрачность пилюль модулей", 0.05, 1.0, 0.05, 0.65, 2);
 }
@@ -142,7 +150,8 @@ int WaybarManager::marginTop() const { return qRound(specVal("margin_top", 4.0))
 int WaybarManager::marginBottom() const { return qRound(specVal("margin_bottom", 4.0)); }
 int WaybarManager::marginLeft() const { return qRound(specVal("margin_left", 10.0)); }
 int WaybarManager::marginRight() const { return qRound(specVal("margin_right", 10.0)); }
-int WaybarManager::spacing() const { return qRound(specVal("spacing", 6.0)); }
+int WaybarManager::spacing() const { return qRound(specVal("spacing", 4.0)); }
+int WaybarManager::groupSpacing() const { return qRound(specVal("group_spacing", 6.0)); }
 qreal WaybarManager::barOpacity() const { return specVal("bar_opacity", 0.88); }
 qreal WaybarManager::pillOpacity() const { return specVal("pill_opacity", 0.65); }
 
@@ -852,6 +861,18 @@ void WaybarManager::pollFastState() {
         }
     });
     rec->start("pgrep", {"-f", "gpu-screen-recorder"});
+
+    QProcess *vp = new QProcess(this);
+    connect(vp, &QProcess::finished, this, [this, vp](int code) {
+        QString out = QString::fromUtf8(vp->readAllStandardOutput()).trimmed();
+        vp->deleteLater();
+        bool isVpnOn = (code == 0 && !out.isEmpty());
+        if (m_vpnActive != isVpnOn) {
+            m_vpnActive = isVpnOn;
+            emit sysStatsChanged();
+        }
+    });
+    vp->start("pgrep", {"-f", "sing-box.*singbox_vpn.json"});
 }
 
 void WaybarManager::refreshWeather() { pollWeather(); }

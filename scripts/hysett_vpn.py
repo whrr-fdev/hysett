@@ -7,7 +7,7 @@ STATE_FILE = os.path.join(CONF_DIR, "vpn_state.json")
 SB_CONF = os.path.join(CONF_DIR, "singbox_vpn.json")
 
 RU_DOMAIN_SUFFIXES = [
-    ".ru", ".su", ".xn--p1ai", ".by", ".kz",
+    "ru", ".ru", "su", ".su", "xn--p1ai", ".xn--p1ai", "by", ".by", "kz", ".kz",
     "yandex.com", "yandex.net", "ya.ru", "vk.com", "vkuseraudio.net", "userapi.com",
     "gosuslugi.ru", "sberbank.ru", "sber.ru", "tbank.ru", "tinkoff.ru",
     "ozon.ru", "ozonusercontent.com", "wb.ru", "wildberries.ru",
@@ -34,7 +34,6 @@ def load_state():
                 st.update(json.load(f))
         except Exception:
             pass
-    # Удаляем старый ключ url из vpn_state.json, чтобы он не светился в конфигах
     if "url" in st:
         if not os.path.exists(SUB_FILE) and st["url"]:
             write_sub_url(st["url"])
@@ -98,7 +97,13 @@ def parse_uri(uri):
     return name, ob
 
 def build_config(outbound, ru_direct):
-    rules = [{"ip_is_private": True, "outbound": "direct"}]
+    # Совместимо с sing-box 1.11 .. 1.14+ (action: "sniff" в route.rules вместо удаленных полей в inbound)
+    clean_ob = dict(outbound)
+    clean_ob["tag"] = "proxy"
+    rules = [
+        {"action": "sniff"},
+        {"ip_is_private": True, "outbound": "direct"}
+    ]
     if ru_direct:
         rules.append({"domain_suffix": RU_DOMAIN_SUFFIXES, "outbound": "direct"})
     return {
@@ -108,13 +113,11 @@ def build_config(outbound, ru_direct):
                 "type": "mixed",
                 "tag": "mixed-in",
                 "listen": "127.0.0.1",
-                "listen_port": 2080,
-                "sniff": True,
-                "sniff_override_destination": False
+                "listen_port": 2080
             }
         ],
         "outbounds": [
-            outbound,
+            clean_ob,
             {"type": "direct", "tag": "direct"}
         ],
         "route": {
@@ -128,9 +131,8 @@ def fetch_subscription():
     url = read_sub_url()
     if not url:
         return st.get("server_name", "StealthSurf VPN")
-    # Обходим любой системный прокси при скачивании подписки
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    req = urllib.request.Request(url, headers={"User-Agent": "v2rayN/6.45 sing-box/1.10"})
+    req = urllib.request.Request(url, headers={"User-Agent": "v2rayN/6.45 sing-box/1.14"})
     with opener.open(req, timeout=10) as r:
         raw = r.read().decode("utf-8", errors="ignore").strip()
 
@@ -168,7 +170,7 @@ def fetch_subscription():
     save_state(st)
     return st.get("server_name", "StealthSurf VPN")
 
-def wait_port(port, timeout=3.0):
+def wait_port(port, timeout=3.5):
     t0 = time.time()
     while time.time() - t0 < timeout:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -190,8 +192,17 @@ def set_desktop_proxy(enable):
             ("org.gnome.system.proxy", "ignore-hosts", "['localhost', '127.0.0.0/8', '::1', '*.ru', '*.su', '*.xn--p1ai', '*vk.com', '*yandex.net', '*ozon.ru', '*wb.ru', '*sberbank.ru', '*tbank.ru', '*gosuslugi.ru']")
         ]:
             subprocess.run(["gsettings", "set", schema, key, val], stderr=subprocess.DEVNULL)
+        # Также синхронизируем KDE kioslaverc (так как XDG_CURRENT_DESKTOP=KDE)
+        if shutil.which("kwriteconfig6"):
+            subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "ProxyType", "1"], stderr=subprocess.DEVNULL)
+            subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "httpProxy", "http://127.0.0.1:2080"], stderr=subprocess.DEVNULL)
+            subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "httpsProxy", "http://127.0.0.1:2080"], stderr=subprocess.DEVNULL)
+            subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "socksProxy", "socks://127.0.0.1:2080"], stderr=subprocess.DEVNULL)
+            subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "NoProxyFor", "localhost,127.0.0.1,.ru,.su,.xn--p1ai,vk.com,yandex.ru,ozon.ru,wb.ru,gosuslugi.ru"], stderr=subprocess.DEVNULL)
     else:
         subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "none"], stderr=subprocess.DEVNULL)
+        if shutil.which("kwriteconfig6"):
+            subprocess.run(["kwriteconfig6", "--file", "kioslaverc", "--group", "Proxy Settings", "--key", "ProxyType", "0"], stderr=subprocess.DEVNULL)
 
 def stop_vpn():
     set_desktop_proxy(False)
@@ -207,10 +218,10 @@ def start_vpn():
     if "outbound" in st:
         with open(SB_CONF, "w") as f:
             json.dump(build_config(st["outbound"], st.get("ru_direct", True)), f, indent=2)
-    sb_bin = shutil.which("sing-box") or "/opt/Throne/ThroneCore"
+    sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
     if os.path.exists(sb_bin) and os.path.exists(SB_CONF):
         subprocess.Popen([sb_bin, "run", "-c", SB_CONF], stdout=open("/tmp/singbox_vpn.log", "w"), stderr=subprocess.STDOUT)
-        if wait_port(2080, 3.0):
+        if wait_port(2080, 3.5):
             set_desktop_proxy(True)
             return True
         else:

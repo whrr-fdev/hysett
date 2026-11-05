@@ -8,8 +8,8 @@ Item {
     id: wallRoot
 
     property var winObj: ApplicationWindow.window
-    readonly property real curOp: (winObj && !isNaN(winObj.wallpapersLiveOpacity)) ? winObj.wallpapersLiveOpacity : (Config ? Config.wallpapersOpacity : 0.59)
-    readonly property real curBl: (winObj && !isNaN(winObj.wallpapersLiveBlur)) ? winObj.wallpapersLiveBlur : (Config ? Config.wallpapersBlur : 0.15)
+    readonly property real curOp: (winObj && !isNaN(winObj.wallpapersLiveOpacity)) ? winObj.wallpapersLiveOpacity : (Config ? Config.wallpapersOpacity : 0.15)
+    readonly property real curBl: (winObj && !isNaN(winObj.wallpapersLiveBlur)) ? winObj.wallpapersLiveBlur : (Config ? Config.wallpapersBlur : 0.02)
     readonly property bool isExpanded: wallRoot.width > 1050
     property real targetScrollY: 0
     property real targetScrollX: 0
@@ -228,7 +228,7 @@ Item {
                                     value: wallRoot.curOp
                                     onMoved: {
                                         if (wallRoot.winObj) wallRoot.winObj.wallpapersLiveOpacity = value
-                                        if (!wallRoot.isExpanded) Config.wallpapersOpacity = value
+                                        Config.wallpapersOpacity = value
                                     }
                                 }
                             }
@@ -250,7 +250,7 @@ Item {
                                     onMoved: {
                                         if (wallRoot.winObj) wallRoot.winObj.wallpapersLiveBlur = value
                                         if (Theme) Theme.applyEffectiveBlur(value)
-                                        if (!wallRoot.isExpanded) Config.wallpapersBlur = value
+                                        Config.wallpapersBlur = value
                                     }
                                 }
                             }

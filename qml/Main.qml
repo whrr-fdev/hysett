@@ -153,8 +153,8 @@ ApplicationWindow {
     readonly property bool anyModalActive: modalOpen || barSavePromptOpen || (Monitors && Monitors.revertDialogActive)
     readonly property bool isWindowExpanded: isWallpaperExpanded
 
-    property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.59
-    property real wallpapersLiveBlur: Config ? Config.wallpapersBlur : 0.15
+    property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.15
+    property real wallpapersLiveBlur: Config ? Config.wallpapersBlur : 0.02
 
     Behavior on wallpapersLiveOpacity { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
     Behavior on wallpapersLiveBlur { NumberAnimation { duration: 400; easing.type: Easing.OutQuint } }
@@ -261,13 +261,8 @@ ApplicationWindow {
     }
 
     function syncWallpapersModeState() {
-        if (root.isWindowExpanded) {
-            root.wallpapersLiveOpacity = 0.0
-            root.wallpapersLiveBlur = 0.0
-        } else {
-            root.wallpapersLiveOpacity = Config ? Config.wallpapersOpacity : 0.59
-            root.wallpapersLiveBlur = Config ? Config.wallpapersBlur : 0.15
-        }
+        root.wallpapersLiveOpacity = Config ? Config.wallpapersOpacity : 0.15
+        root.wallpapersLiveBlur = Config ? Config.wallpapersBlur : 0.02
         root.syncTabBlur()
     }
     onIsWindowExpandedChanged: syncWallpapersModeState()
@@ -317,7 +312,7 @@ ApplicationWindow {
     function syncTabBlur() {
         if (!Theme || !Config) return
         if (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass) {
-            var targetBlur = root.isWindowExpanded ? 0.0 : root.wallpapersLiveBlur
+            var targetBlur = root.wallpapersLiveBlur
             Theme.applyEffectiveBlur(targetBlur)
         } else {
             Theme.applyEffectiveBlur(Theme.windowBlur)
@@ -431,7 +426,7 @@ ApplicationWindow {
             anchors.fill: parent
             z: 2
             property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
-                                          ? Math.max(0.18, root.wallpapersLiveOpacity)
+                                          ? Math.max(0.0, root.wallpapersLiveOpacity)
                                           : (Config ? Config.opacity : 0.85)
             property color surfCol: Config ? Config.m3Surface : "#111318"
             property color notifBgCol: Mako ? Mako.bgColor : surfCol

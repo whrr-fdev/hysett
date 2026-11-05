@@ -157,8 +157,9 @@ def build_config(outbound, ru_direct, use_tun=False):
         })
 
     rules = [
-        {"action": "sniff"},
+        {"action": "sniff", "timeout": "300ms"},
         {"protocol": "dns", "action": "hijack-dns"},
+        {"domain": ["mozilla.cloudflare-dns.com", "use-application-dns.net"], "action": "reject"},
         {"ip_is_private": True, "outbound": "direct"}
     ]
     if ru_direct:

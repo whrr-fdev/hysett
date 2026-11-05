@@ -66,7 +66,7 @@ hl.on("hyprland.start", function ()
      hl.exec_cmd("/usr/lib/polkit-kde-authentication-agent-1 &")
      hl.exec_cmd("dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP=KDE")
      hl.exec_cmd("/usr/lib/pam_kwallet_init &")
-     hl.exec_cmd("waybar & mako &")
+     --hl.exec_cmd("waybar & mako &")
      --hl.exec_cmd("throne")
      hl.exec_cmd("sh -c 'sleep 2 && hyprctl eval \"for _,w in pairs(hl.get_windows()) do if w.class == \\\"Throne\\\" then hl.dispatch(hl.dsp.window.close({ window = w })) end end\"'")
 
@@ -732,13 +732,13 @@ hl.window_rule({
     name  = "no-gaps-wtv1",
     match = { float = false, workspace = "w[tv1]" },
     border_size = 0,
-    rounding    = 0,
+    --rounding    = 0,
 })
 hl.window_rule({
     name  = "no-gaps-f1",
     match = { float = false, workspace = "f[1]" },
     border_size = 0,
-    rounding    = 0,
+    --rounding    = 0,
 })
 
 hl.window_rule({
@@ -818,9 +818,9 @@ hl.config({
         force_zero_scaling = true,
     },
 })
-require("theme")
+pcall(dofile, os.getenv("HOME") .. "/.config/hypr/theme.lua")
 
-pcall(require, "look")
+pcall(dofile, os.getenv("HOME") .. "/.config/hypr/look.lua")
 
 pcall(require, "cursor")
 pcall(require, "monitors")

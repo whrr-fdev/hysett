@@ -115,7 +115,7 @@ void WaybarManager::initSpecs() {
         m["step"] = step; m["def_val"] = def; m["value"] = def; m["dec"] = dec;
         m_defaults.append(m);
     };
-    add("bar_width", "Ширина панели (px)", 500.0, 1920.0, 10.0, 1902.0, 0);
+    add("bar_width", "Ширина панели (px)", 500.0, 1920.0, 10.0, 1904.0, 0);
     add("bar_height", "Высота панели (px)", 18.0, 48.0, 1.0, 22.0, 0);
     add("bar_anim_duration", "Анимация ширины панели (мс)", 0.0, 350.0, 10.0, 75.0, 0);
     add("margin_top", "Отступ сверху (px)", 0.0, 30.0, 1.0, 4.0, 0);
@@ -135,7 +135,7 @@ qreal WaybarManager::specVal(const QString &key, qreal fallback) const {
     return fallback;
 }
 
-int WaybarManager::barWidth() const { return qRound(specVal("bar_width", 1902.0)); }
+int WaybarManager::barWidth() const { return qRound(specVal("bar_width", 1904.0)); }
 int WaybarManager::barHeight() const { return qRound(specVal("bar_height", 22.0)); }
 int WaybarManager::barAnimDuration() const { return qRound(specVal("bar_anim_duration", 75.0)); }
 int WaybarManager::marginTop() const { return qRound(specVal("margin_top", 4.0)); }

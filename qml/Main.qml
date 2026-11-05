@@ -73,8 +73,8 @@ ApplicationWindow {
     readonly property bool isCenteredBar: Waybar ? Waybar.centeredBar : false
     readonly property int barH: Waybar ? Waybar.barHeight : 22
     readonly property int barTop: Waybar ? Waybar.marginTop : 4
-    readonly property int fullBarLeft: Math.max(0, (Waybar ? Waybar.marginLeft : 10) - 1)
-    readonly property int fullBarRight: Math.max(0, (Waybar ? Waybar.marginRight : 10) - 1)
+    readonly property int fullBarLeft: Math.max(0, (Waybar ? Waybar.marginLeft : 10) - 2)
+    readonly property int fullBarRight: Math.max(0, (Waybar ? Waybar.marginRight : 10) - 2)
     readonly property int maxAvailBarW: Math.max(400, root.width - fullBarLeft - fullBarRight)
     readonly property int customBarW: Waybar ? Math.min(maxAvailBarW, Waybar.barWidth) : maxAvailBarW
 

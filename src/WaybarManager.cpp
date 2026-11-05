@@ -324,19 +324,37 @@ void WaybarManager::pollSysStats() {
         statFile.close();
     }
 
-    // 2. CPU Temp
-    QFile tf("/sys/class/hwmon/hwmon0/temp1_input");
-    for (int i = 0; i < 6; ++i) {
-        QString c1 = QString("/sys/devices/platform/coretemp.0/hwmon/hwmon%1/temp1_input").arg(i);
-        if (QFile::exists(c1)) { tf.setFileName(c1); break; }
-        QString c2 = QString("/sys/class/hwmon/hwmon%1/temp1_input").arg(i);
-        if (QFile::exists(c2)) { tf.setFileName(c2); break; }
+    // 2. CPU Temp (ищем реальный датчик процессора coretemp / k10temp / zenpower / cpu, игнорируя acpitz 27°C)
+    int bestCpuTemp = -1;
+    int fallbackTemp = -1;
+    QDir hwDir("/sys/class/hwmon");
+    for (const QString &hw : hwDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+        QString base = "/sys/class/hwmon/" + hw;
+        QString chipName;
+        QFile nf(base + "/name");
+        if (nf.open(QIODevice::ReadOnly)) {
+            chipName = QString::fromUtf8(nf.readAll()).trimmed().toLower();
+            nf.close();
+        }
+        bool isCpuSensor = chipName.contains("coretemp") || chipName.contains("k10temp") ||
+                           chipName.contains("zenpower") || chipName.contains("zenergy") ||
+                           chipName.contains("cpu") || chipName.contains("pkg") || chipName.contains("acpitz") == false;
+        bool isPrimaryCpu = chipName.contains("coretemp") || chipName.contains("k10temp") ||
+                            chipName.contains("zenpower") || chipName.contains("zenergy") || chipName.contains("cpu");
+        for (int idx = 1; idx <= 6; ++idx) {
+            QFile tf(QString("%1/temp%2_input").arg(base).arg(idx));
+            if (tf.open(QIODevice::ReadOnly)) {
+                int deg = tf.readAll().trimmed().toInt() / 1000;
+                tf.close();
+                if (deg >= 20 && deg <= 115) {
+                    if (isPrimaryCpu) bestCpuTemp = std::max(bestCpuTemp, deg);
+                    else if (isCpuSensor && deg != 27) fallbackTemp = std::max(fallbackTemp, deg);
+                }
+            }
+        }
     }
-    if (tf.open(QIODevice::ReadOnly)) {
-        int raw = tf.readAll().trimmed().toInt();
-        if (raw > 1000) m_cpuTemp = raw / 1000;
-        tf.close();
-    }
+    if (bestCpuTemp > 0) m_cpuTemp = bestCpuTemp;
+    else if (fallbackTemp > 0) m_cpuTemp = fallbackTemp;
 
     // 3. RAM
     QFile memFile("/proc/meminfo");

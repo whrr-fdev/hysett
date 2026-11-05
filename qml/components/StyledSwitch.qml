@@ -4,45 +4,39 @@ import HySett
 
 Switch {
     id: control
-    implicitWidth: 30
+    property bool inverted: false
+    padding: 0
     implicitHeight: 16
-    hoverEnabled: true
-    cursorShape: Qt.PointingHandCursor
+    implicitWidth: 30
 
     indicator: Rectangle {
         implicitWidth: 30
         implicitHeight: 16
-        x: control.leftPadding
-        y: parent.height / 2 - height / 2
-        radius: (Theme && Theme.isRounded) ? height / 2 : 0
-        color: control.checked
-               ? (Config ? Config.m3Primary : "#a8c7fa")
-               : Qt.rgba(1, 1, 1, 0.10)
-        border.color: control.checked
-                      ? (Config ? Config.m3Primary : "#a8c7fa")
-                      : Qt.rgba(1, 1, 1, 0.28)
-        border.width: 1
-
-        Behavior on color { ColorAnimation { duration: 140 } }
-        Behavior on border.color { ColorAnimation { duration: 140 } }
-        Behavior on radius { NumberAnimation { duration: 140 } }
+        y: Math.round((parent.height - height) / 2)
+        radius: (Theme && Theme.isRounded) ? 11 : 3
+        color: control.checked ? (Config ? Config.m3Primary : "#a8c7fa") : Qt.rgba(1, 1, 1, 0.08)
+        border.color: control.checked ? "transparent" : (control.hovered ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(1, 1, 1, 0.25))
+        border.width: control.checked ? 0 : 1.5
+        Behavior on color { ColorAnimation { duration: 150 } }
 
         Rectangle {
-            width: control.checked ? 10 : 8
+            width: control.down ? 18 : (control.checked ? 10 : 8)
             height: width
             anchors.verticalCenter: parent.verticalCenter
-            x: control.checked ? (parent.width - width - 3) : 3
-            radius: (Theme && Theme.isRounded) ? width / 2 : 0
-            color: control.checked
-                   ? (Config ? Config.accentTextColor : "#000000")
-                   : "#cccccc"
-
-            Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            x: control.checked ? (parent.width - width - 3) : 4
+            radius: (Theme && Theme.isRounded) ? height / 2 : 2
+            color: control.checked ? (Config ? Config.accentTextColor : "#0a1428") : "#b8bece"
+            Behavior on x { NumberAnimation { duration: 190; easing.type: Easing.OutBack } }
             Behavior on width { NumberAnimation { duration: 120 } }
-            Behavior on color { ColorAnimation { duration: 140 } }
-            Behavior on radius { NumberAnimation { duration: 140 } }
+
+            Text {
+                anchors.centerIn: parent
+                text: "✓"
+                font.pixelSize: 10
+                font.bold: true
+                color: Config ? Config.m3Primary : "#a8c7fa"
+                opacity: control.checked ? 1.0 : 0.0
+            }
         }
     }
-
-    contentItem: Item {}
 }

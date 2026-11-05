@@ -514,7 +514,7 @@ ApplicationWindow {
                             anchors.verticalCenter: parent.verticalCenter
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return topBarContainer.pillHeight + 7
+                                if (modKey === "launcher") return topBarContainer.pillHeight + 8
                                 if (modKey === "workspaces") return wsRow.implicitWidth + 2
                                 if (modKey === "weather") return wLbl.implicitWidth + 10
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 10
@@ -533,7 +533,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: -2; anchors.verticalCenterOffset: -1; text: ""; font.pixelSize: 13; color: "#ffffff" }
+                                Image { anchors.centerIn: parent; anchors.horizontalCenterOffset: -3; width: 13; height: 13; sourceSize: Qt.size(26, 26); smooth: true; source: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path fill='%23ffffff' d='M6.8 2.5L1.5 11.7l5.3 9.2h10.5l2.4-4.2h-9.8l-2.9-5 2.9-5h9.8l-2.4-4.2H6.8z'/><circle cx='18.8' cy='7.4' r='1.7' fill='%23ffffff'/><circle cx='21.5' cy='12.0' r='1.35' fill='%23ffffff'/><circle cx='18.8' cy='16.6' r='1.1' fill='%23ffffff'/></svg>" }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 

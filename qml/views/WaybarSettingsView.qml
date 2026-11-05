@@ -172,7 +172,7 @@ ScrollView {
 
                         Repeater {
                             model: [
-                                { title: "   Кнопка пуска (Поиск)", key: "launcher" },
+                                { title: "󰣇   Кнопка пуска CachyOS", key: "launcher" },
                                 { title: "󰖲   Рабочие столы (1..5)", key: "workspaces" },
                                 { title: "☁️   Погода", key: "weather" },
                                 { title: "󰘳   Заголовок окна", key: "window" },

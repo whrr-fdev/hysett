@@ -33,6 +33,11 @@ ScrollView {
                     Layout.fillWidth: true
                 }
                 StyledButton {
+                    text: "🌐  Gismeteo"
+                    implicitHeight: 24
+                    onClicked: if (Waybar) Waybar.runCommand("xdg-open https://www.gismeteo.ru/")
+                }
+                StyledButton {
                     text: "↺  Обновить"
                     implicitHeight: 24
                     onClicked: if (Waybar) Waybar.refreshWeather()

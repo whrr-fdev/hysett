@@ -6,6 +6,7 @@ import "../components"
 
 ScrollView {
     id: vpnScroll
+    property bool hideSubLinks: false
     contentWidth: availableWidth
     clip: true
 
@@ -140,7 +141,16 @@ ScrollView {
                 Layout.fillWidth: true; implicitHeight: subCol.implicitHeight + 24
                 ColumnLayout {
                     id: subCol; anchors.fill: parent; anchors.margins: 14; spacing: 10
-                    Text { text: "Ссылки на подписки и ключи (vless://, trojan://, https://...)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: "Ссылки на подписки и ключи (vless://, trojan://, https://...)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
+                        StyledButton {
+                            text: vpnScroll.hideSubLinks ? "󰈉  Показать ссылки" : "󰈈  Скрыть (блюр)"
+                            implicitHeight: 22
+                            isActive: vpnScroll.hideSubLinks
+                            onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
+                        }
+                    }
 
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
@@ -164,6 +174,18 @@ ScrollView {
                         }
                     }
 
+                    ColumnLayout {
+                        id: urlsBlurBox
+                        Layout.fillWidth: true
+                        spacing: 6
+                        layer.enabled: vpnScroll.hideSubLinks
+                        layer.smooth: true
+                        layer.effect: ShaderEffect {
+                            property vector2d u_resolution: Qt.vector2d(Math.max(1, urlsBlurBox.width), Math.max(1, urlsBlurBox.height))
+                            property real u_blur: 0.92
+                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                        }
+
                     Repeater {
                         model: Waybar ? Waybar.vpnSubUrls : []
                         delegate: Rectangle {
@@ -182,10 +204,12 @@ ScrollView {
                                 StyledButton {
                                     text: "✕"
                                     implicitWidth: 20; implicitHeight: 20
+                                    enabled: !vpnScroll.hideSubLinks
                                     onClicked: if (Waybar) Waybar.removeVpnSubUrl(index)
                                 }
                             }
                         }
+                    }
                     }
                 }
             }

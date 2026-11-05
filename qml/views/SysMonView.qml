@@ -6,10 +6,28 @@ import "../components"
 
 Item {
     id: sysMonRoot
+    property int pendingKillPid: -1
+    property string pendingKillName: ""
+
+    function askKillProcess(pid, name) {
+        pendingKillPid = pid
+        pendingKillName = name
+        if (ApplicationWindow.window) ApplicationWindow.window.modalOpen = true
+    }
+
+    function closeKillModal() {
+        pendingKillPid = -1
+        pendingKillName = ""
+        if (ApplicationWindow.window) ApplicationWindow.window.modalOpen = false
+    }
+
+    onVisibleChanged: {
+        if (!visible && pendingKillPid !== -1) closeKillModal()
+    }
 
     Timer {
         interval: 2000
-        running: sysMonRoot.visible
+        running: sysMonRoot.visible && sysMonRoot.pendingKillPid === -1
         repeat: true
         triggeredOnStart: true
         onTriggered: if (Waybar) Waybar.refreshProcesses()
@@ -166,7 +184,6 @@ Item {
             ColumnLayout {
                 anchors.fill: parent; anchors.margins: 10; spacing: 6
 
-                // Шапка таблицы с кликабельными колонками CPU и RAM
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.leftMargin: 10; Layout.rightMargin: 8
@@ -233,8 +250,84 @@ Item {
                                 Layout.preferredWidth: 72
                                 horizontalAlignment: Text.AlignRight
                             }
-                            StyledButton { text: "✕"; isIconOnly: true; implicitHeight: 20; implicitWidth: 22; onClicked: if (Waybar) Waybar.killProcess(modelData.pid) }
+                            StyledButton {
+                                text: "✕"; isIconOnly: true; implicitHeight: 20; implicitWidth: 22
+                                onClicked: sysMonRoot.askKillProcess(modelData.pid, modelData.name)
+                            }
                         }
+                    }
+                }
+            }
+        }
+    }
+
+    // МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ ЗАВЕРШЕНИЯ ПРОЦЕССА
+    Item {
+        parent: Overlay.overlay
+        anchors.fill: parent
+        visible: opacity > 0.01
+        opacity: sysMonRoot.pendingKillPid !== -1 ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: sysMonRoot.closeKillModal()
+        }
+
+        GlassPanel {
+            anchors.centerIn: parent
+            width: 320
+            implicitHeight: killCol.implicitHeight + 28
+            scale: sysMonRoot.pendingKillPid !== -1 ? 1.0 : 0.92
+            Behavior on scale { NumberAnimation { duration: 170; easing.type: Easing.OutBack } }
+            radius: (Theme && Theme.isRounded) ? 10 : 0
+            tintColor: Qt.rgba(0.04, 0.04, 0.05, Config ? Config.dialogOpacity : 0.65)
+
+            MouseArea { anchors.fill: parent }
+
+            ColumnLayout {
+                id: killCol
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Завершить процесс?"
+                    color: "#ffffff"
+                    font.pixelSize: Config.fontSize + 2
+                    font.bold: true
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: "Вы действительно хотите принудительно завершить процесс «" + sysMonRoot.pendingKillName + "» (PID " + sysMonRoot.pendingKillPid + ")?"
+                    color: "#cccccc"
+                    font.pixelSize: Config.fontSize
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignHCenter
+                }
+
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: 10
+
+                    StyledButton {
+                        text: "✕  Завершить"
+                        isActive: true
+                        implicitHeight: 26
+                        onClicked: {
+                            var pid = sysMonRoot.pendingKillPid
+                            sysMonRoot.closeKillModal()
+                            if (Waybar && pid > 1) Waybar.killProcess(pid)
+                        }
+                    }
+
+                    StyledButton {
+                        text: "Отмена"
+                        implicitHeight: 26
+                        onClicked: sysMonRoot.closeKillModal()
                     }
                 }
             }

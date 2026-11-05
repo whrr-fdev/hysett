@@ -891,9 +891,9 @@ void WaybarManager::pollFastState() {
 void WaybarManager::refreshWeather() { pollWeather(); }
 
 void WaybarManager::pollWeather() {
-    // Запускаем расширенный сборщик погоды Open-Meteo (Сейчас + Почасовой + Завтра + Неделя + Месяц)
+    // Запускаем расширенный сборщик погоды Open-Meteo с кэшем в ~/.cache/hysett_weather.json
     QString pyCode = R"(
-import json, urllib.request, datetime, os
+import json, urllib.request, datetime, os, ssl
 WMO = {
     0:("☀️","Ясно",0,0), 1:("🌤️","Преимущ. ясно",0,0), 2:("⛅","Переменная обл.",0,0), 3:("☁️","Пасмурно",0,0),
     45:("🌫️","Туман",0,0), 48:("🌫️","Изморозь",0,0),
@@ -905,9 +905,26 @@ WMO = {
 }
 DAYS = ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
 url = "https://api.open-meteo.com/v1/forecast?latitude=61.785&longitude=34.3469&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&hourly=temperature_2m,weather_code,precipitation_probability,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max&wind_speed_unit=ms&timezone=auto&forecast_days=16"
-req = urllib.request.Request(url, headers={"User-Agent":"Mozilla/5.0"})
-with urllib.request.urlopen(req, timeout=6) as r:
-    d = json.loads(r.read().decode("utf-8"))
+cache_path = os.path.expanduser("~/.cache/hysett_weather.json")
+d = None
+ctx = ssl._create_unverified_context()
+for proxy_cfg in [{}, {"http": "http://127.0.0.1:2080", "https": "http://127.0.0.1:2080"}]:
+    try:
+        opener = urllib.request.build_opener(urllib.request.ProxyHandler(proxy_cfg), urllib.request.HTTPSHandler(context=ctx))
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/8.0"})
+        with opener.open(req, timeout=7) as r:
+            d = json.loads(r.read().decode("utf-8"))
+        if d and "current" in d:
+            break
+    except Exception:
+        pass
+
+if not d or "current" not in d:
+    if os.path.exists(cache_path):
+        with open(cache_path, "r", encoding="utf-8") as cf:
+            print(cf.read())
+            raise SystemExit(0)
+    raise SystemExit(1)
 cur = d["current"]
 t = round(cur["temperature_2m"])
 feels = round(cur["apparent_temperature"])
@@ -943,7 +960,14 @@ for i in range(28):
     tmax, tmin = round(dl["temperature_2m_max"][src]), round(dl["temperature_2m_min"][src])
     dic = WMO.get(dl["weather_code"][src], ("☁️","",0,0))[0]
     out["month"].append({"date": dt.strftime("%d.%m"), "day": DAYS[dt.weekday()], "icon": dic, "max": ("+" if tmax>0 else "")+str(tmax)+"°", "min": ("+" if tmin>0 else "")+str(tmin)+"°"})
-print(json.dumps(out, ensure_ascii=False))
+raw_json = json.dumps(out, ensure_ascii=False)
+try:
+    os.makedirs(os.path.dirname(cache_path), exist_ok=True)
+    with open(cache_path, "w", encoding="utf-8") as cf:
+        cf.write(raw_json)
+except Exception:
+    pass
+print(raw_json)
 )";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
@@ -959,6 +983,8 @@ print(json.dumps(out, ensure_ascii=False))
             m_weatherWeek = o["week"].toArray().toVariantList();
             m_weatherMonth = o["month"].toArray().toVariantList();
             emit weatherChanged();
+        } else if (m_weatherHourly.isEmpty()) {
+            QTimer::singleShot(4000, this, &WaybarManager::pollWeather);
         }
     });
     p->start("/usr/bin/python3", {"-c", pyCode});

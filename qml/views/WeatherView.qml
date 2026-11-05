@@ -10,6 +10,7 @@ ScrollView {
     clip: true
 
     property int periodTab: 0
+    onVisibleChanged: if (visible && Waybar && Waybar.weatherHourly.length === 0) Waybar.refreshWeather()
 
     Item {
         width: weatherScroll.availableWidth

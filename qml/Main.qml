@@ -244,7 +244,10 @@ ApplicationWindow {
     }
     onDrawerActiveChanged: {
         syncInputMask()
-        if (!drawerActive && Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
+        if (!drawerActive) {
+            if (Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
+            if (Hypr) Qt.callLater(() => Hypr.trimMemory())
+        }
     }
     onNotifActiveChanged: syncInputMask()
     onNotifCountChanged: Qt.callLater(syncInputMask)
@@ -1136,7 +1139,7 @@ ApplicationWindow {
                         }
                         ListView {
                             Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
-                            cacheBuffer: 400
+                            cacheBuffer: 80
                             model: Waybar ? Waybar.clipboardItems : []
                             delegate: Rectangle {
                                 property bool matches: root.clipSearchQuery.length === 0 || modelData.label.toLowerCase().indexOf(root.clipSearchQuery) !== -1
@@ -1683,7 +1686,7 @@ ApplicationWindow {
                 AtmosphereCanvas {
                     id: inAppWaterMap
                     roundedTheme: (Theme && Theme.isRounded) ? true : false
-                    anchors.fill: parent
+                    width: visible ? parent.width : 0; height: visible ? parent.height : 0
                     visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
                     enabled: false
                     globalMode: false
@@ -1705,7 +1708,7 @@ ApplicationWindow {
 
                 AtmosphereCanvas {
                     id: inAppOverlayMap
-                    anchors.fill: parent
+                    width: visible ? parent.width : 0; height: visible ? parent.height : 0
                     visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
                     enabled: false
                     globalMode: false

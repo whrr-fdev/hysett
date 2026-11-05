@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
 
     qputenv("QSG_TRANSIENT_IMAGES", "1");
     qputenv("QML_DISK_CACHE", "aot");
-    QPixmapCache::setCacheLimit(16384);
+    QPixmapCache::setCacheLimit(2048);
     QQuickStyle::setStyle("Basic");
 
     QLoggingCategory::setFilterRules(
@@ -96,7 +96,10 @@ int main(int argc, char *argv[]) {
 
     QQuickWindow::setDefaultAlphaBuffer(true);
     QGuiApplication app(argc, argv);
-    QPixmapCache::setCacheLimit(32768);
+    QPixmapCache::setCacheLimit(2048);
+    qputenv("QSG_ATLAS_WIDTH", "512");
+    qputenv("QSG_ATLAS_HEIGHT", "512");
+    qputenv("QV4_GC_MAX_ALLOCATED_BYTES", "4194304");
     app.setApplicationName("com.whrr.HyprSettings");
     app.setDesktopFileName("com.whrr.HyprSettings");
     app.setOrganizationName("whrr");

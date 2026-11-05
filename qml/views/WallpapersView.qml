@@ -379,7 +379,7 @@ Item {
                     spacing: 10
                     interactive: false
                     model: (!wallRoot.isExpanded && wallRoot.visible) ? Wallpapers.wallpapers : null
-                    cacheBuffer: 360
+                    cacheBuffer: 100
                     reuseItems: true
                     pixelAligned: true
 
@@ -497,7 +497,7 @@ Item {
                     clip: true
                     interactive: false
                     model: (wallRoot.isExpanded && wallRoot.visible) ? Wallpapers.wallpapers : null
-                    cacheBuffer: 360
+                    cacheBuffer: 100
                     reuseItems: true
                     pixelAligned: true
 

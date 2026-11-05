@@ -545,7 +545,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                Image { anchors.centerIn: parent; anchors.horizontalCenterOffset: -3; width: 13; height: 13; sourceSize: Qt.size(26, 26); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
+                                Image { anchors.centerIn: parent; anchors.horizontalCenterOffset: -3; anchors.verticalCenterOffset: 1; width: 15; height: 15; sourceSize: Qt.size(30, 30); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 

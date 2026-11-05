@@ -295,6 +295,11 @@ def set_desktop_proxy(enable):
 def stop_vpn():
     set_desktop_proxy(False)
     subprocess.run(["pkill", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
+    for _ in range(30):
+        if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode != 0:
+            break
+        time.sleep(0.05)
+    time.sleep(0.15)
 
 def start_vpn():
     stop_vpn()

@@ -79,9 +79,10 @@ ApplicationWindow {
     readonly property int customBarW: Waybar ? Math.min(maxAvailBarW, Waybar.barWidth) : maxAvailBarW
 
     readonly property bool winModVis: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("window")) : true
+    readonly property bool isFixedTitle: Waybar ? Waybar.fixedTitleWidth : false
     readonly property bool hasWinTitle: winModVis && Waybar && Waybar.activeWindowTitle.length > 0
-    readonly property real winPillTargetW: hasWinTitle ? Math.min(220, winLbl.implicitWidth + 16) : 0
-    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (hasWinTitle ? (winPillTargetW + 6) : 0) + rightBarRow.implicitWidth + 14)
+    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 200 : (hasWinTitle ? Math.min(220, winLbl.implicitWidth + 16) : 0))
+    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 6) : 0) + rightBarRow.implicitWidth + 14)
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
     Behavior on smoothBaseBarW { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
@@ -599,16 +600,16 @@ ApplicationWindow {
                 id: centerTitlePill; z: 5
                 readonly property real availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 14)
                 visible: width > 0.5 && availGap > 24
-                opacity: root.hasWinTitle ? 1.0 : 0.0
+                opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0
                 clip: true
-                width: root.hasWinTitle ? Math.min(availGap, root.winPillTargetW) : 0
+                width: (root.isFixedTitle || root.hasWinTitle) ? Math.min(availGap, root.winPillTargetW) : 0
                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 160 } }
                 x: leftBarRow.x + leftBarRow.width + 5 + Math.max(0, (availGap - width) * 0.5)
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
-                color: topBarContainer.pillColor
+                color: root.hasWinTitle ? topBarContainer.pillColor : "transparent"
                 Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 12), implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: "#ececec"; font.pixelSize: 10; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             }

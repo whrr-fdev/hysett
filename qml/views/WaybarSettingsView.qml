@@ -68,6 +68,26 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
+                implicitHeight: titleModeRow.implicitHeight + 16
+
+                RowLayout {
+                    id: titleModeRow
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text { text: "Размер заголовка активного окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                    Item { Layout.fillWidth: true }
+                    SegmentedButton {
+                        options: ["По размеру (≤ 220px)", "Фиксированный (200px)"]
+                        selectedIndex: (Waybar && Waybar.fixedTitleWidth) ? 1 : 0
+                        onSelected: (idx) => { if (Waybar) Waybar.fixedTitleWidth = (idx === 1) }
+                    }
+                }
+            }
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
                 implicitHeight: modsCol.implicitHeight + 20
 
                 ColumnLayout {

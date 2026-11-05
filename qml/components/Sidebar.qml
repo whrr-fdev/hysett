@@ -258,9 +258,21 @@ Rectangle {
 
         Button {
             id: closeBtn
+            property bool isCloseShown: {
+                var _ = Config ? Config.hiddenSidebarTabs : ""
+                return Config ? Config.isTabVisible(99) : true
+            }
             Layout.fillWidth: true
-            implicitHeight: 24
+            Layout.preferredHeight: isCloseShown ? 24 : 0
+            Layout.maximumHeight: isCloseShown ? 24 : 0
+            implicitHeight: isCloseShown ? 24 : 0
+            opacity: isCloseShown ? 1.0 : 0.0
+            visible: Layout.preferredHeight > 0.5 || opacity > 0.01
+            enabled: isCloseShown
+            clip: true
             flat: true
+            Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: 150 } }
             onClicked: if (ApplicationWindow.window) ApplicationWindow.window.requestCloseDrawer()
 
             contentItem: Item {

@@ -149,11 +149,11 @@ def build_config(outbound, ru_direct, use_tun=False):
             "type": "tun",
             "tag": "tun-in",
             "interface_name": "singbox_tun0",
-            "address": ["172.19.0.1/30"],
+            "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
             "mtu": 1400,
             "auto_route": True,
             "strict_route": False,
-            "stack": "system"
+            "stack": "gvisor"
         })
 
     rules = [
@@ -168,9 +168,12 @@ def build_config(outbound, ru_direct, use_tun=False):
         "log": {"level": "info"},
         "dns": {
             "servers": [
+                {"type": "https", "tag": "dns-remote", "server": "1.1.1.1", "detour": "proxy"},
                 {"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}
             ],
-            "final": "dns-direct"
+            "rules": ([{"domain_suffix": RU_DOMAIN_SUFFIXES, "server": "dns-direct"}] if ru_direct else []),
+            "strategy": "ipv4_only",
+            "final": "dns-remote"
         },
         "inbounds": inbounds,
         "outbounds": [
@@ -313,7 +316,7 @@ def start_vpn():
     if os.path.exists(sb_bin) and os.path.exists(SB_CONF):
         subprocess.Popen([sb_bin, "run", "-c", SB_CONF], stdout=open("/tmp/singbox_vpn.log", "w"), stderr=subprocess.STDOUT)
         if wait_port(2080, 3.5):
-            set_desktop_proxy(True)
+            set_desktop_proxy(not use_tun)
             return True
         else:
             stop_vpn()

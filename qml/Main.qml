@@ -208,7 +208,7 @@ ApplicationWindow {
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
-    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, effDrawerW)
+    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, animDrawerW)
     readonly property real barW: baseBarW + (expandedBarW - baseBarW) * barExpandProgress
     readonly property real barLeft: {
         if (barPos === 2) return barTop
@@ -912,7 +912,7 @@ ApplicationWindow {
                 readonly property real maxRightX: Math.max(minLeftX, rightEdge - 6 - width)
                 readonly property real gapCenterX: Math.round(leftEdge + (rightEdge - leftEdge - width) * 0.5)
                 readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
-                readonly property real centerBlend: Math.max(0.0, Math.min(1.0, (parent.width - 860.0) / 40.0))
+                readonly property real centerBlend: Math.max(0.0, Math.min(1.0, (root.baseBarW - 860.0) / 40.0))
                 readonly property real targetCenterX: Math.round(gapCenterX + (trueCenterX - gapCenterX) * centerBlend)
                 visible: width > 0.5 && availGap > 24
                 opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0

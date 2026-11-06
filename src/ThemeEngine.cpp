@@ -104,7 +104,7 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
             if (eq == -1) continue;
             QString k = line.left(eq).trimmed();
             QString v = line.mid(eq + 1).trimmed();
-            if (k == "window_blur") m_windowBlur = std::clamp(v.toDouble(), 0.0, 1.0);
+            if (k == "window_blur") { m_windowBlur = std::clamp(v.toDouble(), 0.0, 1.0); m_appliedBlur = m_windowBlur; }
             else if (k == "glass_refraction") m_glassRefraction = std::clamp(v.toDouble(), 0.0, 1.0);
             else if (k == "controls_liquid_glass") m_controlsLiquidGlass = (v == "1" || v == "true");
         }
@@ -149,7 +149,10 @@ void ThemeEngine::checkThemeFile() {
 }
 
 void ThemeEngine::applyEffectiveBlur(qreal val) {
-    m_pendingBlur = std::clamp(val, 0.0, 1.0);
+    val = std::clamp(val, 0.0, 1.0);
+    if (m_appliedBlur >= 0.0 && std::abs(m_appliedBlur - val) < 0.005) return;
+    m_appliedBlur = val;
+    m_pendingBlur = val;
     m_blurTimer->start();
 }
 

@@ -1172,7 +1172,7 @@ static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive) {
         ls->setExclusiveZone(-1);
         ls->setKeyboardInteractivity(
             exclusive
-                ? LayerShellQt::Window::KeyboardInteractivityExclusive
+                ? LayerShellQt::Window::KeyboardInteractivityOnDemand
                 : LayerShellQt::Window::KeyboardInteractivityNone
         );
     }
@@ -1191,30 +1191,16 @@ static void runHyprEvalSilent(const QString &luaExpr) {
 }
 
 void WaybarManager::switchWorkspace(int wsId) {
-    if (s_lastKbState == 1) {
-        applyShellKbInteractivity(nullptr, false);
-        emit closeDrawerRequested();
-        QTimer::singleShot(35, this, [this, wsId]() {
-            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
-            QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
-        });
-        return;
-    }
+    applyShellKbInteractivity(nullptr, false);
+    emit closeDrawerRequested();
     runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
 
 void WaybarManager::stepWorkspace(int dir) {
     QString target = dir > 0 ? "e+1" : "e-1";
-    if (s_lastKbState == 1) {
-        applyShellKbInteractivity(nullptr, false);
-        emit closeDrawerRequested();
-        QTimer::singleShot(35, this, [this, target]() {
-            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target));
-            QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
-        });
-        return;
-    }
+    applyShellKbInteractivity(nullptr, false);
+    emit closeDrawerRequested();
     runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }

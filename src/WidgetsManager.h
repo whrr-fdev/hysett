@@ -29,6 +29,8 @@ class WidgetsManager : public QObject {
     Q_PROPERTY(bool sysShowNet READ sysShowNet WRITE setSysShowNet NOTIFY sysStateChanged)
     Q_PROPERTY(bool sysShowTemp READ sysShowTemp WRITE setSysShowTemp NOTIFY sysStateChanged)
     Q_PROPERTY(bool sysShowExtra READ sysShowExtra WRITE setSysShowExtra NOTIFY sysStateChanged)
+    Q_PROPERTY(bool sysShowProcs READ sysShowProcs WRITE setSysShowProcs NOTIFY sysStateChanged)
+    Q_PROPERTY(QString sysProcSort READ sysProcSort WRITE setSysProcSort NOTIFY sysStateChanged)
     Q_PROPERTY(bool sysTopLayer READ sysTopLayer WRITE setSysTopLayer NOTIFY sysStateChanged)
     Q_PROPERTY(QString sysTextColor READ sysTextColor WRITE setSysTextColor NOTIFY sysStateChanged)
     Q_PROPERTY(QString sysGraphColor READ sysGraphColor WRITE setSysGraphColor NOTIFY sysStateChanged)
@@ -109,6 +111,10 @@ public:
     void setSysShowTemp(bool v);
     bool sysShowExtra() const { return m_sysShowExtra; }
     void setSysShowExtra(bool v);
+    bool sysShowProcs() const { return m_sysShowProcs; }
+    void setSysShowProcs(bool v);
+    QString sysProcSort() const { return m_sysProcSort; }
+    void setSysProcSort(const QString &v);
     bool sysTopLayer() const { return m_sysTopLayer; }
     void setSysTopLayer(bool v);
     QString sysTextColor() const { return m_sysTextColor; }
@@ -162,7 +168,8 @@ private:
     void saveSysConfig();
     QString findSysBinary() const;
     bool m_sysRunning = false;
-    bool m_sysShowCpu = true, m_sysShowRam = true, m_sysShowNet = true, m_sysShowTemp = true, m_sysShowExtra = true, m_sysTopLayer = true;
+    bool m_sysShowCpu = true, m_sysShowRam = true, m_sysShowNet = true, m_sysShowTemp = true, m_sysShowExtra = true, m_sysShowProcs = true, m_sysTopLayer = true;
+    QString m_sysProcSort = "cpu";
     QString m_sysTextColor = "#ffffff", m_sysGraphColor = "#ffffff", m_sysPosition = "top-right";
     qreal m_sysOpacity = 0.85, m_sysScale = 1.0;
     int m_sysTitleSize = 13, m_sysExtraSize = 14, m_sysMarginX = 24, m_sysMarginY = 44;

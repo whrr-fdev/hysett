@@ -81,6 +81,9 @@ int main(int argc, char *argv[]) {
     argc = cleanArgv.size();
     argv = cleanArgv.data();
 
+    if (QFile::exists("/proc/driver/nvidia/version") && QFile::exists("/usr/share/glvnd/egl_vendor.d/10_nvidia.json")) {
+        qputenv("__EGL_VENDOR_LIBRARY_FILENAMES", "/usr/share/glvnd/egl_vendor.d/10_nvidia.json");
+    }
     qputenv("QSG_TRANSIENT_IMAGES", "1");
     qputenv("QML_DISK_CACHE", "aot");
     QPixmapCache::setCacheLimit(4096);

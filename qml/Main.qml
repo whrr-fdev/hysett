@@ -248,7 +248,7 @@ ApplicationWindow {
             if (Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
             if (Apps) { Apps.clearFileSearch(); Apps.clearPackageSearch() }
             if (Atmosphere) Atmosphere.releaseInAppCaches()
-            if (Hypr) Hypr.trimMemory()
+            if (Hypr) Hypr.deepCleanMemory()
         }
     }
     onNotifActiveChanged: syncInputMask()
@@ -477,11 +477,13 @@ ApplicationWindow {
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
 
             readonly property bool editMode: Waybar ? Waybar.barEditMode : false
+            property real launcherVis: (root.drawerOpen && !editMode) ? 0.0 : 1.0
+            Behavior on launcherVis { NumberAnimation { duration: 260; easing.type: Easing.InOutCubic } }
             readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
             readonly property bool uniformMode: Waybar ? Waybar.uniformBarSpacing : true
             readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
             readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && ((Waybar && (Waybar.trayApps.length > 0 || Waybar.vpnActive)) || editMode)
-            readonly property int macroGapsCount: 4 + (centerTitlePill.visible ? 1 : 0) + (trayBlockVis ? 1 : 0)
+            readonly property int macroGapsCount: 5 + (centerTitlePill.visible ? 1 : 0) + (trayBlockVis ? 1 : 0)
             readonly property real baseGroupGap: Waybar ? Waybar.groupSpacing : 6
             readonly property real macroStepGap: baseGroupGap + (macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0)
 
@@ -494,7 +496,7 @@ ApplicationWindow {
                     model: Waybar ? Waybar.leftBarOrder : ["launcher", "workspaces", "weather", "media"]
                     delegate: Row {
                         id: leftModWrap
-                        spacing: Waybar ? Waybar.spacing : 4
+                        spacing: modKey === "launcher" ? Math.round((Waybar ? Waybar.spacing : 4) * topBarContainer.launcherVis) : (Waybar ? Waybar.spacing : 4)
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property string modKey: modelData
                         readonly property bool modVis: {
@@ -505,17 +507,21 @@ ApplicationWindow {
                             if (modKey === "media") return (Waybar ? Waybar.mediaActive : false) || topBarContainer.editMode
                             return true
                         }
-                        visible: modVis && (modKey !== "launcher" || leftModBody.width > 0.5)
+                        visible: modVis
 
                         Item {
-                            visible: modKey === "weather" && index > 0 && topBarContainer.macroStepGap > 0.5
-                            width: topBarContainer.macroStepGap
+                            readonly property bool isLeftMacro: (modKey === "workspaces" || modKey === "weather" || modKey === "media") && index > 0
+                            visible: isLeftMacro && topBarContainer.macroStepGap > 0.5
+                            width: modKey === "workspaces"
+                                   ? Math.round(topBarContainer.macroStepGap * topBarContainer.launcherVis)
+                                   : topBarContainer.macroStepGap
                             height: 1
                         }
 
                         // Вертикальный разделитель между блоками
                         Rectangle {
-                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep" && modKey !== "workspaces"
+                            visible: topBarContainer.showSeps && index > 0 && modKey !== "sep"
+                            opacity: modKey === "workspaces" ? topBarContainer.launcherVis : 1.0
                             width: 1; height: topBarContainer.pillHeight - 5
                             anchors.verticalCenter: parent.verticalCenter
                             color: Qt.rgba(1, 1, 1, 0.22)
@@ -525,13 +531,12 @@ ApplicationWindow {
                             id: leftModBody
                             height: topBarContainer.pillHeight
                             anchors.verticalCenter: parent.verticalCenter
-                            clip: true
-                            opacity: (modKey === "launcher" && root.drawerOpen && !topBarContainer.editMode) ? 0.0 : 1.0
-                            Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
-                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                            clip: modKey === "media"
+                            opacity: modKey === "launcher" ? topBarContainer.launcherVis : 1.0
+                            scale: modKey === "launcher" ? (0.65 + 0.35 * topBarContainer.launcherVis) : 1.0
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return (root.drawerOpen && !topBarContainer.editMode) ? 0 : (topBarContainer.pillHeight + 8)
+                                if (modKey === "launcher") return Math.round((topBarContainer.pillHeight + 8) * topBarContainer.launcherVis)
                                 if (modKey === "workspaces") return wsRow.implicitWidth + 2
                                 if (modKey === "weather") return wLbl.implicitWidth + 10
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 10
@@ -754,14 +759,14 @@ ApplicationWindow {
                         visible: modVis
 
                         Item {
-                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "clock") && index > 0
+                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "power") && index > 0
                             visible: isMacroBoundary && topBarContainer.macroStepGap > 0.5
                             width: topBarContainer.macroStepGap
                             height: 1
                         }
 
                         Rectangle {
-                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "clock") && index > 0
+                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "power") && index > 0
                             visible: topBarContainer.showSeps && isMacroBoundary
                             width: 1; height: topBarContainer.pillHeight - 5
                             anchors.verticalCenter: parent.verticalCenter

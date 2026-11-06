@@ -13,7 +13,6 @@ Item {
     readonly property int wMode: Config ? Config.welcomeAlignMode : 1
     property int visibleCardsHeight: 262
 
-    // Плавный пересчет координат карточек: в обычном режиме 4 колонки, а при поиске — 1 колонка выше по центру!
     function recalcCardsLayout() {
         var cnt = welcomeCatRep.count
         if (cnt === 0) return
@@ -68,7 +67,7 @@ Item {
     ScrollView {
         id: welcomeScroll
         anchors.fill: parent
-        contentWidth: availableWidth
+        contentWidth: welcomeRoot.width
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
         clip: true
 
@@ -85,9 +84,9 @@ Item {
 
         Item {
             id: scrollArea
-            width: welcomeScroll.availableWidth
-            height: Math.max(welcomeScroll.availableHeight, gridWrapper.y + welcomeRoot.visibleCardsHeight + 24)
-            implicitHeight: height
+            width: welcomeRoot.width
+            implicitHeight: Math.max(welcomeRoot.height, gridWrapper.targetYPos + welcomeRoot.visibleCardsHeight + 24)
+            height: implicitHeight
 
             Item {
                 id: mainContainer
@@ -95,16 +94,11 @@ Item {
                 height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
 
-                // При поиске приветствие и строка поиска плавно поднимаются наверх!
                 Item {
                     id: heroWrapper
                     width: parent.width
                     height: heroBlock.implicitHeight
-                    y: {
-                        if (welcomeRoot.isSearching) return 26
-                        var upperSpace = Math.max(heroBlock.implicitHeight + 32, Math.round((welcomeScroll.availableHeight - welcomeRoot.visibleCardsHeight) * 0.44))
-                        return 14
-                    }
+                    y: welcomeRoot.isSearching ? 26 : 14
 
                     Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
 
@@ -207,21 +201,20 @@ Item {
                     }
                 }
 
-                // Контейнер карточек категорий: при поиске плавно поднимается прямо под строку поиска!
                 Item {
                     id: gridWrapper
                     width: parent.width
                     height: welcomeRoot.visibleCardsHeight
-                    onWidthChanged: welcomeRoot.recalcCardsLayout()
-                    y: {
-                        if (welcomeRoot.isSearching) {
-                            return heroWrapper.y + heroWrapper.height + 20
-                        }
+                    onWidthChanged: Qt.callLater(welcomeRoot.recalcCardsLayout)
 
-                        var minTop = heroWrapper.y + heroWrapper.height + 14
-                        var midBottom = Math.round(heroWrapper.y + heroWrapper.height + (welcomeScroll.availableHeight - (heroWrapper.y + heroWrapper.height) - welcomeRoot.visibleCardsHeight) / 2)
+                    readonly property real targetYPos: {
+                        var heroBot = (welcomeRoot.isSearching ? 26 : 14) + heroWrapper.height
+                        if (welcomeRoot.isSearching) return heroBot + 20
+                        var minTop = heroBot + 14
+                        var midBottom = Math.round(heroBot + (welcomeRoot.height - heroBot - welcomeRoot.visibleCardsHeight) / 2)
                         return Math.max(minTop, midBottom)
                     }
+                    y: targetYPos
 
                     Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
 

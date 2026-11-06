@@ -12,6 +12,7 @@ public:
     Q_INVOKABLE static void dispatch(const QString &cmd);
     Q_INVOKABLE static QString getActiveWorkspace();
     Q_INVOKABLE void trimMemory();
+    Q_INVOKABLE void deepCleanMemory();
 
 private:
     QQmlApplicationEngine *m_engine = nullptr;

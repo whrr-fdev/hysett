@@ -265,6 +265,8 @@ void WidgetsManager::loadSysConfig() {
         else if (k == "show_net") m_sysShowNet = pb(v);
         else if (k == "show_temp") m_sysShowTemp = pb(v);
         else if (k == "show_extra") m_sysShowExtra = pb(v);
+        else if (k == "show_procs") m_sysShowProcs = pb(v);
+        else if (k == "proc_sort" && !v.isEmpty()) m_sysProcSort = v;
         else if (k == "top_layer") m_sysTopLayer = pb(v);
         else if (k == "text_color" && !v.isEmpty()) m_sysTextColor = v;
         else if (k == "graph_color" && !v.isEmpty()) m_sysGraphColor = v;
@@ -288,6 +290,8 @@ void WidgetsManager::saveSysConfig() {
             << "show_net=" << (m_sysShowNet ? "true" : "false") << "\n"
             << "show_temp=" << (m_sysShowTemp ? "true" : "false") << "\n"
             << "show_extra=" << (m_sysShowExtra ? "true" : "false") << "\n"
+            << "show_procs=" << (m_sysShowProcs ? "true" : "false") << "\n"
+            << "proc_sort=" << m_sysProcSort << "\n"
             << "top_layer=" << (m_sysTopLayer ? "true" : "false") << "\n"
             << "text_color=" << m_sysTextColor << "\n"
             << "graph_color=" << m_sysGraphColor << "\n"
@@ -301,7 +305,7 @@ void WidgetsManager::saveSysConfig() {
         f.close();
     }
     emit sysStateChanged();
-    if (m_sysRunning && s_sysRestartTimer) s_sysRestartTimer->start();
+    // sysinfo_overlay подхватывает конфиг на лету каждые 80 мс без перезапуска процесса
 }
 
 void WidgetsManager::toggleSysProcess(bool run) {
@@ -327,7 +331,8 @@ void WidgetsManager::restartSysProcess() {
 }
 
 void WidgetsManager::resetSysDefaults() {
-    m_sysShowCpu = m_sysShowRam = m_sysShowNet = m_sysShowTemp = m_sysShowExtra = m_sysTopLayer = true;
+    m_sysShowCpu = m_sysShowRam = m_sysShowNet = m_sysShowTemp = m_sysShowExtra = m_sysShowProcs = m_sysTopLayer = true;
+    m_sysProcSort = "cpu";
     m_sysTextColor = "#ffffff"; m_sysGraphColor = "#ffffff";
     m_sysOpacity = 0.85; m_sysScale = 1.0;
     m_sysTitleSize = 13; m_sysExtraSize = 14;
@@ -351,3 +356,6 @@ void WidgetsManager::setSysExtraSize(int v) { v = std::clamp(v, 6, 36); if (m_sy
 void WidgetsManager::setSysMarginX(int v) { if (m_sysMarginX != v) { m_sysMarginX = v; saveSysConfig(); } }
 void WidgetsManager::setSysMarginY(int v) { if (m_sysMarginY != v) { m_sysMarginY = v; saveSysConfig(); } }
 void WidgetsManager::setSysPosition(const QString &v) { if (m_sysPosition != v && !v.isEmpty()) { m_sysPosition = v; saveSysConfig(); } }
+
+void WidgetsManager::setSysShowProcs(bool v) { if (m_sysShowProcs != v) { m_sysShowProcs = v; saveSysConfig(); } }
+void WidgetsManager::setSysProcSort(const QString &v) { if (m_sysProcSort != v && !v.isEmpty()) { m_sysProcSort = v; saveSysConfig(); } }

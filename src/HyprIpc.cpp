@@ -11,13 +11,14 @@
 #include <QTimer>
 #include <malloc.h>
 
-static void performDeepMemoryTrim(QQmlApplicationEngine *mainEngine) {
+static void performMemoryTrim(QQmlApplicationEngine *mainEngine, bool clearFullCache) {
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QPixmapCache::clear();
 
     if (mainEngine) {
         mainEngine->collectGarbage();
-        mainEngine->trimComponentCache();
+        if (clearFullCache) mainEngine->clearComponentCache();
+        else mainEngine->trimComponentCache();
     }
 
     for (QWindow *w : QGuiApplication::topLevelWindows()) {
@@ -26,7 +27,8 @@ static void performDeepMemoryTrim(QQmlApplicationEngine *mainEngine) {
             if (!eng && qw->contentItem()) eng = qmlEngine(qw->contentItem());
             if (eng && eng != mainEngine) {
                 eng->collectGarbage();
-                eng->trimComponentCache();
+                if (clearFullCache) eng->clearComponentCache();
+                else eng->trimComponentCache();
             }
         }
     }
@@ -38,7 +40,7 @@ static void performDeepMemoryTrim(QQmlApplicationEngine *mainEngine) {
 HyprIpc::HyprIpc(QObject *parent) : QObject(parent) {}
 
 void HyprIpc::dispatch(const QString &cmd) {
-    QProcess::startDetached("hyprctl", QStringList() << "dispatch" << cmd.split(' '));
+    QProcess::startDetached("sh", {"-c", "hyprctl dispatch " + cmd + " >/dev/null 2>&1"});
 }
 
 QString HyprIpc::getActiveWorkspace() {
@@ -50,5 +52,10 @@ QString HyprIpc::getActiveWorkspace() {
 
 void HyprIpc::trimMemory() {
     QQmlApplicationEngine *eng = m_engine;
-    QTimer::singleShot(180, [eng]() { performDeepMemoryTrim(eng); });
+    QTimer::singleShot(140, [eng]() { performMemoryTrim(eng, false); });
+}
+
+void HyprIpc::deepCleanMemory() {
+    QQmlApplicationEngine *eng = m_engine;
+    QTimer::singleShot(200, [eng]() { performMemoryTrim(eng, true); });
 }

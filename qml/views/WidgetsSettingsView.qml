@@ -296,6 +296,17 @@ RowLayout {
                                 StyledCheckBox { text: "󰛳  NET"; checked: Widgets.sysShowNet; onToggled: Widgets.sysShowNet = checked }
                                 StyledCheckBox { text: "  TEMP"; checked: Widgets.sysShowTemp; onToggled: Widgets.sysShowTemp = checked }
                                 StyledCheckBox { text: Config ? (Config.language, Config.trAuto("Диск / Uptime / Ядро")) : "Диск / Uptime / Ядро"; checked: Widgets.sysShowExtra; onToggled: Widgets.sysShowExtra = checked }
+                                StyledCheckBox { text: "󰘳  Процессы"; checked: Widgets.sysShowProcs; onToggled: Widgets.sysShowProcs = checked }
+                            }
+                            RowLayout {
+                                visible: Widgets.sysShowProcs
+                                Layout.fillWidth: true
+                                Text { text: Config ? (Config.language, Config.trAuto("Сортировка процессов в оверлее:")) : "Сортировка процессов в оверлее:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                SegmentedButton {
+                                    options: ["По CPU (%)", "По ОЗУ (RAM)"]
+                                    selectedIndex: Widgets.sysProcSort === "ram" ? 1 : 0
+                                    onSelected: (idx) => Widgets.sysProcSort = (idx === 1 ? "ram" : "cpu")
+                                }
                             }
                             RowLayout {
                                 Layout.fillWidth: true

@@ -1,3 +1,25 @@
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+static void sendHyprSocketCmd(const QString &req) {
+    QString sig = qEnvironmentVariable("HYPRLAND_INSTANCE_SIGNATURE");
+    if (sig.isEmpty()) return;
+    QString sockPath = qEnvironmentVariable("XDG_RUNTIME_DIR") + "/hypr/" + sig + "/.socket.sock";
+    if (!QFile::exists(sockPath)) sockPath = "/tmp/hypr/" + sig + "/.socket.sock";
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return;
+    struct sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    QByteArray pb = sockPath.toUtf8();
+    std::strncpy(addr.sun_path, pb.constData(), sizeof(addr.sun_path) - 1);
+    if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
+        QByteArray b = req.toUtf8();
+        ::write(fd, b.constData(), b.size());
+        char buf[256];
+        ::read(fd, buf, sizeof(buf));
+    }
+    ::close(fd);
+}
 #include "ThemeEngine.h"
 #include <QFile>
 #include <QTextStream>
@@ -66,7 +88,7 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
             bSize = qMax(4, qRound(4.0 + ((val - 0.80) / 0.20) * 5.0));
         }
         QString cmd = QString("hl.config({ decoration = { rounding = %3, rounding_power = 2, blur = { enabled = true, size = %1, passes = %2 } } })").arg(bSize).arg(bPasses).arg(rnd);
-        QProcess::startDetached("hyprctl", {"eval", cmd});
+        sendHyprSocketCmd("eval " + cmd);
     });
 
     QFile f(ccConfPath());

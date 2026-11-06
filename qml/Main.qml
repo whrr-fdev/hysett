@@ -635,22 +635,91 @@ ApplicationWindow {
 
                             // Контент: workspaces
                             Item {
+                                id: wsModuleItem
                                 visible: modKey === "workspaces"
                                 anchors.fill: parent
+                                property int hoveredWsIdx: -1
+                                property int lastHoverIdx: 0
+                                readonly property int activeWsIdx: {
+                                    var list = (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                    for (var i = 0; i < list.length; ++i) {
+                                        if (list[i].active === true) return i
+                                    }
+                                    return 0
+                                }
+
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
+
+                                // Плавно скользящая подложка наведения (как в боковом меню)
+                                Rectangle {
+                                    id: wsHoverPill
+                                    z: 1
+                                    width: 20
+                                    height: topBarContainer.pillHeight - 4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    radius: (Theme && Theme.isRounded) ? height / 2 : 0
+                                    color: Qt.rgba(1, 1, 1, 0.16)
+                                    opacity: (wsModuleItem.hoveredWsIdx >= 0 && wsModuleItem.hoveredWsIdx !== wsModuleItem.activeWsIdx) ? 1.0 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
+                                    x: wsRow.x + wsModuleItem.lastHoverIdx * 20
+                                    Behavior on x {
+                                        enabled: wsHoverPill.opacity > 0.05
+                                        NumberAnimation { duration: 210; easing.type: Easing.OutQuint }
+                                    }
+                                }
+
+                                // Плавно скользящий индикатор активного рабочего стола
+                                Rectangle {
+                                    id: wsActivePill
+                                    z: 2
+                                    width: 20
+                                    height: topBarContainer.pillHeight - 4
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    radius: (Theme && Theme.isRounded) ? height / 2 : 0
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    Behavior on color { ColorAnimation { duration: 180 } }
+                                    x: wsRow.x + wsModuleItem.activeWsIdx * 20
+                                    Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                                }
+
                                 Row {
-                                    id: wsRow; anchors.centerIn: parent; spacing: 0
+                                    id: wsRow; z: 3; anchors.centerIn: parent; spacing: 0
                                     Repeater {
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
                                         delegate: Rectangle {
                                             property bool act: modelData.active === true
                                             property bool occ: (modelData.windows || 0) > 0
+                                            property bool hov: wsMa.containsMouse
                                             width: 20; height: topBarContainer.pillHeight - 4
                                             anchors.verticalCenter: parent.verticalCenter
                                             radius: (Theme && Theme.isRounded) ? height / 2 : 0
-                                            color: act ? (Config ? Config.m3Primary : "#ffffff") : (occ ? Qt.rgba(1,1,1,0.10) : "transparent")
-                                            Text { anchors.centerIn: parent; text: modelData.id; font.pixelSize: 10; font.bold: parent.act; color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.occ ? "#ffffff" : "#767b8a") }
-                                            MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.topMargin: -4; anchors.bottomMargin: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id) }
+                                            color: (!act && occ && !hov) ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+                                            Behavior on color { ColorAnimation { duration: 150 } }
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: modelData.id
+                                                font.pixelSize: 10
+                                                font.bold: parent.act || parent.hov
+                                                color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.hov ? "#ffffff" : (parent.occ ? "#ffffff" : "#767b8a"))
+                                                Behavior on color { ColorAnimation { duration: 160 } }
+                                            }
+                                            MouseArea {
+                                                id: wsMa
+                                                enabled: !topBarContainer.editMode
+                                                anchors.fill: parent
+                                                anchors.topMargin: -4
+                                                anchors.bottomMargin: -4
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onEntered: {
+                                                    wsModuleItem.lastHoverIdx = index
+                                                    wsModuleItem.hoveredWsIdx = index
+                                                }
+                                                onExited: {
+                                                    if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1
+                                                }
+                                                onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                            }
                                         }
                                     }
                                 }
@@ -765,17 +834,22 @@ ApplicationWindow {
 
             Rectangle {
                 id: centerTitlePill; z: 5
-                readonly property real availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 14)
-                readonly property real minLeftX: leftBarRow.x + leftBarRow.width + 6
-                readonly property real maxRightX: Math.max(minLeftX, parent.width - rightBarRow.width - 6 - width)
+                readonly property real leftEdge: leftBarRow.x + leftBarRow.width
+                readonly property real rightEdge: rightBarRow.x
+                readonly property real availGap: Math.max(0, rightEdge - leftEdge - 12)
+                readonly property real minLeftX: leftEdge + 6
+                readonly property real maxRightX: Math.max(minLeftX, rightEdge - 6 - width)
+                readonly property real gapCenterX: Math.round(leftEdge + (rightEdge - leftEdge - width) * 0.5)
                 readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
+                readonly property real centerBlend: Math.max(0.0, Math.min(1.0, (parent.width - 860.0) / 40.0))
+                readonly property real targetCenterX: Math.round(gapCenterX + (trueCenterX - gapCenterX) * centerBlend)
                 visible: width > 0.5 && availGap > 24
                 opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0
                 clip: true
                 width: (root.isFixedTitle || root.hasWinTitle) ? Math.min(availGap, root.winPillTargetW) : 0
                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 160 } }
-                x: Math.max(minLeftX, Math.min(maxRightX, trueCenterX))
+                x: Math.max(minLeftX, Math.min(maxRightX, targetCenterX))
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius

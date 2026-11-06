@@ -362,6 +362,8 @@ ApplicationWindow {
             root.mousePos = Qt.point(-500, -500)
             if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
         } else {
+            root.requestActivate()
+            sceneRoot.forceActiveFocus()
             syncTabBlur()
         }
     }
@@ -488,11 +490,14 @@ ApplicationWindow {
     }
 
     Shortcut {
-        sequence: "Escape"
+        sequences: ["Escape"]
+        context: Qt.ApplicationShortcut
+        enabled: root.drawerOpen || root.isWallpaperExpanded || root.barSavePromptOpen
         onActivated: {
             if (root.isWallpaperExpanded) root.isWallpaperExpanded = false
             else if (root.barSavePromptOpen) root.barSavePromptOpen = false
-            else if (!root.anyModalActive && root.drawerOpen) root.requestCloseDrawer()
+            else if (root.modalOpen) root.modalOpen = false
+            else if (root.drawerOpen) root.requestCloseDrawer()
         }
     }
     Shortcut {

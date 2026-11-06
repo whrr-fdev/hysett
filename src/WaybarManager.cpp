@@ -1172,7 +1172,7 @@ static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive) {
         ls->setExclusiveZone(-1);
         ls->setKeyboardInteractivity(
             exclusive
-                ? LayerShellQt::Window::KeyboardInteractivityOnDemand
+                ? LayerShellQt::Window::KeyboardInteractivityExclusive
                 : LayerShellQt::Window::KeyboardInteractivityNone
         );
     }
@@ -1190,17 +1190,38 @@ static void runHyprEvalSilent(const QString &luaExpr) {
     p.startDetached();
 }
 
+static int s_pendingTargetWs = -1;
+static qint64 s_pendingWsDeadlineMs = 0;
+
 void WaybarManager::switchWorkspace(int wsId) {
-    applyShellKbInteractivity(nullptr, false);
-    emit closeDrawerRequested();
+    bool wasOpen = (s_lastKbState == 1);
+    if (wasOpen) {
+        s_pendingTargetWs = wsId;
+        s_pendingWsDeadlineMs = QDateTime::currentMSecsSinceEpoch() + 450;
+        applyShellKbInteractivity(nullptr, false);
+        emit closeDrawerRequested();
+        QTimer::singleShot(25, this, [this, wsId]() {
+            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
+            QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
+        });
+        QTimer::singleShot(95, this, [this, wsId]() {
+            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
+            pollHyprState();
+        });
+        return;
+    }
     runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
 
 void WaybarManager::stepWorkspace(int dir) {
     QString target = dir > 0 ? "e+1" : "e-1";
-    applyShellKbInteractivity(nullptr, false);
-    emit closeDrawerRequested();
+    bool wasOpen = (s_lastKbState == 1);
+    if (wasOpen) {
+        int nextWs = std::clamp(m_activeWorkspace + (dir > 0 ? 1 : -1), 1, 5);
+        switchWorkspace(nextWs);
+        return;
+    }
     runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }

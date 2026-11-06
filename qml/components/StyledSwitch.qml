@@ -1,18 +1,25 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import HySett
 
 Switch {
     id: control
     property bool inverted: false
     padding: 0
-    implicitHeight: 16
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
+    bottomPadding: 0
+    implicitHeight: 20
     implicitWidth: 30
+    Layout.alignment: Qt.AlignVCenter
 
     indicator: Rectangle {
         implicitWidth: 30
         implicitHeight: 16
-        y: Math.round((parent.height - height) / 2)
+        x: 0
+        y: Math.round((control.height - height) / 2)
         radius: (Theme && Theme.isRounded) ? 8 : 0
         color: control.checked ? (Config ? Config.m3Primary : "#a8c7fa") : Qt.rgba(1, 1, 1, 0.08)
         border.color: control.checked ? "transparent" : (control.hovered ? Qt.rgba(1, 1, 1, 0.45) : Qt.rgba(1, 1, 1, 0.25))

@@ -1,14 +1,21 @@
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Layouts
 import HySett
 
 Slider {
     id: control
-    implicitHeight: 26
+    padding: 0
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
+    bottomPadding: 0
+    implicitHeight: 20
+    Layout.alignment: Qt.AlignVCenter
 
     background: Item {
         x: control.leftPadding
-        y: control.topPadding + control.availableHeight / 2 - height / 2
+        y: Math.round(control.topPadding + (control.availableHeight - height) / 2)
         implicitWidth: 180
         implicitHeight: 10
         width: control.availableWidth
@@ -31,9 +38,9 @@ Slider {
 
     handle: Rectangle {
         x: control.leftPadding + control.visualPosition * (control.availableWidth - width)
-        y: control.topPadding + control.availableHeight / 2 - height / 2
+        y: Math.round(control.topPadding + (control.availableHeight - height) / 2)
         implicitWidth: control.pressed ? 6 : 8
-        implicitHeight: control.pressed ? 24 : 20
+        implicitHeight: control.pressed ? 22 : 18
         radius: (Theme && Theme.isRounded) ? width / 2 : 0
         color: Config ? Config.m3Primary : "#a8c7fa"
         border.color: Config ? Config.m3Surface : "#111318"

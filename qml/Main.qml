@@ -246,7 +246,9 @@ ApplicationWindow {
         syncInputMask()
         if (!drawerActive) {
             if (Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
-            if (Hypr) Qt.callLater(() => Hypr.trimMemory())
+            if (Apps) { Apps.clearFileSearch(); Apps.clearPackageSearch() }
+            if (Atmosphere) Atmosphere.releaseInAppCaches()
+            if (Hypr) Hypr.trimMemory()
         }
     }
     onNotifActiveChanged: syncInputMask()
@@ -684,13 +686,16 @@ ApplicationWindow {
             Rectangle {
                 id: centerTitlePill; z: 5
                 readonly property real availGap: Math.max(0, parent.width - leftBarRow.width - rightBarRow.width - 14)
+                readonly property real minLeftX: leftBarRow.x + leftBarRow.width + 6
+                readonly property real maxRightX: Math.max(minLeftX, parent.width - rightBarRow.width - 6 - width)
+                readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
                 visible: width > 0.5 && availGap > 24
                 opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0
                 clip: true
                 width: (root.isFixedTitle || root.hasWinTitle) ? Math.min(availGap, root.winPillTargetW) : 0
                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 160 } }
-                x: leftBarRow.x + leftBarRow.width + 5 + Math.max(0, (availGap - width) * 0.5)
+                x: Math.max(minLeftX, Math.min(maxRightX, trueCenterX))
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
@@ -1139,8 +1144,8 @@ ApplicationWindow {
                         }
                         ListView {
                             Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
-                            cacheBuffer: 80
-                            model: Waybar ? Waybar.clipboardItems : []
+                            cacheBuffer: 120
+                            model: (root.drawerActive && root.drawerMode === "clipboard" && Waybar) ? Waybar.clipboardItems : []
                             delegate: Rectangle {
                                 property bool matches: root.clipSearchQuery.length === 0 || modelData.label.toLowerCase().indexOf(root.clipSearchQuery) !== -1
                                 width: ListView.view.width
@@ -1212,7 +1217,7 @@ ApplicationWindow {
                                 delegate: Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData; color: "#888888"; font.pixelSize: 10; font.bold: true }
                             }
                             Repeater {
-                                model: 42
+                                model: (root.drawerActive && root.drawerMode === "calendar") ? 42 : 0
                                 delegate: Rectangle {
                                     Layout.fillWidth: true; Layout.preferredHeight: 26
                                     property var cellInfo: {
@@ -1492,8 +1497,17 @@ ApplicationWindow {
                             cur.opacity = 1.0
                             cur.vortexProgress = 0.0
                         }
+                        slideOutAnim.target = null; slideOutOp.target = null; slideInAnim.target = null; slideInOp.target = null
+                        fadeOldAnim.target = null; fadeNewAnim.target = null
+                        depthOutOp.target = null; depthOutSc.target = null; depthInOp.target = null; depthInSc.target = null
+                        bounceOutOp.target = null; bounceOutY.target = null; bounceInOp.target = null; bounceInY.target = null; bounceInSc.target = null
+                        vortexOutOp.target = null; vortexOutX.target = null; vortexOutSc.target = null; vortexInOp.target = null; vortexInX.target = null; vortexInY.target = null; vortexInSc.target = null
+                        bhOutVortex.target = null; bhOutSc.target = null; bhOutRot.target = null; bhOutOp.target = null; bhInVortex.target = null; bhInSc.target = null; bhInRot.target = null; bhInOp.target = null
+                        portalOutWave.target = null; portalOutSc.target = null; portalOutRot.target = null; portalOutOp.target = null; portalInWave.target = null; portalInSc.target = null; portalInRot.target = null; portalInOp.target = null
+                        shatterOutProg.target = null; shatterOutSc.target = null; shatterOutX.target = null; shatterOutOp.target = null; shatterInProg.target = null; shatterInSc.target = null; shatterInX.target = null; shatterInOp.target = null
                         inTransition = false
                         if (cur && cur.item && cur.item.focusSearchInput) Qt.callLater(cur.item.focusSearchInput)
+                        if (Hypr) Hypr.trimMemory()
                     }
 
                     ParallelAnimation {
@@ -1629,7 +1643,7 @@ ApplicationWindow {
                             x: index === 0 ? 0 : pageController.sidebarW
                             width: index === 0 ? pageController.width : (pageController.width - pageController.sidebarW)
                             height: pageController.height
-                            active: root.drawerActive && (
+                            active: root.drawerActive && root.drawerMode === "settings" && (
                                     index === pageController.currentIndex ||
                                     (pageController.inTransition && index === pageController.previousIndex))
                             source: modelData
@@ -1677,16 +1691,17 @@ ApplicationWindow {
 
                 ShaderEffectSource {
                     id: pageSceneSource
-                    sourceItem: pageController
+                    readonly property bool activeCapture: root.drawerActive && root.drawerMode === "settings" && Atmosphere && Atmosphere.inAppEnabled && (Atmosphere.rainEnabled || Atmosphere.snowEnabled)
+                    sourceItem: activeCapture ? pageController : null
                     anchors.fill: pageController
                     visible: false
-                    live: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled && (Atmosphere.rainEnabled || Atmosphere.snowEnabled)
+                    live: activeCapture
                 }
 
                 AtmosphereCanvas {
                     id: inAppWaterMap
                     roundedTheme: (Theme && Theme.isRounded) ? true : false
-                    width: visible ? parent.width : 0; height: visible ? parent.height : 0
+                    anchors.fill: parent
                     visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
                     enabled: false
                     globalMode: false
@@ -1698,17 +1713,18 @@ ApplicationWindow {
 
                 ShaderEffectSource {
                     id: inAppWaterMapSource
-                    sourceItem: inAppWaterMap
+                    readonly property bool activeCapture: root.drawerActive && root.drawerMode === "settings" && Atmosphere && Atmosphere.inAppEnabled
+                    sourceItem: activeCapture ? inAppWaterMap : null
                     anchors.fill: parent
                     visible: false
                     hideSource: true
                     smooth: true
-                    live: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                    live: activeCapture
                 }
 
                 AtmosphereCanvas {
                     id: inAppOverlayMap
-                    width: visible ? parent.width : 0; height: visible ? parent.height : 0
+                    anchors.fill: parent
                     visible: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
                     enabled: false
                     globalMode: false
@@ -1719,12 +1735,13 @@ ApplicationWindow {
 
                 ShaderEffectSource {
                     id: inAppOverlayMapSource
-                    sourceItem: inAppOverlayMap
+                    readonly property bool activeCapture: root.drawerActive && root.drawerMode === "settings" && Atmosphere && Atmosphere.inAppEnabled
+                    sourceItem: activeCapture ? inAppOverlayMap : null
                     anchors.fill: parent
                     visible: false
                     hideSource: true
                     smooth: true
-                    live: root.drawerActive && Atmosphere && Atmosphere.inAppEnabled
+                    live: activeCapture
                 }
 
                 ShaderEffect {

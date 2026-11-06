@@ -1,3 +1,4 @@
+#include <malloc.h>
 #include "AtmosphereManager.h"
 #include <QCoreApplication>
 #include <QGuiApplication>
@@ -503,9 +504,11 @@ void AtmosphereCanvas::updateTimerState() {
         emit frameSimulated();
     } else {
         m_tickTimer.stop();
-        // Очищаем капли ТОЛЬКО если сама погода выключена, а при сворачивании в демон сохраняем состояние!
-        if (!modeOk || !anyW) {
-            m_particles.clear(); m_splashes.clear(); m_obstacles.clear(); s_leafTextures.clear(); s_leafImprintMasks.clear(); s_snowflakeTextures.clear(); s_frostCornerTextures.clear();
+        if (!m_activeRunning || !modeOk || !anyW) {
+            m_particles.clear(); m_particles.squeeze();
+            m_splashes.clear(); m_splashes.squeeze();
+            m_obstacles.clear();
+            if (!m_activeRunning) setFlag(QQuickItem::ItemHasContents, false);
         }
         update();
         emit frameSimulated();
@@ -1143,7 +1146,7 @@ static void ensureSnowAssetsGenerated() {
     s_frostCornerTextures.resize(4);
 
     // 1. Генерация 8 видов 6-лучевых кристаллических снежинок (дендриты, звёздчатые пластинки, морозные перья)
-    const int sSz = 96;
+    const int sSz = 160;
     const double cx = sSz * 0.5, cy = sSz * 0.5, maxR = sSz * 0.44;
     for (int k = 0; k < 8; ++k) {
         QImage img(sSz, sSz, QImage::Format_ARGB32_Premultiplied);
@@ -1219,7 +1222,7 @@ static void ensureSnowAssetsGenerated() {
     }
 
     // 2. Генерация 4 текстур угловых морозных узоров (220x220) с ветвистыми папоротниковыми дендритами льда
-    const int fSz = 128;
+    const int fSz = 220;
     for (int corner = 0; corner < 4; ++corner) {
         QImage fImg(fSz, fSz, QImage::Format_ARGB32_Premultiplied);
         fImg.fill(Qt::transparent);
@@ -1315,7 +1318,7 @@ static void ensureLeafAssetsGenerated() {
         return std::clamp(1.0 - (d2 - d1) * 4.6, 0.0, 1.0);
     };
 
-    const int texSz = 128;
+    const int texSz = 256;
     for (int pal = 0; pal < 4; ++pal) {
         for (int kind = 0; kind < 3; ++kind) {
             for (int var = 0; var < 4; ++var) {
@@ -3763,7 +3766,7 @@ void AtmosphereCanvas::paintOverlayElements(QPainter *painter, const AtmosphereC
             static QImage s_leafBuf;
             static QVector<float> s_zBuf;
             if (s_leafBuf.width() < bufSz || s_leafBuf.height() < bufSz) {
-                int allocSz = std::max(bufSz, 144);
+                int allocSz = std::max(bufSz, 256);
                 s_leafBuf = QImage(allocSz, allocSz, QImage::Format_ARGB32_Premultiplied);
                 s_zBuf.resize(allocSz * allocSz);
             }
@@ -4674,4 +4677,14 @@ void AtmosphereCanvas::paint(QPainter *painter) {
     painter->setRenderHint(QPainter::Antialiasing, true);
     if (m_renderPass == 0) paintWaterMap(painter, src);
     else paintOverlayElements(painter, src);
+}
+
+void AtmosphereManager::releaseInAppCaches() {
+    if (m_isOverlayProcess) return;
+    s_leafTextures.clear(); s_leafTextures.squeeze();
+    s_leafImprintMasks.clear(); s_leafImprintMasks.squeeze();
+    s_snowflakeTextures.clear(); s_snowflakeTextures.squeeze();
+    s_frostCornerTextures.clear(); s_frostCornerTextures.squeeze();
+    s_leafImprints[0].clear(); s_leafImprints[0].squeeze();
+    malloc_trim(0);
 }

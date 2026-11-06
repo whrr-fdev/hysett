@@ -221,6 +221,7 @@ public:
     Q_INVOKABLE void triggerThunderstorm();
     Q_INVOKABLE void clearAccumulations();
     Q_INVOKABLE void resetDefaults();
+    Q_INVOKABLE void releaseInAppCaches();
 
     void load();
     void save();

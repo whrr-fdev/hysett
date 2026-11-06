@@ -1,3 +1,4 @@
+#include "HyprIpc.h"
 #include <QGuiApplication>
 #include <QCoreApplication>
 #include <QWindow>
@@ -6,42 +7,33 @@
 #include <QQmlEngine>
 #include <QQmlContext>
 #include <QPixmapCache>
+#include <QProcess>
 #include <QTimer>
 #include <malloc.h>
 
-static void performDeepMemoryTrim() {
-    for (QWindow *w : QGuiApplication::topLevelWindows()) {
-        if (w->isVisible()) {
-            // Пока окно открыто — ничего не выгружаем, чтобы все анимации шли в 160 FPS без лагов!
-            return;
-        }
-    }
-
+static void performDeepMemoryTrim(QQmlApplicationEngine *mainEngine) {
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QPixmapCache::clear();
+
+    if (mainEngine) {
+        mainEngine->collectGarbage();
+        mainEngine->trimComponentCache();
+    }
 
     for (QWindow *w : QGuiApplication::topLevelWindows()) {
         if (auto *qw = qobject_cast<QQuickWindow *>(w)) {
             QQmlEngine *eng = qmlEngine(qw);
             if (!eng && qw->contentItem()) eng = qmlEngine(qw->contentItem());
-            if (eng) {
+            if (eng && eng != mainEngine) {
                 eng->collectGarbage();
                 eng->trimComponentCache();
             }
-            qw->releaseResources();
         }
     }
 
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     malloc_trim(0);
 }
-
-#include <QGuiApplication>
-#include <QWindow>
-#include "HyprIpc.h"
-#include <QProcess>
-#include <QPixmapCache>
-#include <malloc.h>
 
 HyprIpc::HyprIpc(QObject *parent) : QObject(parent) {}
 
@@ -57,5 +49,6 @@ QString HyprIpc::getActiveWorkspace() {
 }
 
 void HyprIpc::trimMemory() {
-    QTimer::singleShot(250, []() { performDeepMemoryTrim(); });
+    QQmlApplicationEngine *eng = m_engine;
+    QTimer::singleShot(180, [eng]() { performDeepMemoryTrim(eng); });
 }

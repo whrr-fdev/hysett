@@ -207,7 +207,7 @@ ScrollView {
                     Text { text: Config ? (Config.language, Config.trAuto("Тачпад (Touchpad)")) : "Тачпад (Touchpad)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
 
                     Text {
-                        text: Devices.hasTouchpad ? "✓  Тачпад подключен и активен" : "Тачпад не обнаружен (No touchpad detected)"
+                        text: Devices.hasTouchpad ? "󰌌  Тачпад подключен и активен" : "Тачпад не обнаружен (No touchpad detected)"
                         color: Devices.hasTouchpad ? "#ffffff" : "#888888"
                         font.pixelSize: Config.fontSize
                     }

@@ -162,6 +162,7 @@ public:
     QStringList leftBarOrder() const { return m_leftBarOrder; }
     QStringList rightBarOrder() const { return m_rightBarOrder; }
     Q_INVOKABLE void moveBarModule(const QString &side, int fromIdx, int toIdx);
+    Q_INVOKABLE void moveWindowModuleToSide(const QString &targetSide);
     Q_INVOKABLE void addBarSeparator(const QString &side);
     Q_INVOKABLE void removeBarItemAt(const QString &side, int idx);
     Q_INVOKABLE void resetBarOrder();

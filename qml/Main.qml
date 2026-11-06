@@ -197,7 +197,8 @@ ApplicationWindow {
 
     readonly property bool winModVis: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("window")) : true
     readonly property bool isFixedTitle: Waybar ? Waybar.fixedTitleWidth : false
-    readonly property bool hasWinTitle: winModVis && Waybar && Waybar.activeWindowTitle.length > 0
+    readonly property bool winInSideOrder: Waybar ? (Waybar.leftBarOrder.indexOf("window") !== -1 || Waybar.rightBarOrder.indexOf("window") !== -1) : false
+    readonly property bool hasWinTitle: winModVis && Waybar && (Waybar.activeWindowTitle.length > 0 || Waybar.barEditMode)
     readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 210 : (hasWinTitle ? Math.min(240, winLbl.implicitWidth + 24) : 0))
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
@@ -742,6 +743,7 @@ ApplicationWindow {
                                 if (modKey === "workspaces") return wsRow.implicitWidth + 4
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 24
+                                if (modKey === "window") return Math.max(90, root.winPillTargetW)
                                 return 0
                             }
 
@@ -908,6 +910,22 @@ ApplicationWindow {
                                 }
                             }
 
+                                                        // Контент: window (при перетаскивании в левый или правый блок)
+                            Rectangle {
+                                visible: modKey === "window"
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                Text {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 16
+                                    text: (Waybar && Waybar.activeWindowTitle.length > 0) ? Waybar.activeWindowTitle : "Заголовок окна"
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"
+                                    font.pixelSize: 10; font.bold: (Theme && Theme.isRounded)
+                                    elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter
+                                }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+                            }
+
                             // Контент: weather
                             Rectangle {
                                 visible: modKey === "weather"
@@ -1005,6 +1023,8 @@ ApplicationWindow {
                                         var dx = mouse.x - pressX
                                         if (dx > 22 && index + 1 < Waybar.leftBarOrder.length) {
                                             Waybar.moveBarModule("left", index, index + 1)
+                                        } else if (dx > 28 && modKey === "window" && index === Waybar.leftBarOrder.length - 1) {
+                                            Waybar.moveWindowModuleToSide("center")
                                         } else if (dx < -22 && index > 0) {
                                             Waybar.moveBarModule("left", index, index - 1)
                                         }
@@ -1027,19 +1047,55 @@ ApplicationWindow {
                 readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
                 readonly property bool useBarCenter: Waybar ? Waybar.centerTitleOnBar : true
                 readonly property real targetCenterX: useBarCenter ? trueCenterX : gapCenterX
-                visible: !root.isVertBar && width > 0.5 && availGap > 24
-                opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0
-                clip: true
-                width: (root.isFixedTitle || root.hasWinTitle) ? Math.min(availGap, root.winPillTargetW) : 0
+                visible: !root.isVertBar && !root.winInSideOrder && width > 0.5 && availGap > 24
+                opacity: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? 1.0 : 0.0
+                clip: !topBarContainer.editMode
+                width: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? Math.min(availGap, Math.max(topBarContainer.editMode ? 110 : 0, root.winPillTargetW)) : 0
                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 160 } }
                 x: Math.max(minLeftX, Math.min(maxRightX, targetCenterX))
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
-                color: root.hasWinTitle ? topBarContainer.pillColor : "transparent"
-                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 18), implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"; font.pixelSize: 10; font.bold: (Theme && Theme.isRounded); elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
-                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+                color: (root.hasWinTitle || topBarContainer.editMode) ? topBarContainer.pillColor : "transparent"
+                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 18), implicitWidth); text: (Waybar && Waybar.activeWindowTitle.length > 0) ? Waybar.activeWindowTitle : (topBarContainer.editMode ? "Заголовок окна" : ""); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"; font.pixelSize: 10; font.bold: (Theme && Theme.isRounded); elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+
+                Rectangle {
+                    visible: topBarContainer.editMode
+                    anchors.fill: parent
+                    radius: 4
+                    color: centerDragMa.pressed ? Qt.rgba(0.4, 0.7, 1.0, 0.28) : Qt.rgba(1, 1, 1, 0.08)
+                    border.color: Config ? Config.m3Primary : "#a8c7fa"
+                    border.width: 1
+                    Rectangle {
+                        width: 10; height: 10; radius: 5
+                        anchors.right: parent.right; anchors.top: parent.top; anchors.margins: -2
+                        color: "#ff5555"
+                        Text { anchors.centerIn: parent; text: "✕"; color: "#ffffff"; font.pixelSize: 7; font.bold: true }
+                    }
+                    MouseArea {
+                        id: centerDragMa
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        cursorShape: Qt.SizeHorCursor
+                        property real pressX: 0
+                        onPressed: (mouse) => {
+                            if (mouse.button === Qt.RightButton || (mouse.x > width - 11 && mouse.y < 11)) {
+                                if (Waybar) Waybar.setBarModuleVisible("window", false)
+                                mouse.accepted = true
+                                return
+                            }
+                            pressX = mouse.x
+                        }
+                        onPositionChanged: (mouse) => {
+                            if (!(pressedButtons & Qt.LeftButton) || !Waybar) return
+                            var dx = mouse.x - pressX
+                            if (dx < -35) Waybar.moveWindowModuleToSide("left")
+                            else if (dx > 35) Waybar.moveWindowModuleToSide("right")
+                        }
+                    }
+                }
             }
 
             Row {
@@ -1146,6 +1202,7 @@ ApplicationWindow {
                                 if (modKey === "language") return 21 + clusterEdgePad
                                 if (modKey === "clock") return barClockText.implicitWidth + 8 + clusterEdgePad
                                 if (modKey === "power") return 32
+                                if (modKey === "window") return Math.max(90, root.winPillTargetW)
                                 return 0
                             }
 
@@ -1156,6 +1213,22 @@ ApplicationWindow {
                                 anchors.centerIn: parent
                                 width: 1; height: topBarContainer.pillHeight - 4
                                 color: Qt.rgba(1, 1, 1, 0.32)
+                            }
+
+                            // Контент: window (при перетаскивании в левый или правый блок)
+                            Rectangle {
+                                visible: modKey === "window"
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                Text {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 16
+                                    text: (Waybar && Waybar.activeWindowTitle.length > 0) ? Waybar.activeWindowTitle : "Заголовок окна"
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"
+                                    font.pixelSize: 10; font.bold: (Theme && Theme.isRounded)
+                                    elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter
+                                }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
                             }
 
                             Rectangle {
@@ -1325,6 +1398,8 @@ ApplicationWindow {
                                             Waybar.moveBarModule("right", index, index + 1)
                                         } else if (dx < -18 && index > 0) {
                                             Waybar.moveBarModule("right", index, index - 1)
+                                        } else if (dx < -28 && modKey === "window" && index === 0) {
+                                            Waybar.moveWindowModuleToSide("center")
                                         }
                                     }
                                 }
@@ -2697,7 +2772,7 @@ ApplicationWindow {
                                 spacing: 8
 
                                 StyledButton {
-                                    text: "✓ Сохранить"
+                                    text: "Сохранить"
                                     isActive: true
                                     onClicked: {
                                         root.barSavePromptOpen = false

@@ -278,7 +278,7 @@ Item {
                 }
 
                 StyledButton {
-                    text: Config && Config.language === "en" ? "✓ Done" : "✓ Готово"
+                    text: Config && Config.language === "en" ? "Done" : "Готово"
                     implicitHeight: 26
                     onClicked: pickerRoot.closePicker()
                 }

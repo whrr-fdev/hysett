@@ -141,7 +141,7 @@ ScrollView {
                         spacing: 8
                         Text { text: "Редактирование блоков и разделители панели"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
                         StyledButton {
-                            text: (Waybar && Waybar.barEditMode) ? "✓ Готово (Выйти из ред.)" : "✎ Режим перетаскивания на панели"
+                            text: (Waybar && Waybar.barEditMode) ? "Готово (Выйти из ред.)" : "✎ Режим перетаскивания на панели"
                             implicitHeight: 24
                             isActive: Waybar ? Waybar.barEditMode : false
                             onClicked: if (Waybar) Waybar.barEditMode = !Waybar.barEditMode

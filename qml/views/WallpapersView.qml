@@ -22,12 +22,12 @@ Item {
         var cnt = morphCatRepeater.count
         if (cnt === 0) return
 
-        var spacing = 4
+        var spacing = (Theme && Theme.isRounded) ? 3 : 2
         var totalW = 0
         var widths = []
         for (var i = 0; i < cnt; ++i) {
             var item = morphCatRepeater.itemAt(i)
-            var w = item ? Math.ceil(item.textImplicitW + 12) : 48
+            var w = item ? Math.ceil(item.textImplicitW + 22) : 56
             widths.push(w)
             totalW += w + (i > 0 ? spacing : 0)
         }
@@ -313,7 +313,7 @@ Item {
                                         onClicked: Wallpapers.applyPreset(index)
 
                                         contentItem: Text {
-                                            text: (isPresetActive ? "✓  " : "") + modelData.name
+                                            text: modelData.name
                                             color: isPresetActive ? "#000000" : (pBtn.hovered ? "#000000" : "#e0e0e0")
                                             font.pixelSize: Config.fontSize
                                             horizontalAlignment: Text.AlignHCenter
@@ -602,7 +602,7 @@ Item {
             }
         }
 
-        // 3. ТРАНСФОРМИРУЕМЫЕ КНОПКИ КАТЕГОРИЙ И АКТИВНАЯ ПЛАШКА
+        // 3. ТРАНСФОРМИРУЕМЫЕ КНОПКИ КАТЕГОРИЙ И АКТИВНАЯ ПЛАШКА (КОЛБАСА С ПРОБЕЛАМИ)
         Item {
             id: morphCategoriesLayer
             objectName: "morphCategoriesLayer"
@@ -612,41 +612,70 @@ Item {
             property Item hoveredCatBtnObj: null
             property Item lastHoveredCatBtnObj: null
 
+            readonly property bool isM3: Theme && Theme.isRounded
+            readonly property int catGap: isM3 ? 3 : 2
+            readonly property int vertBtnH: 24
+            readonly property int vertStep: vertBtnH + catGap
             readonly property real vertX: Math.round(sceneContainer.leftPanelX + 250 + 24)
-            readonly property real vertTotalH: Wallpapers.categories.length * 24 - 2
+            readonly property real vertTotalH: Math.max(0, Wallpapers.categories.length * vertStep - catGap)
             readonly property real vertStartY: Math.round(Math.max(16, (wallRoot.height - vertTotalH) / 2))
-            readonly property real horizY: Math.round(wallRoot.height - 36)
+            readonly property real horizY: Math.round(wallRoot.height - 38)
 
             Rectangle {
                 id: morphHoverPill
+                z: 2
+                readonly property int hIdx: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.catIdx : 0
+                readonly property bool isFirst: hIdx === 0
+                readonly property bool isLast: hIdx === Math.max(0, morphCatRepeater.count - 1)
+                readonly property real outerR: morphCategoriesLayer.isM3 ? height / 2 : 0
+                readonly property real innerR: morphCategoriesLayer.isM3 ? 5 : 0
+
                 x: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.x : morphCategoriesLayer.vertX
                 y: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.y : morphCategoriesLayer.vertStartY
                 width: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.width : 110
-                height: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.height : 22
-                radius: (Theme && Theme.isRounded) ? 3 : 0
-                color: Qt.rgba(1, 1, 1, 0.10)
+                height: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.height : 24
+
+                topLeftRadius: isFirst ? outerR : innerR
+                bottomLeftRadius: wallRoot.isExpanded ? (isFirst ? outerR : innerR) : (isLast ? outerR : innerR)
+                topRightRadius: wallRoot.isExpanded ? (isLast ? outerR : innerR) : (isFirst ? outerR : innerR)
+                bottomRightRadius: isLast ? outerR : innerR
+
+                color: (morphCategoriesLayer.isM3 && Config) ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.14)
                 opacity: morphCategoriesLayer.hoveredCatBtnObj && morphCategoriesLayer.hoveredCatBtnObj !== morphCategoriesLayer.activeCatBtnObj ? 1.0 : 0.0
 
-                Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                Behavior on y { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-                Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                Behavior on x { NumberAnimation { duration: 150; easing.type: Easing.OutQuint } }
+                Behavior on y { NumberAnimation { duration: 150; easing.type: Easing.OutQuint } }
+                Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutQuint } }
+                Behavior on height { NumberAnimation { duration: 150; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 90 } }
             }
 
             Rectangle {
                 id: morphActivePill
+                z: 3
+                readonly property int aIdx: wallRoot.activeCatIndex
+                readonly property bool isFirst: aIdx === 0
+                readonly property bool isLast: aIdx === Math.max(0, morphCatRepeater.count - 1)
+                readonly property real outerR: morphCategoriesLayer.isM3 ? height / 2 : 0
+                readonly property real innerR: morphCategoriesLayer.isM3 ? 5 : 0
+
                 x: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetX : morphCategoriesLayer.vertX
                 y: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetY : morphCategoriesLayer.vertStartY
                 width: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetW : 110
-                height: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetH : 22
-                radius: (Theme && Theme.isRounded) ? 3 : 0
-                color: "#ffffff"
+                height: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetH : 24
 
-                Behavior on x { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-                Behavior on y { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-                Behavior on width { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-                Behavior on height { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
+                topLeftRadius: isFirst ? outerR : innerR
+                bottomLeftRadius: wallRoot.isExpanded ? (isFirst ? outerR : innerR) : (isLast ? outerR : innerR)
+                topRightRadius: wallRoot.isExpanded ? (isLast ? outerR : innerR) : (isFirst ? outerR : innerR)
+                bottomRightRadius: isLast ? outerR : innerR
+
+                color: (morphCategoriesLayer.isM3 && Config) ? Config.m3Primary : "#ffffff"
+
+                Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                Behavior on width { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                Behavior on height { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                Behavior on color { ColorAnimation { duration: 150 } }
             }
 
             Repeater {
@@ -656,45 +685,60 @@ Item {
 
                 Button {
                     id: morphCatBtn
+                    z: 4
                     flat: true
+                    property int catIdx: index
                     property bool isSel: wallRoot.activeCatIndex === index
+                    readonly property bool isFirst: index === 0
+                    readonly property bool isLast: index === morphCatRepeater.count - 1
+                    readonly property real outerR: morphCategoriesLayer.isM3 ? height / 2 : 0
+                    readonly property real innerR: morphCategoriesLayer.isM3 ? 5 : 0
+
                     property real textImplicitW: mCatTxt.implicitWidth
                     property real calcHorizX: morphCategoriesLayer.vertX
-                    property real calcHorizW: Math.ceil(mCatTxt.implicitWidth + 12)
+                    property real calcHorizW: Math.ceil(mCatTxt.implicitWidth + 22)
 
                     onTextImplicitWChanged: Qt.callLater(wallRoot.recalcCatLayout)
 
                     readonly property real targetX: wallRoot.isExpanded ? calcHorizX : morphCategoriesLayer.vertX
-                    readonly property real targetY: wallRoot.isExpanded ? morphCategoriesLayer.horizY : (morphCategoriesLayer.vertStartY + index * 24)
-                    readonly property real targetW: wallRoot.isExpanded ? calcHorizW : 110
-                    readonly property real targetH: wallRoot.isExpanded ? 20 : 22
+                    readonly property real targetY: wallRoot.isExpanded ? morphCategoriesLayer.horizY : (morphCategoriesLayer.vertStartY + index * morphCategoriesLayer.vertStep)
+                    readonly property real targetW: wallRoot.isExpanded ? calcHorizW : 114
+                    readonly property real targetH: wallRoot.isExpanded ? 26 : morphCategoriesLayer.vertBtnH
 
                     x: targetX
                     y: targetY
                     width: targetW
                     height: targetH
 
-                    Behavior on x { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-                    Behavior on y { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-                    Behavior on width { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
-                    Behavior on height { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                    Behavior on x { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                    Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                    Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+                    Behavior on height { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
                     contentItem: Text {
                         id: mCatTxt
                         text: modelData.name
-                        color: morphCatBtn.isSel ? "#000000" : (morphCatBtn.hovered ? "#ffffff" : "#aaaaaa")
-                        font.pixelSize: wallRoot.isExpanded ? Math.max(8, Config.fontSize - 2) : 10
-                        font.bold: false
+                        color: morphCatBtn.isSel
+                               ? (Config ? Config.accentTextColor : "#000000")
+                               : (morphCatBtn.hovered ? "#ffffff" : (morphCategoriesLayer.isM3 && Config ? Config.m3OnPrimaryContainer : "#cccccc"))
+                        font.pixelSize: wallRoot.isExpanded ? Config.fontSize : 10
+                        font.bold: morphCatBtn.isSel
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         Behavior on color { ColorAnimation { duration: 120 } }
                     }
 
                     background: Rectangle {
-                        radius: (Theme && Theme.isRounded) ? 3 : 0
-                        color: morphCatBtn.isSel ? "transparent" : Qt.rgba(1, 1, 1, Math.max(0.02, Config.cardOpacity * 0.12))
-                        border.color: morphCatBtn.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
-                        border.width: 1
+                        z: -1
+                        topLeftRadius: morphCatBtn.isFirst ? morphCatBtn.outerR : morphCatBtn.innerR
+                        bottomLeftRadius: wallRoot.isExpanded ? (morphCatBtn.isFirst ? morphCatBtn.outerR : morphCatBtn.innerR) : (morphCatBtn.isLast ? morphCatBtn.outerR : morphCatBtn.innerR)
+                        topRightRadius: wallRoot.isExpanded ? (morphCatBtn.isLast ? morphCatBtn.outerR : morphCatBtn.innerR) : (morphCatBtn.isFirst ? morphCatBtn.outerR : morphCatBtn.innerR)
+                        bottomRightRadius: morphCatBtn.isLast ? morphCatBtn.outerR : morphCatBtn.innerR
+                        color: morphCatBtn.isSel
+                               ? "transparent"
+                               : ((morphCategoriesLayer.isM3 && Config)
+                                  ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.82)
+                                  : Qt.rgba(1, 1, 1, 0.08))
                     }
 
                     onHoveredChanged: {

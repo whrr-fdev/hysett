@@ -122,7 +122,7 @@ Item {
                             spacing: 10
 
                             Text {
-                                text: modelData.connected ? "✓" : "󰖩"
+                                text: modelData.connected ? "󰤨" : "󰖩"
                                 color: modelData.connected ? "#ffffff" : "#888888"
                                 font.pixelSize: 14
                             }

@@ -213,7 +213,7 @@ Item {
                     spacing: 12
 
                     StyledButton {
-                        text: Config ? (Config.language, Config.trAuto("✓  Сохранить")) : "✓  Сохранить"
+                        text: Config ? (Config.language, Config.trAuto("Сохранить")) : "Сохранить"
                         implicitWidth: 120
                         implicitHeight: 28
                         onClicked: Monitors.confirmMonitorMode()

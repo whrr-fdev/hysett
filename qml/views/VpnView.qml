@@ -101,7 +101,7 @@ ScrollView {
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
                                 Text {
-                                    text: (parent.parent.isSel ? "✓  " : "") + modelData
+                                    text: modelData
                                     color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                     font.pixelSize: Config.fontSize
                                     font.bold: parent.parent.isSel

@@ -779,8 +779,32 @@ void WaybarManager::cancelBarEdit() {
 
 void WaybarManager::moveBarModule(const QString &side, int fromIdx, int toIdx) {
     QStringList &list = (side == "left") ? m_leftBarOrder : m_rightBarOrder;
-    if (fromIdx < 0 || fromIdx >= list.size() || toIdx < 0 || toIdx >= list.size() || fromIdx == toIdx) return;
+    if (fromIdx < 0 || fromIdx >= list.size() || fromIdx == toIdx) return;
+    if (list[fromIdx] == "window") {
+        if (side == "left" && toIdx >= list.size()) {
+            list.removeAt(fromIdx);
+            saveState(false);
+            return;
+        }
+        if (side == "right" && toIdx < 0) {
+            list.removeAt(fromIdx);
+            saveState(false);
+            return;
+        }
+    }
+    if (toIdx < 0 || toIdx >= list.size()) return;
     list.move(fromIdx, toIdx);
+    saveState(false);
+}
+
+void WaybarManager::moveWindowModuleToSide(const QString &targetSide) {
+    m_leftBarOrder.removeAll("window");
+    m_rightBarOrder.removeAll("window");
+    if (targetSide == "left") {
+        m_leftBarOrder.append("window");
+    } else if (targetSide == "right") {
+        m_rightBarOrder.prepend("window");
+    }
     saveState(false);
 }
 

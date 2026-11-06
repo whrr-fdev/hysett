@@ -1420,7 +1420,6 @@ ApplicationWindow {
 
                     property int currentIndex: 0
                     property int previousIndex: 0
-                    property int hoveredPreviewIndex: -1
                     property bool inTransition: false
                     property int sidebarW: 136
 
@@ -1656,7 +1655,6 @@ ApplicationWindow {
                             cur.vortexProgress = 0.0
                         }
                         inTransition = false
-                        hoveredPreviewIndex = -1
                         if (cur && cur.item && cur.item.focusSearchInput) Qt.callLater(cur.item.focusSearchInput)
                         if (Hypr) Hypr.trimMemory()
                     }
@@ -1797,7 +1795,6 @@ ApplicationWindow {
                             active: root.drawerActive && root.drawerMode === "settings" && (
                                     index === 0 ||
                                     index === pageController.currentIndex ||
-                                    index === pageController.hoveredPreviewIndex ||
                                     (pageController.inTransition && index === pageController.previousIndex))
                             source: modelData
                             visible: index === 0
@@ -1820,9 +1817,6 @@ ApplicationWindow {
                                 if ((index === 12 || index === 16) && item && item.focusSearchInput && index === pageController.currentIndex) Qt.callLater(item.focusSearchInput)
                                 if (index === 0 && item) {
                                     item.navigateTo.connect((target) => pageController.switchPage(target))
-                                    if (item.previewTab !== undefined) {
-                                        item.previewTab.connect((target) => { pageController.hoveredPreviewIndex = target })
-                                    }
                                 }
                             }
                         }

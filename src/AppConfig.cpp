@@ -6,10 +6,35 @@
 #include <QStringList>
 #include <QMap>
 #include <algorithm>
+#include <cmath>
+#include <QImage>
+#include <QFileInfo>
+#include <QProcess>
 
 AppConfig::AppConfig(QObject *parent) : QObject(parent) {
     initTranslations();
     load();
+
+    m_wallExtractTimer = new QTimer(this);
+    m_wallExtractTimer->setSingleShot(true);
+    m_wallExtractTimer->setInterval(400);
+    connect(m_wallExtractTimer, &QTimer::timeout, this, [this]() {
+        if (m_m3DynamicWallpaperColors) extractPaletteFromWallpaper();
+    });
+
+    m_wallWatcher = new QFileSystemWatcher(this);
+    QString cacheDir = QDir::homePath() + "/.cache";
+    if (QDir(cacheDir).exists()) m_wallWatcher->addPath(cacheDir);
+    connect(m_wallWatcher, &QFileSystemWatcher::directoryChanged, this, [this]() {
+        if (m_m3DynamicWallpaperColors && m_wallExtractTimer) m_wallExtractTimer->start();
+    });
+    connect(m_wallWatcher, &QFileSystemWatcher::fileChanged, this, [this]() {
+        if (m_m3DynamicWallpaperColors && m_wallExtractTimer) m_wallExtractTimer->start();
+    });
+
+    if (m_m3DynamicWallpaperColors) {
+        QTimer::singleShot(200, this, &AppConfig::extractPaletteFromWallpaper);
+    }
 }
 
 QString AppConfig::configFilePath() const {
@@ -445,6 +470,18 @@ void AppConfig::load() {
             else if (key == "cursor_custom_color" && QColor::isValidColorName(val)) m_cursorCustomColor = QColor(val);
             else if (key == "window_bg_color" && QColor::isValidColorName(val)) m_windowBgColor = QColor(val);
             else if (key == "card_bg_color" && QColor::isValidColorName(val)) m_cardBgColor = QColor(val);
+            else if (key == "m3_dynamic_wallpaper_colors") m_m3DynamicWallpaperColors = (val == "1" || val == "true");
+            else if (key == "m3_secondary_color" && QColor::isValidColorName(val)) m_m3SecondaryColor = QColor(val);
+            else if (key == "m3_tertiary_color" && QColor::isValidColorName(val)) m_m3TertiaryColor = QColor(val);
+            else if (key == "m3_preset") m_m3Preset = std::clamp(val.toInt(), 0, 5);
+            else if (key == "m3_elevation_style") m_m3ElevationStyle = std::clamp(val.toInt(), 0, 2);
+            else if (key == "m3_surface_tint") m_m3SurfaceTintStrength = std::clamp(val.toDouble(), 0.0, 1.0);
+            else if (key == "m3_contrast") m_m3ContrastLevel = std::clamp(val.toDouble(), 0.0, 1.0);
+            else if (key == "m3_window_radius") m_m3WindowRadius = std::clamp(val.toInt(), 4, 32);
+            else if (key == "m3_card_radius") m_m3CardRadius = std::clamp(val.toInt(), 4, 28);
+            else if (key == "m3_control_radius") m_m3ControlRadius = std::clamp(val.toInt(), 2, 20);
+            else if (key == "m3_outline_width") m_m3OutlineWidth = std::clamp(val.toDouble(), 0.0, 3.0);
+            else if (key == "m3_outline_opacity") m_m3OutlineOpacity = std::clamp(val.toDouble(), 0.0, 1.0);
         }
     }
 }
@@ -498,6 +535,18 @@ void AppConfig::save() {
     extra["cursor_custom_color"] = m_cursorCustomColor.name(QColor::HexRgb);
     extra["window_bg_color"] = m_windowBgColor.name(QColor::HexRgb);
     extra["card_bg_color"] = m_cardBgColor.name(QColor::HexRgb);
+    extra["m3_dynamic_wallpaper_colors"] = m_m3DynamicWallpaperColors ? "1" : "0";
+    extra["m3_secondary_color"] = m_m3SecondaryColor.name(QColor::HexRgb);
+    extra["m3_tertiary_color"] = m_m3TertiaryColor.name(QColor::HexRgb);
+    extra["m3_preset"] = QString::number(m_m3Preset);
+    extra["m3_elevation_style"] = QString::number(m_m3ElevationStyle);
+    extra["m3_surface_tint"] = QString::number(m_m3SurfaceTintStrength, 'f', 2);
+    extra["m3_contrast"] = QString::number(m_m3ContrastLevel, 'f', 2);
+    extra["m3_window_radius"] = QString::number(m_m3WindowRadius);
+    extra["m3_card_radius"] = QString::number(m_m3CardRadius);
+    extra["m3_control_radius"] = QString::number(m_m3ControlRadius);
+    extra["m3_outline_width"] = QString::number(m_m3OutlineWidth, 'f', 1);
+    extra["m3_outline_opacity"] = QString::number(m_m3OutlineOpacity, 'f', 2);
 
     QFile file(configFilePath());
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -697,55 +746,263 @@ QColor AppConfig::m3Primary() const {
 QColor AppConfig::m3PrimaryContainer() const {
     float h, s, l, a;
     m_accentColor.getHslF(&h, &s, &l, &a);
-    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.65f, 0.0f, 1.0f), 0.24f, 0.92f);
+    float targetL = std::clamp(0.20f + float(m_m3ContrastLevel) * 0.10f, 0.14f, 0.38f);
+    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.72f, 0.0f, 1.0f), targetL, 0.94f);
 }
 
 QColor AppConfig::m3OnPrimaryContainer() const {
     float h, s, l, a;
     m_accentColor.getHslF(&h, &s, &l, &a);
-    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.85f, 0.0f, 1.0f), 0.90f, 1.0f);
+    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.90f, 0.0f, 1.0f), 0.92f, 1.0f);
 }
 
 QColor AppConfig::m3SecondaryContainer() const {
     float h, s, l, a;
-    m_accentColor.getHslF(&h, &s, &l, &a);
-    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.38f, 0.0f, 1.0f), 0.20f, 0.88f);
+    m_m3SecondaryColor.getHslF(&h, &s, &l, &a);
+    if (m_syncColorsWithAccent) m_accentColor.getHslF(&h, &s, &l, &a);
+    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.45f, 0.0f, 1.0f), 0.22f, 0.90f);
+}
+
+QColor AppConfig::m3TertiaryContainer() const {
+    float h, s, l, a;
+    m_m3TertiaryColor.getHslF(&h, &s, &l, &a);
+    return QColor::fromHslF(h < 0 ? 0.8f : h, std::clamp(s * 0.55f, 0.0f, 1.0f), 0.25f, 0.90f);
 }
 
 QColor AppConfig::m3Surface() const {
-    float h, s, l, a;
-    m_accentColor.getHslF(&h, &s, &l, &a);
+    float tint = float(m_m3SurfaceTintStrength) * 0.28f;
+    float base = 1.0f - tint;
     return QColor::fromRgbF(
-        m_windowBgColor.redF() * 0.88f + m_accentColor.redF() * 0.06f,
-        m_windowBgColor.greenF() * 0.88f + m_accentColor.greenF() * 0.06f,
-        m_windowBgColor.blueF() * 0.88f + m_accentColor.blueF() * 0.06f,
+        std::clamp(m_windowBgColor.redF() * base + m_accentColor.redF() * tint, 0.0f, 1.0f),
+        std::clamp(m_windowBgColor.greenF() * base + m_accentColor.greenF() * tint, 0.0f, 1.0f),
+        std::clamp(m_windowBgColor.blueF() * base + m_accentColor.blueF() * tint, 0.0f, 1.0f),
         1.0f
     );
 }
 
 QColor AppConfig::m3SurfaceContainer() const {
+    float tint = float(m_m3SurfaceTintStrength) * 0.38f;
+    float base = 1.0f - tint * 0.75f;
     return QColor::fromRgbF(
-        std::clamp(m_cardBgColor.redF() * 0.85f + m_accentColor.redF() * 0.08f, 0.0f, 1.0f),
-        std::clamp(m_cardBgColor.greenF() * 0.85f + m_accentColor.greenF() * 0.08f, 0.0f, 1.0f),
-        std::clamp(m_cardBgColor.blueF() * 0.85f + m_accentColor.blueF() * 0.08f, 0.0f, 1.0f),
+        std::clamp(m_cardBgColor.redF() * base + m_accentColor.redF() * tint, 0.0f, 1.0f),
+        std::clamp(m_cardBgColor.greenF() * base + m_accentColor.greenF() * tint, 0.0f, 1.0f),
+        std::clamp(m_cardBgColor.blueF() * base + m_accentColor.blueF() * tint, 0.0f, 1.0f),
         1.0f
     );
 }
 
 QColor AppConfig::m3SurfaceContainerHigh() const {
+    float tint = float(m_m3SurfaceTintStrength) * 0.48f;
+    float lift = 0.04f + float(m_m3ContrastLevel) * 0.04f;
     return QColor::fromRgbF(
-        std::clamp(m_cardBgColor.redF() * 0.80f + m_accentColor.redF() * 0.14f + 0.04f, 0.0f, 1.0f),
-        std::clamp(m_cardBgColor.greenF() * 0.80f + m_accentColor.greenF() * 0.14f + 0.04f, 0.0f, 1.0f),
-        std::clamp(m_cardBgColor.blueF() * 0.80f + m_accentColor.blueF() * 0.14f + 0.04f, 0.0f, 1.0f),
+        std::clamp(m_cardBgColor.redF() * 0.82f + m_accentColor.redF() * tint + lift, 0.0f, 1.0f),
+        std::clamp(m_cardBgColor.greenF() * 0.82f + m_accentColor.greenF() * tint + lift, 0.0f, 1.0f),
+        std::clamp(m_cardBgColor.blueF() * 0.82f + m_accentColor.blueF() * tint + lift, 0.0f, 1.0f),
         1.0f
     );
 }
 
 QColor AppConfig::m3Outline() const {
+    float c = 0.32f + float(m_m3ContrastLevel) * 0.35f;
     return QColor::fromRgbF(
-        std::clamp(0.45f + m_accentColor.redF() * 0.25f, 0.0f, 1.0f),
-        std::clamp(0.45f + m_accentColor.greenF() * 0.25f, 0.0f, 1.0f),
-        std::clamp(0.48f + m_accentColor.blueF() * 0.25f, 0.0f, 1.0f),
-        0.28f
+        std::clamp(c + m_accentColor.redF() * 0.28f, 0.0f, 1.0f),
+        std::clamp(c + m_accentColor.greenF() * 0.28f, 0.0f, 1.0f),
+        std::clamp(c + m_accentColor.blueF() * 0.28f, 0.0f, 1.0f),
+        std::clamp(float(m_m3OutlineOpacity), 0.0f, 1.0f)
     );
+}
+
+void AppConfig::setM3DynamicWallpaperColors(bool v) {
+    if (m_m3DynamicWallpaperColors != v) {
+        m_m3DynamicWallpaperColors = v;
+        emit m3AttributesChanged();
+        save();
+        if (v) extractPaletteFromWallpaper();
+    }
+}
+
+void AppConfig::extractPaletteFromWallpaper() {
+    QString linkPath = QDir::homePath() + "/.cache/wallpaper-current";
+    QString lockBgPath = QDir::homePath() + "/.cache/lock_bg.png";
+    QString target = QFileInfo(linkPath).symLinkTarget();
+    if (target.isEmpty()) target = linkPath;
+
+    QImage img(target);
+    if (img.isNull()) {
+        // Если обои — видео (mpvpaper), обновляем/берем кадр из ~/.cache/lock_bg.png
+        QProcess::execute(QDir::homePath() + "/.config/hypr/scripts/update_lock_bg.sh", {});
+        img.load(lockBgPath);
+    }
+    if (img.isNull()) return;
+
+    QImage small = img.scaled(64, 64, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    double binWeight[36] = {0.0};
+    double binHueSum[36] = {0.0};
+    double binSatSum[36] = {0.0};
+
+    for (int y = 0; y < small.height(); ++y) {
+        for (int x = 0; x < small.width(); ++x) {
+            QColor px = small.pixelColor(x, y);
+            float h, s, l, a;
+            px.getHslF(&h, &s, &l, &a);
+            if (h < 0.0f || s < 0.10f || l < 0.07f || l > 0.93f) continue;
+            double chromaWeight = double(s) * (1.0 - std::abs(2.0 * double(l) - 1.0) * 0.75);
+            int bin = std::clamp(int(h * 36.0f), 0, 35);
+            binWeight[bin] += chromaWeight;
+            binHueSum[bin] += double(h) * chromaWeight;
+            binSatSum[bin] += double(s) * chromaWeight;
+        }
+    }
+
+    int bestBin = -1;
+    double maxW = 0.0;
+    for (int i = 0; i < 36; ++i) {
+        if (binWeight[i] > maxW) {
+            maxW = binWeight[i];
+            bestBin = i;
+        }
+    }
+
+    if (bestBin == -1 || maxW < 0.05) {
+        // Нейтрально-монохромные обои
+        m_accentColor = QColor("#d0d8e8");
+        m_m3SecondaryColor = QColor("#b8c0d0");
+        m_m3TertiaryColor = QColor("#d4c4d8");
+        m_windowBgColor = QColor("#111317");
+        m_cardBgColor = QColor("#1c1f26");
+    } else {
+        float domH = float(binHueSum[bestBin] / maxW);
+        float avgS = float(binSatSum[bestBin] / maxW);
+        float priS = std::clamp(avgS * 1.18f, 0.48f, 0.88f);
+
+        m_accentColor = QColor::fromHslF(domH, priS, 0.78f);
+        m_m3SecondaryColor = QColor::fromHslF(std::fmod(domH + 0.035f, 1.0f), std::clamp(priS * 0.45f, 0.20f, 0.55f), 0.75f);
+        m_m3TertiaryColor = QColor::fromHslF(std::fmod(domH + 0.15f, 1.0f), std::clamp(priS * 0.68f, 0.32f, 0.75f), 0.80f);
+        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.25f, 0.08f, 0.30f), 0.07f);
+        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.28f, 0.10f, 0.35f), 0.12f);
+    }
+
+    if (m_syncColorsWithAccent) {
+        m_borderGlowCustomColor = m_accentColor;
+        m_cursorCustomColor = m_accentColor;
+        emit borderGlowCustomColorChanged();
+        emit cursorCustomColorChanged();
+    }
+    emit accentColorChanged();
+    emit windowBgColorChanged();
+    emit cardBgColorChanged();
+    emit m3AttributesChanged();
+    save();
+}
+
+void AppConfig::setM3SecondaryColor(const QColor &c) {
+    if (!c.isValid() || m_m3SecondaryColor == c) return;
+    m_m3SecondaryColor = c;
+    emit accentColorChanged();
+    emit m3AttributesChanged();
+    save();
+}
+
+void AppConfig::setM3TertiaryColor(const QColor &c) {
+    if (!c.isValid() || m_m3TertiaryColor == c) return;
+    m_m3TertiaryColor = c;
+    emit accentColorChanged();
+    emit m3AttributesChanged();
+    save();
+}
+
+void AppConfig::applyM3Preset(int idx) {
+    idx = std::clamp(idx, 0, 5);
+    m_m3Preset = idx;
+    m_m3DynamicWallpaperColors = false;
+    struct Preset { const char *pri; const char *sec; const char *ter; const char *surf; const char *card; };
+    static const Preset presets[6] = {
+        {"#a8c7fa", "#bec6dc", "#debcdf", "#111318", "#1e2028"},
+        {"#82f8c6", "#b4ccc0", "#a6cce0", "#0e1512", "#18221e"},
+        {"#d0bcff", "#ccc2dc", "#efb8c8", "#141218", "#211f26"},
+        {"#ffb1c8", "#e2bdc6", "#efbd94", "#181114", "#251d20"},
+        {"#ffba42", "#ddc2a1", "#b8cea1", "#17130b", "#241f17"},
+        {"#66d9ef", "#b1cbd0", "#bac6ea", "#0e1416", "#1a2124"}
+    };
+    m_accentColor = QColor(presets[idx].pri);
+    m_m3SecondaryColor = QColor(presets[idx].sec);
+    m_m3TertiaryColor = QColor(presets[idx].ter);
+    m_windowBgColor = QColor(presets[idx].surf);
+    m_cardBgColor = QColor(presets[idx].card);
+    if (m_syncColorsWithAccent) {
+        m_borderGlowCustomColor = m_accentColor;
+        m_cursorCustomColor = m_accentColor;
+        emit borderGlowCustomColorChanged();
+        emit cursorCustomColorChanged();
+    }
+    emit accentColorChanged();
+    emit windowBgColorChanged();
+    emit cardBgColorChanged();
+    emit m3AttributesChanged();
+    save();
+}
+
+void AppConfig::setM3ElevationStyle(int v) {
+    v = std::clamp(v, 0, 2);
+    if (m_m3ElevationStyle != v) { m_m3ElevationStyle = v; emit m3AttributesChanged(); emit cardBgColorChanged(); save(); }
+}
+
+void AppConfig::setM3SurfaceTintStrength(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (!qFuzzyCompare(m_m3SurfaceTintStrength, v)) {
+        m_m3SurfaceTintStrength = v;
+        emit m3AttributesChanged();
+        emit windowBgColorChanged();
+        emit cardBgColorChanged();
+        save();
+    }
+}
+
+void AppConfig::setM3ContrastLevel(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (!qFuzzyCompare(m_m3ContrastLevel, v)) {
+        m_m3ContrastLevel = v;
+        emit m3AttributesChanged();
+        emit accentColorChanged();
+        emit cardBgColorChanged();
+        save();
+    }
+}
+
+void AppConfig::setM3WindowRadius(int v) {
+    v = std::clamp(v, 4, 32);
+    if (m_m3WindowRadius != v) { m_m3WindowRadius = v; emit m3AttributesChanged(); save(); }
+}
+
+void AppConfig::setM3CardRadius(int v) {
+    v = std::clamp(v, 4, 28);
+    if (m_m3CardRadius != v) { m_m3CardRadius = v; emit m3AttributesChanged(); save(); }
+}
+
+void AppConfig::setM3ControlRadius(int v) {
+    v = std::clamp(v, 2, 20);
+    if (m_m3ControlRadius != v) { m_m3ControlRadius = v; emit m3AttributesChanged(); save(); }
+}
+
+void AppConfig::setM3OutlineWidth(qreal v) {
+    v = std::clamp(v, 0.0, 3.0);
+    if (!qFuzzyCompare(m_m3OutlineWidth, v)) { m_m3OutlineWidth = v; emit m3AttributesChanged(); save(); }
+}
+
+void AppConfig::setM3OutlineOpacity(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (!qFuzzyCompare(m_m3OutlineOpacity, v)) { m_m3OutlineOpacity = v; emit m3AttributesChanged(); emit accentColorChanged(); save(); }
+}
+
+void AppConfig::resetM3Attributes() {
+    m_m3ElevationStyle = 0;
+    m_m3SurfaceTintStrength = 0.22;
+    m_m3ContrastLevel = 0.50;
+    m_m3WindowRadius = 20;
+    m_m3CardRadius = 16;
+    m_m3ControlRadius = 10;
+    m_m3OutlineWidth = 1.0;
+    m_m3OutlineOpacity = 0.28;
+    m_m3DynamicWallpaperColors = true;
+    extractPaletteFromWallpaper();
 }

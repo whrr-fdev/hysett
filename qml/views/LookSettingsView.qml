@@ -121,6 +121,28 @@ ScrollView {
                     RowLayout {
                         visible: Theme && Theme.isRounded
                         Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "Динамическая палитра из текущих обоев (Material You):"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.fillWidth: true
+                        }
+                        StyledButton {
+                            text: "󰸉 Обновить из обоев"
+                            implicitHeight: 20
+                            visible: Config ? Config.m3DynamicWallpaperColors : false
+                            onClicked: if (Config) Config.extractPaletteFromWallpaper()
+                        }
+                        StyledSwitch {
+                            checked: Config ? Config.m3DynamicWallpaperColors : true
+                            onToggled: if (Config) Config.m3DynamicWallpaperColors = checked
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Theme && Theme.isRounded
+                        Layout.fillWidth: true
                         spacing: 6
                         Text {
                             text: "Тональная палитра MD3:"

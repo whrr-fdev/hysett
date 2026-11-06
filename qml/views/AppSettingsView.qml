@@ -173,6 +173,21 @@ ScrollView {
                         }
                     }
 
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Динамическая палитра из текущих обоев (Material You):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                        StyledButton {
+                            text: "󰸉 Извлечь из обоев"
+                            implicitHeight: 20
+                            onClicked: if (Config) { Config.m3DynamicWallpaperColors = true; Config.extractPaletteFromWallpaper() }
+                        }
+                        StyledSwitch {
+                            checked: Config ? Config.m3DynamicWallpaperColors : true
+                            onToggled: if (Config) Config.m3DynamicWallpaperColors = checked
+                        }
+                    }
+
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4

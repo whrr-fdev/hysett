@@ -3,6 +3,8 @@
 #include <QString>
 #include <QColor>
 #include <QHash>
+#include <QFileSystemWatcher>
+#include <QTimer>
 #include <QSettings>
 
 class AppConfig : public QObject {
@@ -57,6 +59,19 @@ class AppConfig : public QObject {
     Q_PROPERTY(QColor m3SurfaceContainer READ m3SurfaceContainer NOTIFY cardBgColorChanged)
     Q_PROPERTY(QColor m3SurfaceContainerHigh READ m3SurfaceContainerHigh NOTIFY cardBgColorChanged)
     Q_PROPERTY(QColor m3Outline READ m3Outline NOTIFY accentColorChanged)
+    Q_PROPERTY(bool m3DynamicWallpaperColors READ m3DynamicWallpaperColors WRITE setM3DynamicWallpaperColors NOTIFY m3AttributesChanged)
+    Q_PROPERTY(QColor m3SecondaryColor READ m3SecondaryColor WRITE setM3SecondaryColor NOTIFY accentColorChanged)
+    Q_PROPERTY(QColor m3TertiaryColor READ m3TertiaryColor WRITE setM3TertiaryColor NOTIFY accentColorChanged)
+    Q_PROPERTY(QColor m3TertiaryContainer READ m3TertiaryContainer NOTIFY accentColorChanged)
+    Q_PROPERTY(int m3Preset READ m3Preset WRITE applyM3Preset NOTIFY m3AttributesChanged)
+    Q_PROPERTY(int m3ElevationStyle READ m3ElevationStyle WRITE setM3ElevationStyle NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal m3SurfaceTintStrength READ m3SurfaceTintStrength WRITE setM3SurfaceTintStrength NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal m3ContrastLevel READ m3ContrastLevel WRITE setM3ContrastLevel NOTIFY m3AttributesChanged)
+    Q_PROPERTY(int m3WindowRadius READ m3WindowRadius WRITE setM3WindowRadius NOTIFY m3AttributesChanged)
+    Q_PROPERTY(int m3CardRadius READ m3CardRadius WRITE setM3CardRadius NOTIFY m3AttributesChanged)
+    Q_PROPERTY(int m3ControlRadius READ m3ControlRadius WRITE setM3ControlRadius NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal m3OutlineWidth READ m3OutlineWidth WRITE setM3OutlineWidth NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal m3OutlineOpacity READ m3OutlineOpacity WRITE setM3OutlineOpacity NOTIFY m3AttributesChanged)
 
 public:
     explicit AppConfig(QObject *parent = nullptr);
@@ -161,6 +176,35 @@ public:
     QColor m3SurfaceContainer() const;
     QColor m3SurfaceContainerHigh() const;
     QColor m3Outline() const;
+    bool m3DynamicWallpaperColors() const { return m_m3DynamicWallpaperColors; }
+    void setM3DynamicWallpaperColors(bool v);
+    Q_INVOKABLE void extractPaletteFromWallpaper();
+
+    QColor m3SecondaryColor() const { return m_m3SecondaryColor; }
+    void setM3SecondaryColor(const QColor &c);
+    QColor m3TertiaryColor() const { return m_m3TertiaryColor; }
+    void setM3TertiaryColor(const QColor &c);
+    QColor m3TertiaryContainer() const;
+
+    int m3Preset() const { return m_m3Preset; }
+    Q_INVOKABLE void applyM3Preset(int idx);
+    int m3ElevationStyle() const { return m_m3ElevationStyle; }
+    void setM3ElevationStyle(int v);
+    qreal m3SurfaceTintStrength() const { return m_m3SurfaceTintStrength; }
+    void setM3SurfaceTintStrength(qreal v);
+    qreal m3ContrastLevel() const { return m_m3ContrastLevel; }
+    void setM3ContrastLevel(qreal v);
+    int m3WindowRadius() const { return m_m3WindowRadius; }
+    void setM3WindowRadius(int v);
+    int m3CardRadius() const { return m_m3CardRadius; }
+    void setM3CardRadius(int v);
+    int m3ControlRadius() const { return m_m3ControlRadius; }
+    void setM3ControlRadius(int v);
+    qreal m3OutlineWidth() const { return m_m3OutlineWidth; }
+    void setM3OutlineWidth(qreal v);
+    qreal m3OutlineOpacity() const { return m_m3OutlineOpacity; }
+    void setM3OutlineOpacity(qreal v);
+    Q_INVOKABLE void resetM3Attributes();
 
     Q_INVOKABLE QString consumeLaunchCmd();
     Q_INVOKABLE bool isDaemonStart() const;
@@ -207,6 +251,7 @@ signals:
     void cursorCustomColorChanged();
     void windowBgColorChanged();
     void cardBgColorChanged();
+    void m3AttributesChanged();
 
 private:
     QString configFilePath() const;
@@ -252,6 +297,20 @@ private:
     QColor m_cursorCustomColor = QColor("#ffffff");
     QColor m_windowBgColor = QColor("#111318");
     QColor m_cardBgColor = QColor("#1e2028");
+    bool m_m3DynamicWallpaperColors = true;
+    QColor m_m3SecondaryColor = QColor("#bec6dc");
+    QColor m_m3TertiaryColor = QColor("#debcdf");
+    int m_m3Preset = 0;
+    int m_m3ElevationStyle = 0;
+    qreal m_m3SurfaceTintStrength = 0.22;
+    qreal m_m3ContrastLevel = 0.50;
+    int m_m3WindowRadius = 20;
+    int m_m3CardRadius = 16;
+    int m_m3ControlRadius = 10;
+    qreal m_m3OutlineWidth = 1.0;
+    qreal m_m3OutlineOpacity = 0.28;
+    QFileSystemWatcher *m_wallWatcher = nullptr;
+    QTimer *m_wallExtractTimer = nullptr;
 
     QHash<QString, QString> m_enDict;
 };

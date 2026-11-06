@@ -186,9 +186,10 @@ ApplicationWindow {
     }
 
     readonly property int barPos: Waybar ? Waybar.barPosition : 0
+    readonly property bool isVertBar: barPos >= 2
     readonly property bool isCenteredBar: Waybar ? Waybar.centeredBar : false
-    readonly property int barH: Waybar ? Waybar.barHeight : 30
-    readonly property int barTop: Waybar ? Waybar.marginTop : 4
+    readonly property int barH: Waybar ? Waybar.barHeight : 34
+    readonly property int barTop: Waybar ? Waybar.marginTop : 6
     readonly property int fullBarLeft: Math.max(0, (Waybar ? Waybar.marginLeft : 10) - 2)
     readonly property int fullBarRight: Math.max(0, (Waybar ? Waybar.marginRight : 10) - 2)
     readonly property int maxAvailBarW: Math.max(400, root.width - fullBarLeft - fullBarRight)
@@ -199,17 +200,28 @@ ApplicationWindow {
     readonly property bool hasWinTitle: winModVis && Waybar && Waybar.activeWindowTitle.length > 0
     readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 210 : (hasWinTitle ? Math.min(240, winLbl.implicitWidth + 24) : 0))
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
-    property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
+    property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
     readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, effDrawerW)
-    readonly property real barW: baseBarW + (expandedBarW - baseBarW) * barExpandProgress
+    readonly property real barW: isVertBar ? Math.max(38, barH + 6) : (baseBarW + (expandedBarW - baseBarW) * barExpandProgress)
+
+    readonly property real maxAvailVertH: Math.max(400, root.height - 16)
+    readonly property real vertIslandH: Math.min(maxAvailVertH, vertTopCol.implicitHeight + (winPillTargetW > 0 ? (winPillTargetW + 16) : 0) + vertBottomCol.implicitHeight + 28)
+    property real smoothVertBarH: isCenteredBar ? vertIslandH : maxAvailVertH
+    Behavior on smoothVertBarH { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
+    readonly property real expandedVertH: (drawerMode === "traymenu") ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
+    readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * barExpandProgress) : barH
+
     readonly property real barLeft: {
         if (barPos === 2) return barTop
         if (barPos === 3) return root.width - barW - barTop
         return (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - barW) * 0.5) : fullBarLeft
     }
-    readonly property int barRectY: (barPos === 1) ? (root.height - barH - barTop) : barTop
+    readonly property int barRectY: {
+        if (isVertBar) return Math.round((root.height - actualBarH) * 0.5)
+        return (barPos === 1) ? (root.height - barH - barTop) : barTop
+    }
 
     readonly property int targetDrawerW: {
         var isM3 = (Theme && Theme.isRounded)
@@ -233,21 +245,31 @@ ApplicationWindow {
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
     readonly property real wingMix: Math.min(1.0, Math.pow(Math.max(0.0, drawerProgress), 0.42) * 1.15)
-    readonly property real effDrawerW: animDrawerW * root.drawerWidthScale
-    readonly property real animDrawerH: Math.min(root.height - root.drawerY - 2, Math.max(0.0, smoothTargetH * drawerProgress))
+    readonly property real effDrawerW: isVertBar
+                                       ? Math.max(0.0, animDrawerW * drawerProgress)
+                                       : (animDrawerW * root.drawerWidthScale)
+    readonly property real effDrawerH: isVertBar
+                                       ? (smoothTargetH * root.drawerWidthScale)
+                                       : Math.min(root.height - ((barPos === 1) ? 8 : (barRectY + barH)) - 2, Math.max(0.0, smoothTargetH * drawerProgress))
+    readonly property real animDrawerH: effDrawerH
 
     property real centerAnchorX: {
         if (drawerMode === "traymenu") return trayMenuTargetX
-        if (barPos === 2) return barLeft + effDrawerW * 0.5
-        if (barPos === 3) return barLeft + barW - effDrawerW * 0.5
         return root.width * 0.5
     }
     Behavior on centerAnchorX { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
     Behavior on animDrawerW { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
     Behavior on smoothTargetH { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
 
-    readonly property real drawerX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, centerAnchorX - effDrawerW * 0.5))
-    readonly property real drawerY: (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
+    readonly property real drawerX: {
+        if (barPos === 2) return barLeft + barW
+        if (barPos === 3) return barLeft - effDrawerW
+        return Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, centerAnchorX - effDrawerW * 0.5))
+    }
+    readonly property real drawerY: {
+        if (isVertBar) return Math.round((root.height - effDrawerH) * 0.5)
+        return (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
+    }
 
     readonly property int notifW: Mako ? Mako.width : 320
     readonly property int notifTargetH: Math.max(46, notifStackCol.implicitHeight + 4)
@@ -535,14 +557,15 @@ ApplicationWindow {
 
         MouseArea {
             x: 0
-            y: root.barTop + root.barH
+            y: 0
             width: parent.width
-            height: parent.height - y
+            height: parent.height
             enabled: root.drawerOpen
             z: 1
             onPressed: (mouse) => {
-                var gy = mouse.y + y
-                var inDrawer = (mouse.x >= root.drawerX && mouse.x <= root.drawerX + root.animDrawerW &&
+                var gy = mouse.y
+                var inBar = (mouse.x >= root.barLeft && mouse.x <= root.barLeft + root.barW && gy >= root.barRectY && gy <= root.barRectY + root.actualBarH)
+                var inDrawer = inBar || (mouse.x >= root.drawerX && mouse.x <= root.drawerX + root.effDrawerW &&
                                 gy >= root.drawerY && gy <= root.drawerY + root.animDrawerH)
                 var inNotif = root.notifOpen && (mouse.x >= root.notifX && mouse.x <= root.notifX + root.notifW &&
                                gy >= root.notifY && gy <= root.notifY + root.animNotifH)
@@ -569,7 +592,7 @@ ApplicationWindow {
             property color outCol: (root.notifActive && Mako && Mako.popupCritical) ? Mako.criticalBorderColor : (Config ? Config.m3Outline : "#444854")
 
             property vector2d u_resolution: Qt.vector2d(width, height)
-            property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.barH)
+            property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.actualBarH)
             property vector4d u_drawer_rect: Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
             property vector4d u_notif_rect: Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
@@ -598,9 +621,9 @@ ApplicationWindow {
         // =====================================================================
         Item {
             id: topBarContainer
-            x: root.barLeft; y: root.barRectY; width: root.barW; height: root.barH; z: 10
+            x: root.barLeft; y: root.barRectY; width: root.barW; height: root.actualBarH; z: 10
             readonly property int vPad: (Theme && Theme.isRounded) ? 8 : 4
-            property int pillHeight: Math.max(18, height - vPad)
+            property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
             property int pillRadius: (Theme && Theme.isRounded) ? Math.round(pillHeight / 2) : 0
             property color pillColor: (Theme && Theme.isRounded && Config)
                                       ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Math.max(0.66, (Waybar ? Waybar.pillOpacity : 0.65) * 0.90))
@@ -647,7 +670,7 @@ ApplicationWindow {
                     }
                     return { valid: maxX > minX, x: minX, w: Math.max(0, maxX - minX) }
                 }
-                visible: bounds.valid && (Theme && Theme.isRounded)
+                visible: !root.isVertBar && bounds.valid && (Theme && Theme.isRounded)
                 x: bounds.x
                 width: bounds.w
                 height: topBarContainer.pillHeight
@@ -657,7 +680,7 @@ ApplicationWindow {
             }
 
             Row {
-                id: leftBarRow; z: 5
+                id: leftBarRow; z: 5; visible: !root.isVertBar
                 anchors.left: parent.left; anchors.leftMargin: (Theme && Theme.isRounded) ? 12 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
@@ -744,42 +767,106 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode && topBarContainer.launcherVis > 0.5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 
-                            // Контент: workspaces (колбаса кнопок с пробелами и малым внутренним скруглением)
+                            // Контент: workspaces (колбаса с пробелами + плавное скольжение wsHoverPill и wsActivePill как в боковом меню!)
                             Item {
                                 id: wsModuleItem
                                 visible: modKey === "workspaces"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                property int hoveredWsIdx: -1
+                                property int lastHoverIdx: 0
+                                readonly property int wsGap: (Theme && Theme.isRounded) ? 3 : 2
+                                readonly property int wsBtnW: 25
+                                readonly property int wsStep: wsBtnW + wsGap
+                                readonly property real outerR: (Theme && Theme.isRounded) ? height / 2 : 0
+                                readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
+                                readonly property int activeWsIdx: {
+                                    var list = (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                    for (var i = 0; i < list.length; ++i) {
+                                        if (list[i].active === true) return i
+                                    }
+                                    return 0
+                                }
+
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
 
+                                // 1. Фоновые ячейки колбасы с пробелами
                                 Row {
-                                    id: wsRow; z: 3; anchors.centerIn: parent; spacing: (Theme && Theme.isRounded) ? 3 : 2
+                                    id: wsRow; z: 1; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
                                         id: wsRep
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
                                         delegate: Rectangle {
+                                            readonly property bool isFirst: index === 0
+                                            readonly property bool isLast: index === wsRep.count - 1
+                                            width: wsModuleItem.wsBtnW
+                                            height: topBarContainer.pillHeight
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            topLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
+                                            bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
+                                            topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                            bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                            color: topBarContainer.pillColor
+                                        }
+                                    }
+                                }
+
+                                // 2. Плавно скользящая таблетка наведения (как в боковом меню)
+                                Rectangle {
+                                    id: wsHoverPill
+                                    z: 2
+                                    width: wsModuleItem.wsBtnW
+                                    height: topBarContainer.pillHeight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    readonly property bool isFirst: wsModuleItem.lastHoverIdx === 0
+                                    readonly property bool isLast: wsModuleItem.lastHoverIdx === Math.max(0, wsRep.count - 1)
+                                    topLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.20)
+                                    opacity: (wsModuleItem.hoveredWsIdx >= 0 && wsModuleItem.hoveredWsIdx !== wsModuleItem.activeWsIdx) ? 1.0 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+                                    x: wsRow.x + wsModuleItem.lastHoverIdx * wsModuleItem.wsStep
+                                    Behavior on x {
+                                        enabled: wsHoverPill.opacity > 0.05
+                                        NumberAnimation { duration: 210; easing.type: Easing.OutQuint }
+                                    }
+                                }
+
+                                // 3. Плавно скользящая таблетка активного стола
+                                Rectangle {
+                                    id: wsActivePill
+                                    z: 3
+                                    width: wsModuleItem.wsBtnW
+                                    height: topBarContainer.pillHeight
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    readonly property bool isFirst: wsModuleItem.activeWsIdx === 0
+                                    readonly property bool isLast: wsModuleItem.activeWsIdx === Math.max(0, wsRep.count - 1)
+                                    topLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    Behavior on color { ColorAnimation { duration: 180 } }
+                                    x: wsRow.x + wsModuleItem.activeWsIdx * wsModuleItem.wsStep
+                                    Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                                    Behavior on topLeftRadius { NumberAnimation { duration: 180 } }
+                                    Behavior on bottomLeftRadius { NumberAnimation { duration: 180 } }
+                                    Behavior on topRightRadius { NumberAnimation { duration: 180 } }
+                                    Behavior on bottomRightRadius { NumberAnimation { duration: 180 } }
+                                }
+
+                                // 4. Цифры и клики поверх скользящих таблеток
+                                Row {
+                                    z: 4; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
+                                    Repeater {
+                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                        delegate: Item {
                                             property bool act: modelData.active === true
                                             property bool occ: (modelData.windows || 0) > 0
                                             property bool hov: wsMa.containsMouse
-                                            readonly property bool isFirst: index === 0
-                                            readonly property bool isLast: index === wsRep.count - 1
-                                            readonly property real outerR: (Theme && Theme.isRounded) ? height / 2 : 0
-                                            readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
-
-                                            width: 25
+                                            width: wsModuleItem.wsBtnW
                                             height: topBarContainer.pillHeight
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            topLeftRadius: isFirst ? outerR : innerR
-                                            bottomLeftRadius: isFirst ? outerR : innerR
-                                            topRightRadius: isLast ? outerR : innerR
-                                            bottomRightRadius: isLast ? outerR : innerR
-
-                                            color: act
-                                                   ? (Config ? Config.m3Primary : "#ffffff")
-                                                   : (hov
-                                                      ? (Theme && Theme.isRounded && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.22))
-                                                      : topBarContainer.pillColor)
-                                            Behavior on color { ColorAnimation { duration: 150 } }
-
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: modelData.id
@@ -798,6 +885,13 @@ ApplicationWindow {
                                                 anchors.bottomMargin: -4
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
+                                                onEntered: {
+                                                    wsModuleItem.lastHoverIdx = index
+                                                    wsModuleItem.hoveredWsIdx = index
+                                                }
+                                                onExited: {
+                                                    if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1
+                                                }
                                                 onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                             }
                                         }
@@ -922,9 +1016,9 @@ ApplicationWindow {
                 readonly property real maxRightX: Math.max(minLeftX, rightEdge - 7 - width)
                 readonly property real gapCenterX: Math.round(leftEdge + (rightEdge - leftEdge - width) * 0.5)
                 readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
-                readonly property real centerBlend: Math.max(0.0, Math.min(1.0, (root.baseBarW - 860.0) / 40.0))
-                readonly property real targetCenterX: Math.round(gapCenterX + (trueCenterX - gapCenterX) * centerBlend)
-                visible: width > 0.5 && availGap > 24
+                readonly property bool useBarCenter: Waybar ? Waybar.centerTitleOnBar : true
+                readonly property real targetCenterX: useBarCenter ? trueCenterX : gapCenterX
+                visible: !root.isVertBar && width > 0.5 && availGap > 24
                 opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0
                 clip: true
                 width: (root.isFixedTitle || root.hasWinTitle) ? Math.min(availGap, root.winPillTargetW) : 0
@@ -940,7 +1034,7 @@ ApplicationWindow {
             }
 
             Row {
-                id: rightBarRow; z: 5
+                id: rightBarRow; z: 5; visible: !root.isVertBar
                 anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 12 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
@@ -1230,6 +1324,395 @@ ApplicationWindow {
                     }
                 }
             }
+
+            // =================================================================
+            // ВЕРТИКАЛЬНАЯ ПАНЕЛЬ ЗАДАЧ (ДЛЯ РЕЖИМОВ СЛЕВА И СПРАВА)
+            // =================================================================
+            Item {
+                id: vertBarLayout
+                anchors.fill: parent
+                visible: root.isVertBar
+                z: 6
+
+                Column {
+                    id: vertTopCol
+                    anchors.top: parent.top
+                    anchors.topMargin: 10
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 8
+
+                    // 1. Логотип CachyOS в таблетке
+                    Rectangle {
+                        visible: (!Waybar || Waybar.isBarModuleVisible("launcher")) && topBarContainer.launcherVis > 0.05
+                        width: topBarContainer.pillHeight
+                        height: (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: topBarContainer.pillColor
+                        opacity: topBarContainer.launcherVis
+                        clip: true
+                        Image {
+                            anchors.centerIn: parent
+                            width: 16; height: 16; sourceSize: Qt.size(32, 32); smooth: true
+                            source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
+                    }
+
+                    // 2. Рабочие столы (вертикальная колбаса с пробелами и плавным скольжением)
+                    Item {
+                        id: vWsBox
+                        visible: !Waybar || Waybar.isBarModuleVisible("workspaces")
+                        width: topBarContainer.pillHeight
+                        height: vWsCol.implicitHeight
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        property int hoveredIdx: -1
+                        property int lastHoverIdx: 0
+                        readonly property int btnH: 24
+                        readonly property int gap: (Theme && Theme.isRounded) ? 3 : 2
+                        readonly property int step: btnH + gap
+                        readonly property real outerR: (Theme && Theme.isRounded) ? width / 2 : 0
+                        readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
+                        readonly property int activeIdx: {
+                            var list = Waybar ? Waybar.workspaces : []
+                            for (var i = 0; i < list.length; ++i) if (list[i].active === true) return i
+                            return 0
+                        }
+                        WheelHandler { onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
+
+                        Column {
+                            id: vWsCol; z: 1; anchors.centerIn: parent; spacing: vWsBox.gap
+                            Repeater {
+                                id: vWsRep
+                                model: Waybar ? Waybar.workspaces : []
+                                delegate: Rectangle {
+                                    readonly property bool isFirst: index === 0
+                                    readonly property bool isLast: index === vWsRep.count - 1
+                                    width: topBarContainer.pillHeight; height: vWsBox.btnH
+                                    topLeftRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
+                                    topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
+                                    bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                                    bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                                    color: topBarContainer.pillColor
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            id: vWsHoverPill; z: 2
+                            width: topBarContainer.pillHeight; height: vWsBox.btnH
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            readonly property bool isFirst: vWsBox.lastHoverIdx === 0
+                            readonly property bool isLast: vWsBox.lastHoverIdx === Math.max(0, vWsRep.count - 1)
+                            topLeftRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
+                            topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
+                            bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.20)
+                            opacity: (vWsBox.hoveredIdx >= 0 && vWsBox.hoveredIdx !== vWsBox.activeIdx) ? 1.0 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                            y: vWsBox.lastHoverIdx * vWsBox.step
+                            Behavior on y { enabled: vWsHoverPill.opacity > 0.05; NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                        }
+
+                        Rectangle {
+                            id: vWsActivePill; z: 3
+                            width: topBarContainer.pillHeight; height: vWsBox.btnH
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            readonly property bool isFirst: vWsBox.activeIdx === 0
+                            readonly property bool isLast: vWsBox.activeIdx === Math.max(0, vWsRep.count - 1)
+                            topLeftRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
+                            topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
+                            bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            color: Config ? Config.m3Primary : "#ffffff"
+                            y: vWsBox.activeIdx * vWsBox.step
+                            Behavior on y { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                        }
+
+                        Column {
+                            z: 4; anchors.centerIn: parent; spacing: vWsBox.gap
+                            Repeater {
+                                model: Waybar ? Waybar.workspaces : []
+                                delegate: Item {
+                                    property bool act: modelData.active === true
+                                    property bool occ: (modelData.windows || 0) > 0
+                                    property bool hov: vWsMa.containsMouse
+                                    width: topBarContainer.pillHeight; height: vWsBox.btnH
+                                    Text {
+                                        anchors.centerIn: parent; text: modelData.id; font.pixelSize: 11; font.bold: parent.act || parent.hov
+                                        color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.hov ? "#ffffff" : (parent.occ ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff") : "#7c8292"))
+                                    }
+                                    MouseArea {
+                                        id: vWsMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onEntered: { vWsBox.lastHoverIdx = index; vWsBox.hoveredIdx = index }
+                                        onExited: if (vWsBox.hoveredIdx === index) vWsBox.hoveredIdx = -1
+                                        onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // 3. Погода (иконка и градусы друг под другом)
+                    Rectangle {
+                        visible: !Waybar || Waybar.isBarModuleVisible("weather")
+                        width: topBarContainer.pillHeight
+                        height: vWeatherCol.implicitHeight + 14
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: topBarContainer.pillColor
+                        Column {
+                            id: vWeatherCol
+                            anchors.centerIn: parent
+                            spacing: 2
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: (Waybar ? Waybar.weatherText : "☁️ +3°C").split(" ")[0]
+                                font.pixelSize: 12
+                            }
+                            Text {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                text: {
+                                    var p = (Waybar ? Waybar.weatherText : "☁️ +3°C").split(" ")
+                                    return p.length > 1 ? p[1] : p[0]
+                                }
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                font.pixelSize: 9; font.bold: true
+                            }
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
+                    }
+
+                    // 4. Музыка (кнопки столбиком)
+                    Rectangle {
+                        visible: (!Waybar || Waybar.isBarModuleVisible("media")) && (Waybar && Waybar.mediaActive)
+                        width: topBarContainer.pillHeight
+                        height: vMediaCol.implicitHeight + 14
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: topBarContainer.pillColor
+                        Column {
+                            id: vMediaCol; anchors.centerIn: parent; spacing: 4
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "󰒮"; color: "#ffffff"; font.pixelSize: 11; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() } }
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: 12; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() } }
+                            Text { anchors.horizontalCenter: parent.horizontalCenter; text: "󰒭"; color: "#ffffff"; font.pixelSize: 11; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() } }
+                        }
+                    }
+                }
+
+                // 5. Заголовок активного окна (повернут боком на 90 градусов!)
+                Rectangle {
+                    id: vertTitlePill
+                    readonly property real topEdge: vertTopCol.y + vertTopCol.height
+                    readonly property real botEdge: vertBottomCol.y
+                    readonly property real availH: Math.max(0, botEdge - topEdge - 16)
+                    readonly property real gapCenterY: Math.round(topEdge + (botEdge - topEdge - height) * 0.5)
+                    readonly property real trueCenterY: Math.round((parent.height - height) * 0.5)
+                    readonly property bool useBarCenter: Waybar ? Waybar.centerTitleOnBar : true
+                    readonly property real targetY: useBarCenter ? trueCenterY : gapCenterY
+
+                    visible: height > 10 && availH > 30
+                    opacity: (root.isFixedTitle || root.hasWinTitle) ? 1.0 : 0.0
+                    width: topBarContainer.pillHeight
+                    height: (root.isFixedTitle || root.hasWinTitle) ? Math.min(availH, root.winPillTargetW) : 0
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    y: Math.max(topEdge + 8, Math.min(Math.max(topEdge + 8, botEdge - 8 - height), targetY))
+                    radius: topBarContainer.pillRadius
+                    color: root.hasWinTitle ? topBarContainer.pillColor : "transparent"
+                    clip: true
+
+                    Text {
+                        anchors.centerIn: parent
+                        width: vertTitlePill.height - 20
+                        rotation: root.barPos === 2 ? -90 : 90
+                        text: Waybar ? Waybar.activeWindowTitle : ""
+                        color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"
+                        font.pixelSize: 10
+                        font.bold: (Theme && Theme.isRounded)
+                        elide: Text.ElideRight
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+                }
+
+                // 6. Нижний столбик модулей (Ресурсы, Трей, Сис лоток + Часы в 2 строчки, Питание)
+                Column {
+                    id: vertBottomCol
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 10
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    spacing: 8
+
+                    // Ресурсы (CPU / Temp / RAM друг над другом)
+                    Rectangle {
+                        visible: !Waybar || Waybar.isBarModuleVisible("sysinfo")
+                        width: topBarContainer.pillHeight
+                        height: vSysCol.implicitHeight + 16
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: topBarContainer.pillColor
+                        Column {
+                            id: vSysCol; anchors.centerIn: parent; spacing: 5
+                            Column {
+                                anchors.horizontalCenter: parent.horizontalCenter; spacing: 0
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11 }
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 8; font.bold: true }
+                            }
+                            Column {
+                                anchors.horizontalCenter: parent.horizontalCenter; spacing: 0
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11 }
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar ? Waybar.cpuTemp : 40) + "°"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 8; font.bold: true }
+                            }
+                            Column {
+                                anchors.horizontalCenter: parent.horizontalCenter; spacing: 0
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11 }
+                                Text { anchors.horizontalCenter: parent.horizontalCenter; text: Waybar ? Waybar.memUsageText : "0G"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 8; font.bold: true }
+                            }
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
+                    }
+
+                    // Трей (столбиком)
+                    Rectangle {
+                        visible: topBarContainer.trayBlockVis
+                        width: topBarContainer.pillHeight
+                        height: vTrayCol.implicitHeight + 14
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: topBarContainer.pillColor
+                        Column {
+                            id: vTrayCol; anchors.centerIn: parent; spacing: 6
+                            Rectangle {
+                                visible: Waybar ? Waybar.vpnActive : false
+                                width: topBarContainer.pillHeight - 4; height: 16
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                radius: (Theme && Theme.isRounded) ? 5 : 0
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; border.width: 1
+                                Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 7; font.bold: true }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
+                            }
+                            Repeater {
+                                model: Waybar ? Waybar.trayApps : []
+                                delegate: Item {
+                                    id: vTrayDel; width: topBarContainer.pillHeight; height: 18
+                                    readonly property bool isAyuIcon: String(modelData.icon || "").toLowerCase().indexOf("ayugram") !== -1 || String(modelData.class || "").toLowerCase().indexOf("ayugram") !== -1
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: vTrayDel.isAyuIcon ? 14 : 16; height: vTrayDel.isAyuIcon ? 14 : 16
+                                        source: "image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex
+                                        cache: false; sourceSize: Qt.size(20, 20); smooth: true
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => {
+                                            if (mouse.button === Qt.RightButton) {
+                                                var gp = vTrayDel.mapToItem(sceneRoot, vTrayDel.width * 0.5, 0)
+                                                root.openTrayContextMenu(modelData, gp.x)
+                                            } else {
+                                                root.drawerOpen = false
+                                                if (Waybar) Waybar.activateTrayApp(modelData.class, modelData.sniService || "")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Единая вертикальная таблетка: Системный лоток + Часы на 2 строчках (ЧЧ и ММ)
+                    Rectangle {
+                        width: topBarContainer.pillHeight
+                        height: vStatusCol.implicitHeight + 18
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: topBarContainer.pillColor
+
+                        Column {
+                            id: vStatusCol
+                            anchors.centerIn: parent
+                            spacing: 7
+
+                            Item {
+                                visible: !Waybar || Waybar.isBarModuleVisible("bluetooth")
+                                width: topBarContainer.pillHeight; height: 15
+                                Text { anchors.centerIn: parent; text: "󰂯"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) }
+                            }
+                            Item {
+                                visible: !Waybar || Waybar.isBarModuleVisible("network")
+                                width: topBarContainer.pillHeight; height: 15
+                                Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) }
+                            }
+                            Item {
+                                visible: !Waybar || Waybar.isBarModuleVisible("clipboard")
+                                width: topBarContainer.pillHeight; height: 15
+                                Text { anchors.centerIn: parent; text: "󰅌"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) }
+                            }
+                            Item {
+                                visible: !Waybar || Waybar.isBarModuleVisible("volume")
+                                width: topBarContainer.pillHeight; height: 22
+                                WheelHandler { onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
+                                Column {
+                                    anchors.centerIn: parent; spacing: 0
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"); font.pixelSize: 12 }
+                                    Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar && Waybar.muted) ? "M" : ((Waybar ? Waybar.volume : 50) + "%"); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 8; font.bold: true }
+                                }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
+                            }
+                            Item {
+                                visible: !Waybar || Waybar.isBarModuleVisible("language")
+                                width: topBarContainer.pillHeight; height: 14
+                                Text { anchors.centerIn: parent; text: Waybar ? Waybar.kbLayout : "RU"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 25) }
+                            }
+                            Item {
+                                visible: !Waybar || Waybar.isBarModuleVisible("clock")
+                                width: topBarContainer.pillHeight; height: 26
+                                Column {
+                                    anchors.centerIn: parent; spacing: 0
+                                    Text {
+                                        id: vClockH; anchors.horizontalCenter: parent.horizontalCenter
+                                        text: Qt.formatDateTime(new Date(), "hh")
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                        font.pixelSize: 10; font.bold: true
+                                    }
+                                    Text {
+                                        id: vClockM; anchors.horizontalCenter: parent.horizontalCenter
+                                        text: Qt.formatDateTime(new Date(), "mm")
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                        font.pixelSize: 10; font.bold: true
+                                    }
+                                    Timer {
+                                        interval: 1000; running: root.isVertBar; repeat: true
+                                        onTriggered: {
+                                            var d = new Date()
+                                            vClockH.text = Qt.formatDateTime(d, "hh")
+                                            vClockM.text = Qt.formatDateTime(d, "mm")
+                                        }
+                                    }
+                                }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar") }
+                            }
+                        }
+                    }
+
+                    // Питание
+                    Rectangle {
+                        visible: !Waybar || Waybar.isBarModuleVisible("power")
+                        width: topBarContainer.pillHeight; height: 28
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        radius: topBarContainer.pillRadius
+                        color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                        Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") }
+                    }
+                }
+            }
+
         }
 
         // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (В ЦВЕТАХ ТЕКУЩЕЙ ТЕМЫ MD3)
@@ -1340,8 +1823,12 @@ ApplicationWindow {
                 id: drawerInner
                 width: root.targetDrawerW
                 height: root.targetDrawerH
-                anchors.horizontalCenter: parent.horizontalCenter
-                y: -(1.0 - root.drawerProgress) * 68
+                x: root.barPos === 2
+                   ? (-(1.0 - root.drawerProgress) * 68)
+                   : (root.barPos === 3 ? ((1.0 - root.drawerProgress) * 68) : Math.round((parent.width - width) * 0.5))
+                y: root.isVertBar
+                   ? Math.round((parent.height - height) * 0.5)
+                   : (root.barPos === 1 ? ((1.0 - root.drawerProgress) * 68) : (-(1.0 - root.drawerProgress) * 68))
                 transform: Scale {
                     origin.x: drawerInner.width * 0.5
                     origin.y: 0

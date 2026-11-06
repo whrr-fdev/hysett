@@ -68,6 +68,26 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
+                implicitHeight: titleAlignRow.implicitHeight + 16
+
+                RowLayout {
+                    id: titleAlignRow
+                    anchors.fill: parent
+                    anchors.margins: 10
+
+                    Text { text: "Центрирование заголовка окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                    Item { Layout.fillWidth: true }
+                    SegmentedButton {
+                        options: ["Между блоками по бокам", "По центру панели задач"]
+                        selectedIndex: (Waybar && Waybar.centerTitleOnBar) ? 1 : 0
+                        onSelected: (idx) => { if (Waybar) Waybar.centerTitleOnBar = (idx === 1) }
+                    }
+                }
+            }
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
                 implicitHeight: titleModeRow.implicitHeight + 16
 
                 RowLayout {

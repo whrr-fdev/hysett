@@ -174,6 +174,7 @@ void WaybarManager::loadState() {
             else if (k == "hidden_bar_modules") m_hiddenBarModules = v;
             else if (k == "centered_bar") m_centeredBar = (v == "1" || v == "true");
             else if (k == "fixed_title_width") m_fixedTitleWidth = (v == "1" || v == "true");
+            else if (k == "center_title_on_bar") m_centerTitleOnBar = (v == "1" || v == "true");
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
@@ -207,6 +208,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "hidden_bar_modules=" << m_hiddenBarModules << "\n";
         out << "centered_bar=" << (m_centeredBar ? "1" : "0") << "\n";
         out << "fixed_title_width=" << (m_fixedTitleWidth ? "1" : "0") << "\n";
+        out << "center_title_on_bar=" << (m_centerTitleOnBar ? "1" : "0") << "\n";
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
@@ -224,6 +226,7 @@ void WaybarManager::saveState(bool updatePosition) {
 void WaybarManager::setPosBottom(bool v) { if (m_posBottom != v) { m_posBottom = v; saveState(true); } }
 void WaybarManager::setCenteredBar(bool v) { if (m_centeredBar != v) { m_centeredBar = v; saveState(false); } }
 void WaybarManager::setFixedTitleWidth(bool v) { if (m_fixedTitleWidth != v) { m_fixedTitleWidth = v; saveState(false); } }
+void WaybarManager::setCenterTitleOnBar(bool v) { if (m_centerTitleOnBar != v) { m_centerTitleOnBar = v; saveState(false); } }
 void WaybarManager::setSpecValue(int index, qreal val) {
     if (index < 0 || index >= m_specs.size()) return;
     QVariantMap m = m_specs[index].toMap(); m["value"] = val; m_specs[index] = m; saveState(false);

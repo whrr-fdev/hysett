@@ -13,6 +13,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int barPosition READ barPosition WRITE setBarPosition NOTIFY stateChanged)
     Q_PROPERTY(bool centeredBar READ centeredBar WRITE setCenteredBar NOTIFY stateChanged)
     Q_PROPERTY(bool fixedTitleWidth READ fixedTitleWidth WRITE setFixedTitleWidth NOTIFY stateChanged)
+    Q_PROPERTY(bool centerTitleOnBar READ centerTitleOnBar WRITE setCenterTitleOnBar NOTIFY stateChanged)
     Q_PROPERTY(QVariantList specs READ specs NOTIFY stateChanged)
 
     Q_PROPERTY(int barWidth READ barWidth NOTIFY stateChanged)
@@ -107,6 +108,8 @@ public:
     void setCenteredBar(bool v);
     bool fixedTitleWidth() const { return m_fixedTitleWidth; }
     void setFixedTitleWidth(bool v);
+    bool centerTitleOnBar() const { return m_centerTitleOnBar; }
+    void setCenterTitleOnBar(bool v);
     QVariantList specs() const { return m_specs; }
 
     int barWidth() const;
@@ -266,6 +269,7 @@ private:
     QString m_hiddenBarModules;
     bool m_centeredBar = false;
     bool m_fixedTitleWidth = false;
+    bool m_centerTitleOnBar = true;
     QVariantList m_specs;
     QVariantList m_defaults;
 

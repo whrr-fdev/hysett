@@ -824,9 +824,13 @@ QColor AppConfig::m3Outline() const {
 void AppConfig::setM3DynamicWallpaperColors(bool v) {
     if (m_m3DynamicWallpaperColors != v) {
         m_m3DynamicWallpaperColors = v;
-        emit m3AttributesChanged();
-        save();
-        if (v) extractPaletteFromWallpaper();
+        if (v) {
+            emit m3AttributesChanged();
+            save();
+            extractPaletteFromWallpaper();
+        } else {
+            resetToDefaultMonochrome();
+        }
     }
 }
 
@@ -1024,8 +1028,8 @@ void AppConfig::resetToDefaultMonochrome() {
     m_accentColor = QColor("#ffffff");
     m_m3SecondaryColor = QColor("#2b2d36");
     m_m3TertiaryColor = QColor("#383b46");
-    m_windowBgColor = QColor("#111318");
-    m_cardBgColor = QColor("#1e2028");
+    m_windowBgColor = QColor("#0a0a0c");
+    m_cardBgColor = QColor("#121318");
     m_borderGlowCustomColor = QColor("#ffffff");
     m_cursorCustomColor = QColor("#ffffff");
     m_borderGlowColorMode = 0;

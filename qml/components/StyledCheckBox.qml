@@ -26,16 +26,6 @@ CheckBox {
 
         Behavior on color { ColorAnimation { duration: 130 } }
         Behavior on radius { NumberAnimation { duration: 150 } }
-
-        Text {
-            anchors.centerIn: parent
-            text: "✓"
-            font.pixelSize: 11
-            font.bold: true
-            color: control.isM3 && Config ? Config.accentTextColor : "#000000"
-            scale: control.checked ? 1.0 : 0.0
-            Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
-        }
     }
 
     contentItem: Text {

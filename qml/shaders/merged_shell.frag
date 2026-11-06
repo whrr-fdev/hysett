@@ -61,26 +61,46 @@ float sceneSdf(vec2 p) {
         float rDrw = u_radius * 1.35;
         float dDrw = sdRoundedBox(p - dCenter, dHalf, rDrw);
 
-        bool isTopBar = (u_drawer_rect.y >= u_bar_rect.y);
-        float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
-        float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
-        float ny1 = isTopBar ? (u_bar_rect.y + min(u_radius, u_bar_rect.w * 0.45)) : max(u_drawer_rect.y, u_drawer_rect.y + u_drawer_rect.w - rDrw - 4.0);
-        float ny2 = isTopBar ? min(u_drawer_rect.y + u_drawer_rect.w, u_drawer_rect.y + rDrw + 4.0) : (u_bar_rect.y + u_bar_rect.w - min(u_radius, u_bar_rect.w * 0.45));
-        if (nx2 > nx1 && ny2 > ny1) {
-            vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
-            vec2 nCenter = vec2(nx1, ny1) + nHalf;
-            float dNeck = sdRoundedBox(p - nCenter, nHalf, 0.0);
-            dDrw = min(dDrw, dNeck);
+        bool isVertBar = (u_bar_rect.w > u_bar_rect.z * 1.5);
+        if (!isVertBar) {
+            bool isTopBar = (u_drawer_rect.y >= u_bar_rect.y);
+            float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
+            float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
+            float ny1 = isTopBar ? (u_bar_rect.y + min(u_radius, u_bar_rect.w * 0.45)) : max(u_drawer_rect.y, u_drawer_rect.y + u_drawer_rect.w - rDrw - 4.0);
+            float ny2 = isTopBar ? min(u_drawer_rect.y + u_drawer_rect.w, u_drawer_rect.y + rDrw + 4.0) : (u_bar_rect.y + u_bar_rect.w - min(u_radius, u_bar_rect.w * 0.45));
+            if (nx2 > nx1 && ny2 > ny1) {
+                vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
+                vec2 nCenter = vec2(nx1, ny1) + nHalf;
+                dDrw = min(dDrw, sdRoundedBox(p - nCenter, nHalf, 0.0));
+            }
+            float leftStep  = abs(u_bar_rect.x - u_drawer_rect.x);
+            float rightStep = abs((u_bar_rect.x + u_bar_rect.z) - (u_drawer_rect.x + u_drawer_rect.z));
+            float sideStep  = (p.x < u_drawer_rect.x + 0.5 * u_drawer_rect.z) ? leftStep : rightStep;
+            float innerEdgeMask = isTopBar
+                                  ? smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w - 1.0, p.y)
+                                  : smoothstep(u_bar_rect.y + u_bar_rect.w - 4.0, u_bar_rect.y + 1.0, p.y);
+            float k = u_fillet * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+            d = smin(d, dDrw, k);
+        } else {
+            bool isLeftBar = (u_drawer_rect.x >= u_bar_rect.x);
+            float ny1 = max(u_bar_rect.y, u_drawer_rect.y);
+            float ny2 = min(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y + u_drawer_rect.w);
+            float nx1 = isLeftBar ? (u_bar_rect.x + min(u_radius, u_bar_rect.z * 0.45)) : max(u_drawer_rect.x, u_drawer_rect.x + u_drawer_rect.z - rDrw - 4.0);
+            float nx2 = isLeftBar ? min(u_drawer_rect.x + u_drawer_rect.z, u_drawer_rect.x + rDrw + 4.0) : (u_bar_rect.x + u_bar_rect.z - min(u_radius, u_bar_rect.z * 0.45));
+            if (nx2 > nx1 && ny2 > ny1) {
+                vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
+                vec2 nCenter = vec2(nx1, ny1) + nHalf;
+                dDrw = min(dDrw, sdRoundedBox(p - nCenter, nHalf, 0.0));
+            }
+            float topStep = abs(u_bar_rect.y - u_drawer_rect.y);
+            float botStep = abs((u_bar_rect.y + u_bar_rect.w) - (u_drawer_rect.y + u_drawer_rect.w));
+            float sideStep = (p.y < u_drawer_rect.y + 0.5 * u_drawer_rect.w) ? topStep : botStep;
+            float innerEdgeMask = isLeftBar
+                                  ? smoothstep(u_bar_rect.x + 4.0, u_bar_rect.x + u_bar_rect.z - 1.0, p.x)
+                                  : smoothstep(u_bar_rect.x + u_bar_rect.z - 4.0, u_bar_rect.x + 1.0, p.x);
+            float k = u_fillet * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+            d = smin(d, dDrw, k);
         }
-
-        float leftStep  = abs(u_bar_rect.x - u_drawer_rect.x);
-        float rightStep = abs((u_bar_rect.x + u_bar_rect.z) - (u_drawer_rect.x + u_drawer_rect.z));
-        float sideStep  = (p.x < u_drawer_rect.x + 0.5 * u_drawer_rect.z) ? leftStep : rightStep;
-        float innerEdgeMask = isTopBar
-                              ? smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w - 1.0, p.y)
-                              : smoothstep(u_bar_rect.y + u_bar_rect.w - 4.0, u_bar_rect.y + 1.0, p.y);
-        float k = u_fillet * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
-        d = smin(d, dDrw, k);
     }
 
     if (u_notif_rect.w > 0.5 && u_notif_rect.z > 0.5) {
@@ -106,12 +126,12 @@ void main() {
     float outlineMask = exp(-distInward * 1.65);
 
     bool inNotifZone = (u_notif_rect.w > 0.5 && p.x >= u_notif_rect.x - 8.0 && p.x <= u_notif_rect.x + u_notif_rect.z + 8.0 && p.y >= u_notif_rect.y - 4.0 && p.y <= u_notif_rect.y + u_notif_rect.w + 8.0);
-    vec4 activeFill = inNotifZone ? u_notif_color : ((u_drawer_rect.w > 0.5) ? u_bg_color : vec4(u_bg_color.rgb, u_bar_alpha));
+    vec4 activeFill = inNotifZone ? u_notif_color : ((u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) ? u_bg_color : vec4(u_bg_color.rgb, u_bar_alpha));
 
     vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, outlineMask * u_outline_color.a);
     float baseAlpha = clamp(activeFill.a + outlineMask * 0.10, 0.05, 0.98);
 
-    if (u_drawer_rect.w > 1.0 && u_cursor_strength > 0.01 && u_mouse.x > -50.0) {
+    if (u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0 && u_cursor_strength > 0.01 && u_mouse.x > -50.0) {
         float dm0 = length(p - u_mouse);
         float dm1 = length(p - u_trail1);
         float dm2 = length(p - u_trail2);
@@ -121,7 +141,7 @@ void main() {
         baseRgb = clamp(baseRgb + u_cursor_color * cGlow, 0.0, 1.0);
     }
 
-    float openFactor = clamp(u_drawer_rect.w / 40.0, 0.0, 1.0);
+    float openFactor = clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 40.0, 0.0, 1.0);
     float effGlow = u_glow_intensity * openFactor;
     if (effGlow > 0.01) {
         float maxEdgePx = mix(6.0, 38.0, clamp(u_glow_spread, 0.05, 1.0));

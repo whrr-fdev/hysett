@@ -172,6 +172,9 @@ int main(int argc, char *argv[]) {
     static WallpapersManager wallpapersManager;
     static ShadersManager shadersManager;
     static AtmosphereManager atmosphereManager(false);
+    QObject::connect(&wallpapersManager, &WallpapersManager::activePresetChanged, &appConfig, [&]() {
+        if (appConfig.m3DynamicWallpaperColors()) QTimer::singleShot(450, &appConfig, &AppConfig::extractPaletteFromWallpaper);
+    });
 
     qmlRegisterSingletonInstance("HySett", 1, 0, "Theme", &themeEngine);
     qmlRegisterSingletonInstance("HySett", 1, 0, "Hypr", &hyprIpc);

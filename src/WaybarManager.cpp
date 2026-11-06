@@ -991,7 +991,7 @@ void WaybarManager::pollFastState() {
             emit recordingChanged();
         }
     });
-    rec->start("pgrep", {"-f", "gpu-screen-recorder"});
+    rec->start("pgrep", {"-x", "gpu-screen-recorder"});
 
     QProcess *vp = new QProcess(this);
     connect(vp, &QProcess::finished, this, [this, vp](int code) {

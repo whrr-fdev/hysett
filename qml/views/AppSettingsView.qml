@@ -95,7 +95,7 @@ RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                     Text { text: "󰏘"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
                     Text { text: "Тема и Цвета"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-                    StyledSwitch { z: 10; inverted: subTab === 0; checked: Theme && Theme.isRounded; onToggled: if (Theme) Theme.setRoundedState(checked) }
+                    
                 }
             }
 
@@ -328,6 +328,30 @@ RowLayout {
                                 Text { text: "Толщина и прозрачность контуров (Outline):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02; value: Config ? Config.m3OutlineOpacity : 0.28; onMoved: if (Config) Config.m3OutlineOpacity = value }
                                 Text { text: Math.round((Config ? Config.m3OutlineOpacity : 0.28) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                            }
+
+                            RowLayout {
+                                Text { text: "Скорость колебаний волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                StyledSlider { Layout.fillWidth: true; from: 0.0; to: 4.0; stepSize: 0.05; value: Config ? Config.sliderWaveSpeed : 1.25; onMoved: if (Config) Config.sliderWaveSpeed = value }
+                                Text { text: (Config ? Config.sliderWaveSpeed : 1.25).toFixed(1) + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                            }
+
+                            RowLayout {
+                                Text { text: "Амплитуда (высота) волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                StyledSlider { Layout.fillWidth: true; from: 0.0; to: 5.5; stepSize: 0.1; value: Config ? Config.sliderWaveAmplitude : 2.4; onMoved: if (Config) Config.sliderWaveAmplitude = value }
+                                Text { text: (Config ? Config.sliderWaveAmplitude : 2.4).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                            }
+
+                            RowLayout {
+                                Text { text: "Длина волны ползунков (частота):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                StyledSlider { Layout.fillWidth: true; from: 10.0; to: 50.0; stepSize: 1.0; value: Config ? Config.sliderWaveLength : 22.0; onMoved: if (Config) Config.sliderWaveLength = value }
+                                Text { text: Math.round(Config ? Config.sliderWaveLength : 22) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                            }
+
+                            RowLayout {
+                                Text { text: "Толщина линии ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                StyledSlider { Layout.fillWidth: true; from: 1.4; to: 5.0; stepSize: 0.2; value: Config ? Config.sliderThickness : 2.4; onMoved: if (Config) Config.sliderThickness = value }
+                                Text { text: (Config ? Config.sliderThickness : 2.4).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
                             }
                         }
                     }

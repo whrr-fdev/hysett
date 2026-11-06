@@ -72,6 +72,10 @@ class AppConfig : public QObject {
     Q_PROPERTY(int m3ControlRadius READ m3ControlRadius WRITE setM3ControlRadius NOTIFY m3AttributesChanged)
     Q_PROPERTY(qreal m3OutlineWidth READ m3OutlineWidth WRITE setM3OutlineWidth NOTIFY m3AttributesChanged)
     Q_PROPERTY(qreal m3OutlineOpacity READ m3OutlineOpacity WRITE setM3OutlineOpacity NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal sliderWaveSpeed READ sliderWaveSpeed WRITE setSliderWaveSpeed NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal sliderWaveAmplitude READ sliderWaveAmplitude WRITE setSliderWaveAmplitude NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal sliderWaveLength READ sliderWaveLength WRITE setSliderWaveLength NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal sliderThickness READ sliderThickness WRITE setSliderThickness NOTIFY m3AttributesChanged)
 
 public:
     explicit AppConfig(QObject *parent = nullptr);
@@ -204,6 +208,14 @@ public:
     void setM3OutlineWidth(qreal v);
     qreal m3OutlineOpacity() const { return m_m3OutlineOpacity; }
     void setM3OutlineOpacity(qreal v);
+    qreal sliderWaveSpeed() const { return m_sliderWaveSpeed; }
+    void setSliderWaveSpeed(qreal v);
+    qreal sliderWaveAmplitude() const { return m_sliderWaveAmplitude; }
+    void setSliderWaveAmplitude(qreal v);
+    qreal sliderWaveLength() const { return m_sliderWaveLength; }
+    void setSliderWaveLength(qreal v);
+    qreal sliderThickness() const { return m_sliderThickness; }
+    void setSliderThickness(qreal v);
     Q_INVOKABLE void resetM3Attributes();
     Q_INVOKABLE void resetToDefaultMonochrome();
 
@@ -310,6 +322,10 @@ private:
     int m_m3ControlRadius = 10;
     qreal m_m3OutlineWidth = 1.0;
     qreal m_m3OutlineOpacity = 0.28;
+    qreal m_sliderWaveSpeed = 1.25;
+    qreal m_sliderWaveAmplitude = 2.4;
+    qreal m_sliderWaveLength = 22.0;
+    qreal m_sliderThickness = 2.4;
     QFileSystemWatcher *m_wallWatcher = nullptr;
     QTimer *m_wallExtractTimer = nullptr;
 

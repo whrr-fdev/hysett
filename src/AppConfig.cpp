@@ -482,6 +482,10 @@ void AppConfig::load() {
             else if (key == "m3_control_radius") m_m3ControlRadius = std::clamp(val.toInt(), 2, 20);
             else if (key == "m3_outline_width") m_m3OutlineWidth = std::clamp(val.toDouble(), 0.0, 3.0);
             else if (key == "m3_outline_opacity") m_m3OutlineOpacity = std::clamp(val.toDouble(), 0.0, 1.0);
+            else if (key == "slider_wave_speed") m_sliderWaveSpeed = std::clamp(val.toDouble(), 0.0, 5.0);
+            else if (key == "slider_wave_amp") m_sliderWaveAmplitude = std::clamp(val.toDouble(), 0.0, 7.0);
+            else if (key == "slider_wave_len") m_sliderWaveLength = std::clamp(val.toDouble(), 8.0, 64.0);
+            else if (key == "slider_thickness") m_sliderThickness = std::clamp(val.toDouble(), 1.2, 6.0);
         }
     }
 }
@@ -547,6 +551,10 @@ void AppConfig::save() {
     extra["m3_control_radius"] = QString::number(m_m3ControlRadius);
     extra["m3_outline_width"] = QString::number(m_m3OutlineWidth, 'f', 1);
     extra["m3_outline_opacity"] = QString::number(m_m3OutlineOpacity, 'f', 2);
+    extra["slider_wave_speed"] = QString::number(m_sliderWaveSpeed, 'f', 2);
+    extra["slider_wave_amp"] = QString::number(m_sliderWaveAmplitude, 'f', 2);
+    extra["slider_wave_len"] = QString::number(m_sliderWaveLength, 'f', 1);
+    extra["slider_thickness"] = QString::number(m_sliderThickness, 'f', 1);
 
     QFile file(configFilePath());
     if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -1030,4 +1038,21 @@ void AppConfig::resetToDefaultMonochrome() {
     emit borderGlowColorModeChanged();
     emit m3AttributesChanged();
     save();
+}
+
+void AppConfig::setSliderWaveSpeed(qreal v) {
+    v = std::clamp(v, 0.0, 5.0);
+    if (!qFuzzyCompare(m_sliderWaveSpeed, v)) { m_sliderWaveSpeed = v; emit m3AttributesChanged(); save(); }
+}
+void AppConfig::setSliderWaveAmplitude(qreal v) {
+    v = std::clamp(v, 0.0, 7.0);
+    if (!qFuzzyCompare(m_sliderWaveAmplitude, v)) { m_sliderWaveAmplitude = v; emit m3AttributesChanged(); save(); }
+}
+void AppConfig::setSliderWaveLength(qreal v) {
+    v = std::clamp(v, 8.0, 64.0);
+    if (!qFuzzyCompare(m_sliderWaveLength, v)) { m_sliderWaveLength = v; emit m3AttributesChanged(); save(); }
+}
+void AppConfig::setSliderThickness(qreal v) {
+    v = std::clamp(v, 1.2, 6.0);
+    if (!qFuzzyCompare(m_sliderThickness, v)) { m_sliderThickness = v; emit m3AttributesChanged(); save(); }
 }

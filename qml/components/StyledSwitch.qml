@@ -46,16 +46,6 @@ Switch {
                       : (Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.75) : "#b8bece"))
             Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
             Behavior on width { NumberAnimation { duration: 130 } }
-
-            Text {
-                anchors.centerIn: parent
-                text: "✓"
-                font.pixelSize: 9
-                font.bold: true
-                color: control.inverted ? "#15171e" : (Config ? Config.m3Primary : "#a8c7fa")
-                opacity: control.checked ? 1.0 : 0.0
-                Behavior on opacity { NumberAnimation { duration: 120 } }
-            }
         }
     }
 }

@@ -3,116 +3,85 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import HySett
 
-Item {
+RowLayout {
     id: control
     property var options: []
     property int selectedIndex: 0
     signal selected(int index)
     readonly property bool isM3: Theme && Theme.isRounded
 
-    implicitHeight: 28
-    implicitWidth: 220
-    Layout.fillWidth: true
+    spacing: isM3 ? 3 : 2
 
-    Rectangle {
-        id: capsuleBg
-        anchors.fill: parent
-        radius: control.isM3 ? height / 2 : 0
-        color: control.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.05)
-        border.width: 1
-        border.color: control.isM3 && Config
-                      ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.45)
-                      : Qt.rgba(1, 1, 1, 0.14)
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on radius { NumberAnimation { duration: 150 } }
+    Repeater {
+        model: control.options
+        Button {
+            id: btn
+            text: modelData
+            flat: true
+            Layout.fillWidth: true
+            implicitHeight: 28
+            readonly property bool isSel: control.selectedIndex === index
+            readonly property bool isFirst: index === 0
+            readonly property bool isLast: index === control.options.length - 1
+            readonly property real outerR: control.isM3 ? height / 2 : 0
+            readonly property real innerR: control.isM3 ? 5 : 0
 
-        // Плавно скользящая капсула выбранного сегмента внутри общей таблетки
-        Rectangle {
-            id: activeSegPill
-            readonly property int cnt: Math.max(1, control.options.length)
-            readonly property real segW: (parent.width - 2) / cnt
-            visible: control.options.length > 0
-            x: 1 + Math.max(0, Math.min(cnt - 1, control.selectedIndex)) * segW
-            y: 1
-            width: segW
-            height: parent.height - 2
-            radius: control.isM3 ? height / 2 : 0
-            color: Config ? Config.m3Primary : "#ffffff"
-
-            Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-            Behavior on color { ColorAnimation { duration: 140 } }
-            Behavior on radius { NumberAnimation { duration: 150 } }
-        }
-
-        Row {
-            anchors.fill: parent
-            anchors.margins: 1
-            spacing: 0
-
-            Repeater {
-                model: control.options
-                Item {
-                    id: segItem
-                    width: (capsuleBg.width - 2) / Math.max(1, control.options.length)
-                    height: capsuleBg.height - 2
-                    readonly property bool isSel: control.selectedIndex === index
-                    readonly property bool hov: segMa.containsMouse
-
-                    // Тонкий вертикальный разделитель между невыбранными сегментами
-                    Rectangle {
-                        visible: index > 0 && !segItem.isSel && (control.selectedIndex !== index - 1)
-                        anchors.left: parent.left
-                        anchors.verticalCenter: parent.verticalCenter
-                        width: 1
-                        height: parent.height * 0.55
-                        color: control.isM3 && Config
-                               ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.38)
-                               : Qt.rgba(1, 1, 1, 0.14)
-                    }
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: control.isM3 ? height / 2 : 0
-                        color: (!segItem.isSel && segItem.hov)
-                               ? (control.isM3 && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12) : Qt.rgba(1, 1, 1, 0.08))
-                               : "transparent"
-                        Behavior on color { ColorAnimation { duration: 110 } }
-                    }
-
-                    Row {
-                        anchors.centerIn: parent
-                        spacing: 4
-                        Text {
-                            visible: control.isM3 && segItem.isSel
-                            text: "✓"
-                            color: Config ? Config.accentTextColor : "#000000"
-                            font.pixelSize: Config ? Config.fontSize - 1 : 10
-                            font.bold: true
-                            anchors.verticalCenter: parent.verticalCenter
-                        }
-                        Text {
-                            text: Config ? (Config.language, Config.trAuto(modelData)) : modelData
-                            color: segItem.isSel
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : (control.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
-                            font.pixelSize: Config ? Config.fontSize : 11
-                            font.bold: segItem.isSel
-                            anchors.verticalCenter: parent.verticalCenter
-                            Behavior on color { ColorAnimation { duration: 110 } }
-                        }
-                    }
-
-                    MouseArea {
-                        id: segMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: {
-                            control.selectedIndex = index
-                            control.selected(index)
-                        }
-                    }
+            contentItem: Row {
+                anchors.centerIn: parent
+                spacing: 4
+                Text {
+                    text: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
+                    color: btn.isSel
+                           ? (Config ? Config.accentTextColor : "#000000")
+                           : (control.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
+                    font.pixelSize: Config ? Config.fontSize : 11
+                    font.bold: btn.isSel
+                    anchors.verticalCenter: parent.verticalCenter
+                    Behavior on color { ColorAnimation { duration: 110 } }
                 }
+            }
+
+            background: Item {
+                readonly property color segColor: btn.isSel
+                       ? (Config ? Config.m3Primary : "#ffffff")
+                       : (btn.hovered
+                          ? (control.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.12))
+                          : (control.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)))
+
+                // Основная форма: внешние края колбасы круглые (outerR), внутренние стыки с малым скруглением (innerR)
+                Rectangle {
+                    anchors.fill: parent
+                    radius: (btn.isFirst || btn.isLast) ? btn.outerR : btn.innerR
+                    color: parent.segColor
+                    Behavior on color { ColorAnimation { duration: 130 } }
+                }
+
+                // Малое скругление правого края у первой кнопки (и для активной, и для неактивной)
+                Rectangle {
+                    visible: control.isM3 && btn.isFirst && !btn.isLast
+                    anchors.right: parent.right
+                    width: Math.min(parent.width * 0.55, btn.outerR + 2)
+                    height: parent.height
+                    radius: btn.innerR
+                    color: parent.segColor
+                    Behavior on color { ColorAnimation { duration: 130 } }
+                }
+
+                // Малое скругление левого края у последней кнопки (и для активной, и для неактивной)
+                Rectangle {
+                    visible: control.isM3 && btn.isLast && !btn.isFirst
+                    anchors.left: parent.left
+                    width: Math.min(parent.width * 0.55, btn.outerR + 2)
+                    height: parent.height
+                    radius: btn.innerR
+                    color: parent.segColor
+                    Behavior on color { ColorAnimation { duration: 130 } }
+                }
+            }
+
+            onClicked: {
+                control.selectedIndex = index
+                control.selected(index)
             }
         }
     }

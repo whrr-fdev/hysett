@@ -12,48 +12,19 @@ Rectangle {
     readonly property int itemH: isM3 ? 32 : 25
     readonly property int pillH: isM3 ? 30 : 24
 
-    property bool collapsed: false
     readonly property bool sidebarHovered: sidebarHoverHandler.hovered
-    readonly property int targetWidth: collapsed ? (isM3 ? 58 : 46) : (isM3 ? 168 : 136)
+    property bool collapsed: !sidebarHovered
+    readonly property int targetWidth: collapsed ? (isM3 ? 56 : 46) : (isM3 ? 168 : 136)
 
     width: targetWidth
-    Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
 
     HoverHandler {
         id: sidebarHoverHandler
-        onHoveredChanged: {
-            if (hovered) {
-                collapseTimer.stop()
-                bar.collapsed = false
-            } else if (bar.currentIndex > 0) {
-                collapseTimer.restart()
-            }
-        }
-    }
-
-    Timer {
-        id: collapseTimer
-        interval: 2000
-        repeat: false
-        onTriggered: {
-            if (!bar.sidebarHovered && bar.currentIndex > 0) {
-                bar.collapsed = true
-            }
-        }
-    }
-
-    onCurrentIndexChanged: {
-        if (currentIndex > 0 && !sidebarHovered) {
-            collapseTimer.restart()
-        } else if (currentIndex === 0) {
-            collapseTimer.stop()
-            bar.collapsed = false
-        }
     }
 
     color: "transparent"
 
-    // Фон M3 Navigation Drawer
     Rectangle {
         anchors.fill: parent
         anchors.margins: bar.isM3 ? 6 : 0
@@ -177,7 +148,7 @@ Rectangle {
                     x: bar.collapsed
                        ? Math.round((parent.width - width) * 0.5)
                        : Math.round((parent.width - (width + 8 + headerTitleTxt.implicitWidth)) * 0.5)
-                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                    Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                     source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
                 }
                 Text {
@@ -191,7 +162,7 @@ Rectangle {
                     font.pixelSize: 11
                     font.bold: bar.isM3
                     font.letterSpacing: 1.4
-                    Behavior on opacity { NumberAnimation { duration: 140 } }
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
                 }
             }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -357,7 +328,7 @@ Rectangle {
                        : ((Config && Config.alignCenter)
                           ? Math.round((parent.width - (width + (bar.isM3 ? 10 : 7) + closeLblTxt.implicitWidth)) * 0.5)
                           : (bar.isM3 ? 14 : 10))
-                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                    Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                 }
                 Text {
                     id: closeLblTxt
@@ -368,7 +339,7 @@ Rectangle {
                     visible: opacity > 0.01
                     color: closeBtn.hovered ? "#ffffff" : "#888888"
                     font.pixelSize: Config.fontSize
-                    Behavior on opacity { NumberAnimation { duration: 140 } }
+                    Behavior on opacity { NumberAnimation { duration: 120 } }
                 }
             }
             background: Item {}

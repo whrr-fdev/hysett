@@ -599,13 +599,13 @@ ApplicationWindow {
         Item {
             id: topBarContainer
             x: root.barLeft; y: root.barRectY; width: root.barW; height: root.barH; z: 10
-            readonly property int vPad: (Theme && Theme.isRounded) ? 6 : 4
+            readonly property int vPad: (Theme && Theme.isRounded) ? 8 : 4
             property int pillHeight: Math.max(18, height - vPad)
             property int pillRadius: (Theme && Theme.isRounded) ? Math.round(pillHeight / 2) : 0
             property color pillColor: (Theme && Theme.isRounded && Config)
                                       ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Math.max(0.66, (Waybar ? Waybar.pillOpacity : 0.65) * 0.90))
                                       : "transparent"
-            readonly property string trayTintHex: (Theme && Theme.isRounded && Config) ? Config.m3Primary.toString().substring(1) : "ffffff"
+            readonly property string trayTintHex: (Theme && Theme.isRounded && Config) ? (Config.accentColor, Config.m3Primary.toString().substring(1)) : "ffffff"
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             MouseArea { anchors.fill: leftBarRow; anchors.margins: -4; z: 1 }
@@ -658,7 +658,7 @@ ApplicationWindow {
 
             Row {
                 id: leftBarRow; z: 5
-                anchors.left: parent.left; anchors.leftMargin: (Theme && Theme.isRounded) ? 8 : 5; anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left; anchors.leftMargin: (Theme && Theme.isRounded) ? 12 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
                 Repeater {
@@ -706,10 +706,10 @@ ApplicationWindow {
                             opacity: modKey === "launcher" ? (topBarContainer.launcherVis * topBarContainer.launcherVis) : 1.0
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return (topBarContainer.pillHeight + 10) * topBarContainer.launcherVis
-                                if (modKey === "workspaces") return wsRow.implicitWidth + 10
-                                if (modKey === "weather") return wLbl.implicitWidth + 18
-                                if (modKey === "media") return mediaInnerRow.implicitWidth + 18
+                                if (modKey === "launcher") return (topBarContainer.pillHeight + 14) * topBarContainer.launcherVis
+                                if (modKey === "workspaces") return wsRow.implicitWidth + 16
+                                if (modKey === "weather") return wLbl.implicitWidth + 24
+                                if (modKey === "media") return mediaInnerRow.implicitWidth + 24
                                 return 0
                             }
 
@@ -725,7 +725,7 @@ ApplicationWindow {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
                                 Rectangle {
-                                    width: topBarContainer.pillHeight + 10
+                                    width: topBarContainer.pillHeight + 14
                                     height: topBarContainer.pillHeight
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
@@ -971,7 +971,7 @@ ApplicationWindow {
 
             Row {
                 id: rightBarRow; z: 5
-                anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 8 : 5; anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 12 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
                 // Индикатор записи экрана
@@ -1063,20 +1063,20 @@ ApplicationWindow {
                             id: rightModBody
                             height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
-                            readonly property int clusterEdgePad: (rightModWrap.isFirstStatusMod ? 9 : 0) + (rightModWrap.isLastStatusMod ? 9 : 0)
+                            readonly property int clusterEdgePad: (rightModWrap.isFirstStatusMod ? 13 : 0) + (rightModWrap.isLastStatusMod ? 13 : 0)
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "sysinfo") return sysRow.implicitWidth + 16
-                                if (modKey === "tray") return Math.max(24, trayRow.implicitWidth + 16)
-                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 14 + clusterEdgePad
-                                if (modKey === "volume") return volInnerRow.implicitWidth + 4 + clusterEdgePad
-                                if (modKey === "language") return 19 + clusterEdgePad
-                                if (modKey === "clock") return barClockText.implicitWidth + 6 + clusterEdgePad
-                                if (modKey === "power") return 26
+                                if (modKey === "sysinfo") return sysRow.implicitWidth + 24
+                                if (modKey === "tray") return Math.max(28, trayRow.implicitWidth + 22)
+                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 16 + clusterEdgePad
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 6 + clusterEdgePad
+                                if (modKey === "language") return 21 + clusterEdgePad
+                                if (modKey === "clock") return barClockText.implicitWidth + 8 + clusterEdgePad
+                                if (modKey === "power") return 32
                                 return 0
                             }
 
-                            readonly property real innerShiftX: (rightModWrap.isFirstStatusMod ? 4.5 : 0) - (rightModWrap.isLastStatusMod ? 4.5 : 0)
+                            readonly property real innerShiftX: (rightModWrap.isFirstStatusMod ? 6.5 : 0) - (rightModWrap.isLastStatusMod ? 6.5 : 0)
 
                             Rectangle {
                                 visible: modKey === "sep"

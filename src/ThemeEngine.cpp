@@ -61,6 +61,8 @@ static void updateConfKey(const QString &key, const QString &val) {
     }
 }
 
+static qreal m_appliedBlur = -1.0;
+
 ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
     m_muteTimer = new QTimer(this);
     m_muteTimer->setSingleShot(true);

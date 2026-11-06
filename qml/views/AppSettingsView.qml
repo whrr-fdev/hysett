@@ -25,82 +25,145 @@ RowLayout {
         }
     }
 
-    // Левое подменю разделов настроек (как во вкладке Виджеты)
+    // Левое подменю разделов настроек (с плавной анимацией наведения и выбора как во вкладке Виджеты)
     Rectangle {
         id: subSidebar
         Layout.fillHeight: true
-        Layout.preferredWidth: appSetRoot.isM3 ? 190 : 175
-        color: appSetRoot.isM3 && Config
-               ? Qt.rgba(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b, 0.55)
-               : Qt.rgba(0.04, 0.04, 0.04, 0.35)
+        Layout.preferredWidth: 195
+        color: Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.35)
+
+        property Item activeCardObj: subTab === 0 ? sCard0 : (subTab === 1 ? sCard1 : (subTab === 2 ? sCard2 : (subTab === 3 ? sCard3 : sCard4)))
+        property Item hoveredCardObj: null
+        property Item lastHoveredCardObj: null
 
         Rectangle {
-            visible: !appSetRoot.isM3
             anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
             width: 1; color: Qt.rgba(1, 1, 1, 0.08)
         }
 
+        Rectangle {
+            id: setHoverPill
+            x: 4; width: subSidebar.width - 8; height: 30
+            radius: (Theme && Theme.isRounded) ? 6 : 0
+            color: Qt.rgba(1, 1, 1, 0.08)
+            opacity: subSidebar.hoveredCardObj && subSidebar.hoveredCardObj !== subSidebar.activeCardObj ? 1.0 : 0.0
+            y: subSidebar.lastHoveredCardObj ? (subCol.y + subSidebar.lastHoveredCardObj.y) : 34
+            Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+            Behavior on opacity { NumberAnimation { duration: 90 } }
+        }
+
+        Rectangle {
+            id: setActivePill
+            x: 4; width: subSidebar.width - 8; height: 30
+            radius: (Theme && Theme.isRounded) ? 6 : 0
+            color: Config ? Config.m3Primary : "#ffffff"
+            y: subSidebar.activeCardObj ? (subCol.y + subSidebar.activeCardObj.y) : 34
+            Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            Behavior on radius { NumberAnimation { duration: 150 } }
+        }
+
         ColumnLayout {
+            id: subCol
             anchors.fill: parent
-            anchors.margins: appSetRoot.isM3 ? 10 : 6
-            spacing: appSetRoot.isM3 ? 6 : 3
+            anchors.margins: 6
+            spacing: 3
 
             Text {
-                text: Config ? (Config.language, Config.trAuto("Разделы настроек")) : "Разделы настроек"
-                color: appSetRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                font.pixelSize: Config.fontSize + 1
-                font.bold: true
-                Layout.topMargin: 4; Layout.bottomMargin: 6; Layout.leftMargin: 6
+                text: Config ? (Config.language, Config.trAuto("Настройки центра")) : "Настройки центра"
+                color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                Layout.topMargin: 4; Layout.bottomMargin: 6; Layout.leftMargin: 4
             }
 
-            Repeater {
-                model: [
-                    { title: "Тема и Цвета (MD3)", icon: "󰏘", idx: 0 },
-                    { title: "Интерфейс", icon: "󰒓", idx: 1 },
-                    { title: "Анимации", icon: "󱐌", idx: 2 },
-                    { title: "Стекло и Блюр", icon: "󰖨", idx: 3 },
-                    { title: "Свечение и Меню", icon: "󰆿", idx: 4 }
-                ]
+            Rectangle {
+                objectName: "sidebarSepLine"
+                Layout.fillWidth: true; height: 1
+                color: Qt.rgba(1, 1, 1, 0.06)
+                Layout.bottomMargin: 2
+            }
 
-                Rectangle {
-                    id: tabCard
-                    Layout.fillWidth: true
-                    implicitHeight: appSetRoot.isM3 ? 34 : 28
-                    readonly property bool isSel: appSetRoot.subTab === modelData.idx
-                    radius: appSetRoot.isM3 ? height / 2 : 0
-                    color: isSel
-                           ? (appSetRoot.isM3 && Config ? Config.m3Primary : (Config ? Config.accentColor : "#ffffff"))
-                           : (tabMa.containsMouse
-                              ? (appSetRoot.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.08))
-                              : "transparent")
-                    Behavior on color { ColorAnimation { duration: 130 } }
-
-                    RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 12; anchors.rightMargin: 10
-                        spacing: 8
-                        Text {
-                            text: modelData.icon
-                            font.pixelSize: 13
-                            color: tabCard.isSel ? (Config ? Config.accentTextColor : "#000000") : (Config ? Config.m3Primary : "#aaaaaa")
-                        }
-                        Text {
-                            text: modelData.title
-                            font.pixelSize: Config.fontSize
-                            font.bold: tabCard.isSel
-                            color: tabCard.isSel ? (Config ? Config.accentTextColor : "#000000") : "#e0e0e0"
-                            Layout.fillWidth: true
-                            elide: Text.ElideRight
-                        }
+            Item {
+                id: sCard0; Layout.fillWidth: true; implicitHeight: 30
+                MouseArea {
+                    id: sMouse0; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = sCard0; subSidebar.hoveredCardObj = sCard0 }
+                        else if (subSidebar.hoveredCardObj === sCard0) subSidebar.hoveredCardObj = null
                     }
+                    onClicked: subTab = 0
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󰏘"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    Text { text: "Тема и Цвета"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                    StyledSwitch { z: 10; inverted: subTab === 0; checked: Theme && Theme.isRounded; onToggled: if (Theme) Theme.setRoundedState(checked) }
+                }
+            }
 
-                    MouseArea {
-                        id: tabMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: appSetRoot.subTab = modelData.idx
+            Item {
+                id: sCard1; Layout.fillWidth: true; implicitHeight: 30
+                MouseArea {
+                    id: sMouse1; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = sCard1; subSidebar.hoveredCardObj = sCard1 }
+                        else if (subSidebar.hoveredCardObj === sCard1) subSidebar.hoveredCardObj = null
                     }
+                    onClicked: subTab = 1
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󰒓"; color: subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (sMouse1.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    Text { text: "Интерфейс"; color: subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (sMouse1.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                }
+            }
+
+            Item {
+                id: sCard2; Layout.fillWidth: true; implicitHeight: 30
+                MouseArea {
+                    id: sMouse2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = sCard2; subSidebar.hoveredCardObj = sCard2 }
+                        else if (subSidebar.hoveredCardObj === sCard2) subSidebar.hoveredCardObj = null
+                    }
+                    onClicked: subTab = 2
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󱐌"; color: subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (sMouse2.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    Text { text: "Анимации"; color: subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (sMouse2.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                }
+            }
+
+            Item {
+                id: sCard3; Layout.fillWidth: true; implicitHeight: 30
+                MouseArea {
+                    id: sMouse3; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = sCard3; subSidebar.hoveredCardObj = sCard3 }
+                        else if (subSidebar.hoveredCardObj === sCard3) subSidebar.hoveredCardObj = null
+                    }
+                    onClicked: subTab = 3
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󰖨"; color: subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (sMouse3.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    Text { text: "Стекло и Блюр"; color: subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (sMouse3.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                }
+            }
+
+            Item {
+                id: sCard4; Layout.fillWidth: true; implicitHeight: 30
+                MouseArea {
+                    id: sMouse4; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = sCard4; subSidebar.hoveredCardObj = sCard4 }
+                        else if (subSidebar.hoveredCardObj === sCard4) subSidebar.hoveredCardObj = null
+                    }
+                    onClicked: subTab = 4
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󰆿"; color: subTab === 4 ? (Config ? Config.accentTextColor : "#000000") : (sMouse4.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    Text { text: "Свечение и Меню"; color: subTab === 4 ? (Config ? Config.accentTextColor : "#000000") : (sMouse4.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                 }
             }
 

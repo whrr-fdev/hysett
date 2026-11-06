@@ -60,11 +60,12 @@ float sceneSdf(vec2 p) {
         vec2 dCenter = u_drawer_rect.xy + dHalf;
         float dDrw = sdRoundedBox(p - dCenter, dHalf, u_radius * 1.35);
 
-        // Единая колонна от верха панели до низа окна в зоне пересечения: убирает внутренний шов и ореол на стыке!
+        // Перешеек начинается от внутренней половины панели, чтобы не выпирать над верхней гранью бара
+        bool isTopBar = (u_drawer_rect.y >= u_bar_rect.y);
         float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
         float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
-        float ny1 = min(u_bar_rect.y, u_drawer_rect.y);
-        float ny2 = max(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y + u_drawer_rect.w);
+        float ny1 = isTopBar ? (u_bar_rect.y + u_bar_rect.w * 0.55) : u_drawer_rect.y;
+        float ny2 = isTopBar ? (u_drawer_rect.y + u_drawer_rect.w) : (u_bar_rect.y + u_bar_rect.w * 0.45);
         if (nx2 > nx1 && ny2 > ny1) {
             vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
             vec2 nCenter = vec2(nx1, ny1) + nHalf;
@@ -75,7 +76,10 @@ float sceneSdf(vec2 p) {
         float leftStep  = abs(u_bar_rect.x - u_drawer_rect.x);
         float rightStep = abs((u_bar_rect.x + u_bar_rect.z) - (u_drawer_rect.x + u_drawer_rect.z));
         float sideStep  = (p.x < u_drawer_rect.x + 0.5 * u_drawer_rect.z) ? leftStep : rightStep;
-        float k = u_fillet * clamp((sideStep - 1.5) / 24.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+        float innerEdgeMask = isTopBar
+                              ? smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w - 1.0, p.y)
+                              : smoothstep(u_bar_rect.y + u_bar_rect.w - 4.0, u_bar_rect.y + 1.0, p.y);
+        float k = u_fillet * innerEdgeMask * clamp((sideStep - 1.5) / 24.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
         d = smin(d, dDrw, k);
     }
 
@@ -83,7 +87,7 @@ float sceneSdf(vec2 p) {
         vec2 nHalf = 0.5 * u_notif_rect.zw;
         vec2 nCenter = u_notif_rect.xy + nHalf;
         float dNotif = sdRoundedBox(p - nCenter, nHalf, u_radius * 1.25);
-        float nk = u_fillet * clamp(u_notif_rect.w / 32.0, 0.0, 1.0);
+        float nk = u_fillet * smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w, p.y) * clamp(u_notif_rect.w / 32.0, 0.0, 1.0);
         d = smin(d, dNotif, nk);
     }
 
@@ -107,7 +111,6 @@ void main() {
     vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, outlineMask * u_outline_color.a);
     float baseAlpha = clamp(activeFill.a + outlineMask * 0.10, 0.05, 0.98);
 
-    // 1. Свет от курсора мыши и шлейф: освещает И окно настроек, И панель задач без обрезки!
     if (u_drawer_rect.w > 1.0 && u_cursor_strength > 0.01 && u_mouse.x > -50.0) {
         float dm0 = length(p - u_mouse);
         float dm1 = length(p - u_trail1);
@@ -118,7 +121,6 @@ void main() {
         baseRgb = clamp(baseRgb + u_cursor_color * cGlow, 0.0, 1.0);
     }
 
-    // 2. Свечение контура при открытом окне работает и вокруг окна, и вокруг самой панели задач!
     float openFactor = clamp(u_drawer_rect.w / 40.0, 0.0, 1.0);
     float effGlow = u_glow_intensity * openFactor;
     if (effGlow > 0.01) {

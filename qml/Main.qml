@@ -212,20 +212,22 @@ ApplicationWindow {
     readonly property int barRectY: (barPos === 1) ? (root.height - barH - barTop) : barTop
 
     readonly property int targetDrawerW: {
+        var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 230
-        if (drawerMode === "power") return 280
-        if (drawerMode === "calendar") return 300
-        if (drawerMode === "clipboard") return 460
-        return isWallpaperExpanded ? maxAvailBarW : Math.min(860, maxAvailBarW - 120)
+        if (drawerMode === "power") return isM3 ? 300 : 280
+        if (drawerMode === "calendar") return isM3 ? 320 : 300
+        if (drawerMode === "clipboard") return isM3 ? 500 : 460
+        return isWallpaperExpanded ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
     }
     readonly property int targetDrawerH: {
+        var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
-        if (drawerMode === "power") return 295
-        if (drawerMode === "calendar") return 285
-        if (drawerMode === "clipboard") return 370
+        if (drawerMode === "power") return isM3 ? 315 : 295
+        if (drawerMode === "calendar") return isM3 ? 305 : 285
+        if (drawerMode === "clipboard") return isM3 ? 400 : 370
         return isWallpaperExpanded
                ? (root.height - (barTop + barH) - 14)
-               : Math.min(540, Config ? Config.windowHeight : 520)
+               : (isM3 ? Math.min(680, Config ? Math.max(640, Config.windowHeight) : 640) : Math.min(540, Config ? Config.windowHeight : 520))
     }
 
     property real animDrawerW: targetDrawerW
@@ -603,7 +605,7 @@ ApplicationWindow {
             x: root.barLeft; y: root.barRectY; width: root.barW; height: root.barH; z: 10
             property int pillRadius: (Theme && Theme.isRounded) ? Math.round((height - 4) / 2) : 0
             property int pillHeight: height - 4
-            property color pillColor: "transparent"
+            property color pillColor: (Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Math.max(0.58, (Waybar ? Waybar.pillOpacity : 0.65) * 0.85)) : "transparent"
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             MouseArea { anchors.fill: leftBarRow; anchors.margins: -4; z: 1 }
@@ -704,10 +706,11 @@ ApplicationWindow {
                             }
 
                             // Контент: workspaces
-                            Item {
+                            Rectangle {
                                 id: wsModuleItem
                                 visible: modKey === "workspaces"
-                                anchors.fill: parent
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 property int hoveredWsIdx: -1
                                 property int lastHoverIdx: 0
                                 readonly property int activeWsIdx: {
@@ -796,17 +799,19 @@ ApplicationWindow {
                             }
 
                             // Контент: weather
-                            Item {
+                            Rectangle {
                                 visible: modKey === "weather"
-                                anchors.fill: parent
-                                Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
 
                             // Контент: media (без двойных стрелочек, клик по треку открывает вкладку Музыки 27)
-                            Item {
+                            Rectangle {
                                 visible: modKey === "media"
-                                anchors.fill: parent
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 clip: true
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
                                 Row {
@@ -1018,14 +1023,15 @@ ApplicationWindow {
                                 color: Qt.rgba(1, 1, 1, 0.32)
                             }
 
-                            Item {
+                            Rectangle {
                                 visible: modKey === "sysinfo"
-                                anchors.fill: parent
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 Row {
                                     id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 2
-                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                                    Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
                                 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
                             }
@@ -1040,10 +1046,10 @@ ApplicationWindow {
                                         width: 32; height: topBarContainer.pillHeight - 4
                                         anchors.verticalCenter: parent.verticalCenter
                                         radius: (Theme && Theme.isRounded) ? 5 : 0
-                                        color: "transparent"
-                                        border.color: "#ffffff"
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                        border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                         border.width: 1
-                                        Text { anchors.centerIn: parent; text: "VPN"; color: "#ffffff"; font.pixelSize: 9; font.bold: true }
+                                        Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 9; font.bold: true }
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent
@@ -1129,10 +1135,11 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar") }
                             }
 
-                            Item {
+                            Rectangle {
                                 visible: modKey === "power"
-                                anchors.fill: parent
-                                Text { anchors.centerIn: parent; text: "⏻"; color: "#ffffff"; font.pixelSize: 12 }
+                                width: parent.width + 4; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") }
                             }
 

@@ -34,7 +34,9 @@ ScrollView {
                 Layout.fillWidth: true
                 implicitHeight: posRow.implicitHeight + 16
                 RowLayout {
-                    id: posRow; anchors.fill: parent; anchors.margins: 10
+                    id: posRow
+                    anchors.fill: parent
+                    anchors.margins: 10
                     Text { text: "Расположение панели на экране:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                     Item { Layout.fillWidth: true }
                     SegmentedButton {
@@ -48,13 +50,29 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
-                implicitHeight: modeRow.implicitHeight + 16
+                implicitHeight: wsDotsRow.implicitHeight + 16
+                RowLayout {
+                    id: wsDotsRow
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    Text { text: "Отображение рабочих столов:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                    Item { Layout.fillWidth: true }
+                    SegmentedButton {
+                        options: ["Номера (1..5)", "Овальные точки"]
+                        selectedIndex: (Waybar && Waybar.workspaceDots) ? 1 : 0
+                        onSelected: (idx) => { if (Waybar) Waybar.workspaceDots = (idx === 1) }
+                    }
+                }
+            }
 
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
+                implicitHeight: modeRow.implicitHeight + 16
                 RowLayout {
                     id: modeRow
                     anchors.fill: parent
                     anchors.margins: 10
-
                     Text { text: "Режим компоновки панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                     Item { Layout.fillWidth: true }
                     SegmentedButton {
@@ -69,12 +87,10 @@ ScrollView {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
                 implicitHeight: titleAlignRow.implicitHeight + 16
-
                 RowLayout {
                     id: titleAlignRow
                     anchors.fill: parent
                     anchors.margins: 10
-
                     Text { text: "Центрирование заголовка окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                     Item { Layout.fillWidth: true }
                     SegmentedButton {
@@ -150,12 +166,10 @@ ScrollView {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
                 implicitHeight: uniRow.implicitHeight + 16
-
                 RowLayout {
                     id: uniRow
                     anchors.fill: parent
                     anchors.margins: 10
-
                     Text { text: "Отступы при расширении узкой панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                     Item { Layout.fillWidth: true }
                     SegmentedButton {
@@ -198,7 +212,6 @@ ScrollView {
                         Layout.fillWidth: true
                         spacing: 8
                         Text { text: "Вертикальные разделители между всеми блоками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-
                         StyledSwitch {
                             checked: Waybar ? Waybar.barSeparators : false
                             onToggled: if (Waybar) Waybar.barSeparators = checked

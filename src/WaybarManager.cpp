@@ -173,6 +173,7 @@ void WaybarManager::loadState() {
             else if (k == "bar_position") m_barPosition = std::clamp(v.toInt(), 0, 3);
             else if (k == "hidden_bar_modules") m_hiddenBarModules = v;
             else if (k == "centered_bar") m_centeredBar = (v == "1" || v == "true");
+            else if (k == "workspace_dots") m_workspaceDots = (v == "1" || v == "true");
             else if (k == "fixed_title_width") m_fixedTitleWidth = (v == "1" || v == "true");
             else if (k == "fixed_title_size") m_fixedTitleSize = std::clamp(v.toInt(), 60, 450);
             else if (k == "center_title_on_bar") m_centerTitleOnBar = (v == "1" || v == "true");
@@ -208,6 +209,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "bar_position=" << m_barPosition << "\n";
         out << "hidden_bar_modules=" << m_hiddenBarModules << "\n";
         out << "centered_bar=" << (m_centeredBar ? "1" : "0") << "\n";
+        out << "workspace_dots=" << (m_workspaceDots ? "1" : "0") << "\n";
         out << "fixed_title_width=" << (m_fixedTitleWidth ? "1" : "0") << "\n";
         out << "fixed_title_size=" << m_fixedTitleSize << "\n";
         out << "center_title_on_bar=" << (m_centerTitleOnBar ? "1" : "0") << "\n";
@@ -227,6 +229,7 @@ void WaybarManager::saveState(bool updatePosition) {
 
 void WaybarManager::setPosBottom(bool v) { if (m_posBottom != v) { m_posBottom = v; saveState(true); } }
 void WaybarManager::setCenteredBar(bool v) { if (m_centeredBar != v) { m_centeredBar = v; saveState(false); } }
+void WaybarManager::setWorkspaceDots(bool v) { if (m_workspaceDots != v) { m_workspaceDots = v; saveState(false); } }
 void WaybarManager::setFixedTitleWidth(bool v) { if (m_fixedTitleWidth != v) { m_fixedTitleWidth = v; saveState(false); } }
 void WaybarManager::setFixedTitleSize(int v) { v = std::clamp(v, 60, 450); if (m_fixedTitleSize != v) { m_fixedTitleSize = v; saveState(false); } }
 void WaybarManager::setCenterTitleOnBar(bool v) { if (m_centerTitleOnBar != v) { m_centerTitleOnBar = v; saveState(false); } }

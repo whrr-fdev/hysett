@@ -783,15 +783,16 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode && topBarContainer.launcherVis > 0.5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 
-                            // Контент: workspaces (колбаса с пробелами + плавное скольжение wsHoverPill и wsActivePill как в боковом меню!)
+                            // Контент: workspaces (колбаса с поддержкой цифр или овальных точек!)
                             Item {
                                 id: wsModuleItem
                                 visible: modKey === "workspaces"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                readonly property bool isDots: Waybar ? Waybar.workspaceDots : false
                                 property int hoveredWsIdx: -1
                                 property int lastHoverIdx: 0
-                                readonly property int wsGap: (Theme && Theme.isRounded) ? 3 : 2
-                                readonly property int wsBtnW: 25
+                                readonly property int wsGap: isDots ? 4 : ((Theme && Theme.isRounded) ? 3 : 2)
+                                readonly property int wsBtnW: isDots ? 18 : 25
                                 readonly property int wsStep: wsBtnW + wsGap
                                 readonly property real outerR: topBarContainer.pillRadius
                                 readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
@@ -805,7 +806,6 @@ ApplicationWindow {
 
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
 
-                                // 1. Фоновые ячейки колбасы с пробелами
                                 Row {
                                     id: wsRow; z: 1; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
@@ -821,15 +821,15 @@ ApplicationWindow {
                                             bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
                                             topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                             bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
-                                            color: topBarContainer.pillColor
+                                            color: wsModuleItem.isDots ? "transparent" : topBarContainer.pillColor
                                         }
                                     }
                                 }
 
-                                // 2. Плавно скользящая таблетка наведения (как в боковом меню)
                                 Rectangle {
                                     id: wsHoverPill
                                     z: 2
+                                    visible: !wsModuleItem.isDots
                                     width: wsModuleItem.wsBtnW
                                     height: topBarContainer.pillHeight
                                     anchors.verticalCenter: parent.verticalCenter
@@ -841,18 +841,15 @@ ApplicationWindow {
                                     bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                     color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.20)
                                     opacity: (wsModuleItem.hoveredWsIdx >= 0 && wsModuleItem.hoveredWsIdx !== wsModuleItem.activeWsIdx) ? 1.0 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutQuad } }
+                                    Behavior on opacity { NumberAnimation { duration: 140 } }
                                     x: wsRow.x + wsModuleItem.lastHoverIdx * wsModuleItem.wsStep
-                                    Behavior on x {
-                                        enabled: wsHoverPill.opacity > 0.05
-                                        NumberAnimation { duration: 210; easing.type: Easing.OutQuint }
-                                    }
+                                    Behavior on x { enabled: wsHoverPill.opacity > 0.05; NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
                                 }
 
-                                // 3. Плавно скользящая таблетка активного стола
                                 Rectangle {
                                     id: wsActivePill
                                     z: 3
+                                    visible: !wsModuleItem.isDots
                                     width: wsModuleItem.wsBtnW
                                     height: topBarContainer.pillHeight
                                     anchors.verticalCenter: parent.verticalCenter
@@ -863,16 +860,10 @@ ApplicationWindow {
                                     topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                     bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                     color: Config ? Config.m3Primary : "#ffffff"
-                                    Behavior on color { ColorAnimation { duration: 180 } }
                                     x: wsRow.x + wsModuleItem.activeWsIdx * wsModuleItem.wsStep
                                     Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
-                                    Behavior on topLeftRadius { NumberAnimation { duration: 180 } }
-                                    Behavior on bottomLeftRadius { NumberAnimation { duration: 180 } }
-                                    Behavior on topRightRadius { NumberAnimation { duration: 180 } }
-                                    Behavior on bottomRightRadius { NumberAnimation { duration: 180 } }
                                 }
 
-                                // 4. Цифры и клики поверх скользящих таблеток
                                 Row {
                                     z: 4; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
@@ -883,7 +874,10 @@ ApplicationWindow {
                                             property bool hov: wsMa.containsMouse
                                             width: wsModuleItem.wsBtnW
                                             height: topBarContainer.pillHeight
+
+                                            // Режим 1: Обычные цифры
                                             Text {
+                                                visible: !wsModuleItem.isDots
                                                 anchors.centerIn: parent
                                                 text: modelData.id
                                                 font.pixelSize: 11
@@ -893,21 +887,34 @@ ApplicationWindow {
                                                        : (parent.hov ? "#ffffff" : (parent.occ ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff") : "#7c8292"))
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }
+
+                                            // Режим 2: 5 растянутых овалов (точек)
+                                            Rectangle {
+                                                visible: wsModuleItem.isDots
+                                                anchors.centerIn: parent
+                                                width: parent.act ? 15 : (parent.hov ? 10 : (parent.occ ? 8 : 6))
+                                                height: parent.act ? 7 : 6
+                                                radius: height / 2
+                                                color: parent.act
+                                                       ? (Config ? Config.m3Primary : "#ffffff")
+                                                       : (parent.hov
+                                                          ? "#ffffff"
+                                                          : (parent.occ
+                                                             ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff")
+                                                             : Qt.rgba(1, 1, 1, 0.28)))
+                                                Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                            }
+
                                             MouseArea {
                                                 id: wsMa
                                                 enabled: !topBarContainer.editMode
                                                 anchors.fill: parent
-                                                anchors.topMargin: -4
-                                                anchors.bottomMargin: -4
+                                                anchors.margins: -4
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onEntered: {
-                                                    wsModuleItem.lastHoverIdx = index
-                                                    wsModuleItem.hoveredWsIdx = index
-                                                }
-                                                onExited: {
-                                                    if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1
-                                                }
+                                                onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
+                                                onExited: { if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1 }
                                                 onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                             }
                                         }
@@ -1070,7 +1077,7 @@ ApplicationWindow {
                 Rectangle {
                     visible: topBarContainer.editMode
                     anchors.fill: parent
-                    radius: 4
+                    radius: topBarContainer.pillRadius
                     color: centerDragMa.pressed ? Qt.rgba(0.4, 0.7, 1.0, 0.28) : Qt.rgba(1, 1, 1, 0.08)
                     border.color: Config ? Config.m3Primary : "#a8c7fa"
                     border.width: 1

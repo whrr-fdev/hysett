@@ -1201,7 +1201,7 @@ void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool not
             ls->setExclusiveZone(-1);
             ls->setKeyboardInteractivity(
                 drawerOpen
-                    ? LayerShellQt::Window::KeyboardInteractivityOnDemand
+                    ? LayerShellQt::Window::KeyboardInteractivityExclusive
                     : LayerShellQt::Window::KeyboardInteractivityNone
             );
         }

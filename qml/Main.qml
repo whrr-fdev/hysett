@@ -220,7 +220,7 @@ ApplicationWindow {
 
     function syncInputMask() {
         if (Waybar) {
-            Waybar.syncShellRegion(root, root.drawerActive, root.notifOpen || root.notifActive,
+            Waybar.syncShellRegion(root, root.drawerOpen || root.drawerActive, root.notifOpen || root.notifActive,
                                    Math.round(root.notifX), Math.round(root.notifY),
                                    Math.round(root.notifW), Math.round(root.notifTargetH + 12))
         }
@@ -431,17 +431,20 @@ ApplicationWindow {
         }
     }
     Shortcut {
-        sequence: "Up"
+        sequences: ["Up", "K"]
+        context: Qt.ApplicationShortcut
         enabled: root.drawerOpen && root.drawerMode === "power"
         onActivated: root.powerSelectedIndex = (root.powerSelectedIndex + 5) % 6
     }
     Shortcut {
-        sequence: "Down"
+        sequences: ["Down", "J"]
+        context: Qt.ApplicationShortcut
         enabled: root.drawerOpen && root.drawerMode === "power"
         onActivated: root.powerSelectedIndex = (root.powerSelectedIndex + 1) % 6
     }
     Shortcut {
-        sequence: "Return"
+        sequences: ["Return", "Enter", "Space"]
+        context: Qt.ApplicationShortcut
         enabled: root.drawerOpen && root.drawerMode === "power"
         onActivated: root.triggerPowerAction(root.powerSelectedIndex)
     }
@@ -834,7 +837,7 @@ ApplicationWindow {
                             visible: index > 0
                             width: parent.isMacroBoundary
                                    ? topBarContainer.macroStepGap
-                                   : (parent.isTightStatusIcon ? 2 : (Waybar ? Waybar.spacing : 4))
+                                   : (parent.isTightStatusIcon ? 3 : (Waybar ? Waybar.spacing : 4))
                             height: 1
                         }
 
@@ -853,9 +856,9 @@ ApplicationWindow {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "sysinfo") return sysRow.implicitWidth + 6
                                 if (modKey === "tray") return Math.max(16, trayRow.implicitWidth + 6)
-                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 11
-                                if (modKey === "volume") return volInnerRow.implicitWidth + 1
-                                if (modKey === "language") return 15
+                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 12
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 2
+                                if (modKey === "language") return 16
                                 if (modKey === "clock") return barClockText.implicitWidth + 4
                                 if (modKey === "power") return 13
                                 return 0
@@ -1171,31 +1174,96 @@ ApplicationWindow {
                     }
                 }
 
-                // 1. POWER MENU
+                // 1. POWER MENU (С ПЛАВНЫМ БЕГУНКОМ И СТРЕЛОЧКАМИ)
                 Item {
+                    id: powerMenuBox
                     anchors.fill: parent
                     visible: root.drawerMode === "power"
+                    focus: root.drawerOpen && root.drawerMode === "power"
+                    Keys.onUpPressed: (event) => { root.powerSelectedIndex = (root.powerSelectedIndex + 5) % 6; event.accepted = true }
+                    Keys.onDownPressed: (event) => { root.powerSelectedIndex = (root.powerSelectedIndex + 1) % 6; event.accepted = true }
+                    Keys.onReturnPressed: (event) => { root.triggerPowerAction(root.powerSelectedIndex); event.accepted = true }
+                    Keys.onEnterPressed: (event) => { root.triggerPowerAction(root.powerSelectedIndex); event.accepted = true }
+                    Keys.onEscapePressed: (event) => { root.requestCloseDrawer(); event.accepted = true }
+
+                    onVisibleChanged: {
+                        if (visible && root.drawerOpen) Qt.callLater(() => powerMenuBox.forceActiveFocus())
+                    }
+                    Connections {
+                        target: root
+                        function onDrawerOpenChanged() {
+                            if (root.drawerOpen && root.drawerMode === "power") {
+                                Qt.callLater(() => powerMenuBox.forceActiveFocus())
+                            }
+                        }
+                    }
+
                     ColumnLayout {
-                        anchors.fill: parent; anchors.margins: 16; spacing: 6
+                        anchors.fill: parent; anchors.margins: 16; spacing: 8
                         Text { text: "Power Menu"; color: "#ffffff"; font.pixelSize: 13; font.bold: true; Layout.alignment: Qt.AlignHCenter; Layout.bottomMargin: 2 }
-                        Repeater {
-                            model: [
-                                { label: "󰌾   Lock", idx: 0 },
-                                { label: "󰒲   Sleep", idx: 1 },
-                                { label: "󰤄   Hibernate", idx: 2 },
-                                { label: "󰍃   Logout", idx: 3 },
-                                { label: "󰜉   Reboot", idx: 4 },
-                                { label: "⏻   Shutdown", idx: 5 }
-                            ]
-                            delegate: Rectangle {
-                                Layout.fillWidth: true; Layout.fillHeight: true
-                                property bool isSel: root.powerSelectedIndex === modelData.idx || pmMouse.containsMouse
+
+                        Item {
+                            id: powerItemsArea
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            readonly property int itemCount: 6
+                            readonly property real gap: 6
+                            readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
+
+                            // Плавная скользящая плашка выбора/наведения (как на экране приветствия и в боковом меню)
+                            Rectangle {
+                                id: powerSlidePill
+                                x: 0
+                                y: root.powerSelectedIndex * (powerItemsArea.btnH + powerItemsArea.gap)
+                                width: powerItemsArea.width
+                                height: powerItemsArea.btnH
                                 radius: (Theme && Theme.isRounded) ? 10 : 0
-                                color: isSel ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
-                                border.color: isSel ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.18)
-                                border.width: 1
-                                Text { anchors.centerIn: parent; text: modelData.label; font.pixelSize: 12; font.bold: parent.isSel; color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff" }
-                                MouseArea { id: pmMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onEntered: root.powerSelectedIndex = modelData.idx; onClicked: root.triggerPowerAction(modelData.idx) }
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                Behavior on radius { NumberAnimation { duration: 150 } }
+                            }
+
+                            Repeater {
+                                id: powerRepeater
+                                model: [
+                                    { label: "󰌾   Lock", idx: 0 },
+                                    { label: "󰒲   Sleep", idx: 1 },
+                                    { label: "󰤄   Hibernate", idx: 2 },
+                                    { label: "󰍃   Logout", idx: 3 },
+                                    { label: "󰜉   Reboot", idx: 4 },
+                                    { label: "⏻   Shutdown", idx: 5 }
+                                ]
+                                delegate: Rectangle {
+                                    x: 0
+                                    y: index * (powerItemsArea.btnH + powerItemsArea.gap)
+                                    width: powerItemsArea.width
+                                    height: powerItemsArea.btnH
+                                    property bool isSel: root.powerSelectedIndex === modelData.idx
+                                    radius: (Theme && Theme.isRounded) ? 10 : 0
+                                    color: "transparent"
+                                    border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: 1
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        font.pixelSize: 12
+                                        font.bold: parent.isSel
+                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                    }
+
+                                    MouseArea {
+                                        id: pmMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: root.powerSelectedIndex = modelData.idx
+                                        onPositionChanged: root.powerSelectedIndex = modelData.idx
+                                        onClicked: root.triggerPowerAction(modelData.idx)
+                                    }
+                                }
                             }
                         }
                     }

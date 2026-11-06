@@ -99,35 +99,33 @@ Rectangle {
         anchors.margins: 4
         spacing: 2
 
-        Item {
+        Button {
             id: archHeaderItem
             Layout.fillWidth: true
             Layout.preferredHeight: 24
             Layout.minimumHeight: 24
             implicitHeight: 24
-
-            Row {
-                anchors.centerIn: parent
-                spacing: 6
-                Image { width: 14; height: 14; sourceSize: Qt.size(28, 28); smooth: true; opacity: archMouse.containsMouse ? 1.0 : 0.85; anchors.verticalCenter: parent.verticalCenter; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
-                Text { text: "HYPRLAND"; color: archMouse.containsMouse ? "#ffffff" : "#aaaaaa"; font.pixelSize: 10; font.bold: false; font.letterSpacing: 1.2; anchors.verticalCenter: parent.verticalCenter }
-            }
-
-            MouseArea {
-                id: archMouse
+            flat: true
+            background: Item {}
+            contentItem: Item {
                 anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onContainsMouseChanged: {
-                    if (containsMouse) {
-                        bar.lastHoveredBtnObj = archHeaderItem
-                        bar.hoveredBtnObj = archHeaderItem
-                    } else if (bar.hoveredBtnObj === archHeaderItem) {
-                        bar.hoveredBtnObj = null
-                    }
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Image { width: 14; height: 14; sourceSize: Qt.size(28, 28); smooth: true; opacity: archHeaderItem.hovered ? 1.0 : 0.85; anchors.verticalCenter: parent.verticalCenter; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
+                    Text { text: "HYPRLAND"; color: archHeaderItem.hovered ? "#ffffff" : "#aaaaaa"; font.pixelSize: 10; font.bold: false; font.letterSpacing: 1.2; anchors.verticalCenter: parent.verticalCenter }
                 }
-                onClicked: bar.returnToWelcome()
             }
+            HoverHandler { cursorShape: Qt.PointingHandCursor }
+            onHoveredChanged: {
+                if (hovered) {
+                    bar.lastHoveredBtnObj = archHeaderItem
+                    bar.hoveredBtnObj = archHeaderItem
+                } else if (bar.hoveredBtnObj === archHeaderItem) {
+                    bar.hoveredBtnObj = null
+                }
+            }
+            onClicked: bar.returnToWelcome()
         }
 
         Rectangle {

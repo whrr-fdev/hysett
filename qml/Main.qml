@@ -912,7 +912,7 @@ ApplicationWindow {
                                         model: (modKey === "tray" && Waybar) ? Waybar.trayApps : []
                                         delegate: Item {
                                             id: trayItemDel; width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
-                                            Image { anchors.fill: parent; source: "image://appicon/" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
+                                            Image { anchors.fill: parent; source: "image://appicon/mono:" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
                                             MouseArea {
                                                 enabled: !topBarContainer.editMode
                                                 anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor

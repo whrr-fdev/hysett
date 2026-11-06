@@ -624,13 +624,13 @@ ApplicationWindow {
             x: root.barLeft; y: root.barRectY; width: root.barW; height: root.actualBarH; z: 10
             readonly property int vPad: (Theme && Theme.isRounded) ? 8 : 4
             property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
-            property int pillRadius: (Theme && Theme.isRounded) ? Math.round(pillHeight / 2) : 0
+            property int pillRadius: (Theme && Theme.isRounded) ? Math.max(5, Math.round(pillHeight * 0.32)) : 0
             property color pillColor: (Theme && Theme.isRounded && Config)
                                       ? Qt.rgba(
-                                            Math.min(1.0, Config.m3SurfaceContainerHigh.r * 0.72 + Config.m3Primary.r * 0.28 + 0.06),
-                                            Math.min(1.0, Config.m3SurfaceContainerHigh.g * 0.72 + Config.m3Primary.g * 0.28 + 0.06),
-                                            Math.min(1.0, Config.m3SurfaceContainerHigh.b * 0.72 + Config.m3Primary.b * 0.28 + 0.06),
-                                            Math.max(0.86, Waybar ? Waybar.pillOpacity : 0.86)
+                                            Math.min(1.0, Config.m3SurfaceContainerHigh.r * 0.88 + Config.m3Primary.r * 0.12 + 0.015),
+                                            Math.min(1.0, Config.m3SurfaceContainerHigh.g * 0.88 + Config.m3Primary.g * 0.12 + 0.015),
+                                            Math.min(1.0, Config.m3SurfaceContainerHigh.b * 0.88 + Config.m3Primary.b * 0.12 + 0.015),
+                                            Math.max(0.75, (Waybar ? Waybar.pillOpacity : 0.75) * 0.90)
                                         )
                                       : "transparent"
             readonly property string trayTintHex: (Theme && Theme.isRounded && Config)
@@ -786,7 +786,7 @@ ApplicationWindow {
                                 readonly property int wsGap: (Theme && Theme.isRounded) ? 3 : 2
                                 readonly property int wsBtnW: 25
                                 readonly property int wsStep: wsBtnW + wsGap
-                                readonly property real outerR: (Theme && Theme.isRounded) ? height / 2 : 0
+                                readonly property real outerR: topBarContainer.pillRadius
                                 readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
                                 readonly property int activeWsIdx: {
                                     var list = (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
@@ -1380,7 +1380,7 @@ ApplicationWindow {
                         readonly property int btnH: 24
                         readonly property int gap: (Theme && Theme.isRounded) ? 3 : 2
                         readonly property int step: btnH + gap
-                        readonly property real outerR: (Theme && Theme.isRounded) ? width / 2 : 0
+                        readonly property real outerR: topBarContainer.pillRadius
                         readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
                         readonly property int activeIdx: {
                             var list = Waybar ? Waybar.workspaces : []

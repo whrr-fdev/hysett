@@ -229,10 +229,7 @@ RowLayout {
                                     text: "Цвета с текущих обоев:"
                                     color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true
                                 }
-                                StyledButton {
-                                    text: "󰸉 Обновить с обоев"
-                                    onClicked: if (Config) { Config.m3DynamicWallpaperColors = true; Config.extractPaletteFromWallpaper() }
-                                }
+
                                 StyledSwitch {
                                     checked: Config ? Config.m3DynamicWallpaperColors : true
                                     onToggled: if (Config) Config.m3DynamicWallpaperColors = checked

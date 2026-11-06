@@ -45,20 +45,6 @@ static QImage toMonochrome(const QImage &src, const QColor &tint) {
     const int tg = tint.isValid() ? tint.green() : 255;
     const int tb = tint.isValid() ? tint.blue() : 255;
 
-    int minLum = 255;
-    int maxLum = 0;
-    for (int y = 0; y < h; ++y) {
-        const QRgb *line = reinterpret_cast<const QRgb *>(img.constScanLine(y));
-        for (int x = 0; x < w; ++x) {
-            int a = qAlpha(line[x]);
-            if (a < 35) continue;
-            int lum = qGray(qRed(line[x]), qGreen(line[x]), qBlue(line[x]));
-            if (lum < minLum) minLum = lum;
-            if (lum > maxLum) maxLum = lum;
-        }
-    }
-    const int span = maxLum - minLum;
-
     for (int y = 0; y < h; ++y) {
         QRgb *line = reinterpret_cast<QRgb *>(img.scanLine(y));
         for (int x = 0; x < w; ++x) {
@@ -66,14 +52,19 @@ static QImage toMonochrome(const QImage &src, const QColor &tint) {
             int a = qAlpha(px);
             if (a == 0) continue;
             int lum = qGray(qRed(px), qGreen(px), qBlue(px));
-            float norm = 1.0f;
-            if (span >= 32) {
-                float t = float(lum - minLum) / float(span);
-                norm = (t > 0.25f) ? std::clamp(0.84f + 0.16f * t, 0.0f, 1.0f) : (t * 0.28f);
+            int r, g, b;
+            if (lum > 185) {
+                // Внутренний светлый символ (например, самолётик внутри кружка AyuGram) — делаем темным для четкого контраста
+                r = std::clamp(int(tr * 0.16), 0, 255);
+                g = std::clamp(int(tg * 0.16), 0, 255);
+                b = std::clamp(int(tb * 0.16), 0, 255);
+            } else {
+                // Основной фон/кружок иконки — ярко окрашиваем в цвет темы!
+                float boost = 0.82f + 0.18f * (float(lum) / 185.0f);
+                r = std::clamp(int(std::round(tr * boost)), 0, 255);
+                g = std::clamp(int(std::round(tg * boost)), 0, 255);
+                b = std::clamp(int(std::round(tb * boost)), 0, 255);
             }
-            int r = std::clamp(int(std::round(norm * tr)), 0, 255);
-            int g = std::clamp(int(std::round(norm * tg)), 0, 255);
-            int b = std::clamp(int(std::round(norm * tb)), 0, 255);
             line[x] = qRgba(r, g, b, a);
         }
     }

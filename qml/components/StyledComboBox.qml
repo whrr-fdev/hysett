@@ -35,10 +35,10 @@ ComboBox {
 
         Rectangle {
             anchors.fill: parent
-            radius: parent.radius
+            radius: (parent.radius) || 0
             color: "transparent"
             border.color: control.popup.visible ? "#ffffff" : (control.hovered ? Qt.rgba(1, 1, 1, 0.42) : Qt.rgba(1, 1, 1, 0.16))
-            border.width: 1
+            border.width: (1) || 0
             Behavior on border.color { ColorAnimation { duration: 130 } }
         }
     }

@@ -8,6 +8,69 @@ Item {
     id: sysMonRoot
     property int pendingKillPid: -1
     property string pendingKillName: ""
+    property real graphPhase: 1.0
+
+    NumberAnimation {
+        id: smoothPhaseAnim
+        target: sysMonRoot
+        property: "graphPhase"
+        from: 0.0
+        to: 1.0
+        duration: 450
+        easing.type: Easing.Linear
+    }
+
+    onGraphPhaseChanged: {
+        if (!sysMonRoot.visible) return
+        cpuGraph.requestPaint()
+        memGraph.requestPaint()
+        vramGraph.requestPaint()
+        netGraph.requestPaint()
+    }
+
+    function drawSmoothGraph(ctx, w, h, hist, phase, strokeCol, fillTopCol, fillBotCol) {
+        ctx.clearRect(0, 0, w, h)
+        if (!hist || hist.length < 3) return
+        var n = hist.length
+        var visibleCount = n - 2
+        var step = w / Math.max(1, visibleCount - 1)
+        var topPad = 24
+        var usableH = Math.max(10, h - topPad - 2)
+
+        var pts = []
+        for (var i = 0; i < n - 1; ++i) {
+            var val = hist[i] + (hist[i + 1] - hist[i]) * phase
+            var px = i * step
+            var py = h - 2 - (Math.max(0, Math.min(100, val)) / 100.0) * usableH
+            pts.push({ x: px, y: py })
+        }
+        if (pts.length < 2) return
+
+        ctx.beginPath()
+        ctx.moveTo(pts[0].x, pts[0].y)
+        for (var j = 1; j < pts.length - 1; ++j) {
+            var midX = (pts[j].x + pts[j + 1].x) * 0.5
+            var midY = (pts[j].y + pts[j + 1].y) * 0.5
+            ctx.quadraticCurveTo(pts[j].x, pts[j].y, midX, midY)
+        }
+        var lastPt = pts[pts.length - 1]
+        ctx.lineTo(lastPt.x, lastPt.y)
+
+        ctx.strokeStyle = strokeCol
+        ctx.lineWidth = 2.0
+        ctx.lineJoin = "round"
+        ctx.lineCap = "round"
+        ctx.stroke()
+
+        ctx.lineTo(lastPt.x, h)
+        ctx.lineTo(pts[0].x, h)
+        ctx.closePath()
+        var grad = ctx.createLinearGradient(0, topPad, 0, h)
+        grad.addColorStop(0.0, fillTopCol)
+        grad.addColorStop(1.0, fillBotCol)
+        ctx.fillStyle = grad
+        ctx.fill()
+    }
 
     function askKillProcess(pid, name) {
         pendingKillPid = pid
@@ -23,6 +86,12 @@ Item {
 
     onVisibleChanged: {
         if (!visible && pendingKillPid !== -1) closeKillModal()
+        if (visible) {
+            cpuGraph.requestPaint()
+            memGraph.requestPaint()
+            vramGraph.requestPaint()
+            netGraph.requestPaint()
+        }
     }
 
     Timer {
@@ -37,10 +106,7 @@ Item {
         target: Waybar
         function onSysStatsChanged() {
             if (!sysMonRoot.visible) return
-            cpuGraph.requestPaint()
-            memGraph.requestPaint()
-            vramGraph.requestPaint()
-            netGraph.requestPaint()
+            smoothPhaseAnim.restart()
         }
     }
 
@@ -78,18 +144,7 @@ Item {
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
                 Canvas {
                     id: cpuGraph; anchors.fill: parent; anchors.margins: 6
-                    onPaint: {
-                        var ctx = getContext("2d"); ctx.clearRect(0, 0, width, height)
-                        var h = Waybar ? Waybar.cpuHistory : []; if (h.length < 2) return
-                        ctx.beginPath(); var step = width / (h.length - 1)
-                        for (var i = 0; i < h.length; ++i) {
-                            var x = i * step, y = height - (h[i] / 100.0) * (height - 22)
-                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-                        }
-                        ctx.strokeStyle = "#a8c7fa"; ctx.lineWidth = 2; ctx.stroke()
-                        ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath()
-                        ctx.fillStyle = "rgba(168, 199, 250, 0.16)"; ctx.fill()
-                    }
+                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.cpuHistory : [], sysMonRoot.graphPhase, "#a8c7fa", "rgba(168, 199, 250, 0.28)", "rgba(168, 199, 250, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
@@ -104,18 +159,7 @@ Item {
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
                 Canvas {
                     id: memGraph; anchors.fill: parent; anchors.margins: 6
-                    onPaint: {
-                        var ctx = getContext("2d"); ctx.clearRect(0, 0, width, height)
-                        var h = Waybar ? Waybar.memHistory : []; if (h.length < 2) return
-                        ctx.beginPath(); var step = width / (h.length - 1)
-                        for (var i = 0; i < h.length; ++i) {
-                            var x = i * step, y = height - (h[i] / 100.0) * (height - 22)
-                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-                        }
-                        ctx.strokeStyle = "#80d8ff"; ctx.lineWidth = 2; ctx.stroke()
-                        ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath()
-                        ctx.fillStyle = "rgba(128, 216, 255, 0.16)"; ctx.fill()
-                    }
+                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.memHistory : [], sysMonRoot.graphPhase, "#80d8ff", "rgba(128, 216, 255, 0.28)", "rgba(128, 216, 255, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
@@ -130,18 +174,7 @@ Item {
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
                 Canvas {
                     id: vramGraph; anchors.fill: parent; anchors.margins: 6
-                    onPaint: {
-                        var ctx = getContext("2d"); ctx.clearRect(0, 0, width, height)
-                        var h = Waybar ? Waybar.vramHistory : []; if (h.length < 2) return
-                        ctx.beginPath(); var step = width / (h.length - 1)
-                        for (var i = 0; i < h.length; ++i) {
-                            var x = i * step, y = height - (h[i] / 100.0) * (height - 22)
-                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-                        }
-                        ctx.strokeStyle = "#b388ff"; ctx.lineWidth = 2; ctx.stroke()
-                        ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath()
-                        ctx.fillStyle = "rgba(179, 136, 255, 0.16)"; ctx.fill()
-                    }
+                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.vramHistory : [], sysMonRoot.graphPhase, "#b388ff", "rgba(179, 136, 255, 0.28)", "rgba(179, 136, 255, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
@@ -156,18 +189,7 @@ Item {
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
                 Canvas {
                     id: netGraph; anchors.fill: parent; anchors.margins: 6
-                    onPaint: {
-                        var ctx = getContext("2d"); ctx.clearRect(0, 0, width, height)
-                        var h = Waybar ? Waybar.netHistory : []; if (h.length < 2) return
-                        ctx.beginPath(); var step = width / (h.length - 1)
-                        for (var i = 0; i < h.length; ++i) {
-                            var x = i * step, y = height - (h[i] / 100.0) * (height - 22)
-                            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
-                        }
-                        ctx.strokeStyle = "#69f0ae"; ctx.lineWidth = 2; ctx.stroke()
-                        ctx.lineTo(width, height); ctx.lineTo(0, height); ctx.closePath()
-                        ctx.fillStyle = "rgba(105, 240, 174, 0.16)"; ctx.fill()
-                    }
+                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.netHistory : [], sysMonRoot.graphPhase, "#69f0ae", "rgba(105, 240, 174, 0.28)", "rgba(105, 240, 174, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8

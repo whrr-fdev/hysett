@@ -126,3 +126,8 @@
 - В Power Menu добавлена плавно скользящая плашка выделения (`powerSlidePill` с `Easing.OutQuint`), реагирующая и на наведение мыши, и на клавиши `Up`/`Down`.
 - В `WaybarManager::syncShellRegion` при открытии шторки включен `KeyboardInteractivityExclusive` и передача `root.drawerOpen || root.drawerActive`, чтобы сразу после открытия Power Menu (по кнопке `⏻` или `SUPER + M`) работало перемещение стрелочками `Up`/`Down` и выбор по `Enter` без предварительного клика мышью.
 - Слегка увеличены отступы между иконками Блютуза, Сети, Буфера обмена, Звука и Языка (зазор `2px -> 3px`, ширина слотов `11px -> 12px`).
+
+## Выполнено в Шаге 12 (Плавный бегунок во вкладке Питание и 60 FPS графики в Мониторе)
+- Во вкладку «⏻ Питание» (`qml/views/PowerView.qml`) добавлена плавно скользящая плашка наведения/выбора (`powerViewSlidePill` с `Easing.OutQuint`) и управление стрелками `Up`/`Down` и `Enter`.
+- Во вкладке « Монитор» (`qml/views/SysMonView.qml`) графики CPU, ОЗУ (RAM), Видеопамяти (VRAM) и Сети переведены на непрерывную 60 FPS анимацию (`graphPhase` + сглаживание кривыми Безье `quadraticCurveTo` и вертикальный градиент).
+- Устранены предупреждения `StyledComboBox.qml:38` и `cliphist-thumbs` в `WaybarManager.cpp`.

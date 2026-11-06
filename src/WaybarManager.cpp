@@ -1140,7 +1140,10 @@ void WaybarManager::refreshClipboard() {
             QString thumbPath, label = content;
             if (isImg) {
                 thumbPath = "/tmp/cliphist-thumbs/" + id + ".png";
-                if (!QFile::exists(thumbPath)) QProcess::startDetached("sh", {"-c", QString("cliphist decode %1 > %2").arg(id, thumbPath)});
+                if (!QFile::exists(thumbPath) || QFileInfo(thumbPath).size() == 0) {
+                    QProcess::execute("sh", {"-c", QString("cliphist decode %1 > %2 2>/dev/null").arg(id, thumbPath)});
+                }
+                if (QFileInfo(thumbPath).size() == 0) { isImg = false; thumbPath.clear(); }
                 label = QString("🖼  Скриншот #%1").arg(id);
             } else {
                 label.replace('\n', ' ');

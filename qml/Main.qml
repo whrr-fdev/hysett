@@ -536,6 +536,8 @@ ApplicationWindow {
             property color pillColor: "transparent"
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
+            MouseArea { anchors.fill: leftBarRow; anchors.margins: -4; z: 1 }
+            MouseArea { anchors.fill: rightBarRow; anchors.margins: -4; z: 1 }
 
             readonly property bool editMode: Waybar ? Waybar.barEditMode : false
             readonly property real launcherVis: editMode ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - root.drawerProgress))
@@ -592,7 +594,7 @@ ApplicationWindow {
 
                         Item {
                             id: leftModBody
-                            height: topBarContainer.pillHeight
+                            height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
                             clip: modKey === "media"
                             opacity: modKey === "launcher" ? (topBarContainer.launcherVis * topBarContainer.launcherVis) : 1.0
@@ -648,7 +650,7 @@ ApplicationWindow {
                                             radius: (Theme && Theme.isRounded) ? height / 2 : 0
                                             color: act ? (Config ? Config.m3Primary : "#ffffff") : (occ ? Qt.rgba(1,1,1,0.10) : "transparent")
                                             Text { anchors.centerIn: parent; text: modelData.id; font.pixelSize: 10; font.bold: parent.act; color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.occ ? "#ffffff" : "#767b8a") }
-                                            MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id) }
+                                            MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.topMargin: -4; anchors.bottomMargin: -4; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id) }
                                         }
                                     }
                                 }
@@ -659,7 +661,7 @@ ApplicationWindow {
                                 visible: modKey === "weather"
                                 anchors.fill: parent
                                 Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
 
                             // Контент: media (без двойных стрелочек, клик по треку открывает вкладку Музыки 27)
@@ -677,19 +679,19 @@ ApplicationWindow {
                                     Item {
                                         width: 12; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                                        MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
+                                        MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
                                     }
 
                                     Item {
                                         width: 12; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                                        MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
+                                        MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
                                     }
 
                                     Item {
                                         width: 12; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                                        MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
+                                        MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
                                     }
 
                                     Item {
@@ -708,6 +710,7 @@ ApplicationWindow {
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            anchors.margins: -4
                                             onClicked: root.openDrawerWithMode("settings", 27)
                                         }
                                     }
@@ -850,7 +853,7 @@ ApplicationWindow {
 
                         Item {
                             id: rightModBody
-                            height: topBarContainer.pillHeight
+                            height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
@@ -880,7 +883,7 @@ ApplicationWindow {
                                     Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
                                     Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
                                 }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
                             }
 
                             Item {
@@ -908,11 +911,12 @@ ApplicationWindow {
                                     Repeater {
                                         model: (modKey === "tray" && Waybar) ? Waybar.trayApps : []
                                         delegate: Item {
-                                            id: trayItemDel; width: 15; height: 15; anchors.verticalCenter: parent.verticalCenter
-                                            Image { anchors.fill: parent; source: "image://appicon/mono:" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
+                                            id: trayItemDel; width: 15; height: topBarContainer.height; anchors.verticalCenter: parent.verticalCenter
+                                            readonly property bool isAyuIcon: String(modelData.icon || "").toLowerCase().indexOf("ayugram") !== -1 || String(modelData.class || "").toLowerCase().indexOf("ayugram") !== -1
+                                            Image { anchors.centerIn: parent; width: trayItemDel.isAyuIcon ? 12 : 15; height: trayItemDel.isAyuIcon ? 12 : 15; source: "image://appicon/mono:" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
                                             MouseArea {
                                                 enabled: !topBarContainer.editMode
-                                                anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
+                                                anchors.fill: parent; anchors.margins: -3; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
                                                 onClicked: (mouse) => {
                                                     if (mouse.button === Qt.RightButton) {
                                                         var gp = trayItemDel.mapToItem(sceneRoot, trayItemDel.width * 0.5, 0)

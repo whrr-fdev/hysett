@@ -6,8 +6,29 @@
 #include <QDBusMessage>
 #include <QDBusArgument>
 #include <QtEndian>
+#include <algorithm>
+#include <cmath>
 
 IconImageProvider::IconImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
+
+static QImage toMonochrome(const QImage &src) {
+    if (src.isNull()) return src;
+    QImage img = src.convertToFormat(QImage::Format_ARGB32);
+    const int w = img.width();
+    const int h = img.height();
+    for (int y = 0; y < h; ++y) {
+        QRgb *line = reinterpret_cast<QRgb *>(img.scanLine(y));
+        for (int x = 0; x < w; ++x) {
+            QRgb px = line[x];
+            int a = qAlpha(px);
+            if (a == 0) continue;
+            int lum = qGray(qRed(px), qGreen(px), qBlue(px));
+            int bw = (lum > 45) ? std::clamp(int(lum * 0.88 + 30), 0, 255) : lum;
+            line[x] = qRgba(bw, bw, bw, a);
+        }
+    }
+    return img;
+}
 
 static QImage fetchSniPixmap(const QString &serviceAndPath) {
     QString rest = serviceAndPath.mid(4);
@@ -50,20 +71,49 @@ static QImage fetchSniPixmap(const QString &serviceAndPath) {
     return bestImg;
 }
 
+static QString resolveIconFilePath(const QString &nameOrPath) {
+    if (nameOrPath.startsWith('/') && QFile::exists(nameOrPath)) return nameOrPath;
+    const QStringList dirs = {
+        "/usr/share/icons/hicolor/64x64/apps/",
+        "/usr/share/icons/hicolor/128x128/apps/",
+        "/usr/share/icons/hicolor/48x48/apps/",
+        "/usr/share/icons/hicolor/32x32/apps/",
+        "/usr/share/pixmaps/"
+    };
+    for (const QString &d : dirs) {
+        if (QFile::exists(d + nameOrPath + ".png")) return d + nameOrPath + ".png";
+        if (QFile::exists(d + nameOrPath + ".svg")) return d + nameOrPath + ".svg";
+    }
+    return nameOrPath;
+}
+
 QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize) {
     int s = requestedSize.isValid() ? qMax(requestedSize.width(), requestedSize.height()) : 32;
     QString decoded = QUrl::fromPercentEncoding(id.toUtf8());
+    bool mono = false;
+    if (decoded.startsWith("mono:")) {
+        mono = true;
+        decoded = decoded.mid(5);
+    }
     QString cleanId = decoded.section('?', 0, 0);
 
     if (cleanId.startsWith("sni:")) {
+        QString fallbackPart = cleanId.section('|', 2, 2);
         QImage sniImg = fetchSniPixmap(cleanId);
         if (!sniImg.isNull()) {
             QImage scaled = sniImg.scaled(s, s, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            if (mono) scaled = toMonochrome(scaled);
             if (size) *size = scaled.size();
             return scaled;
         }
-        cleanId = cleanId.contains("ayugram", Qt::CaseInsensitive) ? "com.ayugram.desktop" : "/home/whrr/.local/share/Throne/throne.png";
+        if (!fallbackPart.isEmpty()) {
+            cleanId = fallbackPart;
+        } else {
+            cleanId = cleanId.contains("ayugram", Qt::CaseInsensitive) ? "com.ayugram.desktop" : "/home/whrr/.local/share/Throne/throne.png";
+        }
     }
+
+    cleanId = resolveIconFilePath(cleanId);
 
     QPixmap pm;
     if (cleanId.startsWith('/') && QFile::exists(cleanId)) {
@@ -78,6 +128,8 @@ QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSi
         pm = QPixmap(s, s);
         pm.fill(Qt::transparent);
     }
-    if (size) *size = pm.size();
-    return pm.toImage();
+    QImage out = pm.toImage();
+    if (mono) out = toMonochrome(out);
+    if (size) *size = out.size();
+    return out;
 }

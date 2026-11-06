@@ -900,12 +900,9 @@ ApplicationWindow {
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent
-                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            acceptedButtons: Qt.LeftButton
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: (mouse) => {
-                                                if (mouse.button === Qt.RightButton && Waybar) Waybar.toggleVpn()
-                                                else root.openDrawerWithMode("settings", 26)
-                                            }
+                                            onClicked: root.openDrawerWithMode("settings", 26)
                                         }
                                     }
                                     Repeater {

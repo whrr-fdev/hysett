@@ -511,14 +511,14 @@ void WaybarManager::pollSysStats() {
         tm["class"] = cls;
         tm["sniService"] = sniSrv;
         if (!sniSrv.isEmpty()) {
-            tm["icon"] = QString("sni:%1|/StatusNotifierItem?t=%2").arg(sniSrv).arg(m_trayTick);
+            tm["icon"] = QString("sni:%1|/StatusNotifierItem|%2?t=%3").arg(sniSrv, fallbackIcon).arg(m_trayTick);
         } else {
             tm["icon"] = fallbackIcon;
         }
         nextTray.append(tm);
     };
     addTrayApp("Throne", "Throne", QFile::exists("/home/whrr/.local/share/Throne/throne.png") ? "/home/whrr/.local/share/Throne/throne.png" : "Throne");
-    addTrayApp("AyuGram", "com.ayugram.desktop", "com.ayugram.desktop");
+    addTrayApp("AyuGram", "com.ayugram.desktop", QFile::exists("/usr/share/icons/hicolor/64x64/apps/com.ayugram.desktop.png") ? "/usr/share/icons/hicolor/64x64/apps/com.ayugram.desktop.png" : "com.ayugram.desktop");
     addTrayApp("Telegram", "org.telegram.desktop", "org.telegram.desktop");
     addTrayApp("Discord", "discord", "discord");
     addTrayApp("steam", "steam", "steam");
@@ -1085,13 +1085,22 @@ void WaybarManager::activateTrayApp(const QString &cls, const QString &sniServic
     for (const auto &v : clientsDoc.array()) {
         QJsonObject co = v.toObject();
         if (co["class"].toString().compare(cls, Qt::CaseInsensitive) == 0 && co["mapped"].toBool()) {
-            QString addr = co["address"].toString();
-            int winWs = co["workspace"].toObject()["id"].toInt();
-            if (winWs == 10 || winWs != m_activeWorkspace) {
-                queryHyprCtlSocket(QString("/dispatch movetoworkspacesilent %1,address:%2").arg(m_activeWorkspace).arg(addr));
-            }
-            queryHyprCtlSocket(QString("/dispatch focuswindow address:%1").arg(addr));
-            queryHyprCtlSocket(QString("/dispatch centerwindow"));
+            QString luaCmd = QString(
+                "local ws = hl.get_active_workspace(); "
+                "if ws then "
+                "  for _,w in pairs(hl.get_windows()) do "
+                "    if string.lower(w.class) == string.lower('%1') then "
+                "      if w.workspace.id ~= ws.id then "
+                "        hl.dispatch(hl.dsp.window.move({ workspace = ws.id, window = w, follow = false })) "
+                "      end "
+                "      hl.dispatch(hl.dsp.focus({ window = w })) "
+                "      hl.dispatch(hl.dsp.window.center()) "
+                "      return "
+                "    end "
+                "  end "
+                "end"
+            ).arg(cls);
+            QProcess::startDetached("hyprctl", {"eval", luaCmd});
             return;
         }
     }

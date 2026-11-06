@@ -88,19 +88,60 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
-                implicitHeight: titleModeRow.implicitHeight + 16
+                implicitHeight: titleModeCol.implicitHeight + 20
+                Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
 
-                RowLayout {
-                    id: titleModeRow
+                ColumnLayout {
+                    id: titleModeCol
                     anchors.fill: parent
                     anchors.margins: 10
+                    spacing: 10
 
-                    Text { text: "Размер заголовка активного окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
-                    Item { Layout.fillWidth: true }
-                    SegmentedButton {
-                        options: ["По размеру (≤ 220px)", "Фиксированный (200px)"]
-                        selectedIndex: (Waybar && Waybar.fixedTitleWidth) ? 1 : 0
-                        onSelected: (idx) => { if (Waybar) Waybar.fixedTitleWidth = (idx === 1) }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: "Размер заголовка активного окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        Item { Layout.fillWidth: true }
+                        SegmentedButton {
+                            options: ["По размеру", "Фиксированный"]
+                            selectedIndex: (Waybar && Waybar.fixedTitleWidth) ? 1 : 0
+                            onSelected: (idx) => { if (Waybar) Waybar.fixedTitleWidth = (idx === 1) }
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Waybar ? Waybar.fixedTitleWidth : false
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: "Фиксированная ширина заголовка:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 220
+                        }
+                        StyledSlider {
+                            id: fixedTitleSlider
+                            Layout.fillWidth: true
+                            from: 60; to: 400; stepSize: 5
+                            Binding on value {
+                                when: !fixedTitleSlider.pressed
+                                value: Waybar ? Waybar.fixedTitleSize : 100
+                            }
+                            onMoved: if (Waybar) Waybar.fixedTitleSize = Math.round(value)
+                        }
+                        Text {
+                            readonly property int curW: fixedTitleSlider.pressed ? Math.round(fixedTitleSlider.value) : (Waybar ? Waybar.fixedTitleSize : 100)
+                            text: curW + "px"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 46
+                            horizontalAlignment: Text.AlignRight
+                        }
+                        StyledButton {
+                            text: "↺"
+                            implicitWidth: 22
+                            onClicked: if (Waybar) Waybar.fixedTitleSize = 100
+                        }
                     }
                 }
             }

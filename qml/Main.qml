@@ -199,7 +199,7 @@ ApplicationWindow {
     readonly property bool isFixedTitle: Waybar ? Waybar.fixedTitleWidth : false
     readonly property bool winInSideOrder: Waybar ? (Waybar.leftBarOrder.indexOf("window") !== -1 || Waybar.rightBarOrder.indexOf("window") !== -1) : false
     readonly property bool hasWinTitle: winModVis && Waybar && (Waybar.activeWindowTitle.length > 0 || Waybar.barEditMode)
-    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 210 : (hasWinTitle ? Math.min(240, winLbl.implicitWidth + 24) : 0))
+    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? (Waybar ? Waybar.fixedTitleSize : 100) : (hasWinTitle ? Math.min(240, winLbl.implicitWidth + 24) : 0))
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }

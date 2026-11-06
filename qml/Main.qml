@@ -707,7 +707,7 @@ ApplicationWindow {
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 14) * topBarContainer.launcherVis
-                                if (modKey === "workspaces") return wsRow.implicitWidth + 16
+                                if (modKey === "workspaces") return wsRow.implicitWidth + 4
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 24
                                 return 0
@@ -744,74 +744,51 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode && topBarContainer.launcherVis > 0.5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 
-                            // Контент: workspaces
-                            Rectangle {
+                            // Контент: workspaces (колбаса кнопок с пробелами и малым внутренним скруглением)
+                            Item {
                                 id: wsModuleItem
                                 visible: modKey === "workspaces"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
-                                property int hoveredWsIdx: -1
-                                property int lastHoverIdx: 0
-                                readonly property int activeWsIdx: {
-                                    var list = (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
-                                    for (var i = 0; i < list.length; ++i) {
-                                        if (list[i].active === true) return i
-                                    }
-                                    return 0
-                                }
-
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
 
-                                Rectangle {
-                                    id: wsHoverPill
-                                    z: 1
-                                    width: 22
-                                    height: topBarContainer.pillHeight - 4
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    radius: (Theme && Theme.isRounded) ? height / 2 : 0
-                                    color: Qt.rgba(1, 1, 1, 0.16)
-                                    opacity: (wsModuleItem.hoveredWsIdx >= 0 && wsModuleItem.hoveredWsIdx !== wsModuleItem.activeWsIdx) ? 1.0 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
-                                    x: wsRow.x + wsModuleItem.lastHoverIdx * 22
-                                    Behavior on x {
-                                        enabled: wsHoverPill.opacity > 0.05
-                                        NumberAnimation { duration: 210; easing.type: Easing.OutQuint }
-                                    }
-                                }
-
-                                Rectangle {
-                                    id: wsActivePill
-                                    z: 2
-                                    width: 22
-                                    height: topBarContainer.pillHeight - 4
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    radius: (Theme && Theme.isRounded) ? height / 2 : 0
-                                    color: Config ? Config.m3Primary : "#ffffff"
-                                    Behavior on color { ColorAnimation { duration: 180 } }
-                                    x: wsRow.x + wsModuleItem.activeWsIdx * 22
-                                    Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
-                                }
-
                                 Row {
-                                    id: wsRow; z: 3; anchors.centerIn: parent; spacing: 0
+                                    id: wsRow; z: 3; anchors.centerIn: parent; spacing: (Theme && Theme.isRounded) ? 3 : 2
                                     Repeater {
+                                        id: wsRep
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
                                         delegate: Rectangle {
                                             property bool act: modelData.active === true
                                             property bool occ: (modelData.windows || 0) > 0
                                             property bool hov: wsMa.containsMouse
-                                            width: 22; height: topBarContainer.pillHeight - 4
+                                            readonly property bool isFirst: index === 0
+                                            readonly property bool isLast: index === wsRep.count - 1
+                                            readonly property real outerR: (Theme && Theme.isRounded) ? height / 2 : 0
+                                            readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
+
+                                            width: 25
+                                            height: topBarContainer.pillHeight
                                             anchors.verticalCenter: parent.verticalCenter
-                                            radius: (Theme && Theme.isRounded) ? height / 2 : 0
-                                            color: (!act && occ && !hov) ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
+                                            topLeftRadius: isFirst ? outerR : innerR
+                                            bottomLeftRadius: isFirst ? outerR : innerR
+                                            topRightRadius: isLast ? outerR : innerR
+                                            bottomRightRadius: isLast ? outerR : innerR
+
+                                            color: act
+                                                   ? (Config ? Config.m3Primary : "#ffffff")
+                                                   : (hov
+                                                      ? (Theme && Theme.isRounded && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.22))
+                                                      : topBarContainer.pillColor)
                                             Behavior on color { ColorAnimation { duration: 150 } }
+
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: modelData.id
-                                                font.pixelSize: 10
+                                                font.pixelSize: 11
                                                 font.bold: parent.act || parent.hov
-                                                color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.hov ? "#ffffff" : (parent.occ ? "#ffffff" : "#767b8a"))
-                                                Behavior on color { ColorAnimation { duration: 160 } }
+                                                color: parent.act
+                                                       ? (Config ? Config.accentTextColor : "#000000")
+                                                       : (parent.hov ? "#ffffff" : (parent.occ ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff") : "#7c8292"))
+                                                Behavior on color { ColorAnimation { duration: 150 } }
                                             }
                                             MouseArea {
                                                 id: wsMa
@@ -821,13 +798,6 @@ ApplicationWindow {
                                                 anchors.bottomMargin: -4
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
-                                                onEntered: {
-                                                    wsModuleItem.lastHoverIdx = index
-                                                    wsModuleItem.hoveredWsIdx = index
-                                                }
-                                                onExited: {
-                                                    if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1
-                                                }
                                                 onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                             }
                                         }

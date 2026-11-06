@@ -41,42 +41,17 @@ RowLayout {
                 }
             }
 
-            background: Item {
-                readonly property color segColor: btn.isSel
+            background: Rectangle {
+                topLeftRadius: btn.isFirst ? btn.outerR : btn.innerR
+                bottomLeftRadius: btn.isFirst ? btn.outerR : btn.innerR
+                topRightRadius: btn.isLast ? btn.outerR : btn.innerR
+                bottomRightRadius: btn.isLast ? btn.outerR : btn.innerR
+                color: btn.isSel
                        ? (Config ? Config.m3Primary : "#ffffff")
                        : (btn.hovered
                           ? (control.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.12))
                           : (control.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)))
-
-                // Основная форма: внешние края колбасы круглые (outerR), внутренние стыки с малым скруглением (innerR)
-                Rectangle {
-                    anchors.fill: parent
-                    radius: (btn.isFirst || btn.isLast) ? btn.outerR : btn.innerR
-                    color: parent.segColor
-                    Behavior on color { ColorAnimation { duration: 130 } }
-                }
-
-                // Малое скругление правого края у первой кнопки (и для активной, и для неактивной)
-                Rectangle {
-                    visible: control.isM3 && btn.isFirst && !btn.isLast
-                    anchors.right: parent.right
-                    width: Math.min(parent.width * 0.55, btn.outerR + 2)
-                    height: parent.height
-                    radius: btn.innerR
-                    color: parent.segColor
-                    Behavior on color { ColorAnimation { duration: 130 } }
-                }
-
-                // Малое скругление левого края у последней кнопки (и для активной, и для неактивной)
-                Rectangle {
-                    visible: control.isM3 && btn.isLast && !btn.isFirst
-                    anchors.left: parent.left
-                    width: Math.min(parent.width * 0.55, btn.outerR + 2)
-                    height: parent.height
-                    radius: btn.innerR
-                    color: parent.segColor
-                    Behavior on color { ColorAnimation { duration: 130 } }
-                }
+                Behavior on color { ColorAnimation { duration: 130 } }
             }
 
             onClicked: {

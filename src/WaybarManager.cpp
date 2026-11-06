@@ -148,7 +148,7 @@ qreal WaybarManager::specVal(const QString &key, qreal fallback) const {
 }
 
 int WaybarManager::barWidth() const { return qRound(specVal("bar_width", 1904.0)); }
-int WaybarManager::barHeight() const { return qRound(specVal("bar_height", 22.0)); }
+int WaybarManager::barHeight() const { return qRound(specVal("bar_height", 34.0)); }
 int WaybarManager::barAnimDuration() const { return qRound(specVal("bar_anim_duration", 75.0)); }
 int WaybarManager::marginTop() const { return qRound(specVal("margin_top", 4.0)); }
 int WaybarManager::marginBottom() const { return qRound(specVal("margin_bottom", 4.0)); }
@@ -185,7 +185,7 @@ void WaybarManager::loadState() {
                     QVariantMap m = m_specs[i].toMap();
                     if (m["key"].toString() == k) {
                         double val = v.toDouble();
-                        if (k == "bar_height" && val > 26.0) val = 22.0;
+                        if (k == "bar_height" && val > 60.0) val = 34.0;
                         m["value"] = val; m_specs[i] = m; break;
                     }
                 }

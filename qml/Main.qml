@@ -208,7 +208,7 @@ ApplicationWindow {
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
-    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, animDrawerW)
+    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, effDrawerW)
     readonly property real barW: baseBarW + (expandedBarW - baseBarW) * barExpandProgress
     readonly property real barLeft: {
         if (barPos === 2) return barTop

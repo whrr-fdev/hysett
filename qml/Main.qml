@@ -1006,6 +1006,7 @@ ApplicationWindow {
 
                                 MouseArea {
                                     id: leftDragMa
+                                    enabled: false
                                     anchors.fill: parent
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.SizeHorCursor
@@ -1076,6 +1077,7 @@ ApplicationWindow {
                     }
                     MouseArea {
                         id: centerDragMa
+                        enabled: false
                         anchors.fill: parent
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         cursorShape: Qt.SizeHorCursor
@@ -1379,6 +1381,7 @@ ApplicationWindow {
 
                                 MouseArea {
                                     id: rightDragMa
+                                    enabled: false
                                     anchors.fill: parent
                                     acceptedButtons: Qt.LeftButton | Qt.RightButton
                                     cursorShape: Qt.SizeHorCursor
@@ -1405,6 +1408,181 @@ ApplicationWindow {
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+
+            // ЕДИНЫЙ НЕРАЗРУШАЕМЫЙ СЛОЙ ПЕРЕТАСКИВАНИЯ БЛОКОВ ПАНЕЛИ ЗАДАЧ (DRAG & DROP)
+            Item {
+                id: barEditDragLayer
+                anchors.fill: parent
+                visible: topBarContainer.editMode && !root.isVertBar
+                z: 500
+
+                property string activeKey: ""
+                property string activeSide: ""
+                property int activeIdx: -1
+                property real ghostX: 0
+                property real ghostW: 64
+                property real grabOffsetX: 32
+
+                function hitTestBarItem(mx, my) {
+                    // 1. Проверяем левый ряд
+                    for (var i = 0; i < leftBarRow.children.length; ++i) {
+                        var lw = leftBarRow.children[i]
+                        if (!lw || !lw.visible || !lw.modKey) continue
+                        var p = lw.mapToItem(barEditDragLayer, 0, 0)
+                        if (mx >= p.x && mx <= p.x + lw.width) {
+                            var closeHit = (mx >= p.x + lw.width - 13 && my <= p.y + 13)
+                            return { side: "left", idx: i, key: lw.modKey, x: p.x, w: lw.width, close: closeHit }
+                        }
+                    }
+                    // 2. Проверяем центральный заголовок
+                    if (centerTitlePill.visible) {
+                        var cp = centerTitlePill.mapToItem(barEditDragLayer, 0, 0)
+                        if (mx >= cp.x && mx <= cp.x + centerTitlePill.width) {
+                            var cClose = (mx >= cp.x + centerTitlePill.width - 13 && my <= cp.y + 13)
+                            return { side: "center", idx: 0, key: "window", x: cp.x, w: centerTitlePill.width, close: cClose }
+                        }
+                    }
+                    // 3. Проверяем правый ряд
+                    for (var j = 0; j < rightModRepeater.count; ++j) {
+                        var rw = rightModRepeater.itemAt(j)
+                        if (!rw || !rw.visible || !rw.modKey) continue
+                        var rp = rw.mapToItem(barEditDragLayer, rw.bodyOffsetX, 0)
+                        if (mx >= rp.x && mx <= rp.x + rw.bodyWidth) {
+                            var rClose = (mx >= rp.x + rw.bodyWidth - 13 && my <= rp.y + 13)
+                            return { side: "right", idx: j, key: rw.modKey, x: rp.x, w: rw.bodyWidth, close: rClose }
+                        }
+                    }
+                    return null
+                }
+
+                // Плавающий индикатор перетаскиваемого блока под курсором
+                Rectangle {
+                    visible: barEditDragLayer.activeKey !== ""
+                    x: barEditDragLayer.ghostX
+                    width: Math.max(36, barEditDragLayer.ghostW)
+                    height: topBarContainer.pillHeight + 2
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius
+                    color: Qt.rgba(Config ? Config.m3Primary.r : 0.4, Config ? Config.m3Primary.g : 0.7, Config ? Config.m3Primary.b : 1.0, 0.38)
+                    border.color: Config ? Config.m3Primary : "#ffffff"
+                    border.width: 2
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: barEditDragLayer.activeKey
+                        color: "#ffffff"
+                        font.pixelSize: 10
+                        font.bold: true
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    cursorShape: barEditDragLayer.activeKey !== "" ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+
+                    onPressed: (mouse) => {
+                        if (!Waybar) return
+                        var hit = barEditDragLayer.hitTestBarItem(mouse.x, mouse.y)
+                        if (!hit) {
+                            mouse.accepted = false
+                            return
+                        }
+                        if (mouse.button === Qt.RightButton || hit.close) {
+                            if (hit.side === "center") Waybar.setBarModuleVisible("window", false)
+                            else Waybar.removeBarItemAt(hit.side, hit.idx)
+                            barEditDragLayer.activeKey = ""
+                            return
+                        }
+                        barEditDragLayer.activeKey = hit.key
+                        barEditDragLayer.activeSide = hit.side
+                        barEditDragLayer.activeIdx = hit.idx
+                        barEditDragLayer.ghostW = hit.w
+                        barEditDragLayer.grabOffsetX = mouse.x - hit.x
+                        barEditDragLayer.ghostX = mouse.x - barEditDragLayer.grabOffsetX
+                    }
+
+                    onPositionChanged: (mouse) => {
+                        if (!(pressedButtons & Qt.LeftButton) || barEditDragLayer.activeKey === "" || !Waybar) return
+                        barEditDragLayer.ghostX = mouse.x - barEditDragLayer.grabOffsetX
+                        var cx = mouse.x
+
+                        // Перетаскивание заголовка окна между центром, левым и правым блоком
+                        if (barEditDragLayer.activeKey === "window") {
+                            var leftEnd = leftBarRow.x + leftBarRow.width
+                            var rightStart = rightBarRow.x
+                            if (barEditDragLayer.activeSide === "center") {
+                                if (cx < leftEnd + 20) {
+                                    Waybar.moveWindowModuleToSide("left")
+                                    barEditDragLayer.activeSide = "left"
+                                    barEditDragLayer.activeIdx = Waybar.leftBarOrder.indexOf("window")
+                                    return
+                                } else if (cx > rightStart - 20) {
+                                    Waybar.moveWindowModuleToSide("right")
+                                    barEditDragLayer.activeSide = "right"
+                                    barEditDragLayer.activeIdx = Waybar.rightBarOrder.indexOf("window")
+                                    return
+                                }
+                            } else if (barEditDragLayer.activeSide === "left" && cx > leftEnd + 36 && cx < rightStart - 36) {
+                                Waybar.moveWindowModuleToSide("center")
+                                barEditDragLayer.activeSide = "center"
+                                barEditDragLayer.activeIdx = 0
+                                return
+                            } else if (barEditDragLayer.activeSide === "right" && cx < rightStart - 36 && cx > leftEnd + 36) {
+                                Waybar.moveWindowModuleToSide("center")
+                                barEditDragLayer.activeSide = "center"
+                                barEditDragLayer.activeIdx = 0
+                                return
+                            }
+                        }
+
+                        // Плавный обмен местами при пересечении середины соседнего блока
+                        if (barEditDragLayer.activeSide === "left") {
+                            var curLeftIdx = Waybar.leftBarOrder.indexOf(barEditDragLayer.activeKey)
+                            if (curLeftIdx === -1) return
+                            barEditDragLayer.activeIdx = curLeftIdx
+                            for (var i = 0; i < leftBarRow.children.length; ++i) {
+                                var lw = leftBarRow.children[i]
+                                if (!lw || !lw.visible || i === curLeftIdx) continue
+                                var lp = lw.mapToItem(barEditDragLayer, 0, 0)
+                                var mid = lp.x + lw.width * 0.5
+                                if ((i < curLeftIdx && cx < mid) || (i > curLeftIdx && cx > mid)) {
+                                    Waybar.moveBarModule("left", curLeftIdx, i)
+                                    barEditDragLayer.activeIdx = i
+                                    break
+                                }
+                            }
+                        } else if (barEditDragLayer.activeSide === "right") {
+                            var curRightIdx = Waybar.rightBarOrder.indexOf(barEditDragLayer.activeKey)
+                            if (curRightIdx === -1) return
+                            barEditDragLayer.activeIdx = curRightIdx
+                            for (var j = 0; j < rightModRepeater.count; ++j) {
+                                var rw = rightModRepeater.itemAt(j)
+                                if (!rw || !rw.visible || j === curRightIdx) continue
+                                var rp = rw.mapToItem(barEditDragLayer, rw.bodyOffsetX, 0)
+                                var rmid = rp.x + rw.bodyWidth * 0.5
+                                if ((j < curRightIdx && cx < rmid) || (j > curRightIdx && cx > rmid)) {
+                                    Waybar.moveBarModule("right", curRightIdx, j)
+                                    barEditDragLayer.activeIdx = j
+                                    break
+                                }
+                            }
+                        }
+                    }
+
+                    onReleased: {
+                        barEditDragLayer.activeKey = ""
+                        barEditDragLayer.activeSide = ""
+                        barEditDragLayer.activeIdx = -1
+                    }
+                    onCanceled: {
+                        barEditDragLayer.activeKey = ""
+                        barEditDragLayer.activeSide = ""
+                        barEditDragLayer.activeIdx = -1
                     }
                 }
             }

@@ -53,19 +53,12 @@ static QImage toMonochrome(const QImage &src, const QColor &tint) {
             int a = qAlpha(px);
             if (a == 0) continue;
             int lum = qGray(qRed(px), qGreen(px), qBlue(px));
-            int r, g, b;
-            if (lum > 185) {
-                // Внутренний светлый символ (например, самолётик внутри кружка AyuGram) — делаем темным для четкого контраста
-                r = std::clamp(int(tr * 0.16), 0, 255);
-                g = std::clamp(int(tg * 0.16), 0, 255);
-                b = std::clamp(int(tb * 0.16), 0, 255);
-            } else {
-                // Основной фон/кружок иконки — ярко окрашиваем в цвет темы!
-                float boost = 0.50f + 0.12f * (float(lum) / 185.0f);
-                r = std::clamp(int(std::round(tr * boost)), 0, 255);
-                g = std::clamp(int(std::round(tg * boost)), 0, 255);
-                b = std::clamp(int(std::round(tb * boost)), 0, 255);
-            }
+            float t = std::clamp((float(lum) - 140.0f) / 75.0f, 0.0f, 1.0f);
+            float smooth = t * t * (3.0f - 2.0f * t);
+            float factor = (1.0f - smooth) * 0.62f + smooth * 0.14f;
+            int r = std::clamp(int(std::round(tr * factor)), 0, 255);
+            int g = std::clamp(int(std::round(tg * factor)), 0, 255);
+            int b = std::clamp(int(std::round(tb * factor)), 0, 255);
             line[x] = qRgba(r, g, b, a);
         }
     }

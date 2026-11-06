@@ -814,6 +814,54 @@ void WaybarManager::moveBarModule(const QString &side, int fromIdx, int toIdx) {
 }
 
 
+
+QString WaybarManager::transferBarModule(const QString &key, const QString &fromSide, int dir) {
+    if (key.isEmpty()) return fromSide;
+    if (key == "window") {
+        if (fromSide == "center") {
+            moveWindowModuleToSide(dir < 0 ? "left" : "right");
+            return dir < 0 ? "left" : "right";
+        } else if (fromSide == "left" && dir > 0) {
+            moveWindowModuleToSide("center");
+            return "center";
+        } else if (fromSide == "right" && dir < 0) {
+            moveWindowModuleToSide("center");
+            return "center";
+        }
+        return fromSide;
+    }
+
+    if (fromSide == "left" && dir > 0) {
+        int idx = m_leftBarOrder.indexOf(key);
+        if (idx != -1) {
+            bool winInCenter = (m_leftBarOrder.indexOf("window") == -1 && m_rightBarOrder.indexOf("window") == -1 && isBarModuleVisible("window"));
+            if (winInCenter) {
+                // Меняем местами с центральным заголовком: заголовок встает в левый ряд, а наш блок переходит в начало правого ряда
+                m_leftBarOrder.insert(idx, "window");
+            }
+            m_leftBarOrder.removeAll(key);
+            m_rightBarOrder.removeAll(key);
+            m_rightBarOrder.prepend(key);
+            saveState(false);
+            return "right";
+        }
+    } else if (fromSide == "right" && dir < 0) {
+        int idx = m_rightBarOrder.indexOf(key);
+        if (idx != -1) {
+            bool winInCenter = (m_leftBarOrder.indexOf("window") == -1 && m_rightBarOrder.indexOf("window") == -1 && isBarModuleVisible("window"));
+            if (winInCenter) {
+                m_rightBarOrder.insert(idx + 1, "window");
+            }
+            m_rightBarOrder.removeAll(key);
+            m_leftBarOrder.removeAll(key);
+            m_leftBarOrder.append(key);
+            saveState(false);
+            return "left";
+        }
+    }
+    return fromSide;
+}
+
 QString WaybarManager::swapWithCenterWindow(const QString &side, int idx) {
     if (side == "left") {
         if (idx < 0 || idx >= m_leftBarOrder.size()) return "";

@@ -167,6 +167,7 @@ public:
     Q_INVOKABLE void moveBarModule(const QString &side, int fromIdx, int toIdx);
     Q_INVOKABLE void moveWindowModuleToSide(const QString &targetSide);
     Q_INVOKABLE QString swapWithCenterWindow(const QString &side, int idx);
+    Q_INVOKABLE QString transferBarModule(const QString &key, const QString &fromSide, int dir);
     Q_INVOKABLE void addBarSeparator(const QString &side);
     Q_INVOKABLE void removeBarItemAt(const QString &side, int idx);
     Q_INVOKABLE void resetBarOrder();

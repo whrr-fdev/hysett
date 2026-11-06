@@ -1280,13 +1280,20 @@ ApplicationWindow {
                                         delegate: Item {
                                             id: trayItemDel; width: 16; height: topBarContainer.height; anchors.verticalCenter: parent.verticalCenter
                                             readonly property bool isAyuIcon: String(modelData.icon || "").toLowerCase().indexOf("ayugram") !== -1 || String(modelData.class || "").toLowerCase().indexOf("ayugram") !== -1
-                                            Image {
+                                            Text {
+                                                visible: trayItemDel.isAyuIcon
                                                 anchors.centerIn: parent
-                                                width: trayItemDel.isAyuIcon ? 14 : 16
-                                                height: trayItemDel.isAyuIcon ? 14 : 16
-                                                source: "image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex
+                                                text: ""
+                                                font.pixelSize: 13
+                                                color: (Theme && Theme.isRounded && Config) ? Qt.darker(Config.m3Primary, 1.25) : "#ffffff"
+                                            }
+                                            Image {
+                                                visible: !trayItemDel.isAyuIcon
+                                                anchors.centerIn: parent
+                                                width: 16; height: 16
+                                                source: visible ? ("image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex) : ""
                                                 cache: false
-                                                sourceSize: Qt.size(20, 20)
+                                                sourceSize: Qt.size(16, 16)
                                                 smooth: true
                                             }
                                             MouseArea {
@@ -1419,7 +1426,7 @@ ApplicationWindow {
             }
 
 
-            // ЕДИНЫЙ НЕРАЗРУШАЕМЫЙ СЛОЙ ПЕРЕТАСКИВАНИЯ БЛОКОВ ПАНЕЛИ ЗАДАЧ (МГНОВЕННАЯ ПЕРЕСТАНОВКА)
+            // ЕДИНЫЙ НЕРАЗРУШАЕМЫЙ СЛОЙ ПЕРЕТАСКИВАНИЯ БЛОКОВ ПАНЕЛИ ЗАДАЧ (БЕЗ ПИНГ-ПОНГА НА БОЛЬШИХ ПРОМЕЖУТКАХ)
             Item {
                 id: barEditDragLayer
                 anchors.fill: parent
@@ -1428,14 +1435,50 @@ ApplicationWindow {
 
                 property string activeKey: ""
                 property string activeSide: ""
+                property real prevMouseX: 0
+                property int moveDir: 0
+                property real ghostX: 0
+                property real ghostW: 56
+
+                function lastVisibleLeftIdx() {
+                    for (var i = leftModRepeater.count - 1; i >= 0; --i) {
+                        var it = leftModRepeater.itemAt(i)
+                        if (it && it.visible && it.bodyWidth > 2) return i
+                    }
+                    return -1
+                }
+
+                function firstVisibleRightIdx() {
+                    for (var j = 0; j < rightModRepeater.count; ++j) {
+                        var it = rightModRepeater.itemAt(j)
+                        if (it && it.visible && it.bodyWidth > 2) return j
+                    }
+                    return -1
+                }
+
+                function prevVisibleIdx(rep, fromIdx) {
+                    for (var i = fromIdx - 1; i >= 0; --i) {
+                        var it = rep.itemAt(i)
+                        if (it && it.visible && it.bodyWidth > 2) return i
+                    }
+                    return -1
+                }
+
+                function nextVisibleIdx(rep, fromIdx) {
+                    for (var i = fromIdx + 1; i < rep.count; ++i) {
+                        var it = rep.itemAt(i)
+                        if (it && it.visible && it.bodyWidth > 2) return i
+                    }
+                    return -1
+                }
 
                 function hitTestBarItem(mx, my) {
                     for (var i = 0; i < leftModRepeater.count; ++i) {
                         var lw = leftModRepeater.itemAt(i)
-                        if (!lw || !lw.visible || !lw.modKey) continue
+                        if (!lw || !lw.visible || !lw.modKey || lw.bodyWidth <= 2) continue
                         var lx = leftBarRow.x + lw.x + lw.bodyOffsetX
                         var lwBody = lw.bodyWidth
-                        if (mx >= lx - 3 && mx <= lx + lwBody + 3) {
+                        if (mx >= lx - 4 && mx <= lx + lwBody + 4) {
                             var closeHit = (mx >= lx + lwBody - 13 && my <= 14)
                             return { side: "left", idx: i, key: lw.modKey, x: lx, w: lwBody, close: closeHit }
                         }
@@ -1443,22 +1486,35 @@ ApplicationWindow {
                     if (centerTitlePill.visible) {
                         var cx = centerTitlePill.x
                         var cw = centerTitlePill.width
-                        if (mx >= cx - 3 && mx <= cx + cw + 3) {
+                        if (mx >= cx - 4 && mx <= cx + cw + 4) {
                             var cClose = (mx >= cx + cw - 13 && my <= 14)
                             return { side: "center", idx: 0, key: "window", x: cx, w: cw, close: cClose }
                         }
                     }
                     for (var j = 0; j < rightModRepeater.count; ++j) {
                         var rw = rightModRepeater.itemAt(j)
-                        if (!rw || !rw.visible || !rw.modKey) continue
+                        if (!rw || !rw.visible || !rw.modKey || rw.bodyWidth <= 2) continue
                         var rx = rightBarRow.x + rw.x + rw.bodyOffsetX
                         var rwBody = rw.bodyWidth
-                        if (mx >= rx - 3 && mx <= rx + rwBody + 3) {
+                        if (mx >= rx - 4 && mx <= rx + rwBody + 4) {
                             var rClose = (mx >= rx + rwBody - 13 && my <= 14)
                             return { side: "right", idx: j, key: rw.modKey, x: rx, w: rwBody, close: rClose }
                         }
                     }
                     return null
+                }
+
+                // Полупрозрачная плашка под курсором при перетаскивании через пустые промежутки
+                Rectangle {
+                    visible: barEditDragLayer.activeKey !== ""
+                    x: barEditDragLayer.ghostX - width * 0.5
+                    width: Math.max(36, barEditDragLayer.ghostW)
+                    height: topBarContainer.pillHeight
+                    anchors.verticalCenter: parent.verticalCenter
+                    radius: topBarContainer.pillRadius
+                    color: Qt.rgba(Config ? Config.m3Primary.r : 0.5, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 0.4, 0.32)
+                    border.color: Config ? Config.m3Primary : "#ffffff"
+                    border.width: 1.5
                 }
 
                 MouseArea {
@@ -1481,116 +1537,127 @@ ApplicationWindow {
                         }
                         barEditDragLayer.activeKey = hit.key
                         barEditDragLayer.activeSide = hit.side
+                        barEditDragLayer.ghostW = hit.w
+                        barEditDragLayer.ghostX = mouse.x
+                        barEditDragLayer.prevMouseX = mouse.x
+                        barEditDragLayer.moveDir = 0
                     }
 
                     onPositionChanged: (mouse) => {
                         if (!(pressedButtons & Qt.LeftButton) || barEditDragLayer.activeKey === "" || !Waybar) return
                         var cx = mouse.x
+                        barEditDragLayer.ghostX = cx
+                        var dxStep = cx - barEditDragLayer.prevMouseX
+                        if (dxStep > 1.5) {
+                            barEditDragLayer.moveDir = 1
+                            barEditDragLayer.prevMouseX = cx
+                        } else if (dxStep < -1.5) {
+                            barEditDragLayer.moveDir = -1
+                            barEditDragLayer.prevMouseX = cx
+                        }
+                        if (barEditDragLayer.moveDir === 0) return
 
-                        // 1. Если перетаскиваем заголовок окна ("window")
-                        if (barEditDragLayer.activeKey === "window") {
-                            if (barEditDragLayer.activeSide === "center") {
-                                if (cx < centerTitlePill.x - 14) {
-                                    Waybar.moveWindowModuleToSide("left")
-                                    barEditDragLayer.activeSide = "left"
-                                    return
-                                } else if (cx > centerTitlePill.x + centerTitlePill.width + 14) {
-                                    Waybar.moveWindowModuleToSide("right")
-                                    barEditDragLayer.activeSide = "right"
-                                    return
-                                }
-                            } else if (barEditDragLayer.activeSide === "left") {
-                                var wIdxL = Waybar.leftBarOrder.indexOf("window")
-                                var wItemL = leftModRepeater.itemAt(wIdxL)
-                                if (wItemL && wIdxL === leftModRepeater.count - 1) {
-                                    var wRightL = leftBarRow.x + wItemL.x + wItemL.bodyOffsetX + wItemL.bodyWidth
-                                    if (cx > wRightL + 16) {
-                                        Waybar.moveWindowModuleToSide("center")
-                                        barEditDragLayer.activeSide = "center"
+                        var leftEnd = leftBarRow.x + leftBarRow.width
+                        var rightStart = rightBarRow.x
+                        var gapMid = (leftEnd + rightStart) * 0.5
+
+                        // 1. Если тянем центральный заголовок ("window" в центре)
+                        if (barEditDragLayer.activeSide === "center") {
+                            if (barEditDragLayer.moveDir < 0 && cx < centerTitlePill.x - 12) {
+                                barEditDragLayer.activeSide = Waybar.transferBarModule("window", "center", -1)
+                                return
+                            }
+                            if (barEditDragLayer.moveDir > 0 && cx > centerTitlePill.x + centerTitlePill.width + 12) {
+                                barEditDragLayer.activeSide = Waybar.transferBarModule("window", "center", 1)
+                                return
+                            }
+                            return
+                        }
+
+                        // 2. Если тянем блок внутри левого ряда
+                        if (barEditDragLayer.activeSide === "left") {
+                            var curL = Waybar.leftBarOrder.indexOf(barEditDragLayer.activeKey)
+                            if (curL === -1) return
+                            var curLW = leftModRepeater.itemAt(curL)
+                            if (!curLW) return
+
+                            // Движение ВЛЕВО (только когда мышь реально идет влево — никакого пинг-понга!)
+                            if (barEditDragLayer.moveDir < 0) {
+                                var pIdx = barEditDragLayer.prevVisibleIdx(leftModRepeater, curL)
+                                if (pIdx !== -1) {
+                                    var prevLW = leftModRepeater.itemAt(pIdx)
+                                    var prevRight = leftBarRow.x + prevLW.x + prevLW.bodyOffsetX + prevLW.bodyWidth
+                                    if (cx < prevRight + 4) {
+                                        Waybar.moveBarModule("left", curL, pIdx)
                                         return
                                     }
                                 }
-                            } else if (barEditDragLayer.activeSide === "right") {
-                                var wIdxR = Waybar.rightBarOrder.indexOf("window")
-                                var wItemR = rightModRepeater.itemAt(wIdxR)
-                                if (wItemR && wIdxR === 0) {
-                                    var wLeftR = rightBarRow.x + wItemR.x + wItemR.bodyOffsetX
-                                    if (cx < wLeftR - 16) {
-                                        Waybar.moveWindowModuleToSide("center")
-                                        barEditDragLayer.activeSide = "center"
+                            }
+
+                            // Движение ВПРАВО (внутри левого ряда ИЛИ через большой промежуток в центр/правый ряд!)
+                            if (barEditDragLayer.moveDir > 0) {
+                                var nIdx = barEditDragLayer.nextVisibleIdx(leftModRepeater, curL)
+                                if (nIdx !== -1) {
+                                    var nextLW = leftModRepeater.itemAt(nIdx)
+                                    var nextLeft = leftBarRow.x + nextLW.x + nextLW.bodyOffsetX
+                                    if (cx > nextLeft - 4) {
+                                        Waybar.moveBarModule("left", curL, nIdx)
+                                        return
+                                    }
+                                } else {
+                                    // Это самый правый видимый блок левого ряда — проверяем выход в центр или правый ряд!
+                                    var curRight = leftBarRow.x + curLW.x + curLW.bodyOffsetX + curLW.bodyWidth
+                                    if (barEditDragLayer.activeKey === "window" && cx > curRight + 24) {
+                                        barEditDragLayer.activeSide = Waybar.transferBarModule("window", "left", 1)
+                                        return
+                                    }
+                                    if (cx > Math.min(gapMid, curRight + 32)) {
+                                        barEditDragLayer.activeSide = Waybar.transferBarModule(barEditDragLayer.activeKey, "left", 1)
                                         return
                                     }
                                 }
                             }
                         }
 
-                        // 2. Перестановка внутри левого и правого блока (независимо от ширины промежутков!) + обмен с центральным заголовком
-                        if (barEditDragLayer.activeSide === "left") {
-                            var curL = Waybar.leftBarOrder.indexOf(barEditDragLayer.activeKey)
-                            if (curL === -1) return
-                            var curLW = leftModRepeater.itemAt(curL)
-                            if (!curLW) return
-                            var curLeftX = leftBarRow.x + curLW.x + curLW.bodyOffsetX
-                            var curRightX = curLeftX + curLW.bodyWidth
-
-                            if (curL === leftModRepeater.count - 1 && barEditDragLayer.activeKey !== "window" && cx > curRightX + 18) {
-                                Waybar.swapWithCenterWindow("left", curL)
-                                return
-                            }
-
-                            if (curL > 0) {
-                                var prevLW = leftModRepeater.itemAt(curL - 1)
-                                if (prevLW && prevLW.visible) {
-                                    var prevLX = leftBarRow.x + prevLW.x + prevLW.bodyOffsetX
-                                    var prevTrigger = Math.max(prevLX + prevLW.bodyWidth * 0.5, curLeftX - 14)
-                                    if (cx < prevTrigger) {
-                                        Waybar.moveBarModule("left", curL, curL - 1)
-                                        return
-                                    }
-                                }
-                            }
-                            if (curL + 1 < leftModRepeater.count) {
-                                var nextLW = leftModRepeater.itemAt(curL + 1)
-                                if (nextLW && nextLW.visible) {
-                                    var nextLX = leftBarRow.x + nextLW.x + nextLW.bodyOffsetX
-                                    var nextTrigger = Math.min(nextLX + nextLW.bodyWidth * 0.5, curRightX + 14)
-                                    if (cx > nextTrigger) {
-                                        Waybar.moveBarModule("left", curL, curL + 1)
-                                        return
-                                    }
-                                }
-                            }
-                        } else if (barEditDragLayer.activeSide === "right") {
+                        // 3. Если тянем блок внутри правого ряда
+                        else if (barEditDragLayer.activeSide === "right") {
                             var curR = Waybar.rightBarOrder.indexOf(barEditDragLayer.activeKey)
                             if (curR === -1) return
                             var curRW = rightModRepeater.itemAt(curR)
                             if (!curRW) return
-                            var curRLeftX = rightBarRow.x + curRW.x + curRW.bodyOffsetX
-                            var curRRightX = curRLeftX + curRW.bodyWidth
 
-                            if (curR === 0 && barEditDragLayer.activeKey !== "window" && cx < curRLeftX - 18) {
-                                Waybar.swapWithCenterWindow("right", curR)
-                                return
-                            }
-
-                            if (curR > 0) {
-                                var prevRW = rightModRepeater.itemAt(curR - 1)
-                                if (prevRW && prevRW.visible) {
-                                    var prevRX = rightBarRow.x + prevRW.x + prevRW.bodyOffsetX
-                                    var prevRTrigger = Math.max(prevRX + prevRW.bodyWidth * 0.5, curRLeftX - 14)
-                                    if (cx < prevRTrigger) {
-                                        Waybar.moveBarModule("right", curR, curR - 1)
+                            // Движение ВПРАВО
+                            if (barEditDragLayer.moveDir > 0) {
+                                var nrIdx = barEditDragLayer.nextVisibleIdx(rightModRepeater, curR)
+                                if (nrIdx !== -1) {
+                                    var nextRW = rightModRepeater.itemAt(nrIdx)
+                                    var nextRLeft = rightBarRow.x + nextRW.x + nextRW.bodyOffsetX
+                                    if (cx > nextRLeft - 4) {
+                                        Waybar.moveBarModule("right", curR, nrIdx)
                                         return
                                     }
                                 }
                             }
-                            if (curR + 1 < rightModRepeater.count) {
-                                var nextRW = rightModRepeater.itemAt(curR + 1)
-                                if (nextRW && nextRW.visible) {
-                                    var nextRX = rightBarRow.x + nextRW.x + nextRW.bodyOffsetX
-                                    var nextRTrigger = Math.min(nextRX + nextRW.bodyWidth * 0.5, curRRightX + 14)
-                                    if (cx > nextRTrigger) {
-                                        Waybar.moveBarModule("right", curR, curR + 1)
+
+                            // Движение ВЛЕВО (внутри правого ряда ИЛИ через большой промежуток в центр/левый ряд!)
+                            if (barEditDragLayer.moveDir < 0) {
+                                var prIdx = barEditDragLayer.prevVisibleIdx(rightModRepeater, curR)
+                                if (prIdx !== -1) {
+                                    var prevRW = rightModRepeater.itemAt(prIdx)
+                                    var prevRRight = rightBarRow.x + prevRW.x + prevRW.bodyOffsetX + prevRW.bodyWidth
+                                    if (cx < prevRRight + 4) {
+                                        Waybar.moveBarModule("right", curR, prIdx)
+                                        return
+                                    }
+                                } else {
+                                    // Это самый левый видимый блок правого ряда — проверяем выход в центр или левый ряд!
+                                    var curLeft = rightBarRow.x + curRW.x + curRW.bodyOffsetX
+                                    if (barEditDragLayer.activeKey === "window" && cx < curLeft - 24) {
+                                        barEditDragLayer.activeSide = Waybar.transferBarModule("window", "right", -1)
+                                        return
+                                    }
+                                    if (cx < Math.max(gapMid, curLeft - 32)) {
+                                        barEditDragLayer.activeSide = Waybar.transferBarModule(barEditDragLayer.activeKey, "right", -1)
                                         return
                                     }
                                 }
@@ -1601,10 +1668,12 @@ ApplicationWindow {
                     onReleased: {
                         barEditDragLayer.activeKey = ""
                         barEditDragLayer.activeSide = ""
+                        barEditDragLayer.moveDir = 0
                     }
                     onCanceled: {
                         barEditDragLayer.activeKey = ""
                         barEditDragLayer.activeSide = ""
+                        barEditDragLayer.moveDir = 0
                     }
                 }
             }
@@ -1882,11 +1951,19 @@ ApplicationWindow {
                                 delegate: Item {
                                     id: vTrayDel; width: topBarContainer.pillHeight; height: 18
                                     readonly property bool isAyuIcon: String(modelData.icon || "").toLowerCase().indexOf("ayugram") !== -1 || String(modelData.class || "").toLowerCase().indexOf("ayugram") !== -1
-                                    Image {
+                                    Text {
+                                        visible: vTrayDel.isAyuIcon
                                         anchors.centerIn: parent
-                                        width: vTrayDel.isAyuIcon ? 14 : 16; height: vTrayDel.isAyuIcon ? 14 : 16
-                                        source: "image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex
-                                        cache: false; sourceSize: Qt.size(20, 20); smooth: true
+                                        text: ""
+                                        font.pixelSize: 13
+                                        color: (Theme && Theme.isRounded && Config) ? Qt.darker(Config.m3Primary, 1.25) : "#ffffff"
+                                    }
+                                    Image {
+                                        visible: !vTrayDel.isAyuIcon
+                                        anchors.centerIn: parent
+                                        width: 16; height: 16
+                                        source: visible ? ("image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex) : ""
+                                        cache: false; sourceSize: Qt.size(16, 16); smooth: true
                                     }
                                     MouseArea {
                                         anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor

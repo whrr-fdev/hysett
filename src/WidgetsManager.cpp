@@ -1,3 +1,4 @@
+#include <QFileSystemWatcher>
 #include "WidgetsManager.h"
 #include <QDir>
 #include <QFile>
@@ -72,6 +73,21 @@ WidgetsManager::WidgetsManager(QObject *parent) : QObject(parent) {
     if (!m_sysRunning && readEnabledConf("sysinfo.conf") == 1) {
         QTimer::singleShot(700, this, [this]() { toggleSysProcess(true); });
     }
+
+    auto * stateWatcher = new QFileSystemWatcher(this);
+    stateWatcher->addPath(QDir::homePath() + "/.config/hypr/scripts");
+    connect(stateWatcher, &QFileSystemWatcher::directoryChanged, this, [this, readEnabledConf]() {
+        int kbSt = readEnabledConf("kb.conf");
+        if (kbSt != -1 && m_kbRunning != (kbSt == 1)) {
+            m_kbRunning = (kbSt == 1);
+            emit kbChanged();
+        }
+        int sysSt = readEnabledConf("sysinfo.conf");
+        if (sysSt != -1 && m_sysRunning != (sysSt == 1)) {
+            m_sysRunning = (sysSt == 1);
+            emit sysStateChanged();
+        }
+    });
 }
 
 void WidgetsManager::loadKbConfig() {

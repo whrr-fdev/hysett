@@ -125,7 +125,7 @@ Rectangle {
                     bar.hoveredBtnObj = null
                 }
             }
-            onClicked: bar.returnToWelcome()
+            onClicked: { bar.categorySelected(0); bar.returnToWelcome() }
         }
 
         Rectangle {

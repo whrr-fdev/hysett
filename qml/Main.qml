@@ -1130,7 +1130,15 @@ ApplicationWindow {
                 MouseArea {
                     anchors.fill: parent; z: 1000
                     acceptedButtons: Qt.LeftButton | Qt.RightButton; hoverEnabled: false
-                    onPressed: (mouse) => { root.triggerClickRipple(mouse.x, mouse.y); mouse.accepted = false }
+                    onPressed: (mouse) => {
+                        root.triggerClickRipple(mouse.x, mouse.y)
+                        var sc = Config ? Config.uiScale : 1.0
+                        if (mouse.button === Qt.LeftButton && root.drawerMode === "settings" && pageController.currentIndex > 0 &&
+                            mouse.x >= 0 && mouse.x <= pageController.sidebarW * sc && mouse.y >= 0 && mouse.y <= 34 * sc) {
+                            Qt.callLater(() => pageController.switchPage(0))
+                        }
+                        mouse.accepted = false
+                    }
                 }
 
                 // 0. ПКМ-МЕНЮ ТРЕЯ
@@ -1610,9 +1618,9 @@ ApplicationWindow {
 
                     function switchPage(targetIdx) {
                         if (targetIdx === currentIndex) return
-                        inTransition = true
                         previousIndex = currentIndex
                         currentIndex = targetIdx
+                        inTransition = true
                         var oldPage = pageRepeater.itemAt(previousIndex)
                         var newPage = pageRepeater.itemAt(targetIdx)
                         if (!oldPage || !newPage) {
@@ -1785,6 +1793,7 @@ ApplicationWindow {
                             width: index === 0 ? pageController.width : (pageController.width - pageController.sidebarW)
                             height: pageController.height
                             active: root.drawerActive && root.drawerMode === "settings" && (
+                                    index === 0 ||
                                     index === pageController.currentIndex ||
                                     (pageController.inTransition && index === pageController.previousIndex))
                             source: modelData

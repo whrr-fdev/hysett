@@ -1085,8 +1085,13 @@ void WaybarManager::activateTrayApp(const QString &cls, const QString &sniServic
     for (const auto &v : clientsDoc.array()) {
         QJsonObject co = v.toObject();
         if (co["class"].toString().compare(cls, Qt::CaseInsensitive) == 0 && co["mapped"].toBool()) {
-            QProcess::startDetached("hyprctl", {"eval", QString("for _,w in pairs(hl.get_windows()) do if w.class == '%1' then hl.dispatch(hl.dsp.focus({ window = w })) end end").arg(cls)});
-            QProcess::startDetached("hyprctl", {"dispatch", "focuswindow", "class:" + cls});
+            QString addr = co["address"].toString();
+            int winWs = co["workspace"].toObject()["id"].toInt();
+            if (winWs == 10 || winWs != m_activeWorkspace) {
+                queryHyprCtlSocket(QString("/dispatch movetoworkspacesilent %1,address:%2").arg(m_activeWorkspace).arg(addr));
+            }
+            queryHyprCtlSocket(QString("/dispatch focuswindow address:%1").arg(addr));
+            queryHyprCtlSocket(QString("/dispatch centerwindow"));
             return;
         }
     }

@@ -1573,7 +1573,7 @@ ApplicationWindow {
                     property int currentIndex: 0
                     property int previousIndex: 0
                     property bool inTransition: false
-                    property int sidebarW: 136
+                    property int sidebarW: (Theme && Theme.isRounded) ? 168 : 136
 
                     onCurrentIndexChanged: {
                         root.syncWallpapersModeState()
@@ -1977,10 +1977,10 @@ ApplicationWindow {
 
                 Sidebar {
                     id: sidebar
-                    width: 136
+                    width: pageController.sidebarW
                     height: parent.height
                     property bool showBar: pageController.currentIndex > 0 && !(blackholeTransition.running && pageController.previousIndex === 0 && bhInOp.target && bhInOp.target.opacity < 0.05)
-                    x: showBar ? 0 : -136
+                    x: showBar ? 0 : -width
                     opacity: showBar ? 1.0 : 0.0
                     visible: opacity > 0.01
                     currentIndex: pageController.currentIndex

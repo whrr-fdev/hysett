@@ -1007,3 +1007,27 @@ void AppConfig::resetM3Attributes() {
     m_m3DynamicWallpaperColors = true;
     extractPaletteFromWallpaper();
 }
+
+void AppConfig::resetToDefaultMonochrome() {
+    m_m3DynamicWallpaperColors = false;
+    m_m3Preset = -1;
+    m_m3SurfaceTintStrength = 0.0;
+    m_m3ContrastLevel = 0.50;
+    m_accentColor = QColor("#ffffff");
+    m_m3SecondaryColor = QColor("#2b2d36");
+    m_m3TertiaryColor = QColor("#383b46");
+    m_windowBgColor = QColor("#111318");
+    m_cardBgColor = QColor("#1e2028");
+    m_borderGlowCustomColor = QColor("#ffffff");
+    m_cursorCustomColor = QColor("#ffffff");
+    m_borderGlowColorMode = 0;
+    emit syncColorsWithAccentChanged();
+    emit accentColorChanged();
+    emit borderGlowCustomColorChanged();
+    emit cursorCustomColorChanged();
+    emit windowBgColorChanged();
+    emit cardBgColorChanged();
+    emit borderGlowColorModeChanged();
+    emit m3AttributesChanged();
+    save();
+}

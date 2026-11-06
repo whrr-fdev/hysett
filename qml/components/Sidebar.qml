@@ -8,8 +8,24 @@ Rectangle {
     property int currentIndex: 0
     signal categorySelected(int index)
     signal returnToWelcome()
+    readonly property bool isM3: Theme && Theme.isRounded
+    readonly property int itemH: isM3 ? 32 : 25
+    readonly property int pillH: isM3 ? 30 : 24
 
-    color: (Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b, Math.max(0.42, Config.sidebarOpacity)) : Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.0)
+    color: "transparent"
+
+    // Фон M3 Navigation Drawer (отделенный скругленный контейнер в режиме MD3)
+    Rectangle {
+        anchors.fill: parent
+        anchors.margins: bar.isM3 ? 6 : 0
+        anchors.rightMargin: bar.isM3 ? 4 : 0
+        radius: bar.isM3 ? (Config ? Math.min(22, Config.m3CardRadius + 4) : 20) : 0
+        color: bar.isM3 && Config
+               ? Qt.rgba(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b, Math.max(0.72, Config.sidebarOpacity + 0.55))
+               : Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.0)
+        Behavior on radius { NumberAnimation { duration: 180 } }
+        Behavior on color { ColorAnimation { duration: 180 } }
+    }
 
     property Item activeBtnObj: {
         var _ = Config ? Config.hiddenSidebarTabs : ""
@@ -24,6 +40,7 @@ Rectangle {
     property Item lastHoveredBtnObj: null
 
     Rectangle {
+        visible: !bar.isM3
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -31,33 +48,31 @@ Rectangle {
         color: Qt.rgba(1, 1, 1, 0.08)
     }
 
-    // Выделение и ховер вне скролла (HYPRLAND / Настройки / Закрыть)
     Rectangle {
         id: staticHoverPill
-        x: 4
-        width: bar.width - 8
-        height: 24
-        radius: (Theme && Theme.isRounded) ? 12 : 0
-        color: Qt.rgba(1, 1, 1, 0.08)
+        x: bar.isM3 ? 10 : 4
+        width: bar.width - (bar.isM3 ? 18 : 8)
+        height: bar.pillH
+        radius: bar.isM3 ? height / 2 : 0
+        color: bar.isM3 && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12) : Qt.rgba(1, 1, 1, 0.08)
         readonly property bool isStaticTarget: bar.lastHoveredBtnObj === archHeaderItem || bar.lastHoveredBtnObj === setBtn || bar.lastHoveredBtnObj === closeBtn
         opacity: (bar.hoveredBtnObj && isStaticTarget && bar.hoveredBtnObj !== bar.activeBtnObj) ? 1.0 : 0.0
-        y: isStaticTarget ? (mainColLayout.y + bar.lastHoveredBtnObj.y) : 0
-        Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+        y: isStaticTarget ? (mainColLayout.y + bar.lastHoveredBtnObj.y + (bar.lastHoveredBtnObj.height - height) * 0.5) : 0
+        Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: 90 } }
     }
 
     Rectangle {
         id: settingsActivePill
-        x: 4
-        width: bar.width - 8
-        height: 24
-        radius: (Theme && Theme.isRounded) ? 12 : 0
-        color: Config ? Config.accentColor : "#ffffff"
+        x: bar.isM3 ? 10 : 4
+        width: bar.width - (bar.isM3 ? 18 : 8)
+        height: bar.pillH
+        radius: bar.isM3 ? height / 2 : 0
+        color: bar.isM3 && Config ? Config.m3SecondaryContainer : (Config ? Config.accentColor : "#ffffff")
         visible: bar.currentIndex === 17
-        y: mainColLayout.y + setBtn.y
+        y: mainColLayout.y + setBtn.y + (setBtn.height - height) * 0.5
     }
 
-    // Клип-контейнер строго по границам catScroll (выделение никогда не залезает на HYPRLAND сверху и Настройки снизу!)
     Item {
         x: 0
         y: mainColLayout.y + catScroll.y
@@ -67,27 +82,27 @@ Rectangle {
 
         Rectangle {
             id: globalHoverPill
-            x: 4
-            width: bar.width - 8
-            height: 24
-            radius: (Theme && Theme.isRounded) ? 12 : 0
-            color: Qt.rgba(1, 1, 1, 0.08)
+            x: bar.isM3 ? 10 : 4
+            width: bar.width - (bar.isM3 ? 18 : 8)
+            height: bar.pillH
+            radius: bar.isM3 ? height / 2 : 0
+            color: bar.isM3 && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12) : Qt.rgba(1, 1, 1, 0.08)
             readonly property bool isScrollTarget: bar.lastHoveredBtnObj && bar.lastHoveredBtnObj !== archHeaderItem && bar.lastHoveredBtnObj !== setBtn && bar.lastHoveredBtnObj !== closeBtn
             opacity: (bar.hoveredBtnObj && isScrollTarget && bar.hoveredBtnObj !== bar.activeBtnObj) ? 1.0 : 0.0
-            y: isScrollTarget ? (bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY) : 0
-            Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+            y: isScrollTarget ? (bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - height) * 0.5) : 0
+            Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: 90 } }
         }
 
         Rectangle {
             id: activeCategoryPill
-            x: 4
-            width: bar.width - 8
-            height: 24
-            radius: (Theme && Theme.isRounded) ? 12 : 0
-            color: Config ? Config.accentColor : "#ffffff"
+            x: bar.isM3 ? 10 : 4
+            width: bar.width - (bar.isM3 ? 18 : 8)
+            height: bar.pillH
+            radius: bar.isM3 ? height / 2 : 0
+            color: bar.isM3 && Config ? Config.m3SecondaryContainer : (Config ? Config.accentColor : "#ffffff")
             visible: bar.currentIndex > 0 && bar.currentIndex !== 17 && bar.activeBtnObj !== null && bar.activeBtnObj.opacity > 0.5
-            y: (bar.activeBtnObj && bar.activeBtnObj !== setBtn) ? (bar.activeBtnObj.y - catScroll.contentItem.contentY) : 0
+            y: (bar.activeBtnObj && bar.activeBtnObj !== setBtn) ? (bar.activeBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - height) * 0.5) : 0
             Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             Behavior on radius { NumberAnimation { duration: 150 } }
         }
@@ -96,34 +111,30 @@ Rectangle {
     ColumnLayout {
         id: mainColLayout
         anchors.fill: parent
-        anchors.margins: 4
-        spacing: 2
+        anchors.margins: bar.isM3 ? 10 : 4
+        spacing: bar.isM3 ? 4 : 2
 
         Button {
             id: archHeaderItem
             Layout.fillWidth: true
-            Layout.preferredHeight: 24
-            Layout.minimumHeight: 24
-            implicitHeight: 24
+            Layout.preferredHeight: bar.isM3 ? 34 : 24
+            Layout.minimumHeight: bar.isM3 ? 34 : 24
+            implicitHeight: bar.isM3 ? 34 : 24
             flat: true
             background: Item {}
             contentItem: Item {
                 anchors.fill: parent
                 Row {
                     anchors.centerIn: parent
-                    spacing: 6
-                    Image { width: 14; height: 14; sourceSize: Qt.size(28, 28); smooth: true; opacity: archHeaderItem.hovered ? 1.0 : 0.85; anchors.verticalCenter: parent.verticalCenter; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
-                    Text { text: "HYPRLAND"; color: archHeaderItem.hovered ? "#ffffff" : "#aaaaaa"; font.pixelSize: 10; font.bold: false; font.letterSpacing: 1.2; anchors.verticalCenter: parent.verticalCenter }
+                    spacing: 8
+                    Image { width: 15; height: 15; sourceSize: Qt.size(30, 30); smooth: true; opacity: archHeaderItem.hovered ? 1.0 : 0.9; anchors.verticalCenter: parent.verticalCenter; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
+                    Text { text: "HYPRLAND"; color: bar.isM3 && Config ? Config.m3Primary : (archHeaderItem.hovered ? "#ffffff" : "#aaaaaa"); font.pixelSize: 11; font.bold: bar.isM3; font.letterSpacing: 1.4; anchors.verticalCenter: parent.verticalCenter }
                 }
             }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
             onHoveredChanged: {
-                if (hovered) {
-                    bar.lastHoveredBtnObj = archHeaderItem
-                    bar.hoveredBtnObj = archHeaderItem
-                } else if (bar.hoveredBtnObj === archHeaderItem) {
-                    bar.hoveredBtnObj = null
-                }
+                if (hovered) { bar.lastHoveredBtnObj = archHeaderItem; bar.hoveredBtnObj = archHeaderItem }
+                else if (bar.hoveredBtnObj === archHeaderItem) bar.hoveredBtnObj = null
             }
             onClicked: { bar.categorySelected(0); bar.returnToWelcome() }
         }
@@ -131,8 +142,10 @@ Rectangle {
         Rectangle {
             objectName: "sidebarSepLine"
             Layout.fillWidth: true
+            Layout.leftMargin: bar.isM3 ? 8 : 0
+            Layout.rightMargin: bar.isM3 ? 8 : 0
             height: 1
-            color: Qt.rgba(1, 1, 1, 0.06)
+            color: bar.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.18) : Qt.rgba(1, 1, 1, 0.06)
             Layout.topMargin: 1
             Layout.bottomMargin: 2
         }
@@ -156,7 +169,7 @@ Rectangle {
             ColumnLayout {
                 id: navCol
                 width: catScroll.availableWidth
-                spacing: 0
+                spacing: bar.isM3 ? 2 : 0
 
                 Repeater {
                     id: navRepeater
@@ -197,18 +210,16 @@ Rectangle {
                             return Config ? Config.isTabVisible(modelData.idx) : true
                         }
                         Layout.fillWidth: true
-                        Layout.preferredHeight: isShown ? 25 : 0
-                        Layout.maximumHeight: isShown ? 25 : 0
-                        implicitHeight: isShown ? 25 : 0
+                        Layout.preferredHeight: isShown ? bar.itemH : 0
+                        Layout.maximumHeight: isShown ? bar.itemH : 0
+                        implicitHeight: isShown ? bar.itemH : 0
                         opacity: isShown ? 1.0 : 0.0
                         visible: Layout.preferredHeight > 0.5 || opacity > 0.01
                         enabled: isShown
                         clip: true
 
-                        Behavior on Layout.preferredHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                        Behavior on Layout.maximumHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                        Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                        Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+                        Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                        Behavior on opacity { NumberAnimation { duration: 150 } }
 
                         text: Config ? (Config.language, Config.trAuto(modelData.title)) : modelData.title
                         iconSymbol: modelData.icon
@@ -216,12 +227,8 @@ Rectangle {
                         background: Item {}
                         onPressed: bar.categorySelected(modelData.idx)
                         onHoveredChanged: {
-                            if (hovered && isShown) {
-                                bar.lastHoveredBtnObj = nb
-                                bar.hoveredBtnObj = nb
-                            } else if (bar.hoveredBtnObj === nb) {
-                                bar.hoveredBtnObj = null
-                            }
+                            if (hovered && isShown) { bar.lastHoveredBtnObj = nb; bar.hoveredBtnObj = nb }
+                            else if (bar.hoveredBtnObj === nb) bar.hoveredBtnObj = null
                         }
                     }
                 }
@@ -231,8 +238,10 @@ Rectangle {
         Rectangle {
             objectName: "sidebarSepLine"
             Layout.fillWidth: true
+            Layout.leftMargin: bar.isM3 ? 8 : 0
+            Layout.rightMargin: bar.isM3 ? 8 : 0
             height: 1
-            color: Qt.rgba(1, 1, 1, 0.06)
+            color: bar.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.18) : Qt.rgba(1, 1, 1, 0.06)
             Layout.topMargin: 2
             Layout.bottomMargin: 2
         }
@@ -241,18 +250,15 @@ Rectangle {
             id: setBtn
             tabIdx: 17
             Layout.fillWidth: true
+            Layout.preferredHeight: bar.itemH
             text: Config ? (Config.language, Config.trAuto("Настройки")) : "Настройки"
             iconSymbol: "󰒓"
             isActive: bar.currentIndex === 17
             background: Item {}
             onPressed: bar.categorySelected(17)
             onHoveredChanged: {
-                if (hovered) {
-                    bar.lastHoveredBtnObj = setBtn
-                    bar.hoveredBtnObj = setBtn
-                } else if (bar.hoveredBtnObj === setBtn) {
-                    bar.hoveredBtnObj = null
-                }
+                if (hovered) { bar.lastHoveredBtnObj = setBtn; bar.hoveredBtnObj = setBtn }
+                else if (bar.hoveredBtnObj === setBtn) bar.hoveredBtnObj = null
             }
         }
 
@@ -263,43 +269,33 @@ Rectangle {
                 return Config ? Config.isTabVisible(99) : true
             }
             Layout.fillWidth: true
-            Layout.preferredHeight: isCloseShown ? 24 : 0
-            Layout.maximumHeight: isCloseShown ? 24 : 0
-            implicitHeight: isCloseShown ? 24 : 0
+            Layout.preferredHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
+            Layout.maximumHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
+            implicitHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
             opacity: isCloseShown ? 1.0 : 0.0
             visible: Layout.preferredHeight > 0.5 || opacity > 0.01
             enabled: isCloseShown
             clip: true
             flat: true
-            Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-            Behavior on opacity { NumberAnimation { duration: 150 } }
             onClicked: if (ApplicationWindow.window) ApplicationWindow.window.requestCloseDrawer()
 
             contentItem: Item {
                 anchors.fill: parent
                 Row {
                     id: closeRow
-                    spacing: 7
+                    spacing: bar.isM3 ? 10 : 7
                     anchors.verticalCenter: parent.verticalCenter
                     x: (Config && Config.alignCenter)
                        ? Math.round((parent.width - closeRow.width) / 2)
-                       : 10
-                    Behavior on x { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
-
-                    Text { text: "✕"; color: closeBtn.hovered ? "#ffffff" : "#888888"; font.pixelSize: 10; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: Config ? (Config.language, Config.trAuto("Закрыть")) : "Закрыть"; color: closeBtn.hovered ? "#ffffff" : "#888888"; font.pixelSize: Config.fontSize; font.bold: false; anchors.verticalCenter: parent.verticalCenter }
+                       : (bar.isM3 ? 14 : 10)
+                    Text { text: "✕"; color: closeBtn.hovered ? "#ff6b6b" : "#888888"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: Config ? (Config.language, Config.trAuto("Закрыть")) : "Закрыть"; color: closeBtn.hovered ? "#ffffff" : "#888888"; font.pixelSize: Config.fontSize; anchors.verticalCenter: parent.verticalCenter }
                 }
             }
-
             background: Item {}
-
             onHoveredChanged: {
-                if (hovered) {
-                    bar.lastHoveredBtnObj = closeBtn
-                    bar.hoveredBtnObj = closeBtn
-                } else if (bar.hoveredBtnObj === closeBtn) {
-                    bar.hoveredBtnObj = null
-                }
+                if (hovered) { bar.lastHoveredBtnObj = closeBtn; bar.hoveredBtnObj = closeBtn }
+                else if (bar.hoveredBtnObj === closeBtn) bar.hoveredBtnObj = null
             }
         }
     }

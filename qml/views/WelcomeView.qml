@@ -11,7 +11,10 @@ Item {
     property string settingsSearchQuery: ""
     readonly property bool isSearching: settingsSearchQuery.length > 0
     readonly property int wMode: Config ? Config.welcomeAlignMode : 1
-    property int visibleCardsHeight: 262
+    readonly property bool isM3: Theme && Theme.isRounded
+    readonly property int cardHeight: isM3 ? 56 : 44
+    readonly property int cardGap: isM3 ? 11 : 7
+    property int visibleCardsHeight: 280
 
     function recalcCardsLayout() {
         var cnt = welcomeCatRep.count
@@ -24,21 +27,21 @@ Item {
         }
 
         var w = Math.max(400, gridWrapper.width)
-        var cardH = 44
-        var gap = 7
+        var cardH = welcomeRoot.cardHeight
+        var gap = welcomeRoot.cardGap
 
         if (welcomeRoot.isSearching) {
-            var singleW = Math.min(440, Math.round(w * 0.56))
+            var singleW = Math.min(480, Math.round(w * 0.60))
             var startX = Math.round((w - singleW) / 2)
             for (var m = 0; m < visList.length; ++m) {
                 var item = visList[m]
                 item.targetX = startX
-                item.targetY = m * (cardH + 6)
+                item.targetY = m * (cardH + 8)
                 item.targetW = singleW
             }
-            welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 6))
+            welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 8))
         } else {
-            var cols = 5
+            var cols = welcomeRoot.isM3 ? 4 : 5
             var colW = Math.floor((w - (cols - 1) * gap) / cols)
             for (var k = 0; k < visList.length; ++k) {
                 var card = visList[k]
@@ -53,6 +56,7 @@ Item {
         }
     }
 
+    onIsM3Changed: Qt.callLater(recalcCardsLayout)
     onSettingsSearchQueryChanged: recalcCardsLayout()
     onWidthChanged: Qt.callLater(recalcCardsLayout)
     onHeightChanged: Qt.callLater(recalcCardsLayout)
@@ -85,12 +89,12 @@ Item {
         Item {
             id: scrollArea
             width: welcomeRoot.width
-            implicitHeight: Math.max(welcomeRoot.height, gridWrapper.targetYPos + welcomeRoot.visibleCardsHeight + 24)
+            implicitHeight: Math.max(welcomeRoot.height, gridWrapper.targetYPos + welcomeRoot.visibleCardsHeight + 28)
             height: implicitHeight
 
             Item {
                 id: mainContainer
-                width: Math.min(parent.width - 56, 1040)
+                width: Math.min(parent.width - (welcomeRoot.isM3 ? 44 : 56), 1040)
                 height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
 
@@ -98,7 +102,7 @@ Item {
                     id: heroWrapper
                     width: parent.width
                     height: heroBlock.implicitHeight
-                    y: welcomeRoot.isSearching ? 26 : 14
+                    y: welcomeRoot.isSearching ? 24 : 16
 
                     Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
 
@@ -109,7 +113,7 @@ Item {
                             if (welcomeRoot.wMode === 0) return 0
                             return parent.width - width
                         }
-                        spacing: 16
+                        spacing: welcomeRoot.isM3 ? 18 : 14
 
                         Behavior on x { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
@@ -124,21 +128,21 @@ Item {
                                 RowLayout {
                                     spacing: 8
                                     Image { width: 18; height: 18; sourceSize: Qt.size(36, 36); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
-                                    Text { text: "HYPRLAND"; color: "#ffffff"; font.pixelSize: 13; font.bold: false; font.letterSpacing: 2 }
+                                    Text { text: "HYPRLAND"; color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"; font.pixelSize: 13; font.bold: welcomeRoot.isM3; font.letterSpacing: 2 }
                                 }
 
                                 Text {
                                     text: Config ? (Config.language, Config.trAuto("Привет, Whrr!")) : "Привет, Whrr!"
-                                    color: "#ffffff"
-                                    font.pixelSize: Config.fontSize + 8
-                                    font.bold: false
+                                    color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
+                                    font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 10 : 8)
+                                    font.bold: welcomeRoot.isM3
                                 }
                             }
 
                             Rectangle {
                                 width: 1
                                 height: 48
-                                color: Qt.rgba(1, 1, 1, 0.16)
+                                color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.16)
                                 Layout.alignment: Qt.AlignVCenter
                             }
 
@@ -149,9 +153,9 @@ Item {
                                 Text {
                                     id: timeLabel
                                     text: Qt.formatDateTime(new Date(), "hh:mm:ss")
-                                    color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                    color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                     font.pixelSize: 38
-                                    font.bold: false
+                                    font.bold: welcomeRoot.isM3
                                     font.letterSpacing: 2
                                     Layout.alignment: Qt.AlignLeft
                                 }
@@ -159,7 +163,7 @@ Item {
                                 Text {
                                     id: dateLabel
                                     text: Qt.formatDateTime(new Date(), "dddd, d MMMM yyyy")
-                                    color: "#888888"
+                                    color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.72) : "#888888"
                                     font.pixelSize: Config.fontSize
                                     Layout.alignment: Qt.AlignLeft
                                 }
@@ -169,19 +173,19 @@ Item {
                         TextField {
                             id: welcomeSearchField
                             Layout.alignment: welcomeRoot.isSearching ? Qt.AlignHCenter : (welcomeRoot.wMode === 0 ? Qt.AlignLeft : (welcomeRoot.wMode === 2 ? Qt.AlignRight : Qt.AlignHCenter))
-                            Layout.preferredWidth: welcomeRoot.isSearching ? 440 : 340
-                            implicitHeight: 30
-                            leftPadding: 12
-                            rightPadding: 12
+                            Layout.preferredWidth: welcomeRoot.isSearching ? 460 : (welcomeRoot.isM3 ? 400 : 340)
+                            implicitHeight: welcomeRoot.isM3 ? 38 : 30
+                            leftPadding: 16
+                            rightPadding: 16
                             color: "#ffffff"
-                            font.pixelSize: Config.fontSize
+                            font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 1 : 0)
                             placeholderText: Config ? (Config.language, Config.trAuto("Поиск по настройкам")) : "Поиск по настройкам"
-                            placeholderTextColor: "#777777"
+                            placeholderTextColor: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.55) : "#777777"
 
                             Behavior on Layout.preferredWidth { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
 
                             background: GlassPanel {
-                                radius: (Theme && Theme.isRounded) ? 15 : 0
+                                radius: welcomeRoot.isM3 ? height / 2 : 0
                                 baseSurf: Config ? Config.m3SurfaceContainerHigh : "#252832"
                             }
                             onTextChanged: welcomeRoot.settingsSearchQuery = text.trim().toLowerCase()
@@ -205,9 +209,9 @@ Item {
                     onWidthChanged: Qt.callLater(welcomeRoot.recalcCardsLayout)
 
                     readonly property real targetYPos: {
-                        var heroBot = (welcomeRoot.isSearching ? 26 : 14) + heroWrapper.height
+                        var heroBot = (welcomeRoot.isSearching ? 24 : 16) + heroWrapper.height
                         if (welcomeRoot.isSearching) return heroBot + 20
-                        var minTop = heroBot + 14
+                        var minTop = heroBot + 18
                         var midBottom = Math.round(heroBot + (welcomeRoot.height - heroBot - welcomeRoot.visibleCardsHeight) / 2)
                         return Math.max(minTop, midBottom)
                     }
@@ -223,18 +227,17 @@ Item {
                         x: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetX : 0
                         y: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetY : 0
                         width: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetW : 220
-                        height: 44
-                        radius: (Theme && Theme.isRounded) ? 16 : 0
-                        color: Qt.rgba(Config ? Config.accentColor.r : 1, Config ? Config.accentColor.g : 1, Config ? Config.accentColor.b : 1, 0.11)
-                        border.color: Qt.rgba(Config ? Config.accentColor.r : 1, Config ? Config.accentColor.g : 1, Config ? Config.accentColor.b : 1, 0.50)
-                        border.width: 1
+                        height: welcomeRoot.cardHeight
+                        radius: welcomeRoot.isM3 ? (Config ? Config.m3CardRadius : 18) : 0
+                        color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, welcomeRoot.isM3 ? 0.16 : 0.11)
+                        border.color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.55)
+                        border.width: welcomeRoot.isM3 ? 1.5 : 1
                         opacity: gridWrapper.hoveredCardObj && gridWrapper.hoveredCardObj.matchesFilter ? 1.0 : 0.0
 
                         Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                         Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                         Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                         Behavior on opacity { NumberAnimation { duration: 110 } }
-                        Behavior on radius { NumberAnimation { duration: 150 } }
                     }
 
                     Repeater {
@@ -267,7 +270,7 @@ Item {
                             { title: "󰏘  Шейдеры", desc: "Эффекты экрана и CRT", idx: 13, kw: "шейдеры эффекты экрана ретро чб фильтр shaders screen effects crt grayscale" },
                             { title: "󰸉  Обои", desc: "Галерея, пресеты и демон", idx: 14, kw: "обои фон видео живые пресеты автосмена галерея wallpapers background live video presets awww mpvpaper" },
                             { title: "󰕰  Виджеты", desc: "Часы, оверлей клавиш, сводка", idx: 15, kw: "виджеты часы оверлей клавиш информеры монитор процессов btop fastfetch peaclock widgets clock keyboard overlay" },
-                            { title: "󰒓  Настройки", desc: "Шрифт, масштаб, стекло", idx: 17, kw: "настройки шрифт масштаб жидкое стекло подсветка границ вспышка курсор язык цвет акцент палитра высота окна боковое меню settings font scale liquid glass border glow flash language color accent palette" }
+                            { title: "󰒓  Настройки", desc: "Тема MD3, шрифт, стекло", idx: 17, kw: "настройки шрифт масштаб жидкое стекло подсветка границ вспышка курсор язык цвет акцент палитра высота окна боковое меню settings font scale liquid glass border glow flash language color accent palette md3" }
                         ]
 
                         Button {
@@ -277,14 +280,18 @@ Item {
                             property real targetY: 0
                             property real targetW: 220
 
+                            readonly property string rawTitle: Config ? (Config.language, Config.trAuto(modelData.title)) : modelData.title
+                            readonly property string iconPart: rawTitle.split(" ")[0]
+                            readonly property string textPart: rawTitle.substring(iconPart.length).trim()
+
                             property bool matchesFilter: {
                                 var _ = Config ? Config.hiddenSidebarTabs : ""
                                 var allowed = (modelData.idx === 17) ? true : (Config ? Config.isTabVisible(modelData.idx) : true)
                                 if (!allowed) return false
                                 var q = welcomeRoot.settingsSearchQuery
                                 if (q.length === 0) return true
-                                var trTitle = Config ? Config.trAuto(modelData.title).toLowerCase() : modelData.title.toLowerCase()
-                                var trDesc = Config ? Config.trAuto(modelData.desc).toLowerCase() : modelData.desc.toLowerCase()
+                                var trTitle = rawTitle.toLowerCase()
+                                var trDesc = (Config ? Config.trAuto(modelData.desc) : modelData.desc).toLowerCase()
                                 return trTitle.indexOf(q) !== -1 || trDesc.indexOf(q) !== -1 || modelData.kw.indexOf(q) !== -1
                             }
 
@@ -293,7 +300,7 @@ Item {
                             x: targetX
                             y: targetY
                             width: targetW
-                            height: 44
+                            height: welcomeRoot.cardHeight
                             opacity: matchesFilter ? 1.0 : 0.0
                             scale: matchesFilter ? 1.0 : 0.88
                             visible: opacity > 0.01
@@ -318,28 +325,61 @@ Item {
                             onPressed: welcomeRoot.navigateTo(modelData.idx)
 
                             background: GlassPanel {
-                                radius: (Theme && Theme.isRounded) ? (Config ? Config.m3CardRadius : 16) : 0
+                                radius: welcomeRoot.isM3 ? (Config ? Config.m3CardRadius : 18) : 0
                                 baseSurf: Config ? (cardBtn.hovered ? Config.m3SurfaceContainerHigh : Config.m3SurfaceContainer) : "#1e2028"
                             }
 
-                            contentItem: ColumnLayout {
+                            contentItem: RowLayout {
                                 anchors.fill: parent
-                                anchors.margins: 7
-                                spacing: 2
+                                anchors.leftMargin: welcomeRoot.isM3 ? 11 : 8
+                                anchors.rightMargin: welcomeRoot.isM3 ? 11 : 8
+                                spacing: welcomeRoot.isM3 ? 11 : 6
 
-                                Text {
-                                    text: Config ? (Config.language, Config.trAuto(modelData.title)) : modelData.title
-                                    color: "#ffffff"
-                                    font.pixelSize: Config.fontSize
-                                    font.bold: false
+                                // Иконка в тональном контейнере M3 SecondaryContainer / Primary
+                                Rectangle {
+                                    visible: welcomeRoot.isM3
+                                    Layout.preferredWidth: 36
+                                    Layout.preferredHeight: 36
+                                    radius: Config ? Math.min(14, Config.m3ControlRadius + 2) : 12
+                                    color: cardBtn.hovered
+                                           ? (Config ? Config.m3Primary : "#a8c7fa")
+                                           : (Config ? Config.m3SecondaryContainer : "#282c38")
+                                    Behavior on color { ColorAnimation { duration: 150 } }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: cardBtn.iconPart
+                                        font.pixelSize: 15
+                                        color: cardBtn.hovered
+                                               ? (Config ? Config.accentTextColor : "#000000")
+                                               : (Config ? Config.m3Primary : "#ffffff")
+                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                    }
                                 }
-                                Text {
-                                    text: Config ? (Config.language, Config.trAuto(modelData.desc)) : modelData.desc
-                                    color: cardBtn.hovered ? "#aaaaaa" : "#777777"
-                                    font.pixelSize: Config.fontSize - 2
-                                    elide: Text.ElideRight
+
+                                ColumnLayout {
                                     Layout.fillWidth: true
-                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                    Layout.alignment: Qt.AlignVCenter
+                                    spacing: 2
+
+                                    Text {
+                                        text: welcomeRoot.isM3 ? cardBtn.textPart : cardBtn.rawTitle
+                                        color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
+                                        font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 1 : 0)
+                                        font.bold: welcomeRoot.isM3
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: Config ? (Config.language, Config.trAuto(modelData.desc)) : modelData.desc
+                                        color: cardBtn.hovered
+                                               ? (welcomeRoot.isM3 && Config ? Config.m3Primary : "#bbbbbb")
+                                               : (welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.62) : "#777777")
+                                        font.pixelSize: Config.fontSize - 2
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                    }
                                 }
                             }
                         }

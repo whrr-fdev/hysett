@@ -205,6 +205,7 @@ public:
     qreal m3OutlineOpacity() const { return m_m3OutlineOpacity; }
     void setM3OutlineOpacity(qreal v);
     Q_INVOKABLE void resetM3Attributes();
+    Q_INVOKABLE void resetToDefaultMonochrome();
 
     Q_INVOKABLE QString consumeLaunchCmd();
     Q_INVOKABLE bool isDaemonStart() const;

@@ -913,8 +913,8 @@ ApplicationWindow {
                         Item {
                             visible: index > 0
                             width: parent.isMacroBoundary
-                                   ? topBarContainer.macroStepGap
-                                   : (parent.isTightStatusIcon ? 3 : (Waybar ? Waybar.spacing : 4))
+                                   ? (topBarContainer.macroStepGap + ((modKey === "tray" || modKey === "bluetooth") ? 4 : 0))
+                                   : (parent.isTightStatusIcon ? 5 : (Waybar ? Waybar.spacing : 4))
                             height: 1
                         }
 
@@ -933,9 +933,9 @@ ApplicationWindow {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "sysinfo") return sysRow.implicitWidth + 6
                                 if (modKey === "tray") return Math.max(16, trayRow.implicitWidth + 6)
-                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 12
-                                if (modKey === "volume") return volInnerRow.implicitWidth + 2
-                                if (modKey === "language") return 16
+                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 13
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 4
+                                if (modKey === "language") return 18
                                 if (modKey === "clock") return barClockText.implicitWidth + 4
                                 if (modKey === "power") return 13
                                 return 0

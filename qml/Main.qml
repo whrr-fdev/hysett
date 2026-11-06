@@ -691,16 +691,20 @@ ApplicationWindow {
 
             Row {
                 id: leftBarRow; z: 5; visible: !root.isVertBar
+                move: Transition { NumberAnimation { properties: "x"; duration: 150; easing.type: Easing.OutQuint } }
                 anchors.left: parent.left; anchors.leftMargin: (Theme && Theme.isRounded) ? 12 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
                 Repeater {
-                    model: Waybar ? Waybar.leftBarOrder : ["launcher", "workspaces", "weather", "media"]
+                    id: leftModRepeater
+                    model: Waybar ? Waybar.leftBarOrder.length : 4
                     delegate: Row {
                         id: leftModWrap
                         spacing: 0
                         anchors.verticalCenter: parent.verticalCenter
-                        readonly property string modKey: modelData
+                        readonly property string modKey: (Waybar && index < Waybar.leftBarOrder.length) ? Waybar.leftBarOrder[index] : ""
+                        readonly property real bodyOffsetX: leftGapItem.visible ? leftGapItem.width : 0
+                        readonly property real bodyWidth: leftModBody.width
                         readonly property bool modVis: {
                             var _ = Waybar ? Waybar.hiddenBarModules : ""
                             var _m = Waybar ? Waybar.mediaActive : false
@@ -712,6 +716,7 @@ ApplicationWindow {
                         visible: modVis
 
                         Item {
+                            id: leftGapItem
                             readonly property bool isLeftMacro: (modKey === "workspaces" || modKey === "weather" || modKey === "media") && index > 0
                             readonly property real fullGap: isLeftMacro
                                                             ? (topBarContainer.macroStepGap + (Waybar ? Waybar.spacing : 4))
@@ -1102,6 +1107,7 @@ ApplicationWindow {
 
             Row {
                 id: rightBarRow; z: 5; visible: !root.isVertBar
+                move: Transition { NumberAnimation { properties: "x"; duration: 150; easing.type: Easing.OutQuint } }
                 anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 12 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
@@ -1132,12 +1138,12 @@ ApplicationWindow {
 
                 Repeater {
                     id: rightModRepeater
-                    model: Waybar ? Waybar.rightBarOrder : ["sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"]
+                    model: Waybar ? Waybar.rightBarOrder.length : 9
                     delegate: Row {
                         id: rightModWrap
                         spacing: 0
                         anchors.verticalCenter: parent.verticalCenter
-                        readonly property string modKey: modelData
+                        readonly property string modKey: (Waybar && index < Waybar.rightBarOrder.length) ? Waybar.rightBarOrder[index] : ""
                         readonly property bool modVis: {
                             var _ = Waybar ? Waybar.hiddenBarModules : ""
                             var _t = Waybar ? Waybar.trayApps : []
@@ -1426,34 +1432,38 @@ ApplicationWindow {
                 property real ghostX: 0
                 property real ghostW: 64
                 property real grabOffsetX: 32
+                property double lastSwapMs: 0
 
                 function hitTestBarItem(mx, my) {
-                    // 1. Проверяем левый ряд
-                    for (var i = 0; i < leftBarRow.children.length; ++i) {
-                        var lw = leftBarRow.children[i]
+                    // 1. Проверяем левый ряд через leftModRepeater.itemAt(i)
+                    for (var i = 0; i < leftModRepeater.count; ++i) {
+                        var lw = leftModRepeater.itemAt(i)
                         if (!lw || !lw.visible || !lw.modKey) continue
-                        var p = lw.mapToItem(barEditDragLayer, 0, 0)
-                        if (mx >= p.x && mx <= p.x + lw.width) {
-                            var closeHit = (mx >= p.x + lw.width - 13 && my <= p.y + 13)
-                            return { side: "left", idx: i, key: lw.modKey, x: p.x, w: lw.width, close: closeHit }
+                        var lx = leftBarRow.x + lw.x + lw.bodyOffsetX
+                        var lwBody = lw.bodyWidth
+                        if (mx >= lx - 2 && mx <= lx + lwBody + 2) {
+                            var closeHit = (mx >= lx + lwBody - 13 && my <= 14)
+                            return { side: "left", idx: i, key: lw.modKey, x: lx, w: lwBody, close: closeHit }
                         }
                     }
                     // 2. Проверяем центральный заголовок
                     if (centerTitlePill.visible) {
-                        var cp = centerTitlePill.mapToItem(barEditDragLayer, 0, 0)
-                        if (mx >= cp.x && mx <= cp.x + centerTitlePill.width) {
-                            var cClose = (mx >= cp.x + centerTitlePill.width - 13 && my <= cp.y + 13)
-                            return { side: "center", idx: 0, key: "window", x: cp.x, w: centerTitlePill.width, close: cClose }
+                        var cx = centerTitlePill.x
+                        var cw = centerTitlePill.width
+                        if (mx >= cx - 2 && mx <= cx + cw + 2) {
+                            var cClose = (mx >= cx + cw - 13 && my <= 14)
+                            return { side: "center", idx: 0, key: "window", x: cx, w: cw, close: cClose }
                         }
                     }
-                    // 3. Проверяем правый ряд
+                    // 3. Проверяем правый ряд через rightModRepeater.itemAt(j)
                     for (var j = 0; j < rightModRepeater.count; ++j) {
                         var rw = rightModRepeater.itemAt(j)
                         if (!rw || !rw.visible || !rw.modKey) continue
-                        var rp = rw.mapToItem(barEditDragLayer, rw.bodyOffsetX, 0)
-                        if (mx >= rp.x && mx <= rp.x + rw.bodyWidth) {
-                            var rClose = (mx >= rp.x + rw.bodyWidth - 13 && my <= rp.y + 13)
-                            return { side: "right", idx: j, key: rw.modKey, x: rp.x, w: rw.bodyWidth, close: rClose }
+                        var rx = rightBarRow.x + rw.x + rw.bodyOffsetX
+                        var rwBody = rw.bodyWidth
+                        if (mx >= rx - 2 && mx <= rx + rwBody + 2) {
+                            var rClose = (mx >= rx + rwBody - 13 && my <= 14)
+                            return { side: "right", idx: j, key: rw.modKey, x: rx, w: rwBody, close: rClose }
                         }
                     }
                     return null
@@ -1463,11 +1473,11 @@ ApplicationWindow {
                 Rectangle {
                     visible: barEditDragLayer.activeKey !== ""
                     x: barEditDragLayer.ghostX
-                    width: Math.max(36, barEditDragLayer.ghostW)
+                    width: Math.max(32, barEditDragLayer.ghostW)
                     height: topBarContainer.pillHeight + 2
                     anchors.verticalCenter: parent.verticalCenter
                     radius: topBarContainer.pillRadius
-                    color: Qt.rgba(Config ? Config.m3Primary.r : 0.4, Config ? Config.m3Primary.g : 0.7, Config ? Config.m3Primary.b : 1.0, 0.38)
+                    color: Qt.rgba(Config ? Config.m3Primary.r : 0.4, Config ? Config.m3Primary.g : 0.7, Config ? Config.m3Primary.b : 1.0, 0.42)
                     border.color: Config ? Config.m3Primary : "#ffffff"
                     border.width: 2
 
@@ -1504,11 +1514,14 @@ ApplicationWindow {
                         barEditDragLayer.ghostW = hit.w
                         barEditDragLayer.grabOffsetX = mouse.x - hit.x
                         barEditDragLayer.ghostX = mouse.x - barEditDragLayer.grabOffsetX
+                        barEditDragLayer.lastSwapMs = Date.now()
                     }
 
                     onPositionChanged: (mouse) => {
                         if (!(pressedButtons & Qt.LeftButton) || barEditDragLayer.activeKey === "" || !Waybar) return
                         barEditDragLayer.ghostX = mouse.x - barEditDragLayer.grabOffsetX
+                        var now = Date.now()
+                        if (now - barEditDragLayer.lastSwapMs < 85) return
                         var cx = mouse.x
 
                         // Перетаскивание заголовка окна между центром, левым и правым блоком
@@ -1516,59 +1529,83 @@ ApplicationWindow {
                             var leftEnd = leftBarRow.x + leftBarRow.width
                             var rightStart = rightBarRow.x
                             if (barEditDragLayer.activeSide === "center") {
-                                if (cx < leftEnd + 20) {
+                                if (cx < leftEnd + 16) {
                                     Waybar.moveWindowModuleToSide("left")
                                     barEditDragLayer.activeSide = "left"
                                     barEditDragLayer.activeIdx = Waybar.leftBarOrder.indexOf("window")
+                                    barEditDragLayer.lastSwapMs = now
                                     return
-                                } else if (cx > rightStart - 20) {
+                                } else if (cx > rightStart - 16) {
                                     Waybar.moveWindowModuleToSide("right")
                                     barEditDragLayer.activeSide = "right"
                                     barEditDragLayer.activeIdx = Waybar.rightBarOrder.indexOf("window")
+                                    barEditDragLayer.lastSwapMs = now
                                     return
                                 }
                             } else if (barEditDragLayer.activeSide === "left" && cx > leftEnd + 36 && cx < rightStart - 36) {
                                 Waybar.moveWindowModuleToSide("center")
                                 barEditDragLayer.activeSide = "center"
                                 barEditDragLayer.activeIdx = 0
+                                barEditDragLayer.lastSwapMs = now
                                 return
                             } else if (barEditDragLayer.activeSide === "right" && cx < rightStart - 36 && cx > leftEnd + 36) {
                                 Waybar.moveWindowModuleToSide("center")
                                 barEditDragLayer.activeSide = "center"
                                 barEditDragLayer.activeIdx = 0
+                                barEditDragLayer.lastSwapMs = now
                                 return
                             }
                         }
 
-                        // Плавный обмен местами при пересечении середины соседнего блока
+                        // Обмен местами соседних блоков при пересечении середины соседа
                         if (barEditDragLayer.activeSide === "left") {
-                            var curLeftIdx = Waybar.leftBarOrder.indexOf(barEditDragLayer.activeKey)
-                            if (curLeftIdx === -1) return
-                            barEditDragLayer.activeIdx = curLeftIdx
-                            for (var i = 0; i < leftBarRow.children.length; ++i) {
-                                var lw = leftBarRow.children[i]
-                                if (!lw || !lw.visible || i === curLeftIdx) continue
-                                var lp = lw.mapToItem(barEditDragLayer, 0, 0)
-                                var mid = lp.x + lw.width * 0.5
-                                if ((i < curLeftIdx && cx < mid) || (i > curLeftIdx && cx > mid)) {
-                                    Waybar.moveBarModule("left", curLeftIdx, i)
-                                    barEditDragLayer.activeIdx = i
-                                    break
+                            var curL = Waybar.leftBarOrder.indexOf(barEditDragLayer.activeKey)
+                            if (curL === -1) return
+                            if (curL > 0) {
+                                var prevW = leftModRepeater.itemAt(curL - 1)
+                                if (prevW && prevW.visible) {
+                                    var prevMid = leftBarRow.x + prevW.x + prevW.bodyOffsetX + prevW.bodyWidth * 0.5
+                                    if (cx < prevMid) {
+                                        Waybar.moveBarModule("left", curL, curL - 1)
+                                        barEditDragLayer.lastSwapMs = now
+                                        return
+                                    }
+                                }
+                            }
+                            if (curL + 1 < leftModRepeater.count) {
+                                var nextW = leftModRepeater.itemAt(curL + 1)
+                                if (nextW && nextW.visible) {
+                                    var nextMid = leftBarRow.x + nextW.x + nextW.bodyOffsetX + nextW.bodyWidth * 0.5
+                                    if (cx > nextMid) {
+                                        Waybar.moveBarModule("left", curL, curL + 1)
+                                        barEditDragLayer.lastSwapMs = now
+                                        return
+                                    }
                                 }
                             }
                         } else if (barEditDragLayer.activeSide === "right") {
-                            var curRightIdx = Waybar.rightBarOrder.indexOf(barEditDragLayer.activeKey)
-                            if (curRightIdx === -1) return
-                            barEditDragLayer.activeIdx = curRightIdx
-                            for (var j = 0; j < rightModRepeater.count; ++j) {
-                                var rw = rightModRepeater.itemAt(j)
-                                if (!rw || !rw.visible || j === curRightIdx) continue
-                                var rp = rw.mapToItem(barEditDragLayer, rw.bodyOffsetX, 0)
-                                var rmid = rp.x + rw.bodyWidth * 0.5
-                                if ((j < curRightIdx && cx < rmid) || (j > curRightIdx && cx > rmid)) {
-                                    Waybar.moveBarModule("right", curRightIdx, j)
-                                    barEditDragLayer.activeIdx = j
-                                    break
+                            var curR = Waybar.rightBarOrder.indexOf(barEditDragLayer.activeKey)
+                            if (curR === -1) return
+                            if (curR > 0) {
+                                var prevRW = rightModRepeater.itemAt(curR - 1)
+                                if (prevRW && prevRW.visible) {
+                                    var prevRMid = rightBarRow.x + prevRW.x + prevRW.bodyOffsetX + prevRW.bodyWidth * 0.5
+                                    if (cx < prevRMid) {
+                                        Waybar.moveBarModule("right", curR, curR - 1)
+                                        barEditDragLayer.lastSwapMs = now
+                                        return
+                                    }
+                                }
+                            }
+                            if (curR + 1 < rightModRepeater.count) {
+                                var nextRW = rightModRepeater.itemAt(curR + 1)
+                                if (nextRW && nextRW.visible) {
+                                    var nextRMid = rightBarRow.x + nextRW.x + nextRW.bodyOffsetX + nextRW.bodyWidth * 0.5
+                                    if (cx > nextRMid) {
+                                        Waybar.moveBarModule("right", curR, curR + 1)
+                                        barEditDragLayer.lastSwapMs = now
+                                        return
+                                    }
                                 }
                             }
                         }

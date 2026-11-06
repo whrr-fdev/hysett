@@ -1157,18 +1157,23 @@ print(raw_json)
     p->start("/usr/bin/python3", {"-c", pyCode});
 }
 
+static void runHyprEvalSilent(const QString &luaExpr) {
+    QProcess p;
+    p.setProgram("hyprctl");
+    p.setArguments({"eval", luaExpr});
+    p.setStandardOutputFile(QProcess::nullDevice());
+    p.setStandardErrorFile(QProcess::nullDevice());
+    p.startDetached();
+}
+
 void WaybarManager::switchWorkspace(int wsId) {
-    QProcess::startDetached("hyprctl", {"eval", QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId)});
-    QProcess::startDetached("hyprctl", {"dispatch", QString("hl.dsp.focus({workspace='%1'})").arg(wsId)});
-    QProcess::startDetached("hyprctl", {"dispatch", "workspace", QString::number(wsId)});
+    runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
 
 void WaybarManager::stepWorkspace(int dir) {
     QString target = dir > 0 ? "e+1" : "e-1";
-    QProcess::startDetached("hyprctl", {"eval", QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target)});
-    QProcess::startDetached("hyprctl", {"dispatch", QString("hl.dsp.focus({workspace='%1'})").arg(target)});
-    QProcess::startDetached("hyprctl", {"dispatch", "workspace", target});
+    runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
 
@@ -1217,7 +1222,7 @@ void WaybarManager::activateTrayApp(const QString &cls, const QString &sniServic
                 "  end "
                 "end"
             ).arg(cls);
-            QProcess::startDetached("hyprctl", {"eval", luaCmd});
+            runHyprEvalSilent(luaCmd);
             return;
         }
     }

@@ -23,13 +23,24 @@ Item {
         if (cnt === 0) return
 
         var spacing = (Theme && Theme.isRounded) ? 3 : 2
-        var totalW = 0
+        var availW = Math.max(300, sceneContainer.rightAreaW - 8)
+        var sumW = 0
         var widths = []
         for (var i = 0; i < cnt; ++i) {
             var item = morphCatRepeater.itemAt(i)
-            var w = item ? Math.ceil(item.textImplicitW + 22) : 56
+            var w = item ? Math.ceil(item.textImplicitW + 14) : 48
             widths.push(w)
-            totalW += w + (i > 0 ? spacing : 0)
+            sumW += w
+        }
+        var totalGaps = Math.max(0, cnt - 1) * spacing
+        var totalW = sumW + totalGaps
+        if (totalW > availW && sumW > 0) {
+            var scale = Math.max(0.5, (availW - totalGaps) / sumW)
+            totalW = totalGaps
+            for (var k = 0; k < cnt; ++k) {
+                widths[k] = Math.max(34, Math.floor(widths[k] * scale))
+                totalW += widths[k]
+            }
         }
 
         var startX = Math.round(sceneContainer.rightAreaX + Math.max(0, (sceneContainer.rightAreaW - totalW) / 2))
@@ -42,15 +53,13 @@ Item {
             }
             curX += widths[j] + spacing
         }
-
-        morphCategoriesLayer.activeCatBtnObj = morphCatRepeater.itemAt(wallRoot.activeCatIndex)
     }
 
     onWidthChanged: recalcCatLayout()
     onHeightChanged: recalcCatLayout()
     onIsExpandedChanged: recalcCatLayout()
     onActiveCatIndexChanged: {
-        morphCategoriesLayer.activeCatBtnObj = morphCatRepeater.itemAt(wallRoot.activeCatIndex)
+        
     }
     Component.onCompleted: Qt.callLater(recalcCatLayout)
 
@@ -314,18 +323,27 @@ Item {
 
                                         contentItem: Text {
                                             text: modelData.name
-                                            color: isPresetActive ? "#000000" : (pBtn.hovered ? "#000000" : "#e0e0e0")
+                                            color: isPresetActive
+                                                   ? (Config ? Config.accentTextColor : "#000000")
+                                                   : (pBtn.hovered ? "#ffffff" : (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#e0e0e0"))
                                             font.pixelSize: Config.fontSize
+                                            font.bold: isPresetActive
                                             horizontalAlignment: Text.AlignHCenter
                                             verticalAlignment: Text.AlignVCenter
                                         }
 
                                         background: Rectangle {
-                                            radius: (Theme && Theme.isRounded) ? 3 : 0
-                                            color: isPresetActive ? "#ffffff" : (pBtn.hovered ? "#ffffff" : Qt.rgba(1, 1, 1, Math.max(0.04, Config.cardOpacity * 0.15)))
-                                            border.color: isPresetActive ? "#ffffff" : Qt.rgba(1, 1, 1, 0.18)
+                                            radius: (Theme && Theme.isRounded) ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
+                                            color: isPresetActive
+                                                   ? (Config ? Config.m3Primary : "#ffffff")
+                                                   : (pBtn.hovered
+                                                      ? (Theme && Theme.isRounded && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.16))
+                                                      : (Theme && Theme.isRounded && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)))
+                                            border.color: isPresetActive
+                                                          ? (Config ? Config.m3Primary : "#ffffff")
+                                                          : (Theme && Theme.isRounded && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.18))
                                             border.width: 1
-                                            Behavior on color { ColorAnimation { duration: 100 } }
+                                            Behavior on color { ColorAnimation { duration: 120 } }
                                         }
                                     }
 
@@ -608,7 +626,7 @@ Item {
             objectName: "morphCategoriesLayer"
             anchors.fill: parent
 
-            property Item activeCatBtnObj: null
+            property Item activeCatBtnObj: (morphCatRepeater.count > wallRoot.activeCatIndex && wallRoot.activeCatIndex >= 0) ? morphCatRepeater.itemAt(wallRoot.activeCatIndex) : null
             property Item hoveredCatBtnObj: null
             property Item lastHoveredCatBtnObj: null
 
@@ -721,8 +739,9 @@ Item {
                         color: morphCatBtn.isSel
                                ? (Config ? Config.accentTextColor : "#000000")
                                : (morphCatBtn.hovered ? "#ffffff" : (morphCategoriesLayer.isM3 && Config ? Config.m3OnPrimaryContainer : "#cccccc"))
-                        font.pixelSize: wallRoot.isExpanded ? Config.fontSize : 10
+                        font.pixelSize: wallRoot.isExpanded ? Math.max(9, Config.fontSize - 1) : 10
                         font.bold: morphCatBtn.isSel
+                        elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
                         Behavior on color { ColorAnimation { duration: 120 } }
@@ -735,9 +754,9 @@ Item {
                         topRightRadius: wallRoot.isExpanded ? (morphCatBtn.isLast ? morphCatBtn.outerR : morphCatBtn.innerR) : (morphCatBtn.isFirst ? morphCatBtn.outerR : morphCatBtn.innerR)
                         bottomRightRadius: morphCatBtn.isLast ? morphCatBtn.outerR : morphCatBtn.innerR
                         color: morphCatBtn.isSel
-                               ? "transparent"
+                               ? ((morphCategoriesLayer.isM3 && Config) ? Config.m3Primary : "#ffffff")
                                : ((morphCategoriesLayer.isM3 && Config)
-                                  ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.82)
+                                  ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.85)
                                   : Qt.rgba(1, 1, 1, 0.08))
                     }
 

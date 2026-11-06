@@ -60,7 +60,7 @@ static QImage toMonochrome(const QImage &src, const QColor &tint) {
                 b = std::clamp(int(tb * 0.16), 0, 255);
             } else {
                 // Основной фон/кружок иконки — ярко окрашиваем в цвет темы!
-                float boost = 0.82f + 0.18f * (float(lum) / 185.0f);
+                float boost = 0.72f + 0.16f * (float(lum) / 185.0f);
                 r = std::clamp(int(std::round(tr * boost)), 0, 255);
                 g = std::clamp(int(std::round(tg * boost)), 0, 255);
                 b = std::clamp(int(std::round(tb * boost)), 0, 255);

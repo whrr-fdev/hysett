@@ -532,36 +532,153 @@ void WaybarManager::setProcessSortMode(int mode) {
     mode = std::clamp(mode, 0, 1);
     if (m_processSortMode != mode) {
         m_processSortMode = mode;
-        refreshProcesses();
-        emit processesChanged();
+        if (!m_processList.isEmpty()) {
+            std::sort(m_processList.begin(), m_processList.end(), [mode](const QVariant &va, const QVariant &vb) {
+                QVariantMap a = va.toMap(), b = vb.toMap();
+                if (mode == 1) {
+                    double ma = a["mem"].toString().remove(" MB").toDouble();
+                    double mb = b["mem"].toString().remove(" MB").toDouble();
+                    if (std::abs(ma - mb) > 0.5) return ma > mb;
+                    double ca = a["cpu"].toString().remove("%").toDouble();
+                    double cb = b["cpu"].toString().remove("%").toDouble();
+                    return ca > cb;
+                } else {
+                    double ca = a["cpu"].toString().remove("%").toDouble();
+                    double cb = b["cpu"].toString().remove("%").toDouble();
+                    if (std::abs(ca - cb) > 0.05) return ca > cb;
+                    double ma = a["mem"].toString().remove(" MB").toDouble();
+                    double mb = b["mem"].toString().remove(" MB").toDouble();
+                    return ma > mb;
+                }
+            });
+            emit processesChanged();
+        } else {
+            refreshProcesses();
+        }
     }
 }
 
 void WaybarManager::refreshProcesses() {
-    QProcess *p = new QProcess(this);
-    QString sortArg = (m_processSortMode == 1) ? "--sort=-rss,-pcpu" : "--sort=-pcpu,-rss";
-    connect(p, &QProcess::finished, this, [this, p]() {
-        const QStringList lines = QString::fromUtf8(p->readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
-        p->deleteLater();
-        QVariantList list;
-        for (int i = 1; i < lines.size() && list.size() < 28; ++i) {
-            QStringList parts = lines[i].simplified().split(' ');
-            if (parts.size() < 4) continue;
-            int pid = parts[0].toInt();
-            double cpu = parts[1].toDouble();
-            double rssMb = parts[2].toDouble() / 1024.0;
-            QString comm = parts.mid(3).join(' ');
-            QVariantMap m;
-            m["pid"] = pid;
-            m["cpu"] = QString::number(cpu, 'f', 1) + "%";
-            m["mem"] = QString::number(rssMb, 'f', 0) + " MB";
-            m["name"] = comm;
-            list.append(m);
+    qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    qint64 elapsedMs = (m_lastProcessPollMs > 0) ? (nowMs - m_lastProcessPollMs) : 0;
+    bool isFirstOrStale = (m_lastProcessPollMs == 0 || elapsedMs > 3500);
+    m_lastProcessPollMs = nowMs;
+
+    // 1. Читаем общее системное время CPU из /proc/stat
+    qulonglong totalCpu = 0;
+    QFile statFile("/proc/stat");
+    if (statFile.open(QIODevice::ReadOnly)) {
+        QByteArray line = statFile.readLine();
+        statFile.close();
+        const QList<QByteArray> parts = line.simplified().split(' ');
+        for (int i = 1; i < parts.size(); ++i) {
+            totalCpu += parts[i].toULongLong();
         }
-        m_processList = list;
-        emit processesChanged();
-    });
-    p->start("ps", {"-eo", "pid,pcpu,rss,comm", sortArg});
+    }
+
+    qulonglong diffTotal = (!isFirstOrStale && m_prevProcSysTotal > 0 && totalCpu > m_prevProcSysTotal)
+                           ? (totalCpu - m_prevProcSysTotal) : 0;
+    m_prevProcSysTotal = totalCpu;
+
+    // 2. Сканируем /proc/[pid] напрямую в C++ (быстрее и точнее ps в десятки раз)
+    long pageSize = sysconf(_SC_PAGESIZE);
+    if (pageSize <= 0) pageSize = 4096;
+    double pageToMb = double(pageSize) / (1024.0 * 1024.0);
+
+    QDir procDir("/proc");
+    const QStringList pids = procDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+
+    struct ProcEntry {
+        int pid;
+        double cpu;
+        double rssMb;
+        QString name;
+    };
+    QList<ProcEntry> procs;
+    procs.reserve(pids.size());
+    QHash<int, qulonglong> nextTicks;
+    nextTicks.reserve(pids.size());
+
+    for (const QString &pidStr : pids) {
+        bool ok = false;
+        int pid = pidStr.toInt(&ok);
+        if (!ok || pid <= 0) continue;
+
+        QFile statF(QString("/proc/%1/stat").arg(pid));
+        if (!statF.open(QIODevice::ReadOnly)) continue;
+        QByteArray data = statF.readAll();
+        statF.close();
+
+        int oParen = data.indexOf('(');
+        int cParen = data.lastIndexOf(')');
+        if (oParen == -1 || cParen == -1 || cParen <= oParen) continue;
+
+        QString comm = QString::fromUtf8(data.mid(oParen + 1, cParen - oParen - 1));
+        QByteArray rest = data.mid(cParen + 2);
+        const QList<QByteArray> fields = rest.split(' ');
+        if (fields.size() < 13) continue;
+
+        qulonglong utime = fields[11].toULongLong();
+        qulonglong stime = fields[12].toULongLong();
+        qulonglong ticks = utime + stime;
+        nextTicks[pid] = ticks;
+
+        double cpu = 0.0;
+        if (diffTotal > 0 && m_prevProcTicks.contains(pid)) {
+            qulonglong prev = m_prevProcTicks.value(pid);
+            if (ticks >= prev) {
+                // Solaris-mode: нормализация к 100% мощности всего CPU (соответствует верхнему графику)
+                cpu = 100.0 * double(ticks - prev) / double(diffTotal);
+            }
+        }
+
+        // Читаем фактическую оперативную память RSS из /proc/[pid]/statm
+        double rssMb = 0.0;
+        QFile statmF(QString("/proc/%1/statm").arg(pid));
+        if (statmF.open(QIODevice::ReadOnly)) {
+            QByteArray mline = statmF.readLine();
+            statmF.close();
+            const QList<QByteArray> mparts = mline.simplified().split(' ');
+            if (mparts.size() >= 2) {
+                rssMb = mparts[1].toDouble() * pageToMb;
+            }
+        }
+
+        procs.append({pid, std::clamp(cpu, 0.0, 100.0), rssMb, comm});
+    }
+
+    m_prevProcTicks = std::move(nextTicks);
+
+    // Если вкладку только что открыли — быстрый замер через 300мс для мгновенных данных
+    if (isFirstOrStale) {
+        QTimer::singleShot(300, this, &WaybarManager::refreshProcesses);
+    }
+
+    // 3. Сортировка
+    if (m_processSortMode == 1) {
+        std::sort(procs.begin(), procs.end(), [](const ProcEntry &a, const ProcEntry &b) {
+            if (std::abs(a.rssMb - b.rssMb) > 0.5) return a.rssMb > b.rssMb;
+            return a.cpu > b.cpu;
+        });
+    } else {
+        std::sort(procs.begin(), procs.end(), [](const ProcEntry &a, const ProcEntry &b) {
+            if (std::abs(a.cpu - b.cpu) > 0.05) return a.cpu > b.cpu;
+            return a.rssMb > b.rssMb;
+        });
+    }
+
+    // 4. Формирование списка
+    QVariantList list;
+    for (int i = 0; i < procs.size() && list.size() < 28; ++i) {
+        QVariantMap m;
+        m["pid"] = procs[i].pid;
+        m["cpu"] = QString::number(procs[i].cpu, 'f', 1) + "%";
+        m["mem"] = QString::number(procs[i].rssMb, 'f', 0) + " MB";
+        m["name"] = procs[i].name;
+        list.append(m);
+    }
+    m_processList = list;
+    emit processesChanged();
 }
 
 void WaybarManager::killProcess(int pid) {

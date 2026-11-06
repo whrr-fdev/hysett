@@ -329,6 +329,9 @@ private:
     qint64 m_prevNetMs = 0;
     QVariantList m_processList;
     int m_processSortMode = 1;
+    qint64 m_lastProcessPollMs = 0;
+    qulonglong m_prevProcSysTotal = 0;
+    QHash<int, qulonglong> m_prevProcTicks;
     qulonglong m_prevCpuIdle = 0;
     qulonglong m_prevCpuTotal = 0;
 

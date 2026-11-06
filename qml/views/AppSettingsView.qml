@@ -25,7 +25,7 @@ RowLayout {
         }
     }
 
-    // Левое подменю разделов настроек (с плавной анимацией наведения и выбора как во вкладке Виджеты)
+    // Левое подменю разделов настроек
     Rectangle {
         id: subSidebar
         Layout.fillHeight: true
@@ -94,8 +94,7 @@ RowLayout {
                 RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                     Text { text: "󰏘"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
-                    Text { text: "Тема и Цвета"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-                    
+                    Text { text: "Тема"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (sMouse0.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                 }
             }
 
@@ -178,14 +177,13 @@ RowLayout {
         }
     }
 
-    // Правая область со страницами каждого раздела
     StackLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         currentIndex: appSetRoot.subTab
 
         // =====================================================================
-        // РАЗДЕЛ 0: ТЕМА MATERIAL DESIGN 3 И ЦВЕТА (С ТУМБЛЕРОМ СКРУГЛЕНИЙ)
+        // РАЗДЕЛ 0: ОФОРМЛЕНИЕ, ТЕМА И ЦВЕТА
         // =====================================================================
         ScrollView {
             id: scrTheme; contentWidth: availableWidth; clip: true
@@ -199,11 +197,10 @@ RowLayout {
                     spacing: appSetRoot.isM3 ? 14 : 10
 
                     Text {
-                        text: "󰏘  Тема оформления, Скругление окон и Цвета (Material Design 3)"
+                        text: "󰏘  Оформление, тема и цвета"
                         color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true
                     }
 
-                    // Главная карточка переключения скруглений и палитры
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colMode.implicitHeight + 28
@@ -213,13 +210,13 @@ RowLayout {
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {
-                                    text: "Скругление окон и стиль Material Design 3:"
+                                    text: "Тема:"
                                     color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                     Layout.fillWidth: true
                                 }
                                 SegmentedButton {
-                                    Layout.preferredWidth: 300
-                                    options: ["Квадратный (Sharp)", "Material Design 3"]
+                                    Layout.preferredWidth: 280
+                                    options: ["Квадратный", "Скругленный"]
                                     selectedIndex: (Theme && Theme.isRounded) ? 1 : 0
                                     onSelected: (idx) => { if (Theme) Theme.setRoundedState(idx === 1) }
                                 }
@@ -227,13 +224,13 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 8
+                                spacing: 10
                                 Text {
-                                    text: "Авто-палитра из текущих обоев (окрашивает HySett, Kitty, Firefox, GTK):"
+                                    text: "Цвета с текущих обоев:"
                                     color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true
                                 }
                                 StyledButton {
-                                    text: "󰸉 Извлечь из обоев"
+                                    text: "󰸉 Обновить с обоев"
                                     onClicked: if (Config) { Config.m3DynamicWallpaperColors = true; Config.extractPaletteFromWallpaper() }
                                 }
                                 StyledSwitch {
@@ -241,36 +238,9 @@ RowLayout {
                                     onToggled: if (Config) Config.m3DynamicWallpaperColors = checked
                                 }
                             }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-                                StyledButton {
-                                    Layout.fillWidth: true; allowFullWidth: true
-                                    text: "↺ Классический дефолтный цвет (без палитр)"
-                                    onClicked: if (Config) Config.resetToDefaultMonochrome()
-                                }
-                                StyledButton {
-                                    Layout.fillWidth: true; allowFullWidth: true
-                                    text: "󰏘 Применить тему обоев в AyuGram"
-                                    onClicked: if (Waybar) Waybar.runCommand("env -u QT_SCALE_FACTOR AyuGram ~/.cache/hysett_ayugram.tdesktop-theme")
-                                }
-                            }
-
-                            ColumnLayout {
-                                Layout.fillWidth: true; spacing: 6
-                                Text { text: "Готовые тональные палитры Material You:"; color: "#cccccc"; font.pixelSize: Config.fontSize }
-                                SegmentedButton {
-                                    Layout.fillWidth: true
-                                    options: ["Pixel Blue", "Emerald", "Lavender", "Sakura", "Amber", "Ocean"]
-                                    selectedIndex: Config ? Config.m3Preset : 0
-                                    onSelected: (idx) => { if (Config) Config.applyM3Preset(idx) }
-                                }
-                            }
                         }
                     }
 
-                    // Карточка геометрии и атрибутов MD3
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colM3Geom.implicitHeight + 28
@@ -279,13 +249,13 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Геометрия и атрибуты поверхностей MD3"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
+                                Text { text: "Геометрия и атрибуты поверхностей"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
                                 StyledButton { text: "↺ Сбросить геометрию"; onClicked: if (Config) Config.resetM3Attributes() }
                             }
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Стиль карточек (Elevation Style):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                Text { text: "Стиль карточек:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 320
                                     options: ["Тональный", "Контурный", "Приподнятый"]
@@ -295,68 +265,77 @@ RowLayout {
                             }
 
                             RowLayout {
-                                Text { text: "Сила оттенка обоев на фоне и окнах (Surface Tint):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Сила оттенка обоев на фоне и окнах:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02; value: Config ? Config.m3SurfaceTintStrength : 0.22; onMoved: if (Config) Config.m3SurfaceTintStrength = value }
-                                Text { text: Math.round((Config ? Config.m3SurfaceTintStrength : 0.22) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: Math.round((Config ? Config.m3SurfaceTintStrength : 0.22) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Уровень контрастности MD3 (Contrast):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Уровень контрастности:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02; value: Config ? Config.m3ContrastLevel : 0.50; onMoved: if (Config) Config.m3ContrastLevel = value }
-                                Text { text: Math.round((Config ? Config.m3ContrastLevel : 0.50) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: Math.round((Config ? Config.m3ContrastLevel : 0.50) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Радиус скругления окна (Window Radius):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Радиус скругления окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 4; to: 32; stepSize: 1; value: Config ? Config.m3WindowRadius : 20; onMoved: if (Config) Config.m3WindowRadius = Math.round(value) }
-                                Text { text: (Config ? Config.m3WindowRadius : 20) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: (Config ? Config.m3WindowRadius : 20) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Радиус карточек (Card Radius):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Радиус карточек:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 4; to: 28; stepSize: 1; value: Config ? Config.m3CardRadius : 16; onMoved: if (Config) Config.m3CardRadius = Math.round(value) }
-                                Text { text: (Config ? Config.m3CardRadius : 16) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: (Config ? Config.m3CardRadius : 16) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Радиус кнопок и элементов (Control Radius):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Радиус кнопок и элементов:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 2; to: 20; stepSize: 1; value: Config ? Config.m3ControlRadius : 12; onMoved: if (Config) Config.m3ControlRadius = Math.round(value) }
-                                Text { text: (Config ? Config.m3ControlRadius : 12) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: (Config ? Config.m3ControlRadius : 12) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Толщина и прозрачность контуров (Outline):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Толщина и прозрачность контуров:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02; value: Config ? Config.m3OutlineOpacity : 0.28; onMoved: if (Config) Config.m3OutlineOpacity = value }
-                                Text { text: Math.round((Config ? Config.m3OutlineOpacity : 0.28) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: Math.round((Config ? Config.m3OutlineOpacity : 0.28) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Скорость колебаний волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Скорость колебаний волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 4.0; stepSize: 0.05; value: Config ? Config.sliderWaveSpeed : 1.25; onMoved: if (Config) Config.sliderWaveSpeed = value }
-                                Text { text: (Config ? Config.sliderWaveSpeed : 1.25).toFixed(1) + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: (Config ? Config.sliderWaveSpeed : 1.25).toFixed(1) + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Амплитуда (высота) волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
-                                StyledSlider { Layout.fillWidth: true; from: 0.0; to: 5.5; stepSize: 0.1; value: Config ? Config.sliderWaveAmplitude : 2.4; onMoved: if (Config) Config.sliderWaveAmplitude = value }
-                                Text { text: (Config ? Config.sliderWaveAmplitude : 2.4).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Layout.fillWidth: true
+                                Text { text: "Амплитуда волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                                StyledSlider { Layout.fillWidth: true; from: 0.0; to: 5.5; stepSize: 0.1; value: Config ? Config.sliderWaveAmplitude : 2.0; onMoved: if (Config) Config.sliderWaveAmplitude = value }
+                                Text { text: (Config ? Config.sliderWaveAmplitude : 2.0).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Длина волны ползунков (частота):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
-                                StyledSlider { Layout.fillWidth: true; from: 10.0; to: 50.0; stepSize: 1.0; value: Config ? Config.sliderWaveLength : 22.0; onMoved: if (Config) Config.sliderWaveLength = value }
-                                Text { text: Math.round(Config ? Config.sliderWaveLength : 22) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Layout.fillWidth: true
+                                Text { text: "Длина волны ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                                StyledSlider { Layout.fillWidth: true; from: 10.0; to: 50.0; stepSize: 1.0; value: Config ? Config.sliderWaveLength : 24.0; onMoved: if (Config) Config.sliderWaveLength = value }
+                                Text { text: Math.round(Config ? Config.sliderWaveLength : 24) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Толщина линии ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270 }
+                                Layout.fillWidth: true
+                                Text { text: "Толщина линии ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
                                 StyledSlider { Layout.fillWidth: true; from: 1.4; to: 5.0; stepSize: 0.2; value: Config ? Config.sliderThickness : 2.4; onMoved: if (Config) Config.sliderThickness = value }
-                                Text { text: (Config ? Config.sliderThickness : 2.4).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                                Text { text: (Config ? Config.sliderThickness : 2.4).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight }
                             }
                         }
                     }
 
-                    // Ручное редактирование ролей палитры
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colColors.implicitHeight + 28
@@ -365,17 +344,18 @@ RowLayout {
                             Text { text: "Ручная настройка цветов палитры"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Синхронизировать свечение и курсор с основным акцентом:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 StyledSwitch { checked: Config.syncColorsWithAccent; onToggled: Config.syncColorsWithAccent = checked }
                             }
 
                             Repeater {
                                 model: [
-                                    { label: "Primary (Основной акцент MD3):", role: 0, col: Config.accentColor },
-                                    { label: "Secondary (Вторичный акцент MD3):", role: 5, col: Config.m3SecondaryColor },
-                                    { label: "Tertiary (Третичный акцент MD3):", role: 6, col: Config.m3TertiaryColor },
-                                    { label: "Surface (Фон окна):", role: 3, col: Config.windowBgColor },
-                                    { label: "Surface Container (Фон карточек):", role: 4, col: Config.cardBgColor },
+                                    { label: "Основной акцент:", role: 0, col: Config.accentColor },
+                                    { label: "Вторичный акцент:", role: 5, col: Config.m3SecondaryColor },
+                                    { label: "Третичный акцент:", role: 6, col: Config.m3TertiaryColor },
+                                    { label: "Фон окна:", role: 3, col: Config.windowBgColor },
+                                    { label: "Фон карточек:", role: 4, col: Config.cardBgColor },
                                     { label: "Цвет свечения границ:", role: 1, col: Config.borderGlowCustomColor },
                                     { label: "Цвет курсора и вспышки:", role: 2, col: Config.cursorCustomColor }
                                 ]
@@ -420,7 +400,8 @@ RowLayout {
                             id: colInt; anchors.fill: parent; anchors.margins: 14; spacing: 14
 
                             RowLayout {
-                                Text { text: "Язык интерфейса (Language):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                Layout.fillWidth: true
+                                Text { text: "Язык интерфейса:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 240
                                     options: ["Русский", "English"]
@@ -430,29 +411,34 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Запоминать последнюю открытую вкладку:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 StyledSwitch { checked: Config.rememberLastTab; onToggled: Config.rememberLastTab = checked }
                             }
 
                             RowLayout {
-                                Text { text: "Высота окна (при след. запуске):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                Layout.fillWidth: true
+                                Text { text: "Высота окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 520; to: 960; stepSize: 10; value: Config.windowHeight; onMoved: Config.windowHeight = Math.round(value) }
                                 Text { text: Config.windowHeight + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Масштаб интерфейса (UI Scale):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                Layout.fillWidth: true
+                                Text { text: "Масштаб интерфейса:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.80; to: 1.25; stepSize: 0.05; value: Config.uiScale; onMoved: Config.uiScale = value }
                                 Text { text: Math.round(Config.uiScale * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Размер шрифта:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 9; to: 14; stepSize: 1; value: Config.fontSize; onMoved: Config.fontSize = Math.round(value) }
                                 Text { text: Config.fontSize + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Текст бокового меню:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 240
@@ -463,6 +449,7 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Выравнивание экрана приветствия:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 300
@@ -558,6 +545,7 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Длительность переходов:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                                 StyledSlider { Layout.fillWidth: true; from: 50; to: 600; stepSize: 10; value: Config.animDuration; onMoved: Config.animDuration = Math.round(value) }
                                 Text { text: Config.animDuration + "ms"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
@@ -569,7 +557,7 @@ RowLayout {
         }
 
         // =====================================================================
-        // РАЗДЕЛ 3: СТЕКЛО И ПРОЗРАЧНОСТЬ (LIQUID GLASS)
+        // РАЗДЕЛ 3: СТЕКЛО И ПРОЗРАЧНОСТЬ
         // =====================================================================
         ScrollView {
             id: scrGlass; contentWidth: availableWidth; clip: true
@@ -582,7 +570,7 @@ RowLayout {
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14
 
-                    Text { text: "󰖨  Прозрачность, Блюр и Жидкое стекло (Liquid Glass)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
+                    Text { text: "󰖨  Прозрачность, Блюр и Жидкое стекло"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
 
                     GlassPanel {
                         Layout.fillWidth: true
@@ -591,47 +579,55 @@ RowLayout {
                             id: colOp; anchors.fill: parent; anchors.margins: 14; spacing: 14
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Жидкое стекло для кнопок, тумблеров и ползунков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 StyledSwitch { checked: Theme.controlsLiquidGlass; onToggled: Theme.controlsLiquidGlass = checked }
                             }
 
                             RowLayout {
-                                Text { text: "Главный фон (Окно):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                Layout.fillWidth: true
+                                Text { text: "Главный фон окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Config.opacity; onMoved: Config.opacity = value }
                                 Text { text: Math.round(Config.opacity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Интенсивность блюра окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02; value: Theme.windowBlur; onMoved: Theme.windowBlur = value }
                                 Text { text: Theme.windowBlur <= 0.01 ? "Выкл" : Math.round(Theme.windowBlur * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Прозрачность диалоговых окон:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.05; to: 1.0; value: Config.dialogOpacity; onMoved: Config.dialogOpacity = value }
                                 Text { text: Math.round(Config.dialogOpacity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Блюр диалоговых окон:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02; value: Config.dialogBlur; onMoved: Config.dialogBlur = value }
                                 Text { text: Config.dialogBlur <= 0.01 ? "Выкл" : Math.round(Config.dialogBlur * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
-                                Text { text: "Искажение стекла (Refraction):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                Layout.fillWidth: true
+                                Text { text: "Искажение стекла:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Theme.glassRefraction; onMoved: Theme.glassRefraction = value }
                                 Text { text: Math.round(Theme.glassRefraction * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Боковое меню:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Config.sidebarOpacity; onMoved: Config.sidebarOpacity = value }
                                 Text { text: Math.round(Config.sidebarOpacity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Карточки и панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Config.cardOpacity; onMoved: Config.cardOpacity = value }
                                 Text { text: Math.round(Config.cardOpacity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
@@ -667,6 +663,7 @@ RowLayout {
                             Text { text: "Подсветка границ окна и курсор"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Режим отображения границ:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 340
@@ -681,6 +678,7 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Направление движения:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 340
@@ -691,6 +689,7 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Палитра свечения:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 420
@@ -701,30 +700,35 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Яркость свечения границ:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.05; to: 1.0; value: Config.borderGlowIntensity; onMoved: Config.borderGlowIntensity = value }
                                 Text { text: Math.round(Config.borderGlowIntensity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Ширина свечения у края:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.10; to: 1.0; value: Config.borderGlowSpread; onMoved: Config.borderGlowSpread = value }
                                 Text { text: Math.round(Config.borderGlowSpread * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Скорость движения света:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.10; to: 2.50; value: Config.borderGlowSpeed; onMoved: Config.borderGlowSpeed = value }
                                 Text { text: Math.round(Config.borderGlowSpeed * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Сила свечения и следа от курсора:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Config.cursorGlowIntensity; onMoved: Config.cursorGlowIntensity = value }
                                 Text { text: Math.round(Config.cursorGlowIntensity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Форма вспышки / волны при клике:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                 SegmentedButton {
                                     Layout.preferredWidth: 360
@@ -735,6 +739,7 @@ RowLayout {
                             }
 
                             RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Сила вспышки при клике:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Config.clickFlashIntensity; onMoved: Config.clickFlashIntensity = value }
                                 Text { text: Math.round(Config.clickFlashIntensity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }

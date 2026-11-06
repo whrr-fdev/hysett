@@ -1,6 +1,8 @@
 #include "IconImageProvider.h"
 #include <QPixmap>
 #include <QFile>
+#include <QDir>
+#include <QTextStream>
 #include <QUrl>
 #include <QColor>
 #include <QDBusInterface>
@@ -11,6 +13,28 @@
 #include <cmath>
 
 IconImageProvider::IconImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
+
+static QColor readCurrentThemeTint() {
+    QString home = QDir::homePath();
+    QFile st(home + "/.config/hypr/scripts/theme_state.conf");
+    if (st.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (QString::fromUtf8(st.readAll()).trimmed() == "square") {
+            return QColor("#ffffff");
+        }
+    }
+    QFile cc(home + "/.config/hypr/scripts/control_center.conf");
+    if (cc.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&cc);
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            if (line.startsWith("accent_color=")) {
+                QString hex = line.mid(13).trimmed();
+                if (QColor::isValidColorName(hex)) return QColor(hex);
+            }
+        }
+    }
+    return QColor("#ffffff");
+}
 
 static QImage toMonochrome(const QImage &src, const QColor &tint) {
     if (src.isNull()) return src;
@@ -45,7 +69,7 @@ static QImage toMonochrome(const QImage &src, const QColor &tint) {
             float norm = 1.0f;
             if (span >= 32) {
                 float t = float(lum - minLum) / float(span);
-                norm = (t > 0.25f) ? std::clamp(0.82f + 0.18f * t, 0.0f, 1.0f) : (t * 0.35f);
+                norm = (t > 0.25f) ? std::clamp(0.84f + 0.16f * t, 0.0f, 1.0f) : (t * 0.28f);
             }
             int r = std::clamp(int(std::round(norm * tr)), 0, 255);
             int g = std::clamp(int(std::round(norm * tg)), 0, 255);
@@ -122,16 +146,12 @@ QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSi
         decoded = decoded.mid(5);
     }
 
-    QColor tintColor("#ffffff");
-    QString queryPart = decoded.section('?', 1);
-    if (!queryPart.isEmpty()) {
-        for (const QString &kv : queryPart.split('&', Qt::SkipEmptyParts)) {
-            if (kv.startsWith("tint=")) {
-                QString hex = kv.mid(5).trimmed();
-                if (!hex.startsWith('#')) hex.prepend('#');
-                if (QColor::isValidColorName(hex)) tintColor = QColor(hex);
-            }
-        }
+    QColor tintColor = mono ? readCurrentThemeTint() : QColor("#ffffff");
+    int tintIdx = decoded.lastIndexOf("tint=");
+    if (tintIdx != -1) {
+        QString hex = decoded.mid(tintIdx + 5, 6).trimmed();
+        if (!hex.startsWith('#')) hex.prepend('#');
+        if (QColor::isValidColorName(hex)) tintColor = QColor(hex);
     }
 
     QString cleanId = decoded.section('?', 0, 0);

@@ -33,7 +33,7 @@ AppConfig::AppConfig(QObject *parent) : QObject(parent) {
     });
 
     if (m_m3DynamicWallpaperColors) {
-        QTimer::singleShot(200, this, &AppConfig::extractPaletteFromWallpaper);
+        extractPaletteFromWallpaper();
     }
 }
 

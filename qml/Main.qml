@@ -626,9 +626,18 @@ ApplicationWindow {
             property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
             property int pillRadius: (Theme && Theme.isRounded) ? Math.round(pillHeight / 2) : 0
             property color pillColor: (Theme && Theme.isRounded && Config)
-                                      ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Math.max(0.66, (Waybar ? Waybar.pillOpacity : 0.65) * 0.90))
+                                      ? Qt.rgba(
+                                            Math.min(1.0, Config.m3SurfaceContainerHigh.r * 0.72 + Config.m3Primary.r * 0.28 + 0.06),
+                                            Math.min(1.0, Config.m3SurfaceContainerHigh.g * 0.72 + Config.m3Primary.g * 0.28 + 0.06),
+                                            Math.min(1.0, Config.m3SurfaceContainerHigh.b * 0.72 + Config.m3Primary.b * 0.28 + 0.06),
+                                            Math.max(0.86, Waybar ? Waybar.pillOpacity : 0.86)
+                                        )
                                       : "transparent"
-            readonly property string trayTintHex: (Theme && Theme.isRounded && Config) ? (Config.accentColor, Config.m3Primary.toString().substring(1)) : "ffffff"
+            readonly property string trayTintHex: (Theme && Theme.isRounded && Config)
+                                                  ? (Math.round(Config.accentColor.r * 255).toString(16).padStart(2, '0') +
+                                                     Math.round(Config.accentColor.g * 255).toString(16).padStart(2, '0') +
+                                                     Math.round(Config.accentColor.b * 255).toString(16).padStart(2, '0'))
+                                                  : "ffffff"
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             MouseArea { anchors.fill: leftBarRow; anchors.margins: -4; z: 1 }

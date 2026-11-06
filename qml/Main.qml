@@ -227,37 +227,28 @@ ApplicationWindow {
     }
 
     function openDrawerWithMode(mode, tabIdx) {
-        var targetTab = (mode === "settings") ? ((tabIdx !== undefined) ? tabIdx : 0) : -1
-
         if (root.drawerOpen) {
-            var isSame = false
-            if (mode === "settings" && root.drawerMode === "settings") {
-                if (tabIdx === undefined) {
-                    var barTabs = [5, 6, 7, 16, 20, 21, 23, 25, 26, 27]
-                    isSame = (barTabs.indexOf(pageController.currentIndex) === -1)
-                } else {
-                    isSame = (pageController.currentIndex === tabIdx)
+            if (mode === "settings" && tabIdx !== undefined) {
+                if (root.drawerMode === "settings" && pageController.currentIndex === tabIdx) {
+                    root.drawerOpen = false
+                    return
                 }
-            } else {
-                isSame = (root.drawerMode === mode)
+                var wasSettings = (root.drawerMode === "settings")
+                root.isWallpaperExpanded = false
+                root.drawerMode = "settings"
+                if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
+                if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
+                if (wasSettings) pageController.switchPage(tabIdx)
+                else pageController.jumpToPageInstant(tabIdx)
+                root.syncTabBlur()
+                return
             }
-
-            if (isSame) {
-                switchDrawerAnim.stop()
+            if (root.drawerMode === mode && tabIdx === undefined) {
                 root.drawerOpen = false
                 return
             }
-
-            openSeqAnim.stop()
-            closeSeqAnim.stop()
-            switchDrawerAnim.stop()
-            root.pendingDrawerMode = mode
-            root.pendingTabIdx = (targetTab >= 0) ? targetTab : 0
-            switchDrawerAnim.start()
-            return
         }
 
-        switchDrawerAnim.stop()
         root.isWallpaperExpanded = false
         root.drawerMode = mode
         if (mode === "clipboard" && Waybar) {
@@ -276,27 +267,14 @@ ApplicationWindow {
             pageController.jumpToPageInstant(initTab)
         }
         root.drawerOpen = true
+        root.syncTabBlur()
     }
 
     function openTrayContextMenu(appData, globalX) {
-        if (root.drawerOpen) {
-            if (root.drawerMode === "traymenu" && root.trayMenuClass === appData.class) {
-                switchDrawerAnim.stop()
-                root.drawerOpen = false
-                return
-            }
-            openSeqAnim.stop()
-            closeSeqAnim.stop()
-            switchDrawerAnim.stop()
-            root.pendingDrawerMode = "traymenu"
-            root.pendingTrayClass = appData.class
-            root.pendingTrayName = appData.name || appData.class
-            root.pendingTraySni = appData.sniService || ""
-            root.pendingTrayX = globalX
-            switchDrawerAnim.start()
+        if (root.drawerOpen && root.drawerMode === "traymenu" && root.trayMenuClass === appData.class) {
+            root.drawerOpen = false
             return
         }
-        switchDrawerAnim.stop()
         root.trayMenuClass = appData.class
         root.trayMenuName = appData.name || appData.class
         root.trayMenuSni = appData.sniService || ""
@@ -569,13 +547,13 @@ ApplicationWindow {
             Row {
                 id: leftBarRow; z: 5
                 anchors.left: parent.left; anchors.leftMargin: 5; anchors.verticalCenter: parent.verticalCenter
-                spacing: Waybar ? Waybar.spacing : 4
+                spacing: 0
 
                 Repeater {
                     model: Waybar ? Waybar.leftBarOrder : ["launcher", "workspaces", "weather", "media"]
                     delegate: Row {
                         id: leftModWrap
-                        spacing: modKey === "launcher" ? ((Waybar ? Waybar.spacing : 4) * topBarContainer.launcherVis) : (Waybar ? Waybar.spacing : 4)
+                        spacing: 0
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property string modKey: modelData
                         readonly property bool modVis: {
@@ -590,10 +568,13 @@ ApplicationWindow {
 
                         Item {
                             readonly property bool isLeftMacro: (modKey === "workspaces" || modKey === "weather" || modKey === "media") && index > 0
-                            visible: isLeftMacro && topBarContainer.macroStepGap > 0.5
-                            width: modKey === "workspaces"
-                                   ? (topBarContainer.macroStepGap * topBarContainer.launcherVis)
-                                   : topBarContainer.macroStepGap
+                            readonly property real fullGap: isLeftMacro
+                                                            ? (topBarContainer.macroStepGap + (Waybar ? Waybar.spacing : 4))
+                                                            : (Waybar ? Waybar.spacing : 4)
+                            visible: index > 0 && fullGap > 0.1
+                            width: (index === 1 && Waybar && Waybar.leftBarOrder.length > 0 && Waybar.leftBarOrder[0] === "launcher")
+                                   ? (fullGap * topBarContainer.launcherVis)
+                                   : fullGap
                             height: 1
                         }
 

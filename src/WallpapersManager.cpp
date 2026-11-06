@@ -263,6 +263,7 @@ void WallpapersManager::applyWallpaperInternal(const QString &path, bool fromPre
     QString linkPath = home + "/.cache/wallpaper-current";
     QFile::remove(linkPath);
     QFile::link(path, linkPath);
+    QProcess::startDetached("/home/whrr/.config/hypr/scripts/update_lock_bg.sh", {});
 
     // Выбираем случайную или стандартную анимацию перехода
     static const QStringList transitions = {

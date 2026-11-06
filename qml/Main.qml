@@ -391,9 +391,9 @@ ApplicationWindow {
     function triggerPowerAction(idx) {
         root.drawerOpen = false
         if (!Waybar) return
-        if (idx === 0) Waybar.runCommand("hyprlock")
-        else if (idx === 1) Waybar.runCommand("hyprlock & systemctl suspend")
-        else if (idx === 2) Waybar.runCommand("hyprlock & systemctl hibernate")
+        if (idx === 0) Waybar.runCommand("/home/whrr/.config/hypr/scripts/lock.sh")
+        else if (idx === 1) Waybar.runCommand("/home/whrr/.config/hypr/scripts/lock.sh & sleep 0.3 && systemctl suspend")
+        else if (idx === 2) Waybar.runCommand("/home/whrr/.config/hypr/scripts/lock.sh & sleep 0.3 && systemctl hibernate")
         else if (idx === 3) Waybar.runCommand("hyprshutdown --post-cmd \"bash -c 'pkill -KILL -u $(whoami)'\"")
         else if (idx === 4) Waybar.runCommand("systemctl reboot")
         else if (idx === 5) Waybar.runCommand("systemctl poweroff")

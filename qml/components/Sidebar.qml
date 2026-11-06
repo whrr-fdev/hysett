@@ -214,7 +214,7 @@ Rectangle {
                         iconSymbol: modelData.icon
                         isActive: bar.currentIndex === modelData.idx
                         background: Item {}
-                        onClicked: bar.categorySelected(modelData.idx)
+                        onPressed: bar.categorySelected(modelData.idx)
                         onHoveredChanged: {
                             if (hovered && isShown) {
                                 bar.lastHoveredBtnObj = nb
@@ -245,7 +245,7 @@ Rectangle {
             iconSymbol: "󰒓"
             isActive: bar.currentIndex === 17
             background: Item {}
-            onClicked: bar.categorySelected(17)
+            onPressed: bar.categorySelected(17)
             onHoveredChanged: {
                 if (hovered) {
                     bar.lastHoveredBtnObj = setBtn

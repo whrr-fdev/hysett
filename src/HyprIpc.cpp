@@ -11,14 +11,12 @@
 #include <QTimer>
 #include <malloc.h>
 
-static void performMemoryTrim(QQmlApplicationEngine *mainEngine, bool clearFullCache) {
+static void performMemoryTrim(QQmlApplicationEngine *mainEngine) {
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QPixmapCache::clear();
 
     if (mainEngine) {
         mainEngine->collectGarbage();
-        if (clearFullCache) mainEngine->clearComponentCache();
-        else mainEngine->trimComponentCache();
     }
 
     for (QWindow *w : QGuiApplication::topLevelWindows()) {
@@ -27,8 +25,6 @@ static void performMemoryTrim(QQmlApplicationEngine *mainEngine, bool clearFullC
             if (!eng && qw->contentItem()) eng = qmlEngine(qw->contentItem());
             if (eng && eng != mainEngine) {
                 eng->collectGarbage();
-                if (clearFullCache) eng->clearComponentCache();
-                else eng->trimComponentCache();
             }
         }
     }
@@ -52,10 +48,10 @@ QString HyprIpc::getActiveWorkspace() {
 
 void HyprIpc::trimMemory() {
     QQmlApplicationEngine *eng = m_engine;
-    QTimer::singleShot(140, [eng]() { performMemoryTrim(eng, false); });
+    QTimer::singleShot(180, [eng]() { performMemoryTrim(eng); });
 }
 
 void HyprIpc::deepCleanMemory() {
     QQmlApplicationEngine *eng = m_engine;
-    QTimer::singleShot(200, [eng]() { performMemoryTrim(eng, true); });
+    QTimer::singleShot(220, [eng]() { performMemoryTrim(eng); });
 }

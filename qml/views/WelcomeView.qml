@@ -7,6 +7,7 @@ import "../components"
 Item {
     id: welcomeRoot
     signal navigateTo(int index)
+    signal previewTab(int index)
 
     property string settingsSearchQuery: ""
     readonly property bool isSearching: settingsSearchQuery.length > 0
@@ -313,12 +314,13 @@ Item {
                                 if (hovered && matchesFilter) {
                                     gridWrapper.lastHoveredCardObj = cardBtn
                                     gridWrapper.hoveredCardObj = cardBtn
+                                    welcomeRoot.previewTab(modelData.idx)
                                 } else if (gridWrapper.hoveredCardObj === cardBtn) {
                                     gridWrapper.hoveredCardObj = null
                                 }
                             }
 
-                            onClicked: welcomeRoot.navigateTo(modelData.idx)
+                            onPressed: welcomeRoot.navigateTo(modelData.idx)
 
                             background: GlassPanel {
                                 radius: (Theme && Theme.isRounded) ? 16 : 0

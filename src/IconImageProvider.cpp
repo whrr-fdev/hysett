@@ -1,3 +1,4 @@
+#include <QHash>
 #include "IconImageProvider.h"
 #include <QPixmap>
 #include <QFile>
@@ -60,7 +61,7 @@ static QImage toMonochrome(const QImage &src, const QColor &tint) {
                 b = std::clamp(int(tb * 0.16), 0, 255);
             } else {
                 // Основной фон/кружок иконки — ярко окрашиваем в цвет темы!
-                float boost = 0.72f + 0.16f * (float(lum) / 185.0f);
+                float boost = 0.50f + 0.12f * (float(lum) / 185.0f);
                 r = std::clamp(int(std::round(tr * boost)), 0, 255);
                 g = std::clamp(int(std::round(tg * boost)), 0, 255);
                 b = std::clamp(int(std::round(tb * boost)), 0, 255);
@@ -149,7 +150,12 @@ QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSi
 
     if (cleanId.startsWith("sni:")) {
         QString fallbackPart = cleanId.section('|', 2, 2);
-        QImage sniImg = fetchSniPixmap(cleanId);
+        static QHash<QString, QImage> s_sniPixmapCache;
+        QImage sniImg = s_sniPixmapCache.value(cleanId);
+        if (sniImg.isNull()) {
+            sniImg = fetchSniPixmap(cleanId);
+            if (!sniImg.isNull()) s_sniPixmapCache.insert(cleanId, sniImg);
+        }
         if (!sniImg.isNull()) {
             QImage scaled = sniImg.scaled(s, s, Qt::KeepAspectRatio, Qt::SmoothTransformation);
             if (mono) scaled = toMonochrome(scaled, tintColor);

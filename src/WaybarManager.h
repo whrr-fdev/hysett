@@ -166,6 +166,7 @@ public:
     QStringList rightBarOrder() const { return m_rightBarOrder; }
     Q_INVOKABLE void moveBarModule(const QString &side, int fromIdx, int toIdx);
     Q_INVOKABLE void moveWindowModuleToSide(const QString &targetSide);
+    Q_INVOKABLE QString swapWithCenterWindow(const QString &side, int idx);
     Q_INVOKABLE void addBarSeparator(const QString &side);
     Q_INVOKABLE void removeBarItemAt(const QString &side, int idx);
     Q_INVOKABLE void resetBarOrder();
@@ -289,6 +290,8 @@ private:
     QString m_activeWindowTitle;
     QVariantList m_trayApps;
     int m_trayTick = 0;
+    bool m_drawerOpenState = false;
+    QString m_cachedHwmonPath;
     QVariantList m_clipboardItems;
     QStringList m_rawClipboardLines;
 

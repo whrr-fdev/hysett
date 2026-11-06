@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import HySett
@@ -21,15 +22,17 @@ Slider {
 
     property real wavePhase: 0.0
 
-    NumberAnimation on wavePhase {
-        from: 0.0
-        to: Math.PI * 2.0
-        duration: Math.max(250, Math.round(1400 / Math.max(0.15, control.waveSpeed)))
-        loops: Animation.Infinite
-        running: control.visible && control.isM3 && control.waveSpeed > 0.02 && control.waveAmp > 0.1 && control.visualPosition > 0.01
+    Timer {
+        interval: 33
+        repeat: true
+        running: control.visible && control.isM3 && control.waveSpeed > 0.02 && control.waveAmp > 0.1 && control.visualPosition > 0.01 &&
+                 (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
+        onTriggered: {
+            control.wavePhase = (control.wavePhase + 0.14 * control.waveSpeed) % (Math.PI * 2.0)
+            waveCanvas.requestPaint()
+        }
     }
 
-    onWavePhaseChanged: waveCanvas.requestPaint()
     onVisualPositionChanged: waveCanvas.requestPaint()
     onWaveAmpChanged: waveCanvas.requestPaint()
     onWaveLenChanged: waveCanvas.requestPaint()
@@ -59,6 +62,7 @@ Slider {
             width: Math.max(0, Math.floor(parent.handleX - parent.gapHalf))
             height: parent.height
             visible: width > 3
+            renderTarget: Canvas.FramebufferObject
 
             onWidthChanged: requestPaint()
             onHeightChanged: requestPaint()
@@ -88,7 +92,7 @@ Slider {
                     ctx.moveTo(startX, cy)
                     ctx.lineTo(endX, cy)
                 } else {
-                    var steps = Math.max(16, Math.ceil(span / 1.5))
+                    var steps = Math.max(12, Math.min(80, Math.ceil(span / 2.5)))
                     for (var i = 0; i <= steps; ++i) {
                         var t = i / steps
                         var px = startX + t * span

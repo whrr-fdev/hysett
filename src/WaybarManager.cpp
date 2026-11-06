@@ -345,37 +345,48 @@ void WaybarManager::pollSysStats() {
         statFile.close();
     }
 
-    // 2. CPU Temp (ищем реальный датчик процессора coretemp / k10temp / zenpower / cpu, игнорируя acpitz 27°C)
-    int bestCpuTemp = -1;
-    int fallbackTemp = -1;
-    QDir hwDir("/sys/class/hwmon");
-    for (const QString &hw : hwDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
-        QString base = "/sys/class/hwmon/" + hw;
-        QString chipName;
-        QFile nf(base + "/name");
-        if (nf.open(QIODevice::ReadOnly)) {
-            chipName = QString::fromUtf8(nf.readAll()).trimmed().toLower();
-            nf.close();
+    // 2. CPU Temp (с кэшированием найденного пути файла датчика — 0 накладных расходов!)
+    if (!m_cachedHwmonPath.isEmpty()) {
+        QFile tf(m_cachedHwmonPath);
+        if (tf.open(QIODevice::ReadOnly)) {
+            int deg = tf.readAll().trimmed().toInt() / 1000;
+            tf.close();
+            if (deg >= 20 && deg <= 115) m_cpuTemp = deg;
         }
-        bool isCpuSensor = chipName.contains("coretemp") || chipName.contains("k10temp") ||
-                           chipName.contains("zenpower") || chipName.contains("zenergy") ||
-                           chipName.contains("cpu") || chipName.contains("pkg") || chipName.contains("acpitz") == false;
-        bool isPrimaryCpu = chipName.contains("coretemp") || chipName.contains("k10temp") ||
-                            chipName.contains("zenpower") || chipName.contains("zenergy") || chipName.contains("cpu");
-        for (int idx = 1; idx <= 6; ++idx) {
-            QFile tf(QString("%1/temp%2_input").arg(base).arg(idx));
-            if (tf.open(QIODevice::ReadOnly)) {
-                int deg = tf.readAll().trimmed().toInt() / 1000;
-                tf.close();
-                if (deg >= 20 && deg <= 115) {
-                    if (isPrimaryCpu) bestCpuTemp = std::max(bestCpuTemp, deg);
-                    else if (isCpuSensor && deg != 27) fallbackTemp = std::max(fallbackTemp, deg);
+    } else {
+        int bestCpuTemp = -1;
+        QString bestPath;
+        QDir hwDir("/sys/class/hwmon");
+        for (const QString &hw : hwDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            QString base = "/sys/class/hwmon/" + hw;
+            QString chipName;
+            QFile nf(base + "/name");
+            if (nf.open(QIODevice::ReadOnly)) {
+                chipName = QString::fromUtf8(nf.readAll()).trimmed().toLower();
+                nf.close();
+            }
+            bool isPrimaryCpu = chipName.contains("coretemp") || chipName.contains("k10temp") ||
+                                chipName.contains("zenpower") || chipName.contains("zenergy") || chipName.contains("cpu");
+            for (int idx = 1; idx <= 6; ++idx) {
+                QString p = QString("%1/temp%2_input").arg(base).arg(idx);
+                QFile tf(p);
+                if (tf.open(QIODevice::ReadOnly)) {
+                    int deg = tf.readAll().trimmed().toInt() / 1000;
+                    tf.close();
+                    if (deg >= 20 && deg <= 115 && (isPrimaryCpu || (bestCpuTemp < 0 && deg != 27))) {
+                        if (isPrimaryCpu || deg > bestCpuTemp) {
+                            bestCpuTemp = deg;
+                            bestPath = p;
+                        }
+                    }
                 }
             }
         }
+        if (bestCpuTemp > 0) {
+            m_cpuTemp = bestCpuTemp;
+            m_cachedHwmonPath = bestPath;
+        }
     }
-    if (bestCpuTemp > 0) m_cpuTemp = bestCpuTemp;
-    else if (fallbackTemp > 0) m_cpuTemp = fallbackTemp;
 
     // 3. RAM
     QFile memFile("/proc/meminfo");
@@ -415,7 +426,7 @@ void WaybarManager::pollSysStats() {
     } else {
         // Fallback оценка VRAM, если драйвер NVIDIA закрытый
         static int s_nvTick = 0;
-        if (s_nvTick++ % 4 == 0) {
+        if (m_drawerOpenState && (s_nvTick++ % 6 == 0)) {
             QProcess *nv = new QProcess(this);
             connect(nv, &QProcess::finished, this, [this, nv]() {
                 QString out = QString::fromUtf8(nv->readAllStandardOutput()).trimmed();
@@ -474,7 +485,7 @@ void WaybarManager::pollSysStats() {
 
     // 4. Живые иконки трея через DBus SNI с кэшем по PID
     m_trayTick = (m_trayTick + 1) % 1000;
-    if (m_trayTick % 4 != 0) { emit sysStatsChanged(); return; }
+    if (m_trayTick % 8 != 0) { emit sysStatsChanged(); return; }
     static QMap<uint, QString> s_pidToSniCache;
     static int s_scanCounter = 0;
 
@@ -518,7 +529,7 @@ void WaybarManager::pollSysStats() {
         tm["class"] = cls;
         tm["sniService"] = sniSrv;
         if (!sniSrv.isEmpty()) {
-            tm["icon"] = QString("sni:%1|/StatusNotifierItem|%2?t=%3").arg(sniSrv, fallbackIcon).arg(m_trayTick);
+            tm["icon"] = QString("sni:%1|/StatusNotifierItem|%2").arg(sniSrv, fallbackIcon);
         } else {
             tm["icon"] = fallbackIcon;
         }
@@ -530,8 +541,10 @@ void WaybarManager::pollSysStats() {
     addTrayApp("Discord", "discord", "discord");
     addTrayApp("steam", "steam", "steam");
 
-    m_trayApps = nextTray;
-    emit activeWindowChanged();
+    if (m_trayApps != nextTray) {
+        m_trayApps = nextTray;
+        emit activeWindowChanged();
+    }
     emit sysStatsChanged();
 }
 
@@ -798,6 +811,32 @@ void WaybarManager::moveBarModule(const QString &side, int fromIdx, int toIdx) {
     if (toIdx < 0 || toIdx >= list.size()) return;
     list.move(fromIdx, toIdx);
     saveState(false);
+}
+
+
+QString WaybarManager::swapWithCenterWindow(const QString &side, int idx) {
+    if (side == "left") {
+        if (idx < 0 || idx >= m_leftBarOrder.size()) return "";
+        QString key = m_leftBarOrder[idx];
+        int winL = m_leftBarOrder.indexOf("window");
+        int winR = m_rightBarOrder.indexOf("window");
+        if (winL == -1 && winR == -1) {
+            // Заголовок был по центру — ставим его на место блока, а блок уходит правее
+            m_leftBarOrder.insert(idx, "window");
+            saveState(false);
+            return "left";
+        }
+    } else if (side == "right") {
+        if (idx < 0 || idx >= m_rightBarOrder.size()) return "";
+        int winL = m_leftBarOrder.indexOf("window");
+        int winR = m_rightBarOrder.indexOf("window");
+        if (winL == -1 && winR == -1) {
+            m_rightBarOrder.insert(idx + 1, "window");
+            saveState(false);
+            return "right";
+        }
+    }
+    return side;
 }
 
 void WaybarManager::moveWindowModuleToSide(const QString &targetSide) {
@@ -1389,6 +1428,10 @@ void WaybarManager::clearClipboard() {
 }
 
 void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH) {
+    if (m_drawerOpenState != drawerOpen) {
+        m_drawerOpenState = drawerOpen;
+        if (m_sysTimer) m_sysTimer->setInterval(drawerOpen ? 500 : 1500);
+    }
     if (!win) return;
     static QRegion s_lastReg;
     static int s_lastDrawerState = -1;

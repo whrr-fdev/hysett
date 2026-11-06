@@ -32,6 +32,7 @@ ApplicationWindow {
     property real drawerProgress: 0.0
     readonly property bool drawerActive: drawerProgress > 0.005 || barExpandProgress > 0.005
 
+    property real drawerWidthScale: 1.0
     readonly property string openFxMode: Config ? Config.windowOpenAnimType : "spring"
     readonly property int openFxEasing: {
         if (openFxMode === "elastic") return Easing.OutElastic
@@ -40,10 +41,10 @@ ApplicationWindow {
         return Easing.OutBack
     }
     readonly property int openFxDuration: {
-        if (openFxMode === "elastic") return 560
-        if (openFxMode === "bounce") return 480
-        if (openFxMode === "smooth") return 300
-        return 390
+        if (openFxMode === "elastic") return 520
+        if (openFxMode === "bounce") return 450
+        if (openFxMode === "smooth") return 280
+        return 360
     }
 
     SequentialAnimation {
@@ -51,30 +52,48 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 1.0
-            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 10
+            duration: (root.baseBarW < root.targetDrawerW - 2 && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutCubic
         }
-        NumberAnimation {
-            target: root; property: "drawerProgress"
-            to: 1.0
-            duration: root.openFxDuration
-            easing.type: root.openFxEasing
-            easing.overshoot: 1.38
-            easing.amplitude: 1.0
-            easing.period: 0.38
+        ParallelAnimation {
+            NumberAnimation {
+                target: root; property: "drawerProgress"
+                to: 1.0
+                duration: root.openFxDuration
+                easing.type: root.openFxEasing
+                easing.overshoot: 1.24
+                easing.amplitude: 1.0
+                easing.period: 0.36
+            }
+            NumberAnimation {
+                target: root; property: "drawerWidthScale"
+                from: root.openFxMode === "smooth" ? 1.0 : 0.94
+                to: 1.0
+                duration: root.openFxDuration
+                easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
+                easing.overshoot: 2.15
+                easing.amplitude: 1.0
+                easing.period: 0.36
+            }
         }
     }
 
     SequentialAnimation {
         id: closeSeqAnim
-        NumberAnimation {
-            target: root; property: "drawerProgress"
-            to: 0.0; duration: 240; easing.type: Easing.InOutCubic
+        ParallelAnimation {
+            NumberAnimation {
+                target: root; property: "drawerProgress"
+                to: 0.0; duration: 220; easing.type: Easing.InOutCubic
+            }
+            NumberAnimation {
+                target: root; property: "drawerWidthScale"
+                to: 0.96; duration: 220; easing.type: Easing.InOutCubic
+            }
         }
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 0.0
-            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 10
+            duration: (root.baseBarW < root.targetDrawerW - 2 && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutQuint
         }
     }
@@ -124,14 +143,26 @@ ApplicationWindow {
             duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu" && root.barExpandProgress < 0.99) ? (Waybar ? Waybar.barAnimDuration : 75) : 10
             easing.type: Easing.OutCubic
         }
-        NumberAnimation {
-            target: root; property: "drawerProgress"
-            to: 1.0
-            duration: Math.round(root.openFxDuration * 0.9)
-            easing.type: root.openFxEasing
-            easing.overshoot: 1.28
-            easing.amplitude: 1.0
-            easing.period: 0.38
+        ParallelAnimation {
+            NumberAnimation {
+                target: root; property: "drawerProgress"
+                to: 1.0
+                duration: Math.round(root.openFxDuration * 0.9)
+                easing.type: root.openFxEasing
+                easing.overshoot: 1.20
+                easing.amplitude: 1.0
+                easing.period: 0.36
+            }
+            NumberAnimation {
+                target: root; property: "drawerWidthScale"
+                from: root.openFxMode === "smooth" ? 1.0 : 0.95
+                to: 1.0
+                duration: Math.round(root.openFxDuration * 0.9)
+                easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
+                easing.overshoot: 2.05
+                easing.amplitude: 1.0
+                easing.period: 0.36
+            }
         }
     }
 
@@ -161,7 +192,7 @@ ApplicationWindow {
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
-    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, animDrawerW)
+    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, effDrawerW)
     readonly property real barW: baseBarW + (expandedBarW - baseBarW) * barExpandProgress
     readonly property real barLeft: {
         if (barPos === 2) return barTop
@@ -191,7 +222,7 @@ ApplicationWindow {
     property real smoothTargetH: targetDrawerH
     // Плавная анимация боковых торчащих кусков при открытии/закрытии из узкой панели!
     readonly property real wingMix: Math.min(1.0, Math.pow(Math.max(0.0, drawerProgress), 0.42) * 1.15)
-    readonly property real effDrawerW: animDrawerW
+    readonly property real effDrawerW: animDrawerW * root.drawerWidthScale
     readonly property real animDrawerH: Math.min(root.height - root.drawerY - 2, Math.max(0.0, smoothTargetH * drawerProgress))
 
     property real centerAnchorX: {
@@ -1221,11 +1252,16 @@ ApplicationWindow {
 
             Item {
                 id: drawerInner
-                width: root.effDrawerW
-                height: Math.max(root.targetDrawerH, root.animDrawerH)
-                y: root.drawerProgress <= 1.0 ? (-(1.0 - root.drawerProgress) * (root.targetDrawerH * 0.32)) : 0
-                scale: (root.openFxMode === "zoom_spring" && root.drawerOpen) ? Math.max(0.86, 0.88 + 0.12 * Math.min(1.06, root.drawerProgress)) : 1.0
-                transformOrigin: Item.Top
+                width: root.targetDrawerW
+                height: root.targetDrawerH
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: -(1.0 - root.drawerProgress) * 68
+                transform: Scale {
+                    origin.x: drawerInner.width * 0.5
+                    origin.y: 0
+                    xScale: root.drawerWidthScale * ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)
+                    yScale: 0.90 + 0.10 * root.drawerProgress
+                }
                 opacity: Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
 
                 MouseArea {

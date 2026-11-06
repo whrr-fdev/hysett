@@ -1422,7 +1422,9 @@ ApplicationWindow {
                     function basePageX(idx) { return idx === 0 ? 0 : sidebarW }
                     function basePageW(idx) { return idx === 0 ? pageController.width : (pageController.width - sidebarW) }
 
+                    property bool suppressCleanup: false
                     function stopAllTransitions() {
+                        suppressCleanup = true
                         pageSlideAnim.stop()
                         pageFadeAnim.stop()
                         depthTransition.stop()
@@ -1431,6 +1433,7 @@ ApplicationWindow {
                         blackholeTransition.stop()
                         portalTransition.stop()
                         shatterTransition.stop()
+                        suppressCleanup = false
                     }
 
                     function jumpToPageInstant(targetIdx) {
@@ -1622,6 +1625,7 @@ ApplicationWindow {
                     }
 
                     function cleanupTransition() {
+                        if (suppressCleanup) return
                         var p = pageRepeater.itemAt(pageController.previousIndex)
                         if (p && pageController.previousIndex !== pageController.currentIndex) {
                             p.visible = false
@@ -1642,14 +1646,6 @@ ApplicationWindow {
                             cur.opacity = 1.0
                             cur.vortexProgress = 0.0
                         }
-                        slideOutAnim.target = null; slideOutOp.target = null; slideInAnim.target = null; slideInOp.target = null
-                        fadeOldAnim.target = null; fadeNewAnim.target = null
-                        depthOutOp.target = null; depthOutSc.target = null; depthInOp.target = null; depthInSc.target = null
-                        bounceOutOp.target = null; bounceOutY.target = null; bounceInOp.target = null; bounceInY.target = null; bounceInSc.target = null
-                        vortexOutOp.target = null; vortexOutX.target = null; vortexOutSc.target = null; vortexInOp.target = null; vortexInX.target = null; vortexInY.target = null; vortexInSc.target = null
-                        bhOutVortex.target = null; bhOutSc.target = null; bhOutRot.target = null; bhOutOp.target = null; bhInVortex.target = null; bhInSc.target = null; bhInRot.target = null; bhInOp.target = null
-                        portalOutWave.target = null; portalOutSc.target = null; portalOutRot.target = null; portalOutOp.target = null; portalInWave.target = null; portalInSc.target = null; portalInRot.target = null; portalInOp.target = null
-                        shatterOutProg.target = null; shatterOutSc.target = null; shatterOutX.target = null; shatterOutOp.target = null; shatterInProg.target = null; shatterInSc.target = null; shatterInX.target = null; shatterInOp.target = null
                         inTransition = false
                         if (cur && cur.item && cur.item.focusSearchInput) Qt.callLater(cur.item.focusSearchInput)
                         if (Hypr) Hypr.trimMemory()

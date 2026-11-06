@@ -170,7 +170,7 @@ RowLayout {
                 width: scrKb.availableWidth; implicitHeight: colKbMain.implicitHeight + 40
                 ColumnLayout {
                     id: colKbMain
-                    width: Math.min(parent.width - 48, 860)
+                    width: Math.min(parent.width - 28, 860)
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 20; spacing: 12
 
                     Text { text: Config ? (Config.language, Config.trAuto("Оверлей клавиатуры и мыши")) : "Оверлей клавиатуры и мыши"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
@@ -228,7 +228,7 @@ RowLayout {
                 width: scrClk.availableWidth; implicitHeight: colClkMain.implicitHeight + 40
                 ColumnLayout {
                     id: colClkMain
-                    width: Math.min(parent.width - 48, 860)
+                    width: Math.min(parent.width - 28, 860)
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 20; spacing: 12
 
                     Text { text: Config ? (Config.language, Config.trAuto("Часы на рабочем столе")) : "Часы на рабочем столе"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
@@ -273,7 +273,7 @@ RowLayout {
                 width: scrSysInfo.availableWidth; implicitHeight: colSysInfoMain.implicitHeight + 40
                 ColumnLayout {
                     id: colSysInfoMain
-                    width: Math.min(parent.width - 48, 860)
+                    width: Math.min(parent.width - 28, 860)
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 20; spacing: 12
 
                     RowLayout {
@@ -289,14 +289,17 @@ RowLayout {
                         ColumnLayout {
                             id: colSysMetrics; anchors.fill: parent; anchors.margins: 12; spacing: 10
                             Text { text: Config ? (Config.language, Config.trAuto("Отображаемые графики и сводка")) : "Отображаемые графики и сводка"; color: Config.accentColor; font.pixelSize: Config.fontSize + 1; font.bold: true }
-                            RowLayout {
-                                spacing: 12
+                            GridLayout {
+                                Layout.fillWidth: true
+                                columns: 3
+                                columnSpacing: 12
+                                rowSpacing: 6
                                 StyledCheckBox { text: "󰻠  CPU"; checked: Widgets.sysShowCpu; onToggled: Widgets.sysShowCpu = checked }
                                 StyledCheckBox { text: "󰍛  RAM"; checked: Widgets.sysShowRam; onToggled: Widgets.sysShowRam = checked }
                                 StyledCheckBox { text: "󰛳  NET"; checked: Widgets.sysShowNet; onToggled: Widgets.sysShowNet = checked }
                                 StyledCheckBox { text: "  TEMP"; checked: Widgets.sysShowTemp; onToggled: Widgets.sysShowTemp = checked }
-                                StyledCheckBox { text: Config ? (Config.language, Config.trAuto("Диск / Uptime / Ядро")) : "Диск / Uptime / Ядро"; checked: Widgets.sysShowExtra; onToggled: Widgets.sysShowExtra = checked }
                                 StyledCheckBox { text: "󰘳  Процессы"; checked: Widgets.sysShowProcs; onToggled: Widgets.sysShowProcs = checked }
+                                StyledCheckBox { text: Config ? (Config.language, Config.trAuto("Диск / Uptime / Ядро")) : "Диск / Uptime / Ядро"; checked: Widgets.sysShowExtra; onToggled: Widgets.sysShowExtra = checked }
                             }
                             RowLayout {
                                 visible: Widgets.sysShowProcs
@@ -410,7 +413,7 @@ RowLayout {
                 width: scrSys.availableWidth; implicitHeight: colSysMain.implicitHeight + 40
                 ColumnLayout {
                     id: colSysMain
-                    width: Math.min(parent.width - 48, 860)
+                    width: Math.min(parent.width - 28, 860)
                     anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 20; spacing: 12
 
                     Text { text: Config ? (Config.language, Config.trAuto("Мониторы процессов и системная сводка")) : "Мониторы процессов и системная сводка"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }

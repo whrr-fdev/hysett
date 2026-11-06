@@ -102,6 +102,8 @@ Rectangle {
         Item {
             id: archHeaderItem
             Layout.fillWidth: true
+            Layout.preferredHeight: 24
+            Layout.minimumHeight: 24
             implicitHeight: 24
 
             Row {
@@ -116,7 +118,7 @@ Rectangle {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                onHoveredChanged: {
+                onContainsMouseChanged: {
                     if (containsMouse) {
                         bar.lastHoveredBtnObj = archHeaderItem
                         bar.hoveredBtnObj = archHeaderItem

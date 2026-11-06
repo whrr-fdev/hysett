@@ -190,18 +190,32 @@ void WidgetsManager::loadClockConfig() {
 void WidgetsManager::saveClockConfig() {
     QDir().mkpath(QDir::homePath() + "/.config/hypr/scripts");
     QString p = QDir::homePath() + "/.config/hypr/scripts/clock_style.conf";
+    QMap<QString, QString> kv;
+    QFile rf(p);
+    if (rf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&rf);
+        while (!in.atEnd()) {
+            QString line = in.readLine().trimmed();
+            int eq = line.indexOf('=');
+            if (eq != -1) kv[line.left(eq).trimmed()] = line.mid(eq + 1).trimmed();
+        }
+        rf.close();
+    }
+    kv["size"] = QString::number(m_clockSize);
+    kv["opacity"] = QString::number(m_clockOpacity, 'f', 2);
+    kv["is_24h"] = m_clock24h ? "1" : "0";
+    kv["show_seconds"] = m_clockShowSeconds ? "1" : "0";
+    kv["show_date"] = m_clockShowDate ? "1" : "0";
+    kv["show_weekday"] = m_clockShowWeekday ? "1" : "0";
+
     QFile f(p);
     if (f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
         QTextStream out(&f);
-        out << "size=" << m_clockSize << "\n"
-            << "opacity=" << QString::number(m_clockOpacity, 'f', 2) << "\n"
-            << "is_24h=" << (m_clock24h ? 1 : 0) << "\n"
-            << "show_seconds=" << (m_clockShowSeconds ? 1 : 0) << "\n"
-            << "show_date=" << (m_clockShowDate ? 1 : 0) << "\n"
-            << "show_weekday=" << (m_clockShowWeekday ? 1 : 0) << "\n";
+        for (auto it = kv.begin(); it != kv.end(); ++it) {
+            out << it.key() << "=" << it.value() << "\n";
+        }
         f.close();
     }
-    if (m_clockRunning && s_clockRestartTimer) s_clockRestartTimer->start();
 }
 
 void WidgetsManager::setClock24h(bool v) { if (m_clock24h != v) { m_clock24h = v; saveClockConfig(); emit clockChanged(); } }

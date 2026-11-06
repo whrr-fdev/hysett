@@ -2,6 +2,7 @@
 #include <QPixmap>
 #include <QFile>
 #include <QUrl>
+#include <QColor>
 #include <QDBusInterface>
 #include <QDBusMessage>
 #include <QDBusArgument>
@@ -11,11 +12,15 @@
 
 IconImageProvider::IconImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
-static QImage toMonochrome(const QImage &src) {
+static QImage toMonochrome(const QImage &src, const QColor &tint) {
     if (src.isNull()) return src;
     QImage img = src.convertToFormat(QImage::Format_ARGB32);
     const int w = img.width();
     const int h = img.height();
+    const int tr = tint.isValid() ? tint.red() : 255;
+    const int tg = tint.isValid() ? tint.green() : 255;
+    const int tb = tint.isValid() ? tint.blue() : 255;
+
     for (int y = 0; y < h; ++y) {
         QRgb *line = reinterpret_cast<QRgb *>(img.scanLine(y));
         for (int x = 0; x < w; ++x) {
@@ -24,7 +29,10 @@ static QImage toMonochrome(const QImage &src) {
             if (a == 0) continue;
             int lum = qGray(qRed(px), qGreen(px), qBlue(px));
             int bw = (lum > 45) ? std::clamp(int(lum * 0.88 + 30), 0, 255) : lum;
-            line[x] = qRgba(bw, bw, bw, a);
+            int r = std::clamp((bw * tr) / 255, 0, 255);
+            int g = std::clamp((bw * tg) / 255, 0, 255);
+            int b = std::clamp((bw * tb) / 255, 0, 255);
+            line[x] = qRgba(r, g, b, a);
         }
     }
     return img;
@@ -95,6 +103,19 @@ QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSi
         mono = true;
         decoded = decoded.mid(5);
     }
+
+    QColor tintColor("#ffffff");
+    QString queryPart = decoded.section('?', 1);
+    if (!queryPart.isEmpty()) {
+        for (const QString &kv : queryPart.split('&', Qt::SkipEmptyParts)) {
+            if (kv.startsWith("tint=")) {
+                QString hex = kv.mid(5).trimmed();
+                if (!hex.startsWith('#')) hex.prepend('#');
+                if (QColor::isValidColorName(hex)) tintColor = QColor(hex);
+            }
+        }
+    }
+
     QString cleanId = decoded.section('?', 0, 0);
 
     if (cleanId.startsWith("sni:")) {
@@ -102,7 +123,7 @@ QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSi
         QImage sniImg = fetchSniPixmap(cleanId);
         if (!sniImg.isNull()) {
             QImage scaled = sniImg.scaled(s, s, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-            if (mono) scaled = toMonochrome(scaled);
+            if (mono) scaled = toMonochrome(scaled, tintColor);
             if (size) *size = scaled.size();
             return scaled;
         }
@@ -129,7 +150,7 @@ QImage IconImageProvider::requestImage(const QString &id, QSize *size, const QSi
         pm.fill(Qt::transparent);
     }
     QImage out = pm.toImage();
-    if (mono) out = toMonochrome(out);
+    if (mono) out = toMonochrome(out, tintColor);
     if (size) *size = out.size();
     return out;
 }

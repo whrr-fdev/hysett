@@ -12,16 +12,56 @@ Rectangle {
     readonly property int itemH: isM3 ? 32 : 25
     readonly property int pillH: isM3 ? 30 : 24
 
+    property bool collapsed: false
+    readonly property bool sidebarHovered: sidebarHoverHandler.hovered
+    readonly property int targetWidth: collapsed ? (isM3 ? 58 : 46) : (isM3 ? 168 : 136)
+
+    width: targetWidth
+    Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+
+    HoverHandler {
+        id: sidebarHoverHandler
+        onHoveredChanged: {
+            if (hovered) {
+                collapseTimer.stop()
+                bar.collapsed = false
+            } else if (bar.currentIndex > 0) {
+                collapseTimer.restart()
+            }
+        }
+    }
+
+    Timer {
+        id: collapseTimer
+        interval: 2000
+        repeat: false
+        onTriggered: {
+            if (!bar.sidebarHovered && bar.currentIndex > 0) {
+                bar.collapsed = true
+            }
+        }
+    }
+
+    onCurrentIndexChanged: {
+        if (currentIndex > 0 && !sidebarHovered) {
+            collapseTimer.restart()
+        } else if (currentIndex === 0) {
+            collapseTimer.stop()
+            bar.collapsed = false
+        }
+    }
+
     color: "transparent"
 
-    // Фон M3 Navigation Drawer (отделенный скругленный контейнер в режиме MD3)
+    // Фон M3 Navigation Drawer
     Rectangle {
         anchors.fill: parent
         anchors.margins: bar.isM3 ? 6 : 0
+        anchors.topMargin: bar.isM3 ? 8 : 4
         anchors.rightMargin: bar.isM3 ? 4 : 0
         radius: bar.isM3 ? (Config ? Math.min(22, Config.m3CardRadius + 4) : 20) : 0
         color: bar.isM3 && Config
-               ? Qt.rgba(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b, Math.max(0.72, Config.sidebarOpacity + 0.55))
+               ? Qt.rgba(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b, Math.max(0.75, Config.sidebarOpacity + 0.58))
                : Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.0)
         Behavior on radius { NumberAnimation { duration: 180 } }
         Behavior on color { ColorAnimation { duration: 180 } }
@@ -43,6 +83,7 @@ Rectangle {
         visible: !bar.isM3
         anchors.right: parent.right
         anchors.top: parent.top
+        anchors.topMargin: 6
         anchors.bottom: parent.bottom
         width: 1
         color: Qt.rgba(1, 1, 1, 0.08)
@@ -112,6 +153,7 @@ Rectangle {
         id: mainColLayout
         anchors.fill: parent
         anchors.margins: bar.isM3 ? 10 : 4
+        anchors.topMargin: bar.isM3 ? 12 : 6
         spacing: bar.isM3 ? 4 : 2
 
         Button {
@@ -121,14 +163,35 @@ Rectangle {
             Layout.minimumHeight: bar.isM3 ? 34 : 24
             implicitHeight: bar.isM3 ? 34 : 24
             flat: true
+            clip: true
             background: Item {}
             contentItem: Item {
                 anchors.fill: parent
-                Row {
-                    anchors.centerIn: parent
-                    spacing: 8
-                    Image { width: 15; height: 15; sourceSize: Qt.size(30, 30); smooth: true; opacity: archHeaderItem.hovered ? 1.0 : 0.9; anchors.verticalCenter: parent.verticalCenter; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
-                    Text { text: "HYPRLAND"; color: bar.isM3 && Config ? Config.m3Primary : (archHeaderItem.hovered ? "#ffffff" : "#aaaaaa"); font.pixelSize: 11; font.bold: bar.isM3; font.letterSpacing: 1.4; anchors.verticalCenter: parent.verticalCenter }
+                Image {
+                    id: headerLogo
+                    width: 15; height: 15
+                    sourceSize: Qt.size(30, 30)
+                    smooth: true
+                    opacity: archHeaderItem.hovered ? 1.0 : 0.9
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: bar.collapsed
+                       ? Math.round((parent.width - width) * 0.5)
+                       : Math.round((parent.width - (width + 8 + headerTitleTxt.implicitWidth)) * 0.5)
+                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                    source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                }
+                Text {
+                    id: headerTitleTxt
+                    x: headerLogo.x + headerLogo.width + 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "HYPRLAND"
+                    opacity: bar.collapsed ? 0.0 : 1.0
+                    visible: opacity > 0.01
+                    color: bar.isM3 && Config ? Config.m3Primary : (archHeaderItem.hovered ? "#ffffff" : "#aaaaaa")
+                    font.pixelSize: 11
+                    font.bold: bar.isM3
+                    font.letterSpacing: 1.4
+                    Behavior on opacity { NumberAnimation { duration: 140 } }
                 }
             }
             HoverHandler { cursorShape: Qt.PointingHandCursor }
@@ -142,8 +205,8 @@ Rectangle {
         Rectangle {
             objectName: "sidebarSepLine"
             Layout.fillWidth: true
-            Layout.leftMargin: bar.isM3 ? 8 : 0
-            Layout.rightMargin: bar.isM3 ? 8 : 0
+            Layout.leftMargin: bar.isM3 ? 6 : 0
+            Layout.rightMargin: bar.isM3 ? 6 : 0
             height: 1
             color: bar.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.18) : Qt.rgba(1, 1, 1, 0.06)
             Layout.topMargin: 1
@@ -205,6 +268,7 @@ Rectangle {
                     NavButton {
                         id: nb
                         tabIdx: modelData.idx
+                        collapsed: bar.collapsed
                         property bool isShown: {
                             var _ = Config ? Config.hiddenSidebarTabs : ""
                             return Config ? Config.isTabVisible(modelData.idx) : true
@@ -238,8 +302,8 @@ Rectangle {
         Rectangle {
             objectName: "sidebarSepLine"
             Layout.fillWidth: true
-            Layout.leftMargin: bar.isM3 ? 8 : 0
-            Layout.rightMargin: bar.isM3 ? 8 : 0
+            Layout.leftMargin: bar.isM3 ? 6 : 0
+            Layout.rightMargin: bar.isM3 ? 6 : 0
             height: 1
             color: bar.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.18) : Qt.rgba(1, 1, 1, 0.06)
             Layout.topMargin: 2
@@ -249,6 +313,7 @@ Rectangle {
         NavButton {
             id: setBtn
             tabIdx: 17
+            collapsed: bar.collapsed
             Layout.fillWidth: true
             Layout.preferredHeight: bar.itemH
             text: Config ? (Config.language, Config.trAuto("Настройки")) : "Настройки"
@@ -281,15 +346,29 @@ Rectangle {
 
             contentItem: Item {
                 anchors.fill: parent
-                Row {
-                    id: closeRow
-                    spacing: bar.isM3 ? 10 : 7
+                Text {
+                    id: closeIconTxt
+                    text: "✕"
+                    color: closeBtn.hovered ? "#ff6b6b" : "#888888"
+                    font.pixelSize: 11
                     anchors.verticalCenter: parent.verticalCenter
-                    x: (Config && Config.alignCenter)
-                       ? Math.round((parent.width - closeRow.width) / 2)
-                       : (bar.isM3 ? 14 : 10)
-                    Text { text: "✕"; color: closeBtn.hovered ? "#ff6b6b" : "#888888"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
-                    Text { text: Config ? (Config.language, Config.trAuto("Закрыть")) : "Закрыть"; color: closeBtn.hovered ? "#ffffff" : "#888888"; font.pixelSize: Config.fontSize; anchors.verticalCenter: parent.verticalCenter }
+                    x: bar.collapsed
+                       ? Math.round((parent.width - width) * 0.5)
+                       : ((Config && Config.alignCenter)
+                          ? Math.round((parent.width - (width + (bar.isM3 ? 10 : 7) + closeLblTxt.implicitWidth)) * 0.5)
+                          : (bar.isM3 ? 14 : 10))
+                    Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                }
+                Text {
+                    id: closeLblTxt
+                    x: closeIconTxt.x + closeIconTxt.width + (bar.isM3 ? 10 : 7)
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: Config ? (Config.language, Config.trAuto("Закрыть")) : "Закрыть"
+                    opacity: bar.collapsed ? 0.0 : 1.0
+                    visible: opacity > 0.01
+                    color: closeBtn.hovered ? "#ffffff" : "#888888"
+                    font.pixelSize: Config.fontSize
+                    Behavior on opacity { NumberAnimation { duration: 140 } }
                 }
             }
             background: Item {}

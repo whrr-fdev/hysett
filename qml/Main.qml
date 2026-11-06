@@ -187,7 +187,7 @@ ApplicationWindow {
 
     readonly property int barPos: Waybar ? Waybar.barPosition : 0
     readonly property bool isCenteredBar: Waybar ? Waybar.centeredBar : false
-    readonly property int barH: Waybar ? Waybar.barHeight : 22
+    readonly property int barH: Waybar ? Waybar.barHeight : 30
     readonly property int barTop: Waybar ? Waybar.marginTop : 4
     readonly property int fullBarLeft: Math.max(0, (Waybar ? Waybar.marginLeft : 10) - 2)
     readonly property int fullBarRight: Math.max(0, (Waybar ? Waybar.marginRight : 10) - 2)
@@ -197,8 +197,8 @@ ApplicationWindow {
     readonly property bool winModVis: Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("window")) : true
     readonly property bool isFixedTitle: Waybar ? Waybar.fixedTitleWidth : false
     readonly property bool hasWinTitle: winModVis && Waybar && Waybar.activeWindowTitle.length > 0
-    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 200 : (hasWinTitle ? Math.min(220, winLbl.implicitWidth + 16) : 0))
-    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 6) : 0) + rightBarRow.implicitWidth + 14)
+    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? 210 : (hasWinTitle ? Math.min(240, winLbl.implicitWidth + 24) : 0))
+    readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
     property real smoothBaseBarW: (barPos >= 2) ? islandW : (isCenteredBar ? islandW : customBarW)
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
@@ -232,7 +232,6 @@ ApplicationWindow {
 
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
-    // Плавная анимация боковых торчащих кусков при открытии/закрытии из узкой панели!
     readonly property real wingMix: Math.min(1.0, Math.pow(Math.max(0.0, drawerProgress), 0.42) * 1.15)
     readonly property real effDrawerW: animDrawerW * root.drawerWidthScale
     readonly property real animDrawerH: Math.min(root.height - root.drawerY - 2, Math.max(0.0, smoothTargetH * drawerProgress))
@@ -250,9 +249,8 @@ ApplicationWindow {
     readonly property real drawerX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, centerAnchorX - effDrawerW * 0.5))
     readonly property real drawerY: (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
 
-    // Уведомления приходят у правого края экрана (когда панель узкая) и без пустого отступа сверху!
     readonly property int notifW: Mako ? Mako.width : 320
-    readonly property int notifTargetH: Math.max(44, notifStackCol.implicitHeight + 2)
+    readonly property int notifTargetH: Math.max(46, notifStackCol.implicitHeight + 4)
     property real smoothNotifTargetH: notifTargetH
     Behavior on smoothNotifTargetH { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
     readonly property real animNotifH: smoothNotifTargetH * notifProgress
@@ -525,8 +523,6 @@ ApplicationWindow {
         id: sceneRoot
         anchors.fill: parent
 
-
-        // Отслеживание мыши в глобальных координатах сцены (свет курсора плавно переходит на панель задач!)
         HoverHandler {
             enabled: root.drawerActive
             onPointChanged: {
@@ -558,7 +554,7 @@ ApplicationWindow {
             }
         }
 
-        // ЕДИНЫЙ GLSL-ШЕЙДЕР (ПАНЕЛЬ + ОКНО + УВЕДОМЛЕНИЯ + СВЕТ КУРСОРА НА ПАНЕЛИ И ОКНЕ)
+        // ЕДИНЫЙ GLSL-ШЕЙДЕР (ПАНЕЛЬ + ОКНО + УВЕДОМЛЕНИЯ + СВЕТ КУРСОРА)
         ShaderEffect {
             id: mergedShellBg
             anchors.fill: parent
@@ -567,9 +563,9 @@ ApplicationWindow {
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
                                           : (Config ? Config.opacity : 0.85)
             Behavior on currentOpacity { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-            property color surfCol: Config ? Config.m3Surface : "#111318"
-            property color notifBgCol: Mako ? Mako.bgColor : surfCol
-            property real notifAlpha: Mako ? Mako.bgOpacity : 0.85
+            property color surfCol: Config ? Config.m3Surface : "#0e1015"
+            property color notifBgCol: (Theme && Theme.isRounded && Config) ? Config.m3SurfaceContainer : (Mako ? Mako.bgColor : surfCol)
+            property real notifAlpha: Mako ? Mako.bgOpacity : 0.90
             property color outCol: (root.notifActive && Mako && Mako.popupCritical) ? Mako.criticalBorderColor : (Config ? Config.m3Outline : "#444854")
 
             property vector2d u_resolution: Qt.vector2d(width, height)
@@ -582,7 +578,7 @@ ApplicationWindow {
             property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
             property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88
-            property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.6) : 12.0) : 0.0
+            property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13.0) : 0.0
             property real u_fillet: (Theme && Theme.isRounded) ? (Config ? Config.m3WindowRadius : 20.0) : 0.0
             property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0
             property real u_time: root.liquidTime * (Config ? Config.borderGlowSpeed : 1.0)
@@ -598,14 +594,18 @@ ApplicationWindow {
         }
 
         // =====================================================================
-        // ВСТРОЕННАЯ ПАНЕЛЬ ЗАДАЧ (НА ВСЮ ШИРИНУ ИЛИ ОСТРОВОК ПО ЦЕНТРУ)
+        // ВСТРОЕННАЯ ПАНЕЛЬ ЗАДАЧ (УВЕЛИЧЕННАЯ ВЫСОТА И ПРОСТОРНЫЕ ОТСТУПЫ MD3)
         // =====================================================================
         Item {
             id: topBarContainer
             x: root.barLeft; y: root.barRectY; width: root.barW; height: root.barH; z: 10
-            property int pillRadius: (Theme && Theme.isRounded) ? Math.round((height - 4) / 2) : 0
-            property int pillHeight: height - 4
-            property color pillColor: (Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Math.max(0.58, (Waybar ? Waybar.pillOpacity : 0.65) * 0.85)) : "transparent"
+            readonly property int vPad: (Theme && Theme.isRounded) ? 6 : 4
+            property int pillHeight: Math.max(18, height - vPad)
+            property int pillRadius: (Theme && Theme.isRounded) ? Math.round(pillHeight / 2) : 0
+            property color pillColor: (Theme && Theme.isRounded && Config)
+                                      ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, Math.max(0.66, (Waybar ? Waybar.pillOpacity : 0.65) * 0.90))
+                                      : "transparent"
+            readonly property string trayTintHex: (Theme && Theme.isRounded && Config) ? Config.m3Primary.toString().substring(1) : "ffffff"
 
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             MouseArea { anchors.fill: leftBarRow; anchors.margins: -4; z: 1 }
@@ -621,9 +621,44 @@ ApplicationWindow {
             readonly property real baseGroupGap: Waybar ? Waybar.groupSpacing : 6
             readonly property real macroStepGap: baseGroupGap + (macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0)
 
+            function isStatusClusterMod(k) {
+                return k === "bluetooth" || k === "network" || k === "clipboard" || k === "volume" || k === "language" || k === "clock"
+            }
+
+            // Единая таблетка для системного лотка + часов (bluetooth, network, clipboard, volume, language, clock)
+            Rectangle {
+                id: statusClockPillBg
+                z: 4
+                readonly property var bounds: {
+                    var _ = Waybar ? Waybar.rightBarOrder : []
+                    var _h = Waybar ? Waybar.hiddenBarModules : ""
+                    var _rw = rightBarRow.width
+                    var _rx = rightBarRow.x
+                    var minX = 999999
+                    var maxX = -1
+                    for (var i = 0; i < rightModRepeater.count; ++i) {
+                        var it = rightModRepeater.itemAt(i)
+                        if (it && it.visible && topBarContainer.isStatusClusterMod(it.modKey)) {
+                            var bodyX = rightBarRow.x + it.x + it.bodyOffsetX
+                            var bodyR = bodyX + it.bodyWidth
+                            if (bodyX < minX) minX = bodyX
+                            if (bodyR > maxX) maxX = bodyR
+                        }
+                    }
+                    return { valid: maxX > minX, x: minX, w: Math.max(0, maxX - minX) }
+                }
+                visible: bounds.valid && (Theme && Theme.isRounded)
+                x: bounds.x
+                width: bounds.w
+                height: topBarContainer.pillHeight
+                anchors.verticalCenter: parent.verticalCenter
+                radius: topBarContainer.pillRadius
+                color: topBarContainer.pillColor
+            }
+
             Row {
                 id: leftBarRow; z: 5
-                anchors.left: parent.left; anchors.leftMargin: 5; anchors.verticalCenter: parent.verticalCenter
+                anchors.left: parent.left; anchors.leftMargin: (Theme && Theme.isRounded) ? 8 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
                 Repeater {
@@ -655,7 +690,6 @@ ApplicationWindow {
                             height: 1
                         }
 
-                        // Вертикальный разделитель между блоками
                         Rectangle {
                             visible: topBarContainer.showSeps && index > 0 && modKey !== "sep"
                             opacity: modKey === "workspaces" ? topBarContainer.launcherVis : 1.0
@@ -668,18 +702,17 @@ ApplicationWindow {
                             id: leftModBody
                             height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
-                            clip: modKey === "media"
+                            clip: modKey === "media" || modKey === "launcher"
                             opacity: modKey === "launcher" ? (topBarContainer.launcherVis * topBarContainer.launcherVis) : 1.0
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
-                                if (modKey === "workspaces") return wsRow.implicitWidth + 2
-                                if (modKey === "weather") return wLbl.implicitWidth + 10
-                                if (modKey === "media") return mediaInnerRow.implicitWidth + 10
+                                if (modKey === "launcher") return (topBarContainer.pillHeight + 10) * topBarContainer.launcherVis
+                                if (modKey === "workspaces") return wsRow.implicitWidth + 10
+                                if (modKey === "weather") return wLbl.implicitWidth + 18
+                                if (modKey === "media") return mediaInnerRow.implicitWidth + 18
                                 return 0
                             }
 
-                            // Контент: sep
                             Rectangle {
                                 visible: modKey === "sep"
                                 anchors.centerIn: parent
@@ -687,20 +720,26 @@ ApplicationWindow {
                                 color: Qt.rgba(1, 1, 1, 0.32)
                             }
 
-                            // Контент: launcher (плавное скольжение без субпиксельного дрожания centerIn)
+                            // Контент: launcher (логотип CachyOS в таблетке)
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                Image {
+                                Rectangle {
+                                    width: topBarContainer.pillHeight + 10
+                                    height: topBarContainer.pillHeight
                                     anchors.right: parent.right
-                                    anchors.rightMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
-                                    anchors.verticalCenterOffset: 1
-                                    scale: 0.72 + 0.28 * topBarContainer.launcherVis
-                                    width: 15; height: 15
-                                    sourceSize: Qt.size(30, 30)
-                                    smooth: true
-                                    source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                                    radius: topBarContainer.pillRadius
+                                    color: topBarContainer.pillColor
+                                    scale: 0.82 + 0.18 * topBarContainer.launcherVis
+
+                                    Image {
+                                        anchors.centerIn: parent
+                                        width: 16; height: 16
+                                        sourceSize: Qt.size(32, 32)
+                                        smooth: true
+                                        source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                                    }
                                 }
                                 MouseArea { enabled: !topBarContainer.editMode && topBarContainer.launcherVis > 0.5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
@@ -723,35 +762,33 @@ ApplicationWindow {
 
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
 
-                                // Плавно скользящая подложка наведения (как в боковом меню)
                                 Rectangle {
                                     id: wsHoverPill
                                     z: 1
-                                    width: 20
+                                    width: 22
                                     height: topBarContainer.pillHeight - 4
                                     anchors.verticalCenter: parent.verticalCenter
                                     radius: (Theme && Theme.isRounded) ? height / 2 : 0
                                     color: Qt.rgba(1, 1, 1, 0.16)
                                     opacity: (wsModuleItem.hoveredWsIdx >= 0 && wsModuleItem.hoveredWsIdx !== wsModuleItem.activeWsIdx) ? 1.0 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutQuad } }
-                                    x: wsRow.x + wsModuleItem.lastHoverIdx * 20
+                                    x: wsRow.x + wsModuleItem.lastHoverIdx * 22
                                     Behavior on x {
                                         enabled: wsHoverPill.opacity > 0.05
                                         NumberAnimation { duration: 210; easing.type: Easing.OutQuint }
                                     }
                                 }
 
-                                // Плавно скользящий индикатор активного рабочего стола
                                 Rectangle {
                                     id: wsActivePill
                                     z: 2
-                                    width: 20
+                                    width: 22
                                     height: topBarContainer.pillHeight - 4
                                     anchors.verticalCenter: parent.verticalCenter
                                     radius: (Theme && Theme.isRounded) ? height / 2 : 0
                                     color: Config ? Config.m3Primary : "#ffffff"
                                     Behavior on color { ColorAnimation { duration: 180 } }
-                                    x: wsRow.x + wsModuleItem.activeWsIdx * 20
+                                    x: wsRow.x + wsModuleItem.activeWsIdx * 22
                                     Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                 }
 
@@ -763,7 +800,7 @@ ApplicationWindow {
                                             property bool act: modelData.active === true
                                             property bool occ: (modelData.windows || 0) > 0
                                             property bool hov: wsMa.containsMouse
-                                            width: 20; height: topBarContainer.pillHeight - 4
+                                            width: 22; height: topBarContainer.pillHeight - 4
                                             anchors.verticalCenter: parent.verticalCenter
                                             radius: (Theme && Theme.isRounded) ? height / 2 : 0
                                             color: (!act && occ && !hov) ? Qt.rgba(1, 1, 1, 0.10) : "transparent"
@@ -807,7 +844,7 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
 
-                            // Контент: media (без двойных стрелочек, клик по треку открывает вкладку Музыки 27)
+                            // Контент: media
                             Rectangle {
                                 visible: modKey === "media"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
@@ -818,35 +855,35 @@ ApplicationWindow {
                                     id: mediaInnerRow
                                     height: topBarContainer.pillHeight
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: 5
 
                                     Item {
-                                        width: 12; height: topBarContainer.pillHeight
+                                        width: 13; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
                                         MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
                                     }
 
                                     Item {
-                                        width: 12; height: topBarContainer.pillHeight
+                                        width: 13; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
                                         MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
                                     }
 
                                     Item {
-                                        width: 12; height: topBarContainer.pillHeight
+                                        width: 13; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
                                         MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
                                     }
 
                                     Item {
-                                        width: Math.min(155, mediaTrackLbl.implicitWidth)
+                                        width: Math.min(160, mediaTrackLbl.implicitWidth)
                                         height: topBarContainer.pillHeight
                                         Text {
                                             id: mediaTrackLbl
                                             anchors.verticalCenter: parent.verticalCenter
                                             width: parent.width
                                             text: Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер"
-                                            color: "#ffffff"
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
                                             font.pixelSize: 10
                                             font.bold: true
                                             elide: Text.ElideRight
@@ -861,7 +898,6 @@ ApplicationWindow {
                                 }
                             }
 
-                            // Оверлей режима редактирования: перетаскивание мышкой (ЛКМ) и скрытие (ПКМ или клик по ✕)
                             Rectangle {
                                 visible: topBarContainer.editMode
                                 anchors.fill: parent
@@ -911,9 +947,9 @@ ApplicationWindow {
                 id: centerTitlePill; z: 5
                 readonly property real leftEdge: leftBarRow.x + leftBarRow.width
                 readonly property real rightEdge: rightBarRow.x
-                readonly property real availGap: Math.max(0, rightEdge - leftEdge - 12)
-                readonly property real minLeftX: leftEdge + 6
-                readonly property real maxRightX: Math.max(minLeftX, rightEdge - 6 - width)
+                readonly property real availGap: Math.max(0, rightEdge - leftEdge - 14)
+                readonly property real minLeftX: leftEdge + 7
+                readonly property real maxRightX: Math.max(minLeftX, rightEdge - 7 - width)
                 readonly property real gapCenterX: Math.round(leftEdge + (rightEdge - leftEdge - width) * 0.5)
                 readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
                 readonly property real centerBlend: Math.max(0.0, Math.min(1.0, (root.baseBarW - 860.0) / 40.0))
@@ -929,13 +965,13 @@ ApplicationWindow {
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
                 color: root.hasWinTitle ? topBarContainer.pillColor : "transparent"
-                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 12), implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: "#ececec"; font.pixelSize: 10; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 18), implicitWidth); text: Waybar ? Waybar.activeWindowTitle : ""; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"; font.pixelSize: 10; font.bold: (Theme && Theme.isRounded); elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
             }
 
             Row {
                 id: rightBarRow; z: 5
-                anchors.right: parent.right; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 8 : 5; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
                 // Индикатор записи экрана
@@ -945,7 +981,7 @@ ApplicationWindow {
                     opacity: isRec ? 1.0 : 0.0
                     clip: true
                     height: topBarContainer.pillHeight
-                    width: isRec ? (recRow.implicitWidth + 12) : 0
+                    width: isRec ? (recRow.implicitWidth + 16) : 0
                     Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
                     Behavior on opacity { NumberAnimation { duration: 180 } }
                     anchors.verticalCenter: parent.verticalCenter
@@ -963,9 +999,8 @@ ApplicationWindow {
                     MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") }
                 }
 
-
-
                 Repeater {
+                    id: rightModRepeater
                     model: Waybar ? Waybar.rightBarOrder : ["sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"]
                     delegate: Row {
                         id: rightModWrap
@@ -982,14 +1017,38 @@ ApplicationWindow {
                         }
                         visible: modVis
 
-                        readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "power") && index > 0
-                        readonly property bool isTightStatusIcon: (modKey === "network" || modKey === "clipboard" || modKey === "volume" || modKey === "language") && index > 0
+                        readonly property bool isStatusMod: topBarContainer.isStatusClusterMod(modKey)
+                        readonly property bool isFirstStatusMod: {
+                            if (!isStatusMod) return false
+                            var ord = Waybar ? Waybar.rightBarOrder : []
+                            var _ = Waybar ? Waybar.hiddenBarModules : ""
+                            for (var i = 0; i < index; ++i) {
+                                var k = ord[i]
+                                if (topBarContainer.isStatusClusterMod(k) && (!Waybar || Waybar.isBarModuleVisible(k))) return false
+                            }
+                            return true
+                        }
+                        readonly property bool isLastStatusMod: {
+                            if (!isStatusMod) return false
+                            var ord = Waybar ? Waybar.rightBarOrder : []
+                            var _ = Waybar ? Waybar.hiddenBarModules : ""
+                            for (var i = index + 1; i < ord.length; ++i) {
+                                var k = ord[i]
+                                if (topBarContainer.isStatusClusterMod(k) && (!Waybar || Waybar.isBarModuleVisible(k))) return false
+                            }
+                            return true
+                        }
+
+                        readonly property bool isMacroBoundary: (modKey === "tray" || isFirstStatusMod || modKey === "power") && index > 0
+                        readonly property real bodyOffsetX: rightGapItem.visible ? rightGapItem.width : 0
+                        readonly property real bodyWidth: rightModBody.width
 
                         Item {
+                            id: rightGapItem
                             visible: index > 0
                             width: parent.isMacroBoundary
-                                   ? (topBarContainer.macroStepGap + ((modKey === "tray" || modKey === "bluetooth") ? 4 : 0))
-                                   : (parent.isTightStatusIcon ? 5 : (Waybar ? Waybar.spacing : 4))
+                                   ? (topBarContainer.macroStepGap + 4)
+                                   : (parent.isStatusMod ? 7 : (Waybar ? Waybar.spacing : 4))
                             height: 1
                         }
 
@@ -1004,17 +1063,20 @@ ApplicationWindow {
                             id: rightModBody
                             height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
+                            readonly property int clusterEdgePad: (rightModWrap.isFirstStatusMod ? 9 : 0) + (rightModWrap.isLastStatusMod ? 9 : 0)
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "sysinfo") return sysRow.implicitWidth + 6
-                                if (modKey === "tray") return Math.max(16, trayRow.implicitWidth + 6)
-                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 13
-                                if (modKey === "volume") return volInnerRow.implicitWidth + 4
-                                if (modKey === "language") return 18
-                                if (modKey === "clock") return barClockText.implicitWidth + 4
-                                if (modKey === "power") return 13
+                                if (modKey === "sysinfo") return sysRow.implicitWidth + 16
+                                if (modKey === "tray") return Math.max(24, trayRow.implicitWidth + 16)
+                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 14 + clusterEdgePad
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 4 + clusterEdgePad
+                                if (modKey === "language") return 19 + clusterEdgePad
+                                if (modKey === "clock") return barClockText.implicitWidth + 6 + clusterEdgePad
+                                if (modKey === "power") return 26
                                 return 0
                             }
+
+                            readonly property real innerShiftX: (rightModWrap.isFirstStatusMod ? 4.5 : 0) - (rightModWrap.isLastStatusMod ? 4.5 : 0)
 
                             Rectangle {
                                 visible: modKey === "sep"
@@ -1028,24 +1090,25 @@ ApplicationWindow {
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 Row {
-                                    id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 2
-                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                                    Item { width: 35; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                                    Item { width: 39; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 2; Text { text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 5
+                                    Item { width: 40; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 36; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 41; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
                                 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
                             }
 
-                            Item {
+                            Rectangle {
                                 visible: modKey === "tray"
-                                anchors.fill: parent
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 Row {
                                     id: trayRow; anchors.centerIn: parent; spacing: 7
                                     Rectangle {
                                         visible: Waybar ? Waybar.vpnActive : false
                                         width: 32; height: topBarContainer.pillHeight - 4
                                         anchors.verticalCenter: parent.verticalCenter
-                                        radius: (Theme && Theme.isRounded) ? 5 : 0
+                                        radius: (Theme && Theme.isRounded) ? height / 2 : 0
                                         color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
                                         border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                         border.width: 1
@@ -1061,9 +1124,17 @@ ApplicationWindow {
                                     Repeater {
                                         model: (modKey === "tray" && Waybar) ? Waybar.trayApps : []
                                         delegate: Item {
-                                            id: trayItemDel; width: 15; height: topBarContainer.height; anchors.verticalCenter: parent.verticalCenter
+                                            id: trayItemDel; width: 16; height: topBarContainer.height; anchors.verticalCenter: parent.verticalCenter
                                             readonly property bool isAyuIcon: String(modelData.icon || "").toLowerCase().indexOf("ayugram") !== -1 || String(modelData.class || "").toLowerCase().indexOf("ayugram") !== -1
-                                            Image { anchors.centerIn: parent; width: trayItemDel.isAyuIcon ? 12 : 15; height: trayItemDel.isAyuIcon ? 12 : 15; source: "image://appicon/mono:" + modelData.icon; cache: false; sourceSize: Qt.size(18, 18); smooth: true }
+                                            Image {
+                                                anchors.centerIn: parent
+                                                width: trayItemDel.isAyuIcon ? 14 : 16
+                                                height: trayItemDel.isAyuIcon ? 14 : 16
+                                                source: "image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex
+                                                cache: false
+                                                sourceSize: Qt.size(20, 20)
+                                                smooth: true
+                                            }
                                             MouseArea {
                                                 enabled: !topBarContainer.editMode
                                                 anchors.fill: parent; anchors.margins: -3; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor
@@ -1085,21 +1156,21 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "bluetooth"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; text: "󰂯"; color: "#ffffff"; font.pixelSize: 12 }
+                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: "󰂯"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) }
                             }
 
                             Item {
                                 visible: modKey === "network"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: "#ffffff"; font.pixelSize: 12 }
+                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) }
                             }
 
                             Item {
                                 visible: modKey === "clipboard"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; text: "󰅌"; color: (root.drawerOpen && root.drawerMode === "clipboard") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 12 }
+                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: "󰅌"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) }
                             }
 
@@ -1107,9 +1178,9 @@ ApplicationWindow {
                                 visible: modKey === "volume"
                                 anchors.fill: parent
                                 Row {
-                                    id: volInnerRow; anchors.centerIn: parent; spacing: 2
-                                    Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : "#ffffff"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
-                                    Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                                    id: volInnerRow; anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; spacing: 3
+                                    Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"); font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                                    Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                                 }
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
@@ -1118,7 +1189,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "language"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; text: Waybar ? Waybar.kbLayout : "RU"; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
+                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: Waybar ? Waybar.kbLayout : "RU"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 25) }
                             }
 
@@ -1126,9 +1197,11 @@ ApplicationWindow {
                                 visible: modKey === "clock"
                                 anchors.fill: parent
                                 Text {
-                                    id: barClockText; anchors.centerIn: parent
+                                    id: barClockText; anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX
                                     text: Qt.formatDateTime(new Date(), "hh:mm")
-                                    color: (root.drawerOpen && root.drawerMode === "calendar") ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"
+                                    color: (root.drawerOpen && root.drawerMode === "calendar")
+                                           ? (Config ? Config.m3Primary : "#a8c7fa")
+                                           : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
                                     font.pixelSize: 10; font.bold: true
                                     Timer { interval: 1000; running: modKey === "clock"; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") }
                                 }
@@ -1137,13 +1210,12 @@ ApplicationWindow {
 
                             Rectangle {
                                 visible: modKey === "power"
-                                width: parent.width + 4; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
                                 radius: topBarContainer.pillRadius; color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
                                 Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") }
                             }
 
-                            // Оверлей режима редактирования для правого блока
                             Rectangle {
                                 visible: topBarContainer.editMode
                                 anchors.fill: parent
@@ -1190,7 +1262,7 @@ ApplicationWindow {
             }
         }
 
-        // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (РАЗДЕЛИТЕЛЬНЫЕ ЛИНИИ + СЧЕТЧИК "+N СКРЫТЫХ")
+        // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (В ЦВЕТАХ ТЕКУЩЕЙ ТЕМЫ MD3)
         Item {
             id: notifClipBox
             x: root.notifX; y: root.notifY; width: root.notifW; height: root.animNotifH
@@ -1201,43 +1273,65 @@ ApplicationWindow {
                 width: root.notifW
                 y: -(1.0 - root.notifProgress) * 18
                 opacity: Math.min(1.0, root.notifProgress * 1.35)
-                spacing: 0; topPadding: 0; bottomPadding: 2
+                spacing: 0; topPadding: 2; bottomPadding: 4
 
                 Repeater {
                     model: Mako ? Mako.activePopups : []
                     delegate: Item {
                         width: root.notifW
-                        height: Math.max(42, notifTextCol.implicitHeight + (Mako ? Mako.padding : 10))
+                        height: Math.max(44, notifTextCol.implicitHeight + (Mako ? Mako.padding : 12))
 
                         RowLayout {
-                            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; anchors.topMargin: 5; anchors.bottomMargin: 5; spacing: 8
+                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 6; anchors.bottomMargin: 6; spacing: 10
                             Image { visible: Mako && Mako.icons && modelData.icon && modelData.icon.length > 0; source: visible ? ("image://appicon/" + modelData.icon) : ""; Layout.preferredWidth: 22; Layout.preferredHeight: 22; sourceSize: Qt.size(22, 22); Layout.alignment: Qt.AlignVCenter }
                             ColumnLayout {
-                                id: notifTextCol; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: 1
+                                id: notifTextCol; Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter; spacing: 2
                                 RowLayout {
                                     Layout.fillWidth: true
-                                    Text { text: modelData.summary; color: modelData.critical ? (Mako ? Mako.criticalBorderColor : "#ff6b6b") : (Mako ? Mako.textColor : "#ffffff"); font.pixelSize: Mako ? Mako.fontSize : 11; font.bold: true; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                                    Text { text: "✕"; color: "#888888"; font.pixelSize: 9; Layout.alignment: Qt.AlignTop }
+                                    Text {
+                                        text: modelData.summary
+                                        color: modelData.critical
+                                               ? (Mako ? Mako.criticalBorderColor : "#ff6b6b")
+                                               : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : (Mako ? Mako.textColor : "#ffffff"))
+                                        font.pixelSize: Mako ? Mako.fontSize : 11
+                                        font.bold: true
+                                        wrapMode: Text.Wrap
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: "✕"
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Outline : "#888888"
+                                        font.pixelSize: 9
+                                        Layout.alignment: Qt.AlignTop
+                                    }
                                 }
-                                Text { text: modelData.body; color: Mako ? Qt.lighter(Mako.textColor, 0.85) : "#cccccc"; font.pixelSize: Mako ? Math.max(8, Mako.fontSize - 1) : 10; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                                Text {
+                                    text: modelData.body
+                                    color: (Theme && Theme.isRounded && Config)
+                                           ? Config.m3OnPrimaryContainer
+                                           : (Mako ? Qt.lighter(Mako.textColor, 0.85) : "#cccccc")
+                                    font.pixelSize: Mako ? Math.max(8, Mako.fontSize - 1) : 10
+                                    wrapMode: Text.Wrap
+                                    Layout.fillWidth: true
+                                }
                             }
                         }
 
-                        // Разделительная линия между уведомлениями
                         Rectangle {
                             visible: index < root.notifCount - 1 || (Mako && Mako.hiddenPopupCount > 0)
                             anchors.bottom: parent.bottom
                             anchors.left: parent.left; anchors.right: parent.right
-                            anchors.leftMargin: 10; anchors.rightMargin: 10
+                            anchors.leftMargin: 12; anchors.rightMargin: 12
                             height: 1
-                            color: Qt.rgba(1, 1, 1, 0.14)
+                            color: (Theme && Theme.isRounded && Config)
+                                   ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.25)
+                                   : Qt.rgba(1, 1, 1, 0.14)
                         }
 
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Mako) Mako.dismissPopup(modelData.id) }
                     }
                 }
 
-                // Плашка "+N скрытых", если уведомлений больше лимита maxVisible
                 Item {
                     visible: Mako && Mako.hiddenPopupCount > 0
                     width: root.notifW
@@ -1246,7 +1340,7 @@ ApplicationWindow {
                     Text {
                         anchors.centerIn: parent
                         text: "+" + (Mako ? Mako.hiddenPopupCount : 0) + " скрытых"
-                        color: "#aaaaaa"
+                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#aaaaaa"
                         font.pixelSize: 10
                         font.bold: true
                     }
@@ -1293,7 +1387,7 @@ ApplicationWindow {
                         root.triggerClickRipple(mouse.x, mouse.y)
                         var sc = Config ? Config.uiScale : 1.0
                         if (mouse.button === Qt.LeftButton && root.drawerMode === "settings" && pageController.currentIndex > 0 &&
-                            mouse.x >= 0 && mouse.x <= pageController.sidebarW * sc && mouse.y >= 0 && mouse.y <= 34 * sc) {
+                            mouse.x >= 0 && mouse.x <= pageController.sidebarW * sc && mouse.y >= 0 && mouse.y <= 38 * sc) {
                             Qt.callLater(() => pageController.switchPage(0))
                         }
                         mouse.accepted = false
@@ -1341,7 +1435,7 @@ ApplicationWindow {
                     }
                 }
 
-                // 1. POWER MENU (С ПЛАВНЫМ БЕГУНКОМ И СТРЕЛОЧКАМИ)
+                // 1. POWER MENU
                 Item {
                     id: powerMenuBox
                     anchors.fill: parent
@@ -1378,7 +1472,6 @@ ApplicationWindow {
                             readonly property real gap: 6
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 
-                            // Плавная скользящая плашка выбора/наведения (как на экране приветствия и в боковом меню)
                             Rectangle {
                                 id: powerSlidePill
                                 x: 0
@@ -1436,7 +1529,7 @@ ApplicationWindow {
                     }
                 }
 
-                // 2. БУФЕР ОБМЕНА (БЕЗ ПРОЛАГОВ: АСИНХРОННЫЕ ПРЕВЬЮ И КЭШ)
+                // 2. БУФЕР ОБМЕНА
                 Item {
                     anchors.fill: parent
                     visible: root.drawerMode === "clipboard"
@@ -1580,7 +1673,7 @@ ApplicationWindow {
                     property int currentIndex: 0
                     property int previousIndex: 0
                     property bool inTransition: false
-                    property int sidebarW: (Theme && Theme.isRounded) ? 168 : 136
+                    property int sidebarW: sidebar.width
 
                     onCurrentIndexChanged: {
                         root.syncWallpapersModeState()
@@ -1611,7 +1704,7 @@ ApplicationWindow {
                             if (p) {
                                 p.visible = (i === targetIdx)
                                 p.opacity = (i === targetIdx) ? 1.0 : 0.0
-                                p.x = basePageX(i)
+                                p.x = Qt.binding(function() { return i === 0 ? 0 : pageController.sidebarW })
                                 p.y = 0
                                 p.scale = 1.0
                                 p.rotation = 0
@@ -1641,6 +1734,7 @@ ApplicationWindow {
                         if (mode === "none" || dur <= 15) {
                             oldPage.visible = false; oldPage.opacity = 0.0
                             newPage.visible = true; newPage.opacity = 1.0
+                            newPage.x = Qt.binding(function() { return newIdx === 0 ? 0 : pageController.sidebarW })
                             inTransition = false
                             return
                         }
@@ -1793,20 +1887,22 @@ ApplicationWindow {
 
                     function cleanupTransition() {
                         if (suppressCleanup) return
-                        var p = pageRepeater.itemAt(pageController.previousIndex)
-                        if (p && pageController.previousIndex !== pageController.currentIndex) {
+                        var pIdx = pageController.previousIndex
+                        var cIdx = pageController.currentIndex
+                        var p = pageRepeater.itemAt(pIdx)
+                        if (p && pIdx !== cIdx) {
                             p.visible = false
-                            p.x = basePageX(pageController.previousIndex)
+                            p.x = Qt.binding(function() { return pIdx === 0 ? 0 : pageController.sidebarW })
                             p.y = 0
                             p.scale = 1.0
                             p.rotation = 0
                             p.opacity = 0.0
                             p.vortexProgress = 0.0
                         }
-                        var cur = pageRepeater.itemAt(pageController.currentIndex)
+                        var cur = pageRepeater.itemAt(cIdx)
                         if (cur) {
                             cur.visible = true
-                            cur.x = basePageX(pageController.currentIndex)
+                            cur.x = Qt.binding(function() { return cIdx === 0 ? 0 : pageController.sidebarW })
                             cur.y = 0
                             cur.scale = 1.0
                             cur.rotation = 0
@@ -1984,7 +2080,6 @@ ApplicationWindow {
 
                 Sidebar {
                     id: sidebar
-                    width: pageController.sidebarW
                     height: parent.height
                     property bool showBar: pageController.currentIndex > 0 && !(blackholeTransition.running && pageController.previousIndex === 0 && bhInOp.target && bhInOp.target.opacity < 0.05)
                     x: showBar ? 0 : -width
@@ -2064,7 +2159,7 @@ ApplicationWindow {
                     property real u_refraction_strength: 1.15 * (Atmosphere ? Atmosphere.dropRefraction : 1.0)
                     property real u_time: root.liquidTime * (Config ? Config.borderGlowSpeed : 1.0)
                     property vector2d u_mouse: Qt.vector2d((root.mousePos.x - root.drawerX) / (Config ? Config.uiScale : 1.0), (root.mousePos.y - root.drawerY) / (Config ? Config.uiScale : 1.0))
-                    property real u_cursor_strength: Config ? Config.cursorGlowIntensity : 0.65
+                    property real u_cursor_strength: 0.0
                     property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
                     property real u_border_strength: 0.0
                     property real u_border_spread: Config ? Config.borderGlowSpread : 0.45
@@ -2091,25 +2186,6 @@ ApplicationWindow {
                     fragmentShader: "qrc:/shaders/qml/shaders/atmosphere_fx.frag.qsb"
                 }
             }
-
-                            ShaderEffect {
-                    id: cursorFollowItem
-                    width: 240; height: 240
-                    x: (root.mousePos.x - root.drawerX) - 120; y: (root.mousePos.y - root.drawerY) - 120
-                    z: 97; enabled: false
-                    visible: root.drawerActive && Config && Config.cursorGlowIntensity > 0.01 && root.mousePos.x > -100
-                    property vector2d u_size: Qt.vector2d(240, 240)
-                    property vector2d u_origin: Qt.vector2d(x, y)
-                    property vector2d u_mouse: Qt.vector2d(root.mousePos.x - root.drawerX, root.mousePos.y - root.drawerY)
-                    property vector2d u_trail1: Qt.vector2d(root.trail1.x - root.drawerX, root.trail1.y - root.drawerY)
-                    property vector2d u_trail2: Qt.vector2d(root.trail2.x - root.drawerX, root.trail2.y - root.drawerY)
-                    property vector2d u_trail3: Qt.vector2d(root.trail3.x - root.drawerX, root.trail3.y - root.drawerY)
-                    property real u_cursor_strength: Config ? Config.cursorGlowIntensity : 0.65
-                    property real u_liquid_enabled: (Theme && (Theme.controlsLiquidGlass || Theme.glassRefraction > 0.01)) ? 1.0 : 0.0
-                    property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.55
-                    property vector3d u_custom_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
-                    fragmentShader: "qrc:/shaders/qml/shaders/cursor_fx.frag.qsb"
-                }
 
                 // Модальный диалог сохранения при выходе из режима перетаскивания панели задач
                 Rectangle {

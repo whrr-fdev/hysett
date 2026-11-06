@@ -3,87 +3,116 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import HySett
 
-RowLayout {
+Item {
     id: control
     property var options: []
     property int selectedIndex: 0
     signal selected(int index)
     readonly property bool isM3: Theme && Theme.isRounded
 
-    spacing: isM3 ? 2 : 2
+    implicitHeight: 28
+    implicitWidth: 220
+    Layout.fillWidth: true
 
-    Repeater {
-        model: control.options
-        Button {
-            id: btn
-            text: modelData
-            flat: true
-            Layout.fillWidth: true
-            implicitHeight: 26
-            readonly property bool isSel: control.selectedIndex === index
-            readonly property bool isFirst: index === 0
-            readonly property bool isLast: index === control.options.length - 1
-            readonly property real outerR: control.isM3 ? (Config ? Math.min(height / 2, Config.m3ControlRadius + 3) : 13) : 0
-            readonly property real innerR: control.isM3 ? 4 : 0
+    Rectangle {
+        id: capsuleBg
+        anchors.fill: parent
+        radius: control.isM3 ? height / 2 : 0
+        color: control.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.05)
+        border.width: 1
+        border.color: control.isM3 && Config
+                      ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.45)
+                      : Qt.rgba(1, 1, 1, 0.14)
+        Behavior on color { ColorAnimation { duration: 150 } }
+        Behavior on radius { NumberAnimation { duration: 150 } }
 
-            contentItem: Row {
-                anchors.centerIn: parent
-                spacing: 4
-                Text {
-                    visible: control.isM3 && btn.isSel
-                    text: "✓"
-                    color: Config ? Config.accentTextColor : "#000000"
-                    font.pixelSize: Config ? Config.fontSize - 1 : 10
-                    font.bold: true
-                    anchors.verticalCenter: parent.verticalCenter
-                }
-                Text {
-                    text: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
-                    color: btn.isSel
-                           ? (Config ? Config.accentTextColor : "#000000")
-                           : (control.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
-                    font.pixelSize: Config ? Config.fontSize : 11
-                    font.bold: btn.isSel
-                    anchors.verticalCenter: parent.verticalCenter
-                    Behavior on color { ColorAnimation { duration: 110 } }
-                }
-            }
+        // Плавно скользящая капсула выбранного сегмента внутри общей таблетки
+        Rectangle {
+            id: activeSegPill
+            readonly property int cnt: Math.max(1, control.options.length)
+            readonly property real segW: (parent.width - 2) / cnt
+            visible: control.options.length > 0
+            x: 1 + Math.max(0, Math.min(cnt - 1, control.selectedIndex)) * segW
+            y: 1
+            width: segW
+            height: parent.height - 2
+            radius: control.isM3 ? height / 2 : 0
+            color: Config ? Config.m3Primary : "#ffffff"
 
-            background: Item {
-                Rectangle {
-                    id: mainSegBg
-                    anchors.fill: parent
-                    radius: btn.isSel ? btn.outerR : (btn.isFirst || btn.isLast ? btn.outerR : btn.innerR)
-                    color: btn.isSel
-                           ? (Config ? Config.m3Primary : "#ffffff")
-                           : (btn.hovered
-                              ? (control.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.12))
-                              : (control.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.05)))
-                    Behavior on color { ColorAnimation { duration: 130 } }
+            Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+            Behavior on color { ColorAnimation { duration: 140 } }
+            Behavior on radius { NumberAnimation { duration: 150 } }
+        }
 
-                    // Выпрямление внутренних углов для крайних кнопок в группе M3
+        Row {
+            anchors.fill: parent
+            anchors.margins: 1
+            spacing: 0
+
+            Repeater {
+                model: control.options
+                Item {
+                    id: segItem
+                    width: (capsuleBg.width - 2) / Math.max(1, control.options.length)
+                    height: capsuleBg.height - 2
+                    readonly property bool isSel: control.selectedIndex === index
+                    readonly property bool hov: segMa.containsMouse
+
+                    // Тонкий вертикальный разделитель между невыбранными сегментами
                     Rectangle {
-                        visible: control.isM3 && !btn.isSel && btn.isFirst && control.options.length > 1
-                        anchors.right: parent.right
-                        width: Math.min(parent.width * 0.5, btn.outerR)
-                        height: parent.height
-                        radius: btn.innerR
-                        color: parent.color
-                    }
-                    Rectangle {
-                        visible: control.isM3 && !btn.isSel && btn.isLast && control.options.length > 1
+                        visible: index > 0 && !segItem.isSel && (control.selectedIndex !== index - 1)
                         anchors.left: parent.left
-                        width: Math.min(parent.width * 0.5, btn.outerR)
-                        height: parent.height
-                        radius: btn.innerR
-                        color: parent.color
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 1
+                        height: parent.height * 0.55
+                        color: control.isM3 && Config
+                               ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.38)
+                               : Qt.rgba(1, 1, 1, 0.14)
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: control.isM3 ? height / 2 : 0
+                        color: (!segItem.isSel && segItem.hov)
+                               ? (control.isM3 && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12) : Qt.rgba(1, 1, 1, 0.08))
+                               : "transparent"
+                        Behavior on color { ColorAnimation { duration: 110 } }
+                    }
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 4
+                        Text {
+                            visible: control.isM3 && segItem.isSel
+                            text: "✓"
+                            color: Config ? Config.accentTextColor : "#000000"
+                            font.pixelSize: Config ? Config.fontSize - 1 : 10
+                            font.bold: true
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: Config ? (Config.language, Config.trAuto(modelData)) : modelData
+                            color: segItem.isSel
+                                   ? (Config ? Config.accentTextColor : "#000000")
+                                   : (control.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
+                            font.pixelSize: Config ? Config.fontSize : 11
+                            font.bold: segItem.isSel
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 110 } }
+                        }
+                    }
+
+                    MouseArea {
+                        id: segMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            control.selectedIndex = index
+                            control.selected(index)
+                        }
                     }
                 }
-            }
-
-            onClicked: {
-                control.selectedIndex = index
-                control.selected(index)
             }
         }
     }

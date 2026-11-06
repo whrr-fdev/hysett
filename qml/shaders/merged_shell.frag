@@ -58,18 +58,18 @@ float sceneSdf(vec2 p) {
     if (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) {
         vec2 dHalf = 0.5 * u_drawer_rect.zw;
         vec2 dCenter = u_drawer_rect.xy + dHalf;
-        float dDrw = sdRoundedBox(p - dCenter, dHalf, u_radius * 1.35);
+        float rDrw = u_radius * 1.35;
+        float dDrw = sdRoundedBox(p - dCenter, dHalf, rDrw);
 
-        // Перешеек начинается от внутренней половины панели, чтобы не выпирать над верхней гранью бара
         bool isTopBar = (u_drawer_rect.y >= u_bar_rect.y);
         float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
         float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
-        float ny1 = isTopBar ? (u_bar_rect.y + u_bar_rect.w * 0.55) : u_drawer_rect.y;
-        float ny2 = isTopBar ? (u_drawer_rect.y + u_drawer_rect.w) : (u_bar_rect.y + u_bar_rect.w * 0.45);
+        float ny1 = isTopBar ? (u_bar_rect.y + min(u_radius, u_bar_rect.w * 0.45)) : max(u_drawer_rect.y, u_drawer_rect.y + u_drawer_rect.w - rDrw - 4.0);
+        float ny2 = isTopBar ? min(u_drawer_rect.y + u_drawer_rect.w, u_drawer_rect.y + rDrw + 4.0) : (u_bar_rect.y + u_bar_rect.w - min(u_radius, u_bar_rect.w * 0.45));
         if (nx2 > nx1 && ny2 > ny1) {
             vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
             vec2 nCenter = vec2(nx1, ny1) + nHalf;
-            float dNeck = sdRoundedBox(p - nCenter, nHalf, u_radius);
+            float dNeck = sdRoundedBox(p - nCenter, nHalf, 0.0);
             dDrw = min(dDrw, dNeck);
         }
 
@@ -79,7 +79,7 @@ float sceneSdf(vec2 p) {
         float innerEdgeMask = isTopBar
                               ? smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w - 1.0, p.y)
                               : smoothstep(u_bar_rect.y + u_bar_rect.w - 4.0, u_bar_rect.y + 1.0, p.y);
-        float k = u_fillet * innerEdgeMask * clamp((sideStep - 1.5) / 24.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+        float k = u_fillet * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
         d = smin(d, dDrw, k);
     }
 

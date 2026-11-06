@@ -771,7 +771,7 @@ QColor AppConfig::m3TertiaryContainer() const {
 }
 
 QColor AppConfig::m3Surface() const {
-    float tint = float(m_m3SurfaceTintStrength) * 0.28f;
+    float tint = float(m_m3SurfaceTintStrength) * 0.10f;
     float base = 1.0f - tint;
     return QColor::fromRgbF(
         std::clamp(m_windowBgColor.redF() * base + m_accentColor.redF() * tint, 0.0f, 1.0f),
@@ -782,7 +782,7 @@ QColor AppConfig::m3Surface() const {
 }
 
 QColor AppConfig::m3SurfaceContainer() const {
-    float tint = float(m_m3SurfaceTintStrength) * 0.38f;
+    float tint = float(m_m3SurfaceTintStrength) * 0.16f;
     float base = 1.0f - tint * 0.75f;
     return QColor::fromRgbF(
         std::clamp(m_cardBgColor.redF() * base + m_accentColor.redF() * tint, 0.0f, 1.0f),
@@ -793,8 +793,8 @@ QColor AppConfig::m3SurfaceContainer() const {
 }
 
 QColor AppConfig::m3SurfaceContainerHigh() const {
-    float tint = float(m_m3SurfaceTintStrength) * 0.48f;
-    float lift = 0.04f + float(m_m3ContrastLevel) * 0.04f;
+    float tint = float(m_m3SurfaceTintStrength) * 0.22f;
+    float lift = 0.015f + float(m_m3ContrastLevel) * 0.02f;
     return QColor::fromRgbF(
         std::clamp(m_cardBgColor.redF() * 0.82f + m_accentColor.redF() * tint + lift, 0.0f, 1.0f),
         std::clamp(m_cardBgColor.greenF() * 0.82f + m_accentColor.greenF() * tint + lift, 0.0f, 1.0f),
@@ -879,8 +879,8 @@ void AppConfig::extractPaletteFromWallpaper() {
         m_accentColor = QColor::fromHslF(domH, priS, 0.78f);
         m_m3SecondaryColor = QColor::fromHslF(std::fmod(domH + 0.035f, 1.0f), std::clamp(priS * 0.48f, 0.26f, 0.58f), 0.74f);
         m_m3TertiaryColor = QColor::fromHslF(std::fmod(domH + 0.15f, 1.0f), std::clamp(priS * 0.70f, 0.36f, 0.78f), 0.80f);
-        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.38f, 0.18f, 0.42f), 0.08f);
-        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.42f, 0.22f, 0.48f), 0.15f);
+        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.32f, 0.14f, 0.35f), 0.045f);
+        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.36f, 0.16f, 0.40f), 0.085f);
     }
 
     if (m_syncColorsWithAccent) {
@@ -918,12 +918,12 @@ void AppConfig::applyM3Preset(int idx) {
     m_m3DynamicWallpaperColors = false;
     struct Preset { const char *pri; const char *sec; const char *ter; const char *surf; const char *card; };
     static const Preset presets[6] = {
-        {"#a8c7fa", "#bec6dc", "#debcdf", "#111318", "#1e2028"},
-        {"#82f8c6", "#b4ccc0", "#a6cce0", "#0e1512", "#18221e"},
-        {"#d0bcff", "#ccc2dc", "#efb8c8", "#141218", "#211f26"},
-        {"#ffb1c8", "#e2bdc6", "#efbd94", "#181114", "#251d20"},
-        {"#ffba42", "#ddc2a1", "#b8cea1", "#17130b", "#241f17"},
-        {"#66d9ef", "#b1cbd0", "#bac6ea", "#0e1416", "#1a2124"}
+        {"#a8c7fa", "#bec6dc", "#debcdf", "#0a0c10", "#13161e"},
+        {"#82f8c6", "#b4ccc0", "#a6cce0", "#090e0c", "#111916"},
+        {"#d0bcff", "#ccc2dc", "#efb8c8", "#0c0a10", "#16141c"},
+        {"#ffb1c8", "#e2bdc6", "#efbd94", "#100a0c", "#1b1316"},
+        {"#ffba42", "#ddc2a1", "#b8cea1", "#0f0c08", "#1a150f"},
+        {"#66d9ef", "#b1cbd0", "#bac6ea", "#090d0f", "#12181b"}
     };
     m_accentColor = QColor(presets[idx].pri);
     m_m3SecondaryColor = QColor(presets[idx].sec);

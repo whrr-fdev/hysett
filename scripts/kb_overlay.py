@@ -15,6 +15,7 @@ except Exception:
     from gi.repository import Gtk, Gdk, GLib
 
 THEME_STATE_FILE = os.path.expanduser("~/.config/hypr/scripts/theme_state.conf")
+CC_CONF_FILE = os.path.expanduser("~/.config/hypr/scripts/control_center.conf")
 CELL_SIZE = 21
 GAP = 3
 KEY_HEIGHT = 18
@@ -41,7 +42,7 @@ KEYBOARD_ROWS = [
     [
         ("Caps", "Caps", 58, 1.75), ("A", "Ф", 30, 1.0), ("S", "Ы", 31, 1.0), ("D", "В", 32, 1.0),
         ("F", "А", 33, 1.0), ("G", "П", 34, 1.0), ("H", "Р", 35, 1.0), ("J", "О", 36, 1.0),
-        ("K", "Л", 37, 1.0), ("L", "Д", 38, 1.0), (";", "Ж", 39, 1.0), (chr(39), "Э", 40, 1.0),
+        ("K", "Л", "37", 1.0), ("L", "Д", 38, 1.0), (";", "Ж", 39, 1.0), (chr(39), "Э", 40, 1.0),
         ("Ent", "Ent", 28, 2.25), ("PD", "PD", 109, 1.0),
     ],
     [
@@ -57,68 +58,95 @@ KEYBOARD_ROWS = [
         ("←", "←", 105, 1.0), ("↓", "↓", 108, 1.0), ("→", "→", 106, 1.0),
     ],
 ]
+KEYBOARD_ROWS[3][8] = ("K", "Л", 37, 1.0)
 
-def get_key_radius():
+def hex_to_rgb(h, fallback=(255, 255, 255)):
+    h = h.strip().lstrip("#")
+    if len(h) == 6:
+        try:
+            return (int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16))
+        except Exception:
+            pass
+    return fallback
+
+def get_theme_params():
+    is_rounded = True
     if os.path.exists(THEME_STATE_FILE):
         try:
-            with open(THEME_STATE_FILE, "r") as f:
-                if f.read().strip() == "square": return "0px"
-        except: pass
-    return "4px"
+            if open(THEME_STATE_FILE).read().strip() == "square":
+                is_rounded = False
+        except Exception:
+            pass
+    acc = (255, 255, 255)
+    bg = (22, 25, 32)
+    if is_rounded and os.path.exists(CC_CONF_FILE):
+        try:
+            for line in open(CC_CONF_FILE, errors="ignore"):
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    if k.strip() == "accent_color":
+                        acc = hex_to_rgb(v, acc)
+                    elif k.strip() == "card_bg_color":
+                        bg = hex_to_rgb(v, bg)
+        except Exception:
+            pass
+    radius = "5px" if is_rounded else "0px"
+    return is_rounded, radius, acc, bg
 
 def build_css():
+    _, radius, (ar, ag, ab), (br, bg_g, bb) = get_theme_params()
     return f"""
     window, .transparent-bg {{ background: transparent; box-shadow: none; }}
     .kb-frame {{ background: transparent; border: none; padding: 5px; }}
     .key-cap {{
-        background: rgba(30, 30, 30, 0.20);
-        color: rgba(220, 220, 220, 0.40);
-        border: 1px solid rgba(255, 255, 255, 0.05);
-        border-radius: {get_key_radius()};
+        background: rgba({br}, {bg_g}, {bb}, 0.34);
+        color: rgba({ar}, {ag}, {ab}, 0.68);
+        border: 1px solid rgba({ar}, {ag}, {ab}, 0.14);
+        border-radius: {radius};
         font-size: 8px;
         font-weight: bold;
         transition: all 0.05s ease;
     }}
     .key-active {{
-        background: rgba(255, 255, 255, 0.60);
-        color: rgba(0, 0, 0, 0.85);
-        border-color: rgba(255, 255, 255, 0.70);
-        box-shadow: 0px 0px 8px rgba(255, 255, 255, 0.3);
+        background: rgba({ar}, {ag}, {ab}, 0.82);
+        color: rgba(10, 12, 16, 0.95);
+        border-color: rgba({ar}, {ag}, {ab}, 0.95);
+        box-shadow: 0px 0px 8px rgba({ar}, {ag}, {ab}, 0.45);
     }}
     .mouse-body {{
-        background: rgba(30, 30, 30, 0.20);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        background: rgba({br}, {bg_g}, {bb}, 0.34);
+        border: 1px solid rgba({ar}, {ag}, {ab}, 0.14);
         border-radius: 40px;
         overflow: hidden;
     }}
     .mouse-btn {{ background: transparent; transition: all 0.05s ease; }}
-    .mouse-lmb {{ border-radius: 38px 0 0 0; border-right: 1px solid rgba(255,255,255,0.02); }}
+    .mouse-lmb {{ border-radius: 38px 0 0 0; border-right: 1px solid rgba({ar},{ag},{ab},0.08); }}
     .mouse-rmb {{ border-radius: 0 38px 0 0; }}
     .mouse-palm {{ border-radius: 0 0 38px 38px; }}
     .mouse-lmb.key-active, .mouse-rmb.key-active {{
-        background: rgba(255, 255, 255, 0.60);
-        box-shadow: inset 0px 0px 10px rgba(255, 255, 255, 0.2);
+        background: rgba({ar}, {ag}, {ab}, 0.78);
+        box-shadow: inset 0px 0px 10px rgba({ar}, {ag}, {ab}, 0.35);
     }}
     .mouse-mmb-wrapper {{ background: transparent; }}
     .mouse-mmb {{
-        background: rgb(75, 75, 75);
+        background: rgba({ar}, {ag}, {ab}, 0.35);
         border-radius: 3px;
-        border: 1px solid rgb(100, 100, 100);
+        border: 1px solid rgba({ar}, {ag}, {ab}, 0.50);
     }}
     .mouse-mmb.key-active {{
-        background: rgb(230, 230, 230);
+        background: rgb({ar}, {ag}, {ab});
         border-color: rgb(255, 255, 255);
-        box-shadow: 0px 0px 8px rgba(255, 255, 255, 0.5);
+        box-shadow: 0px 0px 8px rgba({ar}, {ag}, {ab}, 0.65);
     }}
-    .mouse-line {{ background: rgb(90, 90, 90); }}
+    .mouse-line {{ background: rgba({ar}, {ag}, {ab}, 0.35); }}
     .mouse-side-btn {{
-        background: rgba(255, 255, 255, 0.10);
+        background: rgba({ar}, {ag}, {ab}, 0.22);
         border-radius: 2px;
         transition: all 0.05s ease;
     }}
     .mouse-side-btn.key-active {{
-        background: rgba(255, 255, 255, 0.80);
-        box-shadow: 0px 0px 6px rgba(255, 255, 255, 0.4);
+        background: rgba({ar}, {ag}, {ab}, 0.90);
+        box-shadow: 0px 0px 6px rgba({ar}, {ag}, {ab}, 0.55);
     }}
     """
 
@@ -135,11 +163,23 @@ class KeyboardOverlay(Gtk.Application):
         self.key_widgets = {}
         self.running = True
         self.is_ru = False
+        self.provider = None
+        self.last_css = ""
+
+    def reload_theme_css(self):
+        css = build_css()
+        if css != self.last_css and self.provider is not None:
+            self.last_css = css
+            self.provider.load_from_data(css.encode("utf-8"))
+        return True
 
     def do_activate(self):
-        provider = Gtk.CssProvider()
-        provider.load_from_data(build_css().encode("utf-8"))
-        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.provider = Gtk.CssProvider()
+        self.last_css = build_css()
+        self.provider.load_from_data(self.last_css.encode("utf-8"))
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), self.provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        GLib.timeout_add(400, self.reload_theme_css)
+
         self.win = Gtk.ApplicationWindow(application=self)
         self.win.set_title("KeyboardOverlay")
         self.win.set_decorated(False)

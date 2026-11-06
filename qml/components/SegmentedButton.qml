@@ -9,7 +9,7 @@ RowLayout {
     property int selectedIndex: 0
     signal selected(int index)
 
-    spacing: 2
+    spacing: (Theme && Theme.isRounded) ? 3 : 2
 
     Repeater {
         model: control.options
@@ -19,21 +19,32 @@ RowLayout {
             flat: true
             Layout.fillWidth: true
             implicitHeight: 24
+            readonly property bool isSel: control.selectedIndex === index
+            readonly property bool isM3: Theme && Theme.isRounded
 
             contentItem: Text {
                 text: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
-                color: control.selectedIndex === index ? (Config ? Config.accentTextColor : "#000000") : "#d0d0d0"
+                color: btn.isSel ? (Config ? Config.accentTextColor : "#000000") : (btn.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
                 font.pixelSize: Config ? Config.fontSize : 11
-                font.bold: control.selectedIndex === index
+                font.bold: btn.isSel
                 horizontalAlignment: Text.AlignHCenter
                 verticalAlignment: Text.AlignVCenter
+                Behavior on color { ColorAnimation { duration: 110 } }
             }
 
             background: Rectangle {
-                radius: (Theme && Theme.isRounded) ? 4 : 0
-                color: control.selectedIndex === index ? (Config ? Config.accentColor : "#ffffff") :
-                       (btn.hovered ? Qt.rgba(1, 1, 1, 0.12) : Qt.rgba(1, 1, 1, Math.max(0.03, Config ? Config.cardOpacity * 0.14 : 0.05)))
-                Behavior on color { ColorAnimation { duration: 100 } }
+                radius: btn.isM3 ? (Config ? Math.min(height / 2, Config.m3ControlRadius) : 10) : 0
+                color: btn.isSel
+                       ? (Config ? Config.m3Primary : "#ffffff")
+                       : (btn.hovered
+                          ? (btn.isM3 && Config ? Qt.rgba(Config.m3PrimaryContainer.r, Config.m3PrimaryContainer.g, Config.m3PrimaryContainer.b, 0.55) : Qt.rgba(1, 1, 1, 0.12))
+                          : (btn.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.36) : Qt.rgba(1, 1, 1, 0.05)))
+                border.color: btn.isM3 && Config && !btn.isSel
+                              ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, Config.m3OutlineOpacity * 0.85)
+                              : "transparent"
+                border.width: (btn.isM3 && Config && !btn.isSel) ? Config.m3OutlineWidth : 0
+                Behavior on color { ColorAnimation { duration: 120 } }
+                Behavior on radius { NumberAnimation { duration: 150 } }
             }
 
             onClicked: {

@@ -79,6 +79,65 @@ ScrollView {
                 }
             }
 
+            // 0. РЕЖИМ СТИЛЯ: MATERIAL DESIGN 3 (СКРУГЛЕНИЕ ОКОН) И ПАЛИТРА
+            GlassPanel {
+                Layout.fillWidth: true
+                implicitHeight: m3LookCol.implicitHeight + 20
+                Layout.bottomMargin: 6
+
+                ColumnLayout {
+                    id: m3LookCol
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "󰏘  Стиль интерфейса и скругление окон (Material Design 3)"
+                            color: Config ? Config.m3Primary : "#ffffff"
+                            font.pixelSize: Config.fontSize + 1
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "Режим оформления окон и контролов:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.fillWidth: true
+                        }
+                        SegmentedButton {
+                            Layout.preferredWidth: 320
+                            options: ["Квадратный (Sharp)", "Material Design 3 (Скругленный)"]
+                            selectedIndex: (Theme && Theme.isRounded) ? 1 : 0
+                            onSelected: (idx) => { if (Theme) Theme.setRoundedState(idx === 1) }
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Theme && Theme.isRounded
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Text {
+                            text: "Тональная палитра MD3:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 170
+                        }
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            options: ["Pixel Blue", "Emerald", "Lavender", "Sakura", "Amber", "Ocean"]
+                            selectedIndex: Config ? Config.m3Preset : 0
+                            onSelected: (idx) => { if (Config) Config.applyM3Preset(idx) }
+                        }
+                    }
+                }
+            }
+
             // 1. Прозрачность активного окна
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Прозрачность активного окна:")) : "Прозрачность активного окна:"

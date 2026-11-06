@@ -3,9 +3,11 @@ import HySett
 
 Item {
     id: control
-    property color baseSurf: Config ? Config.m3SurfaceContainer : "#1e2028"
-    property color tintColor: Qt.rgba(baseSurf.r, baseSurf.g, baseSurf.b, Config ? Math.max(0.24, Config.cardOpacity + 0.16) : 0.32)
-    property real radius: (Theme && Theme.isRounded) ? 16 : 0
+    readonly property int elevStyle: Config ? Config.m3ElevationStyle : 0
+    property color baseSurf: Config ? (elevStyle === 2 ? Config.m3SurfaceContainerHigh : Config.m3SurfaceContainer) : "#1e2028"
+    readonly property real baseAlpha: Config ? (elevStyle === 1 ? Math.max(0.08, Config.cardOpacity * 0.5) : Math.max(0.26, Config.cardOpacity + 0.18)) : 0.32
+    property color tintColor: Qt.rgba(baseSurf.r, baseSurf.g, baseSurf.b, baseAlpha)
+    property real radius: (Theme && Theme.isRounded) ? (Config ? Config.m3CardRadius : 16) : 0
     readonly property bool isSquareTheme: Theme ? !Theme.isRounded : false
     default property alias content: placeholder.data
 
@@ -16,6 +18,7 @@ Item {
         radius: control.radius
         color: control.isSquareTheme ? "transparent" : control.tintColor
         visible: !Theme || (Theme.glassRefraction <= 0.01 && !Theme.controlsLiquidGlass)
+        Behavior on color { ColorAnimation { duration: 160 } }
     }
 
     ShaderEffect {
@@ -34,8 +37,11 @@ Item {
         anchors.fill: parent
         radius: control.radius
         color: "transparent"
-        border.color: Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.24) : Qt.rgba(1, 1, 1, 0.14)
-        border.width: 1
+        border.color: (Theme && Theme.isRounded && Config)
+                      ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, control.elevStyle === 1 ? Math.min(1.0, Config.m3OutlineOpacity * 1.65) : Config.m3OutlineOpacity)
+                      : Qt.rgba(1, 1, 1, 0.14)
+        border.width: (Theme && Theme.isRounded && Config) ? Config.m3OutlineWidth : 1
+        visible: border.width > 0.05
         z: 3
     }
 

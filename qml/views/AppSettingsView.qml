@@ -129,6 +129,142 @@ ScrollView {
                     else if (targetRole === 2) Config.cursorCustomColor = c
                     else if (targetRole === 3) Config.windowBgColor = c
                     else if (targetRole === 4) Config.cardBgColor = c
+                    else if (targetRole === 5) Config.m3SecondaryColor = c
+                    else if (targetRole === 6) Config.m3TertiaryColor = c
+                }
+            }
+
+            // КАРТОЧКА: ТЕМА MATERIAL DESIGN 3 (ВСЕ АТРИБУТЫ И ГЕОМЕТРИЯ)
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
+                implicitHeight: colM3Theme.implicitHeight + 20
+
+                ColumnLayout {
+                    id: colM3Theme
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "󰏘  Тема Material Design 3 (MD3) — Атрибуты и Геометрия"
+                            color: Config ? Config.m3Primary : "#ffffff"
+                            font.pixelSize: Config.fontSize + 1
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+                        StyledButton {
+                            text: "↺ Сбросить MD3"
+                            implicitHeight: 20
+                            onClicked: if (Config) Config.resetM3Attributes()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: "Активация темы MD3 (режим со скруглением окон):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                        SegmentedButton {
+                            Layout.preferredWidth: 280
+                            options: ["Выкл (Sharp)", "Вкл (Material 3)"]
+                            selectedIndex: (Theme && Theme.isRounded) ? 1 : 0
+                            onSelected: (idx) => { if (Theme) Theme.setRoundedState(idx === 1) }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Text { text: "Готовые тональные палитры Material You:"; color: "#cccccc"; font.pixelSize: Config.fontSize }
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            options: ["Pixel Blue", "Emerald", "Lavender", "Sakura", "Amber", "Ocean"]
+                            selectedIndex: Config ? Config.m3Preset : 0
+                            onSelected: (idx) => { if (Config) Config.applyM3Preset(idx) }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: "Стиль поверхностей карточек (Elevation Style):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                        SegmentedButton {
+                            Layout.preferredWidth: 320
+                            options: ["Тональный", "Контурный", "Приподнятый"]
+                            selectedIndex: Config ? Config.m3ElevationStyle : 0
+                            onSelected: (idx) => { if (Config) Config.m3ElevationStyle = idx }
+                        }
+                    }
+
+                    RowLayout {
+                        Text { text: "Тонирование поверхностей акцентом (Surface Tint):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02
+                            value: Config ? Config.m3SurfaceTintStrength : 0.22
+                            onMoved: if (Config) Config.m3SurfaceTintStrength = value
+                        }
+                        Text { text: Math.round((Config ? Config.m3SurfaceTintStrength : 0.22) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    RowLayout {
+                        Text { text: "Уровень контрастности MD3 (Contrast Level):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02
+                            value: Config ? Config.m3ContrastLevel : 0.50
+                            onMoved: if (Config) Config.m3ContrastLevel = value
+                        }
+                        Text { text: Math.round((Config ? Config.m3ContrastLevel : 0.50) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    RowLayout {
+                        Text { text: "Радиус окна и галтели (Window Radius):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 4; to: 32; stepSize: 1
+                            value: Config ? Config.m3WindowRadius : 20
+                            onMoved: if (Config) Config.m3WindowRadius = Math.round(value)
+                        }
+                        Text { text: (Config ? Config.m3WindowRadius : 20) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    RowLayout {
+                        Text { text: "Радиус карточек (Card Radius):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 4; to: 28; stepSize: 1
+                            value: Config ? Config.m3CardRadius : 16
+                            onMoved: if (Config) Config.m3CardRadius = Math.round(value)
+                        }
+                        Text { text: (Config ? Config.m3CardRadius : 16) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    RowLayout {
+                        Text { text: "Радиус кнопок и элементов (Control Radius):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 2; to: 20; stepSize: 1
+                            value: Config ? Config.m3ControlRadius : 10
+                            onMoved: if (Config) Config.m3ControlRadius = Math.round(value)
+                        }
+                        Text { text: (Config ? Config.m3ControlRadius : 10) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    RowLayout {
+                        Text { text: "Толщина контуров (Outline Width):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 0.0; to: 3.0; stepSize: 0.5
+                            value: Config ? Config.m3OutlineWidth : 1.0
+                            onMoved: if (Config) Config.m3OutlineWidth = value
+                        }
+                        Text { text: Number(Config ? Config.m3OutlineWidth : 1.0).toFixed(1) + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
+
+                    RowLayout {
+                        Text { text: "Прозрачность контуров (Outline Opacity):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260 }
+                        StyledSlider {
+                            Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.02
+                            value: Config ? Config.m3OutlineOpacity : 0.28
+                            onMoved: if (Config) Config.m3OutlineOpacity = value
+                        }
+                        Text { text: Math.round((Config ? Config.m3OutlineOpacity : 0.28) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
+                    }
                 }
             }
 
@@ -164,11 +300,13 @@ ScrollView {
 
                     Repeater {
                         model: [
-                            { label: "Основной акцентный цвет:", role: 0, col: Config.accentColor },
+                            { label: "Primary (Основной акцент MD3):", role: 0, col: Config.accentColor },
+                            { label: "Secondary (Вторичный акцент MD3):", role: 5, col: Config.m3SecondaryColor },
+                            { label: "Tertiary (Третичный акцент MD3):", role: 6, col: Config.m3TertiaryColor },
+                            { label: "Surface (Фон окна MD3):", role: 3, col: Config.windowBgColor },
+                            { label: "Surface Container (Фон карточек MD3):", role: 4, col: Config.cardBgColor },
                             { label: "Цвет свечения границ:", role: 1, col: Config.borderGlowCustomColor },
-                            { label: "Цвет курсора и вспышки:", role: 2, col: Config.cursorCustomColor },
-                            { label: "Цвет фона окна:", role: 3, col: Config.windowBgColor },
-                            { label: "Цвет карточек и панелей:", role: 4, col: Config.cardBgColor }
+                            { label: "Цвет курсора и вспышки:", role: 2, col: Config.cursorCustomColor }
                         ]
 
                         RowLayout {

@@ -5,6 +5,8 @@ import HySett
 ComboBox {
     id: control
     implicitHeight: 26
+    readonly property bool isM3: Theme && Theme.isRounded
+    readonly property real ctrlRad: isM3 ? (Config ? Math.min(12, Config.m3ControlRadius) : 8) : 0
 
     contentItem: Text {
         leftPadding: 10
@@ -21,24 +23,26 @@ ComboBox {
         y: control.topPadding + (control.availableHeight - height) / 2
         text: "▾"
         font.pixelSize: 11
-        color: control.hovered || control.popup.visible ? "#ffffff" : "#999999"
+        color: control.hovered || control.popup.visible ? (control.isM3 && Config ? Config.m3Primary : "#ffffff") : "#999999"
         rotation: control.popup.visible ? 180 : 0
         Behavior on rotation { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
         Behavior on color { ColorAnimation { duration: 120 } }
     }
 
     background: GlassPanel {
-        radius: (Theme && Theme.isRounded) ? 5 : 0
+        radius: control.ctrlRad
         tintColor: control.hovered || control.popup.visible
-                   ? Qt.rgba(1, 1, 1, Math.max(0.09, Config ? Config.cardOpacity * 0.25 : 0.10))
-                   : Qt.rgba(1, 1, 1, Math.max(0.04, Config ? Config.cardOpacity * 0.16 : 0.06))
+                   ? (control.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.55) : Qt.rgba(1, 1, 1, 0.10))
+                   : (control.isM3 && Config ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.42) : Qt.rgba(1, 1, 1, 0.06))
 
         Rectangle {
             anchors.fill: parent
-            radius: (parent.radius) || 0
+            radius: control.ctrlRad
             color: "transparent"
-            border.color: control.popup.visible ? "#ffffff" : (control.hovered ? Qt.rgba(1, 1, 1, 0.42) : Qt.rgba(1, 1, 1, 0.16))
-            border.width: (1) || 0
+            border.color: control.popup.visible
+                          ? (control.isM3 && Config ? Config.m3Primary : "#ffffff")
+                          : (control.hovered ? Qt.rgba(1, 1, 1, 0.42) : (control.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, Config.m3OutlineOpacity) : Qt.rgba(1, 1, 1, 0.16)))
+            border.width: control.isM3 && Config ? Config.m3OutlineWidth : 1
             Behavior on border.color { ColorAnimation { duration: 130 } }
         }
     }
@@ -67,14 +71,13 @@ ComboBox {
         contentItem: Item {
             implicitHeight: listView.contentHeight
 
-            // Плавно ездящая плашка подсветки внутри выпадающего списка
             Rectangle {
                 id: popupHoverPill
                 x: 0
                 width: listView.width
                 height: 26
-                radius: (Theme && Theme.isRounded) ? 4 : 0
-                color: "#ffffff"
+                radius: control.isM3 ? Math.max(4, control.ctrlRad - 2) : 0
+                color: control.isM3 && Config ? Config.m3Primary : "#ffffff"
                 opacity: control.highlightedIndex >= 0 ? 1.0 : 0.0
                 y: Math.max(0, control.highlightedIndex * 28 - listView.contentY)
                 Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
@@ -94,16 +97,12 @@ ComboBox {
         }
 
         background: Rectangle {
-            radius: (Theme && Theme.isRounded) ? 6 : 0
-            color: Qt.rgba(0.05, 0.05, 0.07, Math.max(0.78, Config ? Config.opacity : 0.85))
-            border.color: Qt.rgba(1, 1, 1, 0.25)
+            radius: control.isM3 ? (control.ctrlRad + 2) : 0
+            color: control.isM3 && Config
+                   ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.95)
+                   : Qt.rgba(0.05, 0.05, 0.07, 0.90)
+            border.color: control.isM3 && Config ? Config.m3Primary : Qt.rgba(1, 1, 1, 0.25)
             border.width: 1
-
-            GlassPanel {
-                anchors.fill: parent
-                radius: parent.radius
-                tintColor: Qt.rgba(0.08, 0.08, 0.10, 0.35)
-            }
         }
     }
 
@@ -122,14 +121,14 @@ ComboBox {
             Text {
                 text: dlgt.isCurrent ? "●" : ""
                 visible: dlgt.isCurrent
-                color: dlgt.highlighted ? "#000000" : "#ffffff"
+                color: dlgt.highlighted ? (control.isM3 && Config ? Config.accentTextColor : "#000000") : (control.isM3 && Config ? Config.m3Primary : "#ffffff")
                 font.pixelSize: 8
                 anchors.verticalCenter: parent.verticalCenter
             }
 
             Text {
                 text: Config ? (Config.language, Config.trAuto(modelData)) : modelData
-                color: dlgt.highlighted ? "#000000" : (dlgt.isCurrent ? "#ffffff" : "#cccccc")
+                color: dlgt.highlighted ? (control.isM3 && Config ? Config.accentTextColor : "#000000") : (dlgt.isCurrent ? "#ffffff" : "#cccccc")
                 font.pixelSize: Config ? Config.fontSize : 11
                 font.bold: dlgt.isCurrent || dlgt.highlighted
                 verticalAlignment: Text.AlignVCenter
@@ -139,10 +138,10 @@ ComboBox {
         }
 
         background: Rectangle {
-            radius: (Theme && Theme.isRounded) ? 4 : 0
-            color: (!dlgt.highlighted && dlgt.isCurrent) ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
-            border.color: (!dlgt.highlighted && dlgt.isCurrent) ? Qt.rgba(1, 1, 1, 0.18) : "transparent"
-            border.width: 1
+            radius: control.isM3 ? Math.max(4, control.ctrlRad - 2) : 0
+            color: (!dlgt.highlighted && dlgt.isCurrent)
+                   ? (control.isM3 && Config ? Qt.rgba(Config.m3PrimaryContainer.r, Config.m3PrimaryContainer.g, Config.m3PrimaryContainer.b, 0.45) : Qt.rgba(1, 1, 1, 0.08))
+                   : "transparent"
         }
     }
 }

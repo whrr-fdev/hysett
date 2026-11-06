@@ -580,8 +580,8 @@ ApplicationWindow {
             property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
             property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88
-            property real u_radius: (Theme && Theme.isRounded) ? 11.0 : 0.0
-            property real u_fillet: (Theme && Theme.isRounded) ? 20.0 : 0.0
+            property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.6) : 12.0) : 0.0
+            property real u_fillet: (Theme && Theme.isRounded) ? (Config ? Config.m3WindowRadius : 20.0) : 0.0
             property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0
             property real u_time: root.liquidTime * (Config ? Config.borderGlowSpeed : 1.0)
             property real u_glow_intensity: (root.drawerActive && Config && Config.borderGlowEnabled) ? Config.borderGlowIntensity : 0.0

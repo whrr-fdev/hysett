@@ -5,6 +5,7 @@ import HySett
 CheckBox {
     id: control
     font.pixelSize: Config ? Config.fontSize : 11
+    readonly property bool isM3: Theme && Theme.isRounded
 
     scale: control.hovered ? 1.03 : 1.0
     Behavior on scale { NumberAnimation { duration: 120 } }
@@ -14,10 +15,14 @@ CheckBox {
         implicitHeight: 16
         x: control.leftPadding
         y: parent.height / 2 - height / 2
-        radius: (Theme && Theme.isRounded) ? 3 : 0
-        color: control.checked ? "#ffffff" : Qt.rgba(1, 1, 1, 0.08)
-        border.color: control.checked || control.hovered ? "#ffffff" : Qt.rgba(1, 1, 1, 0.28)
-        border.width: 1
+        radius: control.isM3 ? (Config ? Math.min(6, Math.round(Config.m3ControlRadius * 0.45)) : 5) : 0
+        color: control.checked
+               ? (control.isM3 && Config ? Config.m3Primary : "#ffffff")
+               : (control.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.35) : Qt.rgba(1, 1, 1, 0.08))
+        border.color: control.checked || control.hovered
+                      ? (control.isM3 && Config ? Config.m3Primary : "#ffffff")
+                      : (control.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, Math.max(0.35, Config.m3OutlineOpacity)) : Qt.rgba(1, 1, 1, 0.28))
+        border.width: control.isM3 ? 1.5 : 1
 
         Behavior on color { ColorAnimation { duration: 130 } }
         Behavior on radius { NumberAnimation { duration: 150 } }
@@ -26,7 +31,8 @@ CheckBox {
             anchors.centerIn: parent
             text: "✓"
             font.pixelSize: 11
-            color: "#000000"
+            font.bold: true
+            color: control.isM3 && Config ? Config.accentTextColor : "#000000"
             scale: control.checked ? 1.0 : 0.0
             Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
         }

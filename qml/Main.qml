@@ -60,6 +60,57 @@ ApplicationWindow {
         }
     }
 
+    property string pendingDrawerMode: "settings"
+    property int pendingTabIdx: 0
+    property string pendingTrayClass: ""
+    property string pendingTrayName: ""
+    property string pendingTraySni: ""
+    property real pendingTrayX: 1400
+
+    SequentialAnimation {
+        id: switchDrawerAnim
+        NumberAnimation {
+            target: root; property: "drawerProgress"
+            to: 0.0; duration: 170; easing.type: Easing.InCubic
+        }
+        ScriptAction {
+            script: {
+                root.isWallpaperExpanded = false
+                root.drawerMode = root.pendingDrawerMode
+                if (root.pendingDrawerMode === "traymenu") {
+                    root.trayMenuClass = root.pendingTrayClass
+                    root.trayMenuName = root.pendingTrayName
+                    root.trayMenuSni = root.pendingTraySni
+                    root.trayMenuTargetX = root.pendingTrayX
+                } else if (root.pendingDrawerMode === "clipboard" && Waybar) {
+                    root.clipSearchQuery = ""
+                    Qt.callLater(() => Waybar.refreshClipboard())
+                } else if (root.pendingDrawerMode === "calendar") {
+                    var now = new Date()
+                    root.calYear = now.getFullYear()
+                    root.calMonth = now.getMonth()
+                } else if (root.pendingDrawerMode === "power") {
+                    root.powerSelectedIndex = 0
+                } else if (root.pendingDrawerMode === "settings") {
+                    if (root.pendingTabIdx === 21 && Waybar) Waybar.refreshProcesses()
+                    if (root.pendingTabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
+                    pageController.jumpToPageInstant(root.pendingTabIdx)
+                }
+                root.syncTabBlur()
+            }
+        }
+        NumberAnimation {
+            target: root; property: "barExpandProgress"
+            to: 1.0
+            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu" && root.barExpandProgress < 0.99) ? (Waybar ? Waybar.barAnimDuration : 75) : 10
+            easing.type: Easing.OutCubic
+        }
+        NumberAnimation {
+            target: root; property: "drawerProgress"
+            to: 1.0; duration: 260; easing.type: Easing.OutQuint
+        }
+    }
+
     readonly property int notifCount: (Mako && Mako.activePopups) ? Mako.activePopups.length : 0
     readonly property bool notifOpen: notifCount > 0
     property real notifProgress: notifOpen ? 1.0 : 0.0
@@ -176,24 +227,37 @@ ApplicationWindow {
     }
 
     function openDrawerWithMode(mode, tabIdx) {
+        var targetTab = (mode === "settings") ? ((tabIdx !== undefined) ? tabIdx : 0) : -1
+
         if (root.drawerOpen) {
-            if (mode === "settings" && tabIdx !== undefined) {
-                if (root.drawerMode === "settings" && pageController.currentIndex === tabIdx) {
-                    root.drawerOpen = false
-                    return
+            var isSame = false
+            if (mode === "settings" && root.drawerMode === "settings") {
+                if (tabIdx === undefined) {
+                    var barTabs = [5, 6, 7, 16, 20, 21, 23, 25, 26, 27]
+                    isSame = (barTabs.indexOf(pageController.currentIndex) === -1)
+                } else {
+                    isSame = (pageController.currentIndex === tabIdx)
                 }
-                root.drawerMode = "settings"
-                if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
-                if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
-                pageController.switchPage(tabIdx)
-                return
+            } else {
+                isSame = (root.drawerMode === mode)
             }
-            if (root.drawerMode === mode && tabIdx === undefined) {
+
+            if (isSame) {
+                switchDrawerAnim.stop()
                 root.drawerOpen = false
                 return
             }
+
+            openSeqAnim.stop()
+            closeSeqAnim.stop()
+            switchDrawerAnim.stop()
+            root.pendingDrawerMode = mode
+            root.pendingTabIdx = (targetTab >= 0) ? targetTab : 0
+            switchDrawerAnim.start()
+            return
         }
 
+        switchDrawerAnim.stop()
         root.isWallpaperExpanded = false
         root.drawerMode = mode
         if (mode === "clipboard" && Waybar) {
@@ -205,19 +269,34 @@ ApplicationWindow {
             root.calMonth = now.getMonth()
         } else if (mode === "power") {
             root.powerSelectedIndex = 0
-        } else if (mode === "settings" && tabIdx !== undefined) {
-            if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
-            if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
-            pageController.switchPage(tabIdx)
+        } else if (mode === "settings") {
+            var initTab = (tabIdx !== undefined) ? tabIdx : ((Config && Config.rememberLastTab) ? pageController.currentIndex : 0)
+            if (initTab === 21 && Waybar) Waybar.refreshProcesses()
+            if (initTab === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
+            pageController.jumpToPageInstant(initTab)
         }
         root.drawerOpen = true
     }
 
     function openTrayContextMenu(appData, globalX) {
-        if (root.drawerOpen && root.drawerMode === "traymenu" && root.trayMenuClass === appData.class) {
-            root.drawerOpen = false
+        if (root.drawerOpen) {
+            if (root.drawerMode === "traymenu" && root.trayMenuClass === appData.class) {
+                switchDrawerAnim.stop()
+                root.drawerOpen = false
+                return
+            }
+            openSeqAnim.stop()
+            closeSeqAnim.stop()
+            switchDrawerAnim.stop()
+            root.pendingDrawerMode = "traymenu"
+            root.pendingTrayClass = appData.class
+            root.pendingTrayName = appData.name || appData.class
+            root.pendingTraySni = appData.sniService || ""
+            root.pendingTrayX = globalX
+            switchDrawerAnim.start()
             return
         }
+        switchDrawerAnim.stop()
         root.trayMenuClass = appData.class
         root.trayMenuName = appData.name || appData.class
         root.trayMenuSni = appData.sniService || ""
@@ -229,6 +308,7 @@ ApplicationWindow {
     onDrawerOpenChanged: {
         openSeqAnim.stop()
         closeSeqAnim.stop()
+        switchDrawerAnim.stop()
         if (drawerOpen) openSeqAnim.start()
         else closeSeqAnim.start()
         syncInputMask()
@@ -477,8 +557,7 @@ ApplicationWindow {
             MouseArea { anchors.fill: parent; z: 0; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
 
             readonly property bool editMode: Waybar ? Waybar.barEditMode : false
-            property real launcherVis: (root.drawerOpen && !editMode) ? 0.0 : 1.0
-            Behavior on launcherVis { NumberAnimation { duration: 260; easing.type: Easing.InOutCubic } }
+            readonly property real launcherVis: editMode ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - root.drawerProgress))
             readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
             readonly property bool uniformMode: Waybar ? Waybar.uniformBarSpacing : true
             readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
@@ -496,7 +575,7 @@ ApplicationWindow {
                     model: Waybar ? Waybar.leftBarOrder : ["launcher", "workspaces", "weather", "media"]
                     delegate: Row {
                         id: leftModWrap
-                        spacing: modKey === "launcher" ? Math.round((Waybar ? Waybar.spacing : 4) * topBarContainer.launcherVis) : (Waybar ? Waybar.spacing : 4)
+                        spacing: modKey === "launcher" ? ((Waybar ? Waybar.spacing : 4) * topBarContainer.launcherVis) : (Waybar ? Waybar.spacing : 4)
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property string modKey: modelData
                         readonly property bool modVis: {
@@ -513,7 +592,7 @@ ApplicationWindow {
                             readonly property bool isLeftMacro: (modKey === "workspaces" || modKey === "weather" || modKey === "media") && index > 0
                             visible: isLeftMacro && topBarContainer.macroStepGap > 0.5
                             width: modKey === "workspaces"
-                                   ? Math.round(topBarContainer.macroStepGap * topBarContainer.launcherVis)
+                                   ? (topBarContainer.macroStepGap * topBarContainer.launcherVis)
                                    : topBarContainer.macroStepGap
                             height: 1
                         }
@@ -532,11 +611,10 @@ ApplicationWindow {
                             height: topBarContainer.pillHeight
                             anchors.verticalCenter: parent.verticalCenter
                             clip: modKey === "media"
-                            opacity: modKey === "launcher" ? topBarContainer.launcherVis : 1.0
-                            scale: modKey === "launcher" ? (0.65 + 0.35 * topBarContainer.launcherVis) : 1.0
+                            opacity: modKey === "launcher" ? (topBarContainer.launcherVis * topBarContainer.launcherVis) : 1.0
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
-                                if (modKey === "launcher") return Math.round((topBarContainer.pillHeight + 8) * topBarContainer.launcherVis)
+                                if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
                                 if (modKey === "workspaces") return wsRow.implicitWidth + 2
                                 if (modKey === "weather") return wLbl.implicitWidth + 10
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 10
@@ -551,12 +629,22 @@ ApplicationWindow {
                                 color: Qt.rgba(1, 1, 1, 0.32)
                             }
 
-                            // Контент: launcher (лого Arch поднято ровно на 1 пиксель)
+                            // Контент: launcher (плавное скольжение без субпиксельного дрожания centerIn)
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                Image { anchors.centerIn: parent; anchors.horizontalCenterOffset: -3; anchors.verticalCenterOffset: 1; width: 15; height: 15; sourceSize: Qt.size(30, 30); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
+                                Image {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.verticalCenterOffset: 1
+                                    scale: 0.72 + 0.28 * topBarContainer.launcherVis
+                                    width: 15; height: 15
+                                    sourceSize: Qt.size(30, 30)
+                                    smooth: true
+                                    source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                                }
+                                MouseArea { enabled: !topBarContainer.editMode && topBarContainer.launcherVis > 0.5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                             }
 
                             // Контент: workspaces
@@ -712,7 +800,7 @@ ApplicationWindow {
             Row {
                 id: rightBarRow; z: 5
                 anchors.right: parent.right; anchors.rightMargin: 5; anchors.verticalCenter: parent.verticalCenter
-                spacing: Waybar ? Waybar.spacing : 6
+                spacing: 0
 
                 // Индикатор записи экрана
                 Rectangle {
@@ -745,7 +833,7 @@ ApplicationWindow {
                     model: Waybar ? Waybar.rightBarOrder : ["sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"]
                     delegate: Row {
                         id: rightModWrap
-                        spacing: Waybar ? Waybar.spacing : 4
+                        spacing: 0
                         anchors.verticalCenter: parent.verticalCenter
                         readonly property string modKey: modelData
                         readonly property bool modVis: {
@@ -758,16 +846,19 @@ ApplicationWindow {
                         }
                         visible: modVis
 
+                        readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "power") && index > 0
+                        readonly property bool isTightStatusIcon: (modKey === "network" || modKey === "clipboard" || modKey === "volume" || modKey === "language") && index > 0
+
                         Item {
-                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "power") && index > 0
-                            visible: isMacroBoundary && topBarContainer.macroStepGap > 0.5
-                            width: topBarContainer.macroStepGap
+                            visible: index > 0
+                            width: parent.isMacroBoundary
+                                   ? topBarContainer.macroStepGap
+                                   : (parent.isTightStatusIcon ? 2 : (Waybar ? Waybar.spacing : 4))
                             height: 1
                         }
 
                         Rectangle {
-                            readonly property bool isMacroBoundary: (modKey === "tray" || modKey === "bluetooth" || modKey === "power") && index > 0
-                            visible: topBarContainer.showSeps && isMacroBoundary
+                            visible: topBarContainer.showSeps && parent.isMacroBoundary
                             width: 1; height: topBarContainer.pillHeight - 5
                             anchors.verticalCenter: parent.verticalCenter
                             color: Qt.rgba(1, 1, 1, 0.22)
@@ -781,10 +872,10 @@ ApplicationWindow {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "sysinfo") return sysRow.implicitWidth + 6
                                 if (modKey === "tray") return Math.max(16, trayRow.implicitWidth + 6)
-                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 14
-                                if (modKey === "volume") return volInnerRow.implicitWidth + 2
-                                if (modKey === "language") return 20
-                                if (modKey === "clock") return barClockText.implicitWidth + 2
+                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 11
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 1
+                                if (modKey === "language") return 15
+                                if (modKey === "clock") return barClockText.implicitWidth + 4
                                 if (modKey === "power") return 13
                                 return 0
                             }
@@ -881,7 +972,7 @@ ApplicationWindow {
                                 visible: modKey === "volume"
                                 anchors.fill: parent
                                 Row {
-                                    id: volInnerRow; anchors.centerIn: parent; spacing: 4
+                                    id: volInnerRow; anchors.centerIn: parent; spacing: 2
                                     Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : "#ffffff"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                                     Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                                 }

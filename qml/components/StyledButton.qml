@@ -10,9 +10,9 @@ Button {
     property bool isActive: false
     readonly property bool isM3: Theme && Theme.isRounded
 
-    implicitHeight: 24
-    implicitWidth: isIconOnly ? 24 : implicitContentWidth + 18
-    Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 28 : 280)
+    implicitHeight: 26
+    implicitWidth: isIconOnly ? 26 : implicitContentWidth + 20
+    Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 30 : 300)
     flat: true
 
     scale: btn.down ? 0.96 : 1.0
@@ -24,7 +24,7 @@ Button {
                ? (Config ? Config.accentTextColor : "#000000")
                : (btn.enabled ? (btn.isM3 && Config ? Config.m3OnPrimaryContainer : "#ececec") : "#666666")
         font.pixelSize: Config ? Config.fontSize : 11
-        font.bold: btn.isM3 && (btn.isActive || btn.hovered)
+        font.bold: btn.isM3 || btn.isActive
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         Behavior on color { ColorAnimation { duration: 110 } }
@@ -36,11 +36,11 @@ Button {
         Rectangle {
             id: bgFill
             anchors.fill: parent
-            radius: btn.isM3 ? (Config ? Math.min(height / 2, Config.m3ControlRadius) : 10) : 0
+            radius: btn.isM3 ? (Config ? Math.min(height / 2, Config.m3ControlRadius + 3) : height / 2) : 0
             color: (btn.down || btn.hovered || btn.isActive)
                    ? (Config ? Config.m3Primary : "#ffffff")
                    : (btn.isM3 && Config
-                      ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.52)
+                      ? Config.m3SecondaryContainer
                       : Qt.rgba(1, 1, 1, Math.max(0.05, Config ? Config.cardOpacity * 0.18 : 0.07)))
             Behavior on color { ColorAnimation { duration: 120 } }
             Behavior on radius { NumberAnimation { duration: 150 } }
@@ -64,11 +64,10 @@ Button {
             color: "transparent"
             border.color: (btn.down || btn.hovered || btn.isActive)
                           ? (Config ? Config.m3Primary : "#ffffff")
-                          : (btn.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, Config.m3OutlineOpacity) : Qt.rgba(1, 1, 1, 0.18))
-            border.width: btn.isM3 && Config ? Config.m3OutlineWidth : 1
-            visible: border.width > 0.05
+                          : Qt.rgba(1, 1, 1, 0.18)
+            border.width: btn.isM3 ? 0 : 1
+            visible: !btn.isM3
             z: 2
-            Behavior on border.color { ColorAnimation { duration: 120 } }
         }
     }
 }

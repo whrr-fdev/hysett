@@ -8,8 +8,9 @@ RowLayout {
     property var options: []
     property int selectedIndex: 0
     signal selected(int index)
+    readonly property bool isM3: Theme && Theme.isRounded
 
-    spacing: (Theme && Theme.isRounded) ? 3 : 2
+    spacing: isM3 ? 2 : 2
 
     Repeater {
         model: control.options
@@ -18,33 +19,66 @@ RowLayout {
             text: modelData
             flat: true
             Layout.fillWidth: true
-            implicitHeight: 24
+            implicitHeight: 26
             readonly property bool isSel: control.selectedIndex === index
-            readonly property bool isM3: Theme && Theme.isRounded
+            readonly property bool isFirst: index === 0
+            readonly property bool isLast: index === control.options.length - 1
+            readonly property real outerR: control.isM3 ? (Config ? Math.min(height / 2, Config.m3ControlRadius + 3) : 13) : 0
+            readonly property real innerR: control.isM3 ? 4 : 0
 
-            contentItem: Text {
-                text: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
-                color: btn.isSel ? (Config ? Config.accentTextColor : "#000000") : (btn.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
-                font.pixelSize: Config ? Config.fontSize : 11
-                font.bold: btn.isSel
-                horizontalAlignment: Text.AlignHCenter
-                verticalAlignment: Text.AlignVCenter
-                Behavior on color { ColorAnimation { duration: 110 } }
+            contentItem: Row {
+                anchors.centerIn: parent
+                spacing: 4
+                Text {
+                    visible: control.isM3 && btn.isSel
+                    text: "✓"
+                    color: Config ? Config.accentTextColor : "#000000"
+                    font.pixelSize: Config ? Config.fontSize - 1 : 10
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Text {
+                    text: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
+                    color: btn.isSel
+                           ? (Config ? Config.accentTextColor : "#000000")
+                           : (control.isM3 && Config ? Config.m3OnPrimaryContainer : "#d0d0d0")
+                    font.pixelSize: Config ? Config.fontSize : 11
+                    font.bold: btn.isSel
+                    anchors.verticalCenter: parent.verticalCenter
+                    Behavior on color { ColorAnimation { duration: 110 } }
+                }
             }
 
-            background: Rectangle {
-                radius: btn.isM3 ? (Config ? Math.min(height / 2, Config.m3ControlRadius) : 10) : 0
-                color: btn.isSel
-                       ? (Config ? Config.m3Primary : "#ffffff")
-                       : (btn.hovered
-                          ? (btn.isM3 && Config ? Qt.rgba(Config.m3PrimaryContainer.r, Config.m3PrimaryContainer.g, Config.m3PrimaryContainer.b, 0.55) : Qt.rgba(1, 1, 1, 0.12))
-                          : (btn.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.36) : Qt.rgba(1, 1, 1, 0.05)))
-                border.color: btn.isM3 && Config && !btn.isSel
-                              ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, Config.m3OutlineOpacity * 0.85)
-                              : "transparent"
-                border.width: (btn.isM3 && Config && !btn.isSel) ? Config.m3OutlineWidth : 0
-                Behavior on color { ColorAnimation { duration: 120 } }
-                Behavior on radius { NumberAnimation { duration: 150 } }
+            background: Item {
+                Rectangle {
+                    id: mainSegBg
+                    anchors.fill: parent
+                    radius: btn.isSel ? btn.outerR : (btn.isFirst || btn.isLast ? btn.outerR : btn.innerR)
+                    color: btn.isSel
+                           ? (Config ? Config.m3Primary : "#ffffff")
+                           : (btn.hovered
+                              ? (control.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.12))
+                              : (control.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.05)))
+                    Behavior on color { ColorAnimation { duration: 130 } }
+
+                    // Выпрямление внутренних углов для крайних кнопок в группе M3
+                    Rectangle {
+                        visible: control.isM3 && !btn.isSel && btn.isFirst && control.options.length > 1
+                        anchors.right: parent.right
+                        width: Math.min(parent.width * 0.5, btn.outerR)
+                        height: parent.height
+                        radius: btn.innerR
+                        color: parent.color
+                    }
+                    Rectangle {
+                        visible: control.isM3 && !btn.isSel && btn.isLast && control.options.length > 1
+                        anchors.left: parent.left
+                        width: Math.min(parent.width * 0.5, btn.outerR)
+                        height: parent.height
+                        radius: btn.innerR
+                        color: parent.color
+                    }
+                }
             }
 
             onClicked: {

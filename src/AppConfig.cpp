@@ -555,6 +555,7 @@ void AppConfig::save() {
             out << it.key() << "=" << it.value() << "\n";
         }
     }
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
 }
 
 QColor AppConfig::accentTextColor() const {
@@ -845,7 +846,7 @@ void AppConfig::extractPaletteFromWallpaper() {
             QColor px = small.pixelColor(x, y);
             float h, s, l, a;
             px.getHslF(&h, &s, &l, &a);
-            if (h < 0.0f || s < 0.10f || l < 0.07f || l > 0.93f) continue;
+            if (h < 0.0f || s < 0.02f || l < 0.05f || l > 0.95f) continue;
             double chromaWeight = double(s) * (1.0 - std::abs(2.0 * double(l) - 1.0) * 0.75);
             int bin = std::clamp(int(h * 36.0f), 0, 35);
             binWeight[bin] += chromaWeight;
@@ -863,7 +864,7 @@ void AppConfig::extractPaletteFromWallpaper() {
         }
     }
 
-    if (bestBin == -1 || maxW < 0.05) {
+    if (bestBin == -1 || maxW < 0.005) {
         // Нейтрально-монохромные обои
         m_accentColor = QColor("#d0d8e8");
         m_m3SecondaryColor = QColor("#b8c0d0");
@@ -873,13 +874,13 @@ void AppConfig::extractPaletteFromWallpaper() {
     } else {
         float domH = float(binHueSum[bestBin] / maxW);
         float avgS = float(binSatSum[bestBin] / maxW);
-        float priS = std::clamp(avgS * 1.18f, 0.48f, 0.88f);
+        float priS = std::clamp(avgS * 1.85f + 0.32f, 0.52f, 0.88f);
 
         m_accentColor = QColor::fromHslF(domH, priS, 0.78f);
-        m_m3SecondaryColor = QColor::fromHslF(std::fmod(domH + 0.035f, 1.0f), std::clamp(priS * 0.45f, 0.20f, 0.55f), 0.75f);
-        m_m3TertiaryColor = QColor::fromHslF(std::fmod(domH + 0.15f, 1.0f), std::clamp(priS * 0.68f, 0.32f, 0.75f), 0.80f);
-        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.25f, 0.08f, 0.30f), 0.07f);
-        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.28f, 0.10f, 0.35f), 0.12f);
+        m_m3SecondaryColor = QColor::fromHslF(std::fmod(domH + 0.035f, 1.0f), std::clamp(priS * 0.48f, 0.26f, 0.58f), 0.74f);
+        m_m3TertiaryColor = QColor::fromHslF(std::fmod(domH + 0.15f, 1.0f), std::clamp(priS * 0.70f, 0.36f, 0.78f), 0.80f);
+        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.38f, 0.18f, 0.42f), 0.08f);
+        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.42f, 0.22f, 0.48f), 0.15f);
     }
 
     if (m_syncColorsWithAccent) {

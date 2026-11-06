@@ -171,3 +171,12 @@
   - Снижение фонового потребления ОЗУ Firefox (`user.js`) и AyuGram (`MALLOC_ARENA_MAX=2` + нативная утилита `~/.config/hypr/scripts/reclaim_mem` на базе системного вызова `process_madvise(MADV_PAGEOUT)`).
   - Горячие клавиши `Super + Shift + F9` (`kb_toggle.sh`) и `Super + Shift + F11` (`sysinfo_toggle.sh`) синхронизированы с тумблерами и настройками `WidgetsManager`.
   - Автоматическое восстановление обоев (`mpvpaper` / `awww`) и слоя `hysett` после выхода из режима сна (`resume_restore.sh` + `setQuitOnLastWindowClosed(false)`).
+
+## Выполнено в Шаге 18 (Каноничная тема Material Design 3 Expressive, Палитра из обоев и Окрашивание системных окон)
+- Переработаны QML-компоненты под каноничный дизайн **Material Design 3 (M3 Expressive)** при включении режима со скруглением окон (`Theme.isRounded`):
+  - `StyledSlider.qml`: высокий раздельный трек (`14px`) с зазором (`6px`) вокруг вертикального бегунка-палочки (`4x22px`) и точкой конца шкалы.
+  - `StyledSwitch.qml`: широкий M3-переключатель (`36x20px`) с контуром `m3Outline` в выключенном состоянии и расширяющимся кругом `onPrimary` с галочкой `✓` во включенном.
+  - `SegmentedButton.qml`: связанные сегментные кнопки с внешним скруглением группы, внутренними радиусами `4px`, тональной заливкой `m3SecondaryContainer`/`m3Primary` и иконкой `✓`.
+  - `GlassPanel.qml`, `StyledButton.qml`, `Sidebar.qml`, `WelcomeView.qml`, `LookSettingsView.qml`: переход на тональную иерархию поверхностей MD3 (`m3Surface`, `m3SurfaceContainer`, `m3SurfaceContainerHigh`) без серых хардкодов.
+- В `src/AppConfig.{h,cpp}` добавлен генератор палитры Material You из текущих статичных и видео-обоев (`extractPaletteFromWallpaper`, `m3DynamicWallpaperColors`) с повышенной чувствительностью для атмосферных/приглушенных обоев, 6 пресетами и редактором всех атрибутов MD3 (`m3WindowRadius`, `m3CardRadius`, `m3ControlRadius`, `m3SurfaceTintStrength`, `m3ContrastLevel`, `m3ElevationStyle`, `m3OutlineWidth`, `m3OutlineOpacity`).
+- Создан `~/.config/hypr/scripts/sync_m3_windows.py`: автоматическое окрашивание системных окон (рамки окон Hyprland, живая перезагрузка цвета фона и акцентов открытых терминалов `kitty` по `SIGUSR1`, тема `btop`, `gtk-3.0`/`gtk-4.0` для `nautilus` и др.) в оттенок доминирующего цвета на обоях.

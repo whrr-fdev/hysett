@@ -227,6 +227,7 @@ void ThemeEngine::setRoundedState(bool rounded) {
     QProcess::startDetached("hyprctl", {"keyword", "decoration:rounding", QString::number(rnd)});
     QProcess::startDetached("hyprctl", {"eval", QString("hl.config({ decoration = { rounding = %1, rounding_power = 2 } })").arg(rnd)});
 
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
     QString scriptPath = QDir::homePath() + "/.config/hypr/scripts/theme_toggle.sh";
     if (QFile::exists(scriptPath)) {
         QProcess::startDetached("/bin/bash", {scriptPath, target});

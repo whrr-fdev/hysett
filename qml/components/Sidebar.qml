@@ -9,7 +9,7 @@ Rectangle {
     signal categorySelected(int index)
     signal returnToWelcome()
 
-    color: Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.0)
+    color: (Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b, Math.max(0.42, Config.sidebarOpacity)) : Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.0)
 
     property Item activeBtnObj: {
         var _ = Config ? Config.hiddenSidebarTabs : ""

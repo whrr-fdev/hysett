@@ -149,7 +149,7 @@ Item {
                                 Text {
                                     id: timeLabel
                                     text: Qt.formatDateTime(new Date(), "hh:mm:ss")
-                                    color: "#ffffff"
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                     font.pixelSize: 38
                                     font.bold: false
                                     font.letterSpacing: 2
@@ -181,11 +181,8 @@ Item {
                             Behavior on Layout.preferredWidth { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
 
                             background: GlassPanel {
-                                radius: (Theme && Theme.isRounded) ? 16 : 0
-                                tintColor: Qt.rgba(Config ? Config.cardBgColor.r : 0.08,
-                                                   Config ? Config.cardBgColor.g : 0.08,
-                                                   Config ? Config.cardBgColor.b : 0.10,
-                                                   Math.max(0.02, Config ? Config.cardOpacity : 0.10))
+                                radius: (Theme && Theme.isRounded) ? 15 : 0
+                                baseSurf: Config ? Config.m3SurfaceContainerHigh : "#252832"
                             }
                             onTextChanged: welcomeRoot.settingsSearchQuery = text.trim().toLowerCase()
                             onAccepted: {
@@ -321,11 +318,8 @@ Item {
                             onPressed: welcomeRoot.navigateTo(modelData.idx)
 
                             background: GlassPanel {
-                                radius: (Theme && Theme.isRounded) ? 16 : 0
-                                tintColor: Qt.rgba(Config ? Config.cardBgColor.r : 0.08,
-                                                   Config ? Config.cardBgColor.g : 0.08,
-                                                   Config ? Config.cardBgColor.b : 0.10,
-                                                   Math.max(0.02, Config ? Config.cardOpacity : 0.10))
+                                radius: (Theme && Theme.isRounded) ? (Config ? Config.m3CardRadius : 16) : 0
+                                baseSurf: Config ? (cardBtn.hovered ? Config.m3SurfaceContainerHigh : Config.m3SurfaceContainer) : "#1e2028"
                             }
 
                             contentItem: ColumnLayout {

@@ -38,9 +38,8 @@ ScrollView {
                 signal resetClicked()
 
                 Layout.fillWidth: true
-                implicitHeight: 28
-                radius: (Theme && Theme.isRounded) ? 4 : 0
-                tintColor: Qt.rgba(1, 1, 1, Math.max(0.02, Config ? Config.cardOpacity * 0.14 : 0.03))
+                implicitHeight: 32
+                radius: (Theme && Theme.isRounded) ? (Config ? Math.min(14, Config.m3CardRadius) : 12) : 0
 
                 RowLayout {
                     anchors.fill: parent

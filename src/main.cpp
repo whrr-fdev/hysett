@@ -99,6 +99,7 @@ int main(int argc, char *argv[]) {
 
     QQuickWindow::setDefaultAlphaBuffer(true);
     QGuiApplication app(argc, argv);
+    app.setQuitOnLastWindowClosed(false);
     QPixmapCache::setCacheLimit(4096);
     app.setApplicationName("com.whrr.HyprSettings");
     app.setDesktopFileName("com.whrr.HyprSettings");

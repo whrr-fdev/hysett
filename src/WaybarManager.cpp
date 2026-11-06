@@ -1,3 +1,4 @@
+#include <QPointer>
 #include "WaybarManager.h"
 #include <QDir>
 #include <QFile>
@@ -1157,6 +1158,29 @@ print(raw_json)
     p->start("/usr/bin/python3", {"-c", pyCode});
 }
 
+static QPointer<QQuickWindow> s_shellWin;
+static int s_lastKbState = -1;
+
+static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive) {
+    if (win) s_shellWin = win;
+    if (!s_shellWin) return;
+    int target = exclusive ? 1 : 0;
+    if (target == s_lastKbState) return;
+    s_lastKbState = target;
+#ifdef HAVE_LAYERSHELLQT
+    if (auto *ls = LayerShellQt::Window::get(s_shellWin)) {
+        ls->setExclusiveZone(-1);
+        ls->setKeyboardInteractivity(
+            exclusive
+                ? LayerShellQt::Window::KeyboardInteractivityExclusive
+                : LayerShellQt::Window::KeyboardInteractivityNone
+        );
+    }
+#endif
+    if (exclusive) s_shellWin->requestActivate();
+    else s_shellWin->requestUpdate();
+}
+
 static void runHyprEvalSilent(const QString &luaExpr) {
     QProcess p;
     p.setProgram("hyprctl");
@@ -1167,12 +1191,30 @@ static void runHyprEvalSilent(const QString &luaExpr) {
 }
 
 void WaybarManager::switchWorkspace(int wsId) {
+    if (s_lastKbState == 1) {
+        applyShellKbInteractivity(nullptr, false);
+        emit closeDrawerRequested();
+        QTimer::singleShot(35, this, [this, wsId]() {
+            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
+            QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
+        });
+        return;
+    }
     runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
 
 void WaybarManager::stepWorkspace(int dir) {
     QString target = dir > 0 ? "e+1" : "e-1";
+    if (s_lastKbState == 1) {
+        applyShellKbInteractivity(nullptr, false);
+        emit closeDrawerRequested();
+        QTimer::singleShot(35, this, [this, target]() {
+            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target));
+            QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
+        });
+        return;
+    }
     runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = '%1' }))").arg(target));
     QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
@@ -1332,21 +1374,8 @@ void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool not
         win->setMask(reg);
     }
 
-    int curDrawerState = drawerOpen ? 1 : 0;
-    if (curDrawerState != s_lastDrawerState) {
-        s_lastDrawerState = curDrawerState;
-#ifdef HAVE_LAYERSHELLQT
-        if (auto *ls = LayerShellQt::Window::get(win)) {
-            ls->setExclusiveZone(-1);
-            ls->setKeyboardInteractivity(
-                drawerOpen
-                    ? LayerShellQt::Window::KeyboardInteractivityExclusive
-                    : LayerShellQt::Window::KeyboardInteractivityNone
-            );
-        }
-#endif
-        if (drawerOpen) win->requestActivate();
-    }
+    bool logicalOpen = win->property("drawerOpen").toBool();
+    applyShellKbInteractivity(win, logicalOpen && drawerOpen);
 }
 
 void WaybarManager::setHiddenBarModules(const QString &v) { if (m_hiddenBarModules != v) { m_hiddenBarModules = v; saveState(false); } }

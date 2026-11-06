@@ -420,7 +420,28 @@ ScrollView {
                     anchors.margins: 12
                     spacing: 10
 
-                    Text { text: Config ? (Config.language, Config.trAuto("Анимации переходов между вкладками")) : "Анимации переходов между вкладками"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+                    Text { text: Config ? (Config.language, Config.trAuto("Анимации открытия окна и переходов")) : "Анимации открытия окна и переходов"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        Text { text: Config ? (Config.language, Config.trAuto("Эффект появления окна настроек:")) : "Эффект появления окна настроек:"; color: "#cccccc"; font.pixelSize: Config.fontSize }
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            options: ["Пружина", "Упругое желе", "Отскок", "Зум-пружина", "Плавный"]
+                            selectedIndex: {
+                                var t = Config ? Config.windowOpenAnimType : "spring"
+                                if (t === "elastic") return 1
+                                if (t === "bounce") return 2
+                                if (t === "zoom_spring") return 3
+                                if (t === "smooth") return 4
+                                return 0
+                            }
+                            onSelected: (idx) => {
+                                if (Config) Config.windowOpenAnimType = ["spring", "elastic", "bounce", "zoom_spring", "smooth"][idx]
+                            }
+                        }
+                    }
 
                                         ColumnLayout {
                         Layout.fillWidth: true

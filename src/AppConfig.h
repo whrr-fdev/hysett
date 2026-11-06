@@ -3,6 +3,7 @@
 #include <QString>
 #include <QColor>
 #include <QHash>
+#include <QSettings>
 
 class AppConfig : public QObject {
     Q_OBJECT
@@ -23,6 +24,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(bool autoGlass READ autoGlass WRITE setAutoGlass NOTIFY autoGlassChanged)
     Q_PROPERTY(QString animType READ animType WRITE setAnimType NOTIFY animTypeChanged)
     Q_PROPERTY(QString welcomeAnimType READ welcomeAnimType WRITE setWelcomeAnimType NOTIFY welcomeAnimTypeChanged)
+    Q_PROPERTY(QString windowOpenAnimType READ windowOpenAnimType WRITE setWindowOpenAnimType NOTIFY windowOpenAnimTypeChanged)
     Q_PROPERTY(int animDuration READ animDuration WRITE setAnimDuration NOTIFY animDurationChanged)
     Q_PROPERTY(bool rememberLastTab READ rememberLastTab WRITE setRememberLastTab NOTIFY rememberLastTabChanged)
     Q_PROPERTY(QString hiddenSidebarTabs READ hiddenSidebarTabs WRITE setHiddenSidebarTabs NOTIFY hiddenSidebarTabsChanged)
@@ -91,6 +93,18 @@ public:
     void setAnimType(const QString &v);
     QString welcomeAnimType() const { return m_welcomeAnimType; }
     void setWelcomeAnimType(const QString &v);
+    QString windowOpenAnimType() const {
+        QSettings s("whrr", "HyprSettings");
+        return s.value("windowOpenAnimType", m_windowOpenAnimType).toString();
+    }
+    void setWindowOpenAnimType(const QString &v) {
+        if (windowOpenAnimType() != v) {
+            m_windowOpenAnimType = v;
+            QSettings s("whrr", "HyprSettings");
+            s.setValue("windowOpenAnimType", v);
+            emit windowOpenAnimTypeChanged();
+        }
+    }
     int animDuration() const { return m_animDuration; }
     void setAnimDuration(int v);
     bool rememberLastTab() const { return m_rememberLastTab; }
@@ -172,6 +186,7 @@ signals:
     void autoGlassChanged();
     void animTypeChanged();
     void welcomeAnimTypeChanged();
+    void windowOpenAnimTypeChanged();
     void animDurationChanged();
     void rememberLastTabChanged();
     void hiddenSidebarTabsChanged();
@@ -214,6 +229,7 @@ private:
     bool m_autoGlass = true;
     QString m_animType = "bounce";
     QString m_welcomeAnimType = "blackhole";
+    QString m_windowOpenAnimType = "spring";
     int m_animDuration = 150;
     bool m_rememberLastTab = false;
     QString m_hiddenSidebarTabs = "";

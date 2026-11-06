@@ -32,6 +32,20 @@ ApplicationWindow {
     property real drawerProgress: 0.0
     readonly property bool drawerActive: drawerProgress > 0.005 || barExpandProgress > 0.005
 
+    readonly property string openFxMode: Config ? Config.windowOpenAnimType : "spring"
+    readonly property int openFxEasing: {
+        if (openFxMode === "elastic") return Easing.OutElastic
+        if (openFxMode === "bounce") return Easing.OutBounce
+        if (openFxMode === "smooth") return Easing.OutQuint
+        return Easing.OutBack
+    }
+    readonly property int openFxDuration: {
+        if (openFxMode === "elastic") return 560
+        if (openFxMode === "bounce") return 480
+        if (openFxMode === "smooth") return 300
+        return 390
+    }
+
     SequentialAnimation {
         id: openSeqAnim
         NumberAnimation {
@@ -42,7 +56,12 @@ ApplicationWindow {
         }
         NumberAnimation {
             target: root; property: "drawerProgress"
-            to: 1.0; duration: 300; easing.type: Easing.OutQuint
+            to: 1.0
+            duration: root.openFxDuration
+            easing.type: root.openFxEasing
+            easing.overshoot: 1.38
+            easing.amplitude: 1.0
+            easing.period: 0.38
         }
     }
 
@@ -107,7 +126,12 @@ ApplicationWindow {
         }
         NumberAnimation {
             target: root; property: "drawerProgress"
-            to: 1.0; duration: 260; easing.type: Easing.OutQuint
+            to: 1.0
+            duration: Math.round(root.openFxDuration * 0.9)
+            easing.type: root.openFxEasing
+            easing.overshoot: 1.28
+            easing.amplitude: 1.0
+            easing.period: 0.38
         }
     }
 
@@ -166,9 +190,9 @@ ApplicationWindow {
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
     // Плавная анимация боковых торчащих кусков при открытии/закрытии из узкой панели!
-    readonly property real wingMix: Math.min(1.0, Math.pow(drawerProgress, 0.42) * 1.15)
+    readonly property real wingMix: Math.min(1.0, Math.pow(Math.max(0.0, drawerProgress), 0.42) * 1.15)
     readonly property real effDrawerW: animDrawerW
-    readonly property real animDrawerH: smoothTargetH * drawerProgress
+    readonly property real animDrawerH: Math.min(root.height - root.drawerY - 2, Math.max(0.0, smoothTargetH * drawerProgress))
 
     property real centerAnchorX: {
         if (drawerMode === "traymenu") return trayMenuTargetX
@@ -1198,9 +1222,11 @@ ApplicationWindow {
             Item {
                 id: drawerInner
                 width: root.effDrawerW
-                height: root.targetDrawerH
-                y: -(1.0 - root.drawerProgress) * (root.targetDrawerH * 0.32)
-                opacity: Math.min(1.0, root.drawerProgress * 1.35)
+                height: Math.max(root.targetDrawerH, root.animDrawerH)
+                y: root.drawerProgress <= 1.0 ? (-(1.0 - root.drawerProgress) * (root.targetDrawerH * 0.32)) : 0
+                scale: (root.openFxMode === "zoom_spring" && root.drawerOpen) ? Math.max(0.86, 0.88 + 0.12 * Math.min(1.06, root.drawerProgress)) : 1.0
+                transformOrigin: Item.Top
+                opacity: Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
 
                 MouseArea {
                     anchors.fill: parent; z: 1000

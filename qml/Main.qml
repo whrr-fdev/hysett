@@ -218,8 +218,6 @@ ApplicationWindow {
         root.drawerOpen = false
     }
 
-    onDrawerOpenChanged: root.syncInputMask()
-
     function syncInputMask() {
         if (Waybar) {
             Waybar.syncShellRegion(root, root.drawerOpen || root.drawerActive, root.notifOpen || root.notifActive,

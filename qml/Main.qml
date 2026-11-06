@@ -69,18 +69,15 @@ ApplicationWindow {
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     from: 1.0
-                    to: root.openFxMode === "smooth" ? 1.0 : 1.055
-                    duration: Math.round(root.openFxDuration * 0.42)
-                    easing.type: Easing.OutCubic
+                    to: root.openFxMode === "smooth" ? 1.0 : 1.05
+                    duration: Math.round(root.openFxDuration * 0.55)
+                    easing.type: Easing.OutQuad
                 }
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     to: 1.0
-                    duration: Math.round(root.openFxDuration * 0.58)
-                    easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
-                    easing.overshoot: 1.45
-                    easing.amplitude: 1.0
-                    easing.period: 0.36
+                    duration: Math.round(root.openFxDuration * 0.45)
+                    easing.type: Easing.InOutQuad
                 }
             }
         }
@@ -165,18 +162,15 @@ ApplicationWindow {
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     from: 1.0
-                    to: root.openFxMode === "smooth" ? 1.0 : 1.048
-                    duration: Math.round(root.openFxDuration * 0.38)
-                    easing.type: Easing.OutCubic
+                    to: root.openFxMode === "smooth" ? 1.0 : 1.045
+                    duration: Math.round(root.openFxDuration * 0.55)
+                    easing.type: Easing.OutQuad
                 }
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     to: 1.0
-                    duration: Math.round(root.openFxDuration * 0.52)
-                    easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
-                    easing.overshoot: 1.35
-                    easing.amplitude: 1.0
-                    easing.period: 0.36
+                    duration: Math.round(root.openFxDuration * 0.45)
+                    easing.type: Easing.InOutQuad
                 }
             }
         }

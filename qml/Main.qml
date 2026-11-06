@@ -65,15 +65,23 @@ ApplicationWindow {
                 easing.amplitude: 1.0
                 easing.period: 0.36
             }
-            NumberAnimation {
-                target: root; property: "drawerWidthScale"
-                from: root.openFxMode === "smooth" ? 1.0 : 0.94
-                to: 1.0
-                duration: root.openFxDuration
-                easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
-                easing.overshoot: 2.15
-                easing.amplitude: 1.0
-                easing.period: 0.36
+            SequentialAnimation {
+                NumberAnimation {
+                    target: root; property: "drawerWidthScale"
+                    from: 1.0
+                    to: root.openFxMode === "smooth" ? 1.0 : 1.055
+                    duration: Math.round(root.openFxDuration * 0.42)
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: root; property: "drawerWidthScale"
+                    to: 1.0
+                    duration: Math.round(root.openFxDuration * 0.58)
+                    easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
+                    easing.overshoot: 1.45
+                    easing.amplitude: 1.0
+                    easing.period: 0.36
+                }
             }
         }
     }
@@ -87,7 +95,7 @@ ApplicationWindow {
             }
             NumberAnimation {
                 target: root; property: "drawerWidthScale"
-                to: 0.96; duration: 220; easing.type: Easing.InOutCubic
+                to: 1.0; duration: 220; easing.type: Easing.InOutCubic
             }
         }
         NumberAnimation {
@@ -153,15 +161,23 @@ ApplicationWindow {
                 easing.amplitude: 1.0
                 easing.period: 0.36
             }
-            NumberAnimation {
-                target: root; property: "drawerWidthScale"
-                from: root.openFxMode === "smooth" ? 1.0 : 0.95
-                to: 1.0
-                duration: Math.round(root.openFxDuration * 0.9)
-                easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
-                easing.overshoot: 2.05
-                easing.amplitude: 1.0
-                easing.period: 0.36
+            SequentialAnimation {
+                NumberAnimation {
+                    target: root; property: "drawerWidthScale"
+                    from: 1.0
+                    to: root.openFxMode === "smooth" ? 1.0 : 1.048
+                    duration: Math.round(root.openFxDuration * 0.38)
+                    easing.type: Easing.OutCubic
+                }
+                NumberAnimation {
+                    target: root; property: "drawerWidthScale"
+                    to: 1.0
+                    duration: Math.round(root.openFxDuration * 0.52)
+                    easing.type: root.openFxMode === "elastic" ? Easing.OutElastic : (root.openFxMode === "smooth" ? Easing.OutQuint : Easing.OutBack)
+                    easing.overshoot: 1.35
+                    easing.amplitude: 1.0
+                    easing.period: 0.36
+                }
             }
         }
     }

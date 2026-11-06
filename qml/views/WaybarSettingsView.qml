@@ -221,12 +221,16 @@ ScrollView {
             }
 
             Repeater {
-                model: Waybar ? Waybar.specs : []
+                model: Waybar ? Waybar.specs.length : 0
 
                 GlassPanel {
+                    id: specCard
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
                     implicitHeight: colSp.implicitHeight + 16
+                    readonly property var specItem: (Waybar && index < Waybar.specs.length)
+                                                    ? Waybar.specs[index]
+                                                    : ({ label: "", key: "", min: 0, max: 100, step: 1, value: 0, dec: 0 })
 
                     RowLayout {
                         id: colSp
@@ -234,15 +238,20 @@ ScrollView {
                         anchors.margins: 10
                         spacing: 8
 
-                        Text { text: modelData.label + ":"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        Text { text: specCard.specItem.label + ":"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                         StyledSlider {
+                            id: spSlider
                             Layout.fillWidth: true
-                            from: modelData.min; to: modelData.max; stepSize: modelData.step
-                            value: modelData.value
+                            from: specCard.specItem.min; to: specCard.specItem.max; stepSize: specCard.specItem.step
+                            Binding on value {
+                                when: !spSlider.pressed
+                                value: specCard.specItem.value
+                            }
                             onMoved: Waybar.setSpecValue(index, value)
                         }
                         Text {
-                            text: modelData.key === "bar_anim_duration" ? (Math.round(modelData.value) + "мс") : (modelData.dec === 0 ? Math.round(modelData.value) + "px" : Math.round(modelData.value * 100) + "%")
+                            readonly property real curV: spSlider.pressed ? spSlider.value : specCard.specItem.value
+                            text: specCard.specItem.key === "bar_anim_duration" ? (Math.round(curV) + "мс") : (specCard.specItem.dec === 0 ? Math.round(curV) + "px" : Math.round(curV * 100) + "%")
                             color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight
                         }
                         StyledButton { text: "↺"; implicitWidth: 22; onClicked: Waybar.resetSpec(index) }

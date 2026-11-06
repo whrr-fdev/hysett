@@ -38,9 +38,10 @@ ScrollView {
             }
 
             Repeater {
-                model: Anims.anims
+                model: Anims ? Anims.anims.length : 0
 
                 GlassPanel {
+                    readonly property var modelData: (Anims && index < Anims.anims.length) ? Anims.anims[index] : ({ title: "", enabled: true, speed: 1.0, curve_kind: "bezier", curve_name: "default" })
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
                     implicitHeight: colA.implicitHeight + 16
@@ -74,11 +75,15 @@ ScrollView {
                             spacing: 10
                             Text { text: Config ? (Config.language, Config.trAuto("Скорость:")) : "Скорость:"; color: "#888888"; font.pixelSize: Config.fontSize }
                             StyledSlider {
+                                id: animSpdSlider
                                 Layout.fillWidth: true
                                 from: 0.5
                                 to: 15.0
                                 stepSize: 0.1
-                                value: modelData.speed
+                                Binding on value {
+                                    when: !animSpdSlider.pressed
+                                    value: modelData.speed
+                                }
                                 onMoved: Anims.setAnimSpeed(index, value)
                             }
                             Text { text: Number(modelData.speed).toFixed(1); color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 28; horizontalAlignment: Text.AlignRight }

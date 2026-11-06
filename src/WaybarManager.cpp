@@ -1172,6 +1172,9 @@ void WaybarManager::clearClipboard() {
 
 void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH) {
     if (!win) return;
+    static QRegion s_lastReg;
+    static int s_lastDrawerState = -1;
+
     int bh = barHeight() + marginTop() + 6;
     QRegion reg;
     if (m_barPosition == 0) reg = QRegion(0, 0, win->width(), bh);
@@ -1184,19 +1187,27 @@ void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool not
     } else if (notifOpen) {
         reg += QRegion(notifX, notifY, notifW, notifH + 6);
     }
-    win->setMask(reg);
 
-#ifdef HAVE_LAYERSHELLQT
-    if (auto *ls = LayerShellQt::Window::get(win)) {
-        ls->setExclusiveZone(-1);
-        ls->setKeyboardInteractivity(
-            drawerOpen
-                ? LayerShellQt::Window::KeyboardInteractivityOnDemand
-                : LayerShellQt::Window::KeyboardInteractivityNone
-        );
+    if (reg != s_lastReg) {
+        s_lastReg = reg;
+        win->setMask(reg);
     }
+
+    int curDrawerState = drawerOpen ? 1 : 0;
+    if (curDrawerState != s_lastDrawerState) {
+        s_lastDrawerState = curDrawerState;
+#ifdef HAVE_LAYERSHELLQT
+        if (auto *ls = LayerShellQt::Window::get(win)) {
+            ls->setExclusiveZone(-1);
+            ls->setKeyboardInteractivity(
+                drawerOpen
+                    ? LayerShellQt::Window::KeyboardInteractivityOnDemand
+                    : LayerShellQt::Window::KeyboardInteractivityNone
+            );
+        }
 #endif
-    if (drawerOpen) win->requestActivate();
+        if (drawerOpen) win->requestActivate();
+    }
 }
 
 void WaybarManager::setHiddenBarModules(const QString &v) { if (m_hiddenBarModules != v) { m_hiddenBarModules = v; saveState(false); } }

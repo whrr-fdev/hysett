@@ -290,7 +290,7 @@ RowLayout {
                             id: colSysMetrics; anchors.fill: parent; anchors.margins: 12; spacing: 10
                             Text { text: Config ? (Config.language, Config.trAuto("Отображаемые графики и сводка")) : "Отображаемые графики и сводка"; color: Config.accentColor; font.pixelSize: Config.fontSize + 1; font.bold: true }
                             RowLayout {
-                                spacing: 16
+                                spacing: 12
                                 StyledCheckBox { text: "󰻠  CPU"; checked: Widgets.sysShowCpu; onToggled: Widgets.sysShowCpu = checked }
                                 StyledCheckBox { text: "󰍛  RAM"; checked: Widgets.sysShowRam; onToggled: Widgets.sysShowRam = checked }
                                 StyledCheckBox { text: "󰛳  NET"; checked: Widgets.sysShowNet; onToggled: Widgets.sysShowNet = checked }
@@ -306,6 +306,17 @@ RowLayout {
                                     options: ["По CPU (%)", "По ОЗУ (RAM)"]
                                     selectedIndex: Widgets.sysProcSort === "ram" ? 1 : 0
                                     onSelected: (idx) => Widgets.sysProcSort = (idx === 1 ? "ram" : "cpu")
+                                }
+                            }
+                            RowLayout {
+                                visible: Widgets.sysShowProcs
+                                Layout.fillWidth: true
+                                Text { text: (Config ? (Config.language, Config.trAuto("Количество процессов:")) : "Количество процессов:") + " " + Widgets.sysProcCount; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 1; to: 20; stepSize: 1
+                                    value: Widgets.sysProcCount
+                                    onMoved: Widgets.sysProcCount = Math.round(value)
                                 }
                             }
                             RowLayout {

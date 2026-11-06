@@ -267,6 +267,7 @@ void WidgetsManager::loadSysConfig() {
         else if (k == "show_extra") m_sysShowExtra = pb(v);
         else if (k == "show_procs") m_sysShowProcs = pb(v);
         else if (k == "proc_sort" && !v.isEmpty()) m_sysProcSort = v;
+        else if (k == "proc_count") m_sysProcCount = std::clamp(v.toInt(), 1, 20);
         else if (k == "top_layer") m_sysTopLayer = pb(v);
         else if (k == "text_color" && !v.isEmpty()) m_sysTextColor = v;
         else if (k == "graph_color" && !v.isEmpty()) m_sysGraphColor = v;
@@ -292,6 +293,7 @@ void WidgetsManager::saveSysConfig() {
             << "show_extra=" << (m_sysShowExtra ? "true" : "false") << "\n"
             << "show_procs=" << (m_sysShowProcs ? "true" : "false") << "\n"
             << "proc_sort=" << m_sysProcSort << "\n"
+            << "proc_count=" << m_sysProcCount << "\n"
             << "top_layer=" << (m_sysTopLayer ? "true" : "false") << "\n"
             << "text_color=" << m_sysTextColor << "\n"
             << "graph_color=" << m_sysGraphColor << "\n"
@@ -333,6 +335,7 @@ void WidgetsManager::restartSysProcess() {
 void WidgetsManager::resetSysDefaults() {
     m_sysShowCpu = m_sysShowRam = m_sysShowNet = m_sysShowTemp = m_sysShowExtra = m_sysShowProcs = m_sysTopLayer = true;
     m_sysProcSort = "cpu";
+    m_sysProcCount = 10;
     m_sysTextColor = "#ffffff"; m_sysGraphColor = "#ffffff";
     m_sysOpacity = 0.85; m_sysScale = 1.0;
     m_sysTitleSize = 13; m_sysExtraSize = 14;
@@ -359,3 +362,5 @@ void WidgetsManager::setSysPosition(const QString &v) { if (m_sysPosition != v &
 
 void WidgetsManager::setSysShowProcs(bool v) { if (m_sysShowProcs != v) { m_sysShowProcs = v; saveSysConfig(); } }
 void WidgetsManager::setSysProcSort(const QString &v) { if (m_sysProcSort != v && !v.isEmpty()) { m_sysProcSort = v; saveSysConfig(); } }
+
+void WidgetsManager::setSysProcCount(int v) { v = std::clamp(v, 1, 20); if (m_sysProcCount != v) { m_sysProcCount = v; saveSysConfig(); } }

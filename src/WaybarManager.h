@@ -461,6 +461,8 @@ private:
     QStringList m_vpnLogs;
     QString m_vpnLogHtml;
     int m_vpnLogHeight = 160;
+    qint64 m_lastLogFileSize = -1;
+    int m_lastLogMaxLines = -1;
     int m_vpnLogMaxLines = 100;
     bool m_vpnLogAutoRefresh = true;
     bool m_vpnLogAutoScroll = true;

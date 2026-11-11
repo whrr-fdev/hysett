@@ -20,7 +20,7 @@ RU_DOMAIN_SUFFIXES = [
     "gosuslugi.ru", "sberbank.ru", "sber.ru", "tbank.ru", "tinkoff.ru", "alfabank.ru", "vtb.ru",
     "ozon.ru", "ozonusercontent.com", "wb.ru", "wildberries.ru", "wbbasket.ru",
     "mail.ru", "imgsmail.ru", "avito.ru", "2gis.com", "kinopoisk.ru", "rutube.ru", "dzen.ru",
-    "hh.ru", "habr.com", "pikabu.ru", "mts.ru", "megafon.ru", "beeline.ru", "tele2.ru"
+    "hh.ru", "habr.com", "pikabu.ru", "mts.ru", "megafon.ru", "beeline.ru", "tele2.ru", "stamina-online.com", "staminaon.com"
 ]
 
 WHITE_SNI_KEYWORDS = (
@@ -459,7 +459,20 @@ def load_bypass_routing_sets(st):
 
     discord_cidrs = read_cidr_file("Re-filter-lists/discord_ips.lst", 500)
     blocked_cidrs = list(dict.fromkeys(discord_cidrs + read_cidr_file("Re-filter-lists/community_ips.lst", 1500)))
-    return sorted(blocked_domains), sorted(ru_domains), blocked_cidrs
+
+    ru_cidrs = [
+        "5.45.192.0/18", "5.61.16.0/21", "31.31.192.0/18", "37.9.64.0/18", "37.140.192.0/18",
+        "45.130.41.0/24", "51.250.0.0/17", "62.84.112.0/20", "77.88.0.0/18", "84.201.128.0/18",
+        "87.240.128.0/18", "89.108.64.0/18", "93.158.128.0/18", "95.163.0.0/16", "95.213.0.0/16",
+        "130.193.32.0/19", "158.160.0.0/16", "176.53.160.0/20", "178.154.128.0/17",
+        "185.71.76.0/22", "188.93.56.0/21", "194.58.88.0/21", "194.67.64.0/19", "213.180.192.0/19"
+    ]
+    for rel_c in ("vpn-configs/whitelist_cidr1_ru.txt", "vpn-configs/whitelist_cidr2_ru.txt", "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt"):
+        for c in read_cidr_file(rel_c, 2500):
+            if c not in ru_cidrs:
+                ru_cidrs.append(c)
+
+    return sorted(blocked_domains), sorted(ru_domains), blocked_cidrs, ru_cidrs
 
 def parse_subscription_content(raw):
     found = []
@@ -824,7 +837,7 @@ def has_cap_net_admin(sb_bin):
 
 def build_config(outbound, st, use_tun=False):
     split_mode = st.get("split_mode", "ru_direct" if st.get("ru_direct", True) else "all_vpn")
-    blocked_domains, ru_domains, blocked_cidrs = load_bypass_routing_sets(st)
+    blocked_domains, ru_domains, blocked_cidrs, ru_cidrs = load_bypass_routing_sets(st)
 
     outbounds = []
     if outbound.get("type") == "urltest" and "_pool" in outbound:
@@ -883,6 +896,8 @@ def build_config(outbound, st, use_tun=False):
         if ru_domains:
             rules.append({"domain_suffix": ru_domains, "outbound": "direct"})
             dns_rules.append({"domain_suffix": ru_domains, "server": "dns-direct"})
+        if ru_cidrs:
+            rules.append({"ip_cidr": ru_cidrs, "outbound": "direct"})
         route_final = "proxy"
         dns_final = "dns-remote"
     elif split_mode == "only_blocked":
@@ -1156,7 +1171,7 @@ def dump_status_json():
 
     srv_names = wl_srv_names if st.get("whitelist_mode", False) else sub_srv_names
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]
-    blocked_d, ru_d, _ = load_bypass_routing_sets(st)
+    blocked_d, ru_d, _, _ = load_bypass_routing_sets(st)
     hint = f"Маршруты: {len(blocked_d)} в обход • {len(ru_d)} РФ напрямую"
     out = {
         "server_name": st.get("server_name", "VPN"),

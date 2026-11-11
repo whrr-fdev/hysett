@@ -1531,20 +1531,97 @@ void WaybarManager::toggleVpn() {
 }
 
 void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
+    m_vpnBusy = false;
     QJsonDocument doc = QJsonDocument::fromJson(raw.trimmed());
-    if (!doc.isObject()) return;
+    if (!doc.isObject()) { emit sysStatsChanged(); return; }
     QJsonObject o = doc.object();
     m_vpnServerName = o["server_name"].toString(m_vpnServerName);
     m_vpnRuDirect = o["ru_direct"].toBool(m_vpnRuDirect);
+    m_vpnSplitMode = o["split_mode"].toString(m_vpnSplitMode);
+    m_vpnWhitelistMode = o["whitelist_mode"].toBool(m_vpnWhitelistMode);
+    m_vpnWhitelistFile = o["whitelist_file"].toString(m_vpnWhitelistFile);
     m_vpnSelectedServer = o["selected_index"].toInt(0);
+    m_vpnStatusHint = o["status_hint"].toString(m_vpnStatusHint);
+
+    QVariantList wlFiles;
+    for (const auto &v : o["whitelist_files"].toArray()) {
+        QJsonObject fo = v.toObject();
+        QVariantMap m;
+        m["key"] = fo["key"].toString();
+        m["label"] = fo["label"].toString();
+        wlFiles.append(m);
+    }
+    if (!wlFiles.isEmpty()) m_vpnWhitelistFiles = wlFiles;
+
     QStringList srvs;
     for (const auto &v : o["servers"].toArray()) srvs.append(v.toString());
     m_vpnServers = srvs;
+
     QStringList urls;
     for (const auto &v : o["urls"].toArray()) urls.append(v.toString());
     m_vpnSubUrls = urls;
     if (!urls.isEmpty()) m_vpnSubUrl = urls.first();
+
+    QStringList cProxy, cDirect;
+    for (const auto &v : o["custom_proxy_domains"].toArray()) cProxy.append(v.toString());
+    for (const auto &v : o["custom_direct_domains"].toArray()) cDirect.append(v.toString());
+    m_vpnCustomProxyDomains = cProxy;
+    m_vpnCustomDirectDomains = cDirect;
+
     emit sysStatsChanged();
+}
+
+void WaybarManager::runVpnScriptCmd(const QStringList &args) {
+    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    m_vpnBusy = true;
+    emit sysStatsChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        syncVpnStateFromScript(p->readAllStandardOutput());
+        p->deleteLater();
+    });
+    QStringList fullArgs = {script};
+    fullArgs.append(args);
+    p->start("/usr/bin/python3", fullArgs);
+}
+
+void WaybarManager::setVpnWhitelistMode(bool v) {
+    if (m_vpnWhitelistMode != v) {
+        m_vpnWhitelistMode = v;
+        runVpnScriptCmd({"set_whitelist_mode", v ? "1" : "0"});
+    }
+}
+
+void WaybarManager::setVpnWhitelistFile(const QString &f) {
+    if (m_vpnWhitelistFile != f && !f.isEmpty()) {
+        m_vpnWhitelistFile = f;
+        runVpnScriptCmd({"set_whitelist_file", f});
+    }
+}
+
+void WaybarManager::setVpnSplitMode(const QString &m) {
+    if (m_vpnSplitMode != m && !m.isEmpty()) {
+        m_vpnSplitMode = m;
+        m_vpnRuDirect = (m != "all_vpn");
+        runVpnScriptCmd({"set_split_mode", m});
+    }
+}
+
+void WaybarManager::updateBypassLists() {
+    runVpnScriptCmd({"update_lists"});
+}
+
+void WaybarManager::testWhitelistServers() {
+    runVpnScriptCmd({"test_whitelist"});
+}
+
+void WaybarManager::addVpnCustomDomain(const QString &domain, bool isDirect) {
+    if (domain.trimmed().isEmpty()) return;
+    runVpnScriptCmd({"add_custom_domain", domain.trimmed(), isDirect ? "1" : "0"});
+}
+
+void WaybarManager::removeVpnCustomDomain(int idx, bool isDirect) {
+    runVpnScriptCmd({"remove_custom_domain", QString::number(idx), isDirect ? "1" : "0"});
 }
 
 void WaybarManager::updateVpnSubscription() {

@@ -89,6 +89,14 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QStringList vpnServers READ vpnServers NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnSelectedServer READ vpnSelectedServer NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnRuDirect READ vpnRuDirect WRITE setVpnRuDirect NOTIFY sysStatsChanged)
+    Q_PROPERTY(bool vpnWhitelistMode READ vpnWhitelistMode WRITE setVpnWhitelistMode NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnWhitelistFile READ vpnWhitelistFile WRITE setVpnWhitelistFile NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList vpnWhitelistFiles READ vpnWhitelistFiles NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnSplitMode READ vpnSplitMode WRITE setVpnSplitMode NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnCustomProxyDomains READ vpnCustomProxyDomains NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnCustomDirectDomains READ vpnCustomDirectDomains NOTIFY sysStatsChanged)
+    Q_PROPERTY(bool vpnBusy READ vpnBusy NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnStatusHint READ vpnStatusHint NOTIFY sysStatsChanged)
 
     // Погода Gismeteo (Сейчас, Завтра, Неделя, Месяц)
     Q_PROPERTY(QString weatherText READ weatherText NOTIFY weatherChanged)
@@ -217,6 +225,21 @@ public:
     Q_INVOKABLE void addVpnSubUrl(const QString &u);
     Q_INVOKABLE void removeVpnSubUrl(int idx);
     Q_INVOKABLE void selectVpnServer(int idx);
+    bool vpnWhitelistMode() const { return m_vpnWhitelistMode; }
+    void setVpnWhitelistMode(bool v);
+    QString vpnWhitelistFile() const { return m_vpnWhitelistFile; }
+    void setVpnWhitelistFile(const QString &f);
+    QVariantList vpnWhitelistFiles() const { return m_vpnWhitelistFiles; }
+    QString vpnSplitMode() const { return m_vpnSplitMode; }
+    void setVpnSplitMode(const QString &m);
+    QStringList vpnCustomProxyDomains() const { return m_vpnCustomProxyDomains; }
+    QStringList vpnCustomDirectDomains() const { return m_vpnCustomDirectDomains; }
+    bool vpnBusy() const { return m_vpnBusy; }
+    QString vpnStatusHint() const { return m_vpnStatusHint; }
+    Q_INVOKABLE void updateBypassLists();
+    Q_INVOKABLE void testWhitelistServers();
+    Q_INVOKABLE void addVpnCustomDomain(const QString &domain, bool isDirect);
+    Q_INVOKABLE void removeVpnCustomDomain(int idx, bool isDirect);
 
     QString weatherText() const { return m_weatherText; }
     QVariantMap weatherDetails() const { return m_weatherDetails; }
@@ -367,7 +390,16 @@ private:
     QStringList m_vpnSubUrls;
     QStringList m_vpnServers;
     int m_vpnSelectedServer = 0;
+    bool m_vpnWhitelistMode = false;
+    QString m_vpnWhitelistFile = "auto";
+    QVariantList m_vpnWhitelistFiles;
+    QString m_vpnSplitMode = "ru_direct";
+    QStringList m_vpnCustomProxyDomains;
+    QStringList m_vpnCustomDirectDomains;
+    bool m_vpnBusy = false;
+    QString m_vpnStatusHint = "";
     void syncVpnStateFromScript(const QByteArray &raw);
+    void runVpnScriptCmd(const QStringList &args);
 
     QString m_weatherText = "☁️ +3°C";
     QVariantMap m_weatherDetails;

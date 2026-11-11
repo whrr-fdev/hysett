@@ -9,6 +9,7 @@ Button {
     property bool allowFullWidth: false
     property bool isActive: false
     readonly property bool isM3: Theme && Theme.isRounded
+    readonly property bool useGlassShader: Theme && (Theme.controlsLiquidGlass || Theme.glassRefraction > 0.05)
 
     readonly property string fullTxt: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
     readonly property var splitParts: {
@@ -86,16 +87,18 @@ Button {
             Behavior on radius { NumberAnimation { duration: 150 } }
         }
 
-        ShaderEffect {
+        Loader {
             anchors.fill: parent
             anchors.margins: 1
-            visible: Theme && (Theme.controlsLiquidGlass || Theme.glassRefraction > 0.05) && !btn.hovered && !btn.down
-            property vector2d u_resolution: Qt.vector2d(width, height)
-            property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.70 : 0.0) : 0.0
-            property real u_radius: Math.max(0, bgFill.radius - 1)
-            property real u_time: 1.0
-            property vector4d u_base_color: Qt.vector4d(bgFill.color.r, bgFill.color.g, bgFill.color.b, bgFill.color.a)
-            fragmentShader: "qrc:/shaders/qml/shaders/liquid_glass.frag.qsb"
+            active: btn.useGlassShader && !btn.hovered && !btn.down
+            sourceComponent: ShaderEffect {
+                property vector2d u_resolution: Qt.vector2d(width, height)
+                property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.70 : 0.0) : 0.0
+                property real u_radius: Math.max(0, bgFill.radius - 1)
+                property real u_time: 1.0
+                property vector4d u_base_color: Qt.vector4d(bgFill.color.r, bgFill.color.g, bgFill.color.b, bgFill.color.a)
+                fragmentShader: "qrc:/shaders/qml/shaders/liquid_glass.frag.qsb"
+            }
         }
 
         Rectangle {

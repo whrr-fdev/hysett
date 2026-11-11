@@ -18,6 +18,7 @@ ApplicationWindow {
     property bool drawerOpen: Config ? !Config.isDaemonStart() : false
     property string drawerMode: "settings"
     property bool isWallpaperExpanded: false
+    property bool isSettingsMaximized: false
     property int powerSelectedIndex: 0
     property string clipSearchQuery: ""
     property int calYear: new Date().getFullYear()
@@ -230,7 +231,7 @@ ApplicationWindow {
         if (drawerMode === "power") return isM3 ? 300 : 280
         if (drawerMode === "calendar") return isM3 ? 320 : 300
         if (drawerMode === "clipboard") return isM3 ? 500 : 460
-        return isWallpaperExpanded ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
+        return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
     }
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
@@ -238,7 +239,7 @@ ApplicationWindow {
         if (drawerMode === "power") return isM3 ? 315 : 295
         if (drawerMode === "calendar") return isM3 ? 305 : 285
         if (drawerMode === "clipboard") return isM3 ? 400 : 370
-        return isWallpaperExpanded
+        return (isWallpaperExpanded || isSettingsMaximized)
                ? (root.height - (barTop + barH) - 14)
                : (isM3 ? Math.min(680, Config ? Math.max(640, Config.windowHeight) : 640) : Math.min(540, Config ? Config.windowHeight : 520))
     }
@@ -382,6 +383,7 @@ ApplicationWindow {
             modalOpen = false
             trailActive = false
             isWallpaperExpanded = false
+            isSettingsMaximized = false
             root.mousePos = Qt.point(-500, -500)
             if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
         } else {
@@ -492,7 +494,7 @@ ApplicationWindow {
     NumberAnimation on liquidTime {
         from: 0.0; to: 628.3185; duration: 120000
         loops: Animation.Infinite
-        running: root.drawerActive
+        running: root.drawerActive && Config && Config.borderGlowEnabled && Config.borderGlowIntensity > 0.01
     }
 
     Timer {
@@ -547,7 +549,7 @@ ApplicationWindow {
         anchors.fill: parent
 
         HoverHandler {
-            enabled: root.drawerActive
+            enabled: root.drawerActive && (!Config || Config.cursorGlowIntensity > 0.01)
             onPointChanged: {
                 if (root.mousePos.x < -100) {
                     root.trail1 = point.position; root.trail2 = point.position; root.trail3 = point.position
@@ -645,7 +647,7 @@ ApplicationWindow {
             MouseArea { anchors.fill: rightBarRow; anchors.margins: -4; z: 1 }
 
             readonly property bool editMode: Waybar ? Waybar.barEditMode : false
-            readonly property real launcherVis: editMode ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - root.drawerProgress))
+            readonly property real launcherVis: 1.0
             readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
             readonly property bool uniformMode: Waybar ? Waybar.uniformBarSpacing : true
             readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
@@ -759,7 +761,7 @@ ApplicationWindow {
                                 color: Qt.rgba(1, 1, 1, 0.32)
                             }
 
-                            // Контент: launcher (логотип CachyOS в таблетке)
+                            // Контент: launcher (логотип CachyOS в закрытом состоянии -> кнопка На весь экран при открытом окне)
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
@@ -769,18 +771,47 @@ ApplicationWindow {
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
                                     radius: topBarContainer.pillRadius
-                                    color: topBarContainer.pillColor
-                                    scale: 0.82 + 0.18 * topBarContainer.launcherVis
+                                    color: (root.drawerOpen && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
+                                           ? Config.m3Primary
+                                           : topBarContainer.pillColor
+                                    Behavior on color { ColorAnimation { duration: 150 } }
 
                                     Image {
                                         anchors.centerIn: parent
                                         width: 16; height: 16
                                         sourceSize: Qt.size(32, 32)
                                         smooth: true
+                                        opacity: Math.max(0.0, 1.0 - root.drawerProgress * 1.35)
+                                        scale: 1.0 - 0.35 * Math.min(1.0, root.drawerProgress)
+                                        visible: opacity > 0.02
                                         source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
                                     }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: root.isSettingsMaximized ? "󰊔" : "󰊓"
+                                        font.pixelSize: 13
+                                        font.bold: true
+                                        opacity: Math.max(0.0, (root.drawerProgress - 0.15) / 0.85)
+                                        scale: 0.65 + 0.35 * Math.min(1.0, root.drawerProgress)
+                                        visible: opacity > 0.02
+                                        color: (root.drawerOpen && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
+                                               ? Config.accentTextColor
+                                               : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
+                                    }
                                 }
-                                MouseArea { enabled: !topBarContainer.editMode && topBarContainer.launcherVis > 0.5; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
+                                MouseArea {
+                                    enabled: !topBarContainer.editMode
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (root.drawerOpen) {
+                                            root.isSettingsMaximized = !root.isSettingsMaximized
+                                        } else {
+                                            root.openDrawerWithMode("settings", 16)
+                                        }
+                                    }
+                                }
                             }
 
                             // Контент: workspaces (колбаса с поддержкой цифр или овальных точек!)

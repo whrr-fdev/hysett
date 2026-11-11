@@ -10,6 +10,7 @@ Item {
     property color tintColor: Qt.rgba(baseSurf.r, baseSurf.g, baseSurf.b, baseAlpha)
     property real radius: isM3 ? (Config ? Config.m3CardRadius : 16) : 0
     readonly property bool isSquareTheme: Theme ? !Theme.isRounded : false
+    readonly property bool useGlassShader: !isSquareTheme && Theme && (Theme.glassRefraction > 0.01 || Theme.controlsLiquidGlass)
     default property alias content: placeholder.data
 
     Behavior on radius { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
@@ -18,20 +19,21 @@ Item {
         anchors.fill: parent
         radius: control.radius
         color: control.isSquareTheme ? "transparent" : control.tintColor
-        visible: !Theme || (Theme.glassRefraction <= 0.01 && !Theme.controlsLiquidGlass)
+        visible: !control.useGlassShader
         Behavior on color { ColorAnimation { duration: 180 } }
     }
 
-    ShaderEffect {
-        id: liquidEffect
+    Loader {
         anchors.fill: parent
         anchors.margins: 1
-        visible: !control.isSquareTheme && Theme && (Theme.glassRefraction > 0.01 || Theme.controlsLiquidGlass)
-        property vector2d u_resolution: Qt.vector2d(width, height)
-        property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.55
-        property real u_radius: Math.max(0, control.radius - 1)
-        property vector4d u_base_color: Qt.vector4d(control.tintColor.r, control.tintColor.g, control.tintColor.b, control.tintColor.a)
-        fragmentShader: "qrc:/shaders/qml/shaders/liquid_panel.frag.qsb"
+        active: control.useGlassShader
+        sourceComponent: ShaderEffect {
+            property vector2d u_resolution: Qt.vector2d(width, height)
+            property real u_refraction: Theme ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.55
+            property real u_radius: Math.max(0, control.radius - 1)
+            property vector4d u_base_color: Qt.vector4d(control.tintColor.r, control.tintColor.g, control.tintColor.b, control.tintColor.a)
+            fragmentShader: "qrc:/shaders/qml/shaders/liquid_panel.frag.qsb"
+        }
     }
 
     Rectangle {

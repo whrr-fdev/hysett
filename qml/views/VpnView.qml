@@ -7,9 +7,15 @@ import "../components"
 ScrollView {
     id: vpnScroll
     property bool hideSubLinks: false
-    property bool customDomainIsDirect: false
+    property int copiedSubIdx: -1
     contentWidth: availableWidth
     clip: true
+
+    Timer {
+        id: copyResetTimer
+        interval: 1300
+        onTriggered: vpnScroll.copiedSubIdx = -1
+    }
 
     Item {
         width: vpnScroll.availableWidth
@@ -72,7 +78,7 @@ ScrollView {
                         RowLayout {
                             spacing: 10
                             Text {
-                                text: (Waybar && Waybar.vpnBusy) ? "⟳ Проверка и применение..." : ((Waybar && Waybar.vpnActive) ? "●  Подключено (sing-box TUN)" : "○  Отключено")
+                                text: (Waybar && Waybar.vpnBusy) ? "⟳ Проверка туннелей через sing-box (HTTP 204)..." : ((Waybar && Waybar.vpnActive) ? "●  Подключено (sing-box TUN)" : "○  Отключено")
                                 color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : ((Waybar && Waybar.vpnActive) ? "#69f0ae" : "#888888")
                                 font.pixelSize: Config.fontSize - 1
                             }
@@ -91,7 +97,7 @@ ScrollView {
                 }
             }
 
-            // ПЕРЕКЛЮЧАТЕЛЬ ИСТОЧНИКА: МОИ ПОДПИСКИ / БЕЛЫЕ СПИСКИ (BYPASS-LISTS)
+            // ПЕРЕКЛЮЧАТЕЛЬ ИСТОЧНИКА + КАТЕГОРИИ БЕЛЫХ СПИСКОВ С ПЛАВНЫМ БЕГУНКОМ
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: srcCol.implicitHeight + 24
@@ -105,21 +111,64 @@ ScrollView {
                             color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                             Layout.fillWidth: true
                         }
-                        StyledButton {
-                            text: "🔗 Мои подписки"
-                            implicitHeight: 26
-                            isActive: !(Waybar && Waybar.vpnWhitelistMode)
-                            onClicked: if (Waybar) Waybar.vpnWhitelistMode = false
-                        }
-                        StyledButton {
-                            text: "🛡️ Белые списки (bypass-lists)"
-                            implicitHeight: 26
-                            isActive: Waybar && Waybar.vpnWhitelistMode
-                            onClicked: if (Waybar) Waybar.vpnWhitelistMode = true
+
+                        // Сегментный переключатель источника с плавным наведением и выбором
+                        Item {
+                            id: srcSegWrap
+                            width: 340; height: 28
+                            property int hoveredIdx: -1
+                            property int activeIdx: (Waybar && Waybar.vpnWhitelistMode) ? 1 : 0
+
+                            Rectangle {
+                                anchors.fill: parent
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: Qt.rgba(1, 1, 1, 0.04)
+                                border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+                            }
+
+                            Rectangle {
+                                visible: srcSegWrap.hoveredIdx >= 0 && srcSegWrap.hoveredIdx !== srcSegWrap.activeIdx
+                                x: srcSegWrap.hoveredIdx === 1 ? parent.width * 0.5 : 0
+                                y: 0; width: parent.width * 0.5; height: parent.height
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: Qt.rgba(1, 1, 1, 0.10)
+                                Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                            }
+
+                            Rectangle {
+                                x: srcSegWrap.activeIdx === 1 ? parent.width * 0.5 : 0
+                                y: 0; width: parent.width * 0.5; height: parent.height
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                            }
+
+                            Row {
+                                anchors.fill: parent
+                                Repeater {
+                                    model: ["🔗 Мои подписки", "🛡️ Белые списки (БС)"]
+                                    delegate: Item {
+                                        width: srcSegWrap.width * 0.5; height: srcSegWrap.height
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData
+                                            font.pixelSize: Config.fontSize - 1
+                                            font.bold: srcSegWrap.activeIdx === index
+                                            color: srcSegWrap.activeIdx === index ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onEntered: srcSegWrap.hoveredIdx = index
+                                            onExited: if (srcSegWrap.hoveredIdx === index) srcSegWrap.hoveredIdx = -1
+                                            onClicked: if (Waybar) Waybar.vpnWhitelistMode = (index === 1)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
 
-                    // Настройки режима Белых списков
+                    // Настройки и категории режима Белых списков
                     ColumnLayout {
                         visible: Waybar && Waybar.vpnWhitelistMode
                         Layout.fillWidth: true; spacing: 8
@@ -127,27 +176,92 @@ ScrollView {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Text {
-                                text: "Файл конфигураций из ~/bypass-lists/repos:"
+                                text: "Категория из ~/bypass-lists/repos (проверка CIDR РФ + белый SNI + пробив HTTP 204):"
                                 color: "#aaaaaa"; font.pixelSize: Config.fontSize - 1
-                                Layout.fillWidth: true
+                                Layout.fillWidth: true; wrapMode: Text.WordWrap
                             }
                             StyledButton {
-                                text: "⚡ Проверить пинг и отсортировать"
-                                implicitHeight: 24
+                                text: (Waybar && Waybar.vpnBusy) ? "⟳ Тест туннелей..." : "⚡ Проверить БС (HTTP 204 + CIDR/SNI)"
+                                implicitHeight: 26
                                 enabled: !(Waybar && Waybar.vpnBusy)
                                 onClicked: if (Waybar) Waybar.testWhitelistServers()
                             }
                         }
 
-                        Flow {
-                            Layout.fillWidth: true; spacing: 6
-                            Repeater {
-                                model: Waybar ? Waybar.vpnWhitelistFiles : []
-                                delegate: StyledButton {
-                                    text: modelData.label
-                                    implicitHeight: 24
-                                    isActive: Waybar && Waybar.vpnWhitelistFile === modelData.key
-                                    onClicked: if (Waybar) Waybar.vpnWhitelistFile = modelData.key
+                        // Сетка категорий с плавным 2D-бегунком наведения и выбора
+                        Item {
+                            id: wlCatContainer
+                            Layout.fillWidth: true
+                            implicitHeight: wlCatFlow.implicitHeight
+                            property var hoveredItem: null
+                            property var activeItem: null
+
+                            Rectangle {
+                                id: wlHoverPill
+                                z: 1
+                                visible: wlCatContainer.hoveredItem !== null && wlCatContainer.hoveredItem !== wlCatContainer.activeItem
+                                x: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.x : 0
+                                y: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.y : 0
+                                width: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.width : 0
+                                height: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.height : 26
+                                radius: (Theme && Theme.isRounded) ? 6 : 0
+                                color: Qt.rgba(1, 1, 1, 0.12)
+                                Behavior on x { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                Behavior on y { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                            }
+
+                            Rectangle {
+                                id: wlActivePill
+                                z: 2
+                                visible: wlCatContainer.activeItem !== null
+                                x: wlCatContainer.activeItem ? wlCatContainer.activeItem.x : 0
+                                y: wlCatContainer.activeItem ? wlCatContainer.activeItem.y : 0
+                                width: wlCatContainer.activeItem ? wlCatContainer.activeItem.width : 0
+                                height: wlCatContainer.activeItem ? wlCatContainer.activeItem.height : 26
+                                radius: (Theme && Theme.isRounded) ? 6 : 0
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                            }
+
+                            Flow {
+                                id: wlCatFlow
+                                z: 3
+                                width: parent.width
+                                spacing: 6
+                                Repeater {
+                                    model: Waybar ? Waybar.vpnWhitelistFiles : []
+                                    delegate: Item {
+                                        id: catBtn
+                                        width: catTxt.implicitWidth + 20
+                                        height: 26
+                                        property bool isSel: Waybar && Waybar.vpnWhitelistFile === modelData.key
+                                        onIsSelChanged: if (isSel) wlCatContainer.activeItem = catBtn
+                                        Component.onCompleted: if (isSel) wlCatContainer.activeItem = catBtn
+
+                                        Rectangle {
+                                            anchors.fill: parent
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.04)
+                                            border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
+                                        }
+                                        Text {
+                                            id: catTxt
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            font.pixelSize: Config.fontSize - 1
+                                            font.bold: parent.isSel
+                                            color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onEntered: wlCatContainer.hoveredItem = catBtn
+                                            onExited: if (wlCatContainer.hoveredItem === catBtn) wlCatContainer.hoveredItem = null
+                                            onClicked: if (Waybar) Waybar.vpnWhitelistFile = modelData.key
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -175,8 +289,8 @@ ScrollView {
                         }
                         Text {
                             visible: Waybar && Waybar.vpnWhitelistMode
-                            text: "Совет: пункт «⚡ Авто-выбор» сам переключает на самый быстрый сервер"
-                            color: "#888888"; font.pixelSize: Config.fontSize - 2
+                            text: "[✅ БС CIDR+SNI] = выживет при жестком белом списке"
+                            color: "#69f0ae"; font.pixelSize: Config.fontSize - 2
                         }
                     }
 
@@ -194,8 +308,9 @@ ScrollView {
                             height: 30
                             property bool isSel: Waybar && Waybar.vpnSelectedServer === index
                             radius: (Theme && Theme.isRounded) ? 6 : 0
-                            color: isSel ? (Config ? Config.m3Primary : "#ffffff") : (srvMa.containsMouse ? Qt.rgba(1,1,1,0.10) : Qt.rgba(1,1,1,0.04))
+                            color: isSel ? (Config ? Config.m3Primary : "#ffffff") : (srvMa.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.04))
                             border.color: isSel ? "transparent" : Qt.rgba(1,1,1,0.14); border.width: 1
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
@@ -216,7 +331,7 @@ ScrollView {
                 }
             }
 
-            // КАРТОЧКА РАЗДЕЛЬНОГО ТУННЕЛИРОВАНИЯ (SPLIT TUNNELING)
+            // КАРТОЧКА РАЗДЕЛЬНОГО ТУННЕЛИРОВАНИЯ С ПЛАВНЫМ БЕГУНКОМ
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: splitCol.implicitHeight + 24
@@ -228,25 +343,66 @@ ScrollView {
                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                     }
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        StyledButton {
-                            Layout.fillWidth: true; implicitHeight: 28
-                            text: "🇷🇺 Обход РФ (RU Direct)"
-                            isActive: Waybar && Waybar.vpnSplitMode === "ru_direct"
-                            onClicked: if (Waybar) Waybar.vpnSplitMode = "ru_direct"
+                    Item {
+                        id: splitSegWrap
+                        Layout.fillWidth: true; height: 30
+                        property int hoveredIdx: -1
+                        property int activeIdx: {
+                            if (!Waybar) return 0;
+                            if (Waybar.vpnSplitMode === "only_blocked") return 1;
+                            if (Waybar.vpnSplitMode === "all_vpn") return 2;
+                            return 0;
                         }
-                        StyledButton {
-                            Layout.fillWidth: true; implicitHeight: 28
-                            text: "🎯 Только заблокированные"
-                            isActive: Waybar && Waybar.vpnSplitMode === "only_blocked"
-                            onClicked: if (Waybar) Waybar.vpnSplitMode = "only_blocked"
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            color: Qt.rgba(1, 1, 1, 0.04)
+                            border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
                         }
-                        StyledButton {
-                            Layout.fillWidth: true; implicitHeight: 28
-                            text: "🌐 Весь трафик в VPN"
-                            isActive: Waybar && Waybar.vpnSplitMode === "all_vpn"
-                            onClicked: if (Waybar) Waybar.vpnSplitMode = "all_vpn"
+
+                        Rectangle {
+                            visible: splitSegWrap.hoveredIdx >= 0 && splitSegWrap.hoveredIdx !== splitSegWrap.activeIdx
+                            x: splitSegWrap.hoveredIdx * (parent.width / 3.0)
+                            y: 0; width: parent.width / 3.0; height: parent.height
+                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            color: Qt.rgba(1, 1, 1, 0.10)
+                            Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                        }
+
+                        Rectangle {
+                            x: splitSegWrap.activeIdx * (parent.width / 3.0)
+                            y: 0; width: parent.width / 3.0; height: parent.height
+                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            color: Config ? Config.m3Primary : "#ffffff"
+                            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                        }
+
+                        Row {
+                            anchors.fill: parent
+                            Repeater {
+                                model: [
+                                    { key: "ru_direct", label: "🇷🇺 Обход РФ (RU Direct)" },
+                                    { key: "only_blocked", label: "🎯 Только заблокированные" },
+                                    { key: "all_vpn", label: "🌐 Весь трафик в VPN" }
+                                ]
+                                delegate: Item {
+                                    width: splitSegWrap.width / 3.0; height: splitSegWrap.height
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: modelData.label
+                                        font.pixelSize: Config.fontSize - 1
+                                        font.bold: splitSegWrap.activeIdx === index
+                                        color: splitSegWrap.activeIdx === index ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                    }
+                                    MouseArea {
+                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onEntered: splitSegWrap.hoveredIdx = index
+                                        onExited: if (splitSegWrap.hoveredIdx === index) splitSegWrap.hoveredIdx = -1
+                                        onClicked: if (Waybar) Waybar.vpnSplitMode = modelData.key
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -263,7 +419,6 @@ ScrollView {
                         }
                     }
 
-                    // Пользовательские правила доменов
                     RowLayout {
                         Layout.fillWidth: true; spacing: 8
                         TextField {
@@ -337,7 +492,7 @@ ScrollView {
                 }
             }
 
-            // КАРТОЧКА УПРАВЛЕНИЯ НЕСКОЛЬКИМИ ССЫЛКАМИ ПОДПИСОК
+            // КАРТОЧКА ССЫЛОК ПОДПИСОК С КНОПКОЙ КОПИРОВАНИЯ И ПЛАВНЫМ БЕГУНКОМ НАВЕДЕНИЯ
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: subCol.implicitHeight + 24
@@ -376,10 +531,12 @@ ScrollView {
                         }
                     }
 
-                    ColumnLayout {
+                    Item {
                         id: urlsBlurBox
                         Layout.fillWidth: true
-                        spacing: 6
+                        implicitHeight: subListCol.implicitHeight
+                        property int hoveredSubIdx: -1
+
                         layer.enabled: vpnScroll.hideSubLinks
                         layer.smooth: true
                         layer.effect: ShaderEffect {
@@ -388,26 +545,72 @@ ScrollView {
                             fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
                         }
 
-                        Repeater {
-                            model: Waybar ? Waybar.vpnSubUrls : []
-                            delegate: Rectangle {
-                                Layout.fillWidth: true; implicitHeight: 28
-                                radius: (Theme && Theme.isRounded) ? 6 : 0
-                                color: Qt.rgba(1, 1, 1, 0.04)
-                                border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+                        // Плавно скользящая плашка наведения (как на боковой панели)
+                        Rectangle {
+                            id: subHoverPill
+                            z: 1
+                            visible: urlsBlurBox.hoveredSubIdx >= 0
+                            x: 0
+                            y: Math.max(0, urlsBlurBox.hoveredSubIdx) * 36
+                            width: urlsBlurBox.width
+                            height: 30
+                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                            color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16) : Qt.rgba(1, 1, 1, 0.12)
+                            border.color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.45) : Qt.rgba(1, 1, 1, 0.25)
+                            border.width: 1
+                            Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                        }
 
-                                RowLayout {
-                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 8
-                                    Text {
-                                        text: (index + 1) + ". " + modelData
-                                        color: "#cccccc"; font.pixelSize: 10
-                                        Layout.fillWidth: true; elide: Text.ElideMiddle
+                        ColumnLayout {
+                            id: subListCol
+                            z: 2
+                            width: parent.width
+                            spacing: 6
+
+                            Repeater {
+                                model: Waybar ? Waybar.vpnSubUrls : []
+                                delegate: Rectangle {
+                                    Layout.fillWidth: true; implicitHeight: 30
+                                    radius: (Theme && Theme.isRounded) ? 6 : 0
+                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                    border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        acceptedButtons: Qt.NoButton
+                                        onEntered: urlsBlurBox.hoveredSubIdx = index
+                                        onExited: if (urlsBlurBox.hoveredSubIdx === index) urlsBlurBox.hoveredSubIdx = -1
                                     }
-                                    StyledButton {
-                                        text: "✕"
-                                        implicitWidth: 20; implicitHeight: 20
-                                        enabled: !vpnScroll.hideSubLinks
-                                        onClicked: if (Waybar) Waybar.removeVpnSubUrl(index)
+
+                                    RowLayout {
+                                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
+                                        Text {
+                                            text: (index + 1) + ". " + modelData
+                                            color: urlsBlurBox.hoveredSubIdx === index ? "#ffffff" : "#cccccc"
+                                            font.pixelSize: 10
+                                            Layout.fillWidth: true; elide: Text.ElideMiddle
+                                        }
+                                        StyledButton {
+                                            text: vpnScroll.copiedSubIdx === index ? "✓ Скопировано" : "󰆏 Копировать"
+                                            implicitHeight: 22
+                                            isActive: vpnScroll.copiedSubIdx === index
+                                            enabled: !vpnScroll.hideSubLinks
+                                            onClicked: {
+                                                if (Waybar) {
+                                                    var safeUrl = modelData.replace(/'/g, "'\\''");
+                                                    Waybar.runCommand("printf '%s' '" + safeUrl + "' | wl-copy");
+                                                    vpnScroll.copiedSubIdx = index;
+                                                    copyResetTimer.restart();
+                                                }
+                                            }
+                                        }
+                                        StyledButton {
+                                            text: "✕"
+                                            implicitWidth: 22; implicitHeight: 22
+                                            enabled: !vpnScroll.hideSubLinks
+                                            onClicked: if (Waybar) Waybar.removeVpnSubUrl(index)
+                                        }
                                     }
                                 }
                             }

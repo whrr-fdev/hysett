@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, json, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re
+import sys, os, json, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re, ipaddress, bisect
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 CONF_DIR = os.path.expanduser("~/.config/hypr/scripts")
@@ -19,41 +19,48 @@ RU_DOMAIN_SUFFIXES = [
     "hh.ru", "habr.com", "pikabu.ru", "mts.ru", "megafon.ru", "beeline.ru", "tele2.ru"
 ]
 
+WHITE_SNI_KEYWORDS = (
+    ".ru", ".su", "vk.com", "userapi.com", "vkuser", "mycdn.me",
+    "ya.ru", "yandex.", "yastatic.net", "sber", "tbank", "tinkoff",
+    "ozon.", "wb.ru", "wildberries", "gosuslugi", "mail.ru", "imgsmail.ru",
+    "mts.ru", "megafon.ru", "beeline.ru", "tele2.ru", "rostelecom", "selectel", "2gis"
+)
+
 WHITELIST_SOURCES = [
-    ("auto", "⚡ Все проверенные белые списки (Авто)", [
+    ("auto", "⚡ Все проверенные БС (Авто)", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt",
         "vpn-configs/white_sni_ru.txt",
         "vpn-configs/whitelist_cidr1_ru.txt"
     ]),
-    ("igareck_mobile", "🇷🇺 igareck: Vless Reality White-Lists Mobile", [
+    ("igareck_mobile", "🇷🇺 igareck: White-Lists Mobile", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt"
     ]),
-    ("igareck_cidr_checked", "🇷🇺 igareck: WHITE-CIDR-RU (Проверенные)", [
+    ("igareck_cidr_checked", "🇷🇺 igareck: WHITE-CIDR (Проверенные)", [
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt"
     ]),
-    ("igareck_sni", "🇷🇺 igareck: WHITE-SNI-RU (Все белые SNI)", [
+    ("igareck_sni", "🇷🇺 igareck: WHITE-SNI-RU", [
         "vpn-configs-for-russia/WHITE-SNI-RU-all.txt"
     ]),
-    ("igareck_cidr_all", "🇷🇺 igareck: WHITE-CIDR-RU (Все)", [
+    ("igareck_cidr_all", "🇷🇺 igareck: WHITE-CIDR (Все)", [
         "vpn-configs-for-russia/WHITE-CIDR-RU-all.txt"
     ]),
-    ("wl_sni_ru", "🛡️ wlunlocker: white_sni_ru.txt", [
+    ("wl_sni_ru", "🛡️ wlunlocker: white_sni_ru", [
         "vpn-configs/white_sni_ru.txt"
     ]),
-    ("wl_cidr1_ru", "🛡️ wlunlocker: whitelist_cidr1_ru.txt", [
+    ("wl_cidr1_ru", "🛡️ wlunlocker: whitelist_cidr1_ru", [
         "vpn-configs/whitelist_cidr1_ru.txt"
     ]),
-    ("wl_cidr2_ru", "🛡️ wlunlocker: whitelist_cidr2_ru.txt", [
+    ("wl_cidr2_ru", "🛡️ wlunlocker: whitelist_cidr2_ru", [
         "vpn-configs/whitelist_cidr2_ru.txt"
     ]),
-    ("wl_cidr3_eu", "🇪🇺 wlunlocker: whitelist_cidr3_eu.txt", [
+    ("wl_cidr3_eu", "🇪🇺 wlunlocker: whitelist_cidr3_eu", [
         "vpn-configs/whitelist_cidr3_eu.txt"
     ]),
-    ("wl_all", "🛡️ wlunlocker: whitelist_all.txt", [
+    ("wl_all", "🛡️ wlunlocker: whitelist_all", [
         "vpn-configs/whitelist_all.txt"
     ]),
-    ("igareck_black", "🌐 igareck: BLACK_VLESS_RUS.txt", [
+    ("igareck_black", "🌐 igareck: BLACK_VLESS_RUS", [
         "vpn-configs-for-russia/BLACK_VLESS_RUS.txt",
         "vpn-configs-for-russia/BLACK_VLESS_RUS_mobile.txt"
     ])
@@ -263,6 +270,72 @@ def read_cidr_file(rel_path, max_items=4000):
         pass
     return out
 
+def load_ru_whitelist_ip_intervals():
+    intervals = []
+    for rel in ("vpn-configs/whitelist_cidr1_ru.txt", "vpn-configs/whitelist_cidr2_ru.txt", "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt"):
+        full = os.path.join(BYPASS_REPOS, rel)
+        if not os.path.exists(full):
+            continue
+        try:
+            with open(full, "r", encoding="utf-8", errors="ignore") as f:
+                for line in f:
+                    s = line.strip()
+                    if not s or s.startswith("#"):
+                        continue
+                    if CIDR_RE.match(s):
+                        try:
+                            net = ipaddress.IPv4Network(s, strict=False)
+                            intervals.append((int(net.network_address), int(net.broadcast_address)))
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+    if not intervals:
+        for cidr in ("5.45.192.0/18", "5.61.16.0/21", "37.9.64.0/18", "77.88.0.0/18", "87.240.128.0/18",
+                     "84.201.128.0/18", "93.158.128.0/18", "95.163.0.0/16", "95.213.0.0/16", "178.154.128.0/17",
+                     "185.71.76.0/22", "213.180.192.0/19", "45.130.41.0/24", "158.160.0.0/16", "62.84.112.0/20",
+                     "51.250.0.0/17", "130.193.32.0/19", "176.53.160.0/20", "188.93.56.0/21"):
+            net = ipaddress.IPv4Network(cidr, strict=False)
+            intervals.append((int(net.network_address), int(net.broadcast_address)))
+    intervals.sort()
+    merged = []
+    for st_i, en_i in intervals:
+        if merged and st_i <= merged[-1][1] + 1:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], en_i))
+        else:
+            merged.append((st_i, en_i))
+    starts = [x[0] for x in merged]
+    return starts, merged
+
+def check_ip_in_intervals(ip_str, starts, merged):
+    try:
+        val = int(ipaddress.IPv4Address(ip_str))
+    except Exception:
+        return False
+    idx = bisect.bisect_right(starts, val) - 1
+    if idx >= 0 and merged[idx][0] <= val <= merged[idx][1]:
+        return True
+    return False
+
+def classify_whitelist_badge(ob, starts, merged):
+    host = ob.get("server", "")
+    sni = (ob.get("tls", {}).get("server_name", "") or "").lower()
+    is_sni_wl = any(k in sni for k in WHITE_SNI_KEYWORDS)
+    ip_str = host
+    if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host):
+        try:
+            ip_str = socket.gethostbyname(host)
+        except Exception:
+            ip_str = ""
+    is_cidr_wl = check_ip_in_intervals(ip_str, starts, merged) if ip_str else False
+    if is_cidr_wl and is_sni_wl:
+        return "✅ БС CIDR+SNI", 0
+    if is_cidr_wl:
+        return "🛡️ БС CIDR", 1
+    if is_sni_wl:
+        return "🎭 БС SNI", 2
+    return "🌐 Обычный", 3
+
 def load_bypass_routing_sets(st):
     blocked_domains = set()
     for svc in ("youtube.lst", "discord.lst", "telegram.lst", "google_ai.lst", "meta.lst", "twitter.lst", "tiktok.lst", "hdrezka.lst", "roblox.lst", "google_meet.lst"):
@@ -282,7 +355,6 @@ def load_bypass_routing_sets(st):
             ru_domains.add(d)
             blocked_domains.discard(d)
 
-    # Исключаем заблокированные домены из прямого списка РФ, чтобы они гарантированно шли через VPN
     ru_domains.difference_update(blocked_domains)
 
     discord_cidrs = read_cidr_file("Re-filter-lists/discord_ips.lst", 500)
@@ -298,6 +370,7 @@ def load_whitelist_servers(wl_key="auto", limit=120):
     if not rel_files:
         rel_files = WHITELIST_SOURCES[0][2]
 
+    starts, merged = load_ru_whitelist_ip_intervals()
     servers = []
     seen = set()
     for rel in rel_files:
@@ -319,8 +392,9 @@ def load_whitelist_servers(wl_key="auto", limit=120):
                         if sig in seen:
                             continue
                         seen.add(sig)
-                        short_name = name[:65] if name else f"{ob['server']}:{ob['server_port']}"
-                        servers.append({"name": short_name, "outbound": ob})
+                        badge, _ = classify_whitelist_badge(ob, starts, merged)
+                        short_name = name[:55] if name else f"{ob['server']}:{ob['server_port']}"
+                        servers.append({"name": f"[{badge}] {short_name}", "outbound": ob})
                         if len(servers) >= limit:
                             break
         except Exception:
@@ -344,45 +418,115 @@ def load_whitelist_servers(wl_key="auto", limit=120):
         })
     return servers
 
-def tcp_ping_server(item, timeout=1.2):
+def tcp_quick_filter(item, timeout=0.9):
     ob = item.get("outbound", {})
-    if ob.get("type") == "urltest":
-        return -1, item
     host = ob.get("server", "")
     port = int(ob.get("server_port", 443))
     if not host:
-        return 99999, item
-    t0 = time.monotonic()
+        return False, item
     try:
         with socket.create_connection((host, port), timeout=timeout):
-            ms = int((time.monotonic() - t0) * 1000)
-            clean_name = re.sub(r"^\[(\d+)\s*мс\]\s*", "", item.get("name", ""))
-            return ms, {"name": f"[{ms} мс] {clean_name}", "outbound": ob}
+            return True, item
     except Exception:
-        return 99999, item
+        return False, item
+
+def probe_http204_via_port(port, item, starts, merged, timeout=2.8):
+    proxy_url = f"http://127.0.0.1:{port}"
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
+    t0 = time.monotonic()
+    try:
+        req = urllib.request.Request("http://cp.cloudflare.com/generate_204", headers={"User-Agent": "curl/8.0"})
+        with opener.open(req, timeout=timeout) as r:
+            if r.status in (200, 204):
+                ms = int((time.monotonic() - t0) * 1000)
+                ob = item["outbound"]
+                badge, tier = classify_whitelist_badge(ob, starts, merged)
+                raw_name = re.sub(r"^(\[.*?\]\s*)+", "", item.get("name", ""))
+                return (tier, ms), {"name": f"[{ms} мс | {badge}] {raw_name}", "outbound": ob}
+    except Exception:
+        pass
+    return None, item
 
 def test_and_sort_whitelist(st):
-    wl = load_whitelist_servers(st.get("whitelist_file", "auto"), limit=90)
+    wl = load_whitelist_servers(st.get("whitelist_file", "auto"), limit=110)
     real_srvs = [s for s in wl if s.get("outbound", {}).get("type") != "urltest"]
     if not real_srvs:
         return st
 
-    scored = []
-    with ThreadPoolExecutor(max_workers=24) as ex:
-        futs = [ex.submit(tcp_ping_server, s, 1.1) for s in real_srvs]
+    tcp_alive = []
+    with ThreadPoolExecutor(max_workers=32) as ex:
+        futs = [ex.submit(tcp_quick_filter, s, 0.9) for s in real_srvs]
         for f in as_completed(futs):
-            ms, item = f.result()
-            if ms < 99999:
-                scored.append((ms, item))
+            ok, item = f.result()
+            if ok:
+                tcp_alive.append(item)
 
-    scored.sort(key=lambda x: x[0])
-    alive = [x[1] for x in scored]
+    candidates = tcp_alive[:45] if tcp_alive else real_srvs[:30]
+    starts, merged = load_ru_whitelist_ip_intervals()
+
+    sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
+    verified = []
+    if os.path.exists(sb_bin) and candidates:
+        base_port = 29100
+        inbounds = []
+        outbounds = [{"type": "direct", "tag": "direct"}]
+        rules = []
+        for idx, c in enumerate(candidates):
+            in_tag = f"in-{idx}"
+            out_tag = f"test-{idx}"
+            inbounds.append({
+                "type": "mixed",
+                "tag": in_tag,
+                "listen": "127.0.0.1",
+                "listen_port": base_port + idx
+            })
+            ob_copy = {k: v for k, v in c["outbound"].items() if not k.startswith("_")}
+            ob_copy["tag"] = out_tag
+            outbounds.append(ob_copy)
+            rules.append({"inbound": in_tag, "outbound": out_tag})
+
+        test_cfg = {
+            "log": {"level": "error"},
+            "dns": {
+                "servers": [{"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}],
+                "final": "dns-direct"
+            },
+            "inbounds": inbounds,
+            "outbounds": outbounds,
+            "route": {
+                "default_domain_resolver": "dns-direct",
+                "rules": rules,
+                "final": "direct"
+            }
+        }
+        test_cfg_path = "/tmp/singbox_wl_audit.json"
+        with open(test_cfg_path, "w", encoding="utf-8") as f:
+            json.dump(test_cfg, f)
+
+        proc = subprocess.Popen([sb_bin, "run", "-c", test_cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            wait_port(base_port, 2.0)
+            with ThreadPoolExecutor(max_workers=24) as ex:
+                futs = [ex.submit(probe_http204_via_port, base_port + i, c, starts, merged, 2.8) for i, c in enumerate(candidates)]
+                for f in as_completed(futs):
+                    score, item = f.result()
+                    if score is not None:
+                        verified.append((score, item))
+        finally:
+            proc.terminate()
+            try:
+                proc.wait(timeout=1.0)
+            except Exception:
+                proc.kill()
+
+    verified.sort(key=lambda x: x[0])
+    alive = [x[1] for x in verified]
     if not alive:
-        alive = real_srvs[:30]
+        alive = candidates[:25]
 
     pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(alive[:20])]
     final_list = [{
-        "name": f"⚡ Авто-выбор ({len(pool)} проверенных серверов)",
+        "name": f"⚡ Авто-выбор ({len(alive)} реально пробивающих HTTP-204 БС серверов)",
         "outbound": {
             "type": "urltest",
             "tag": "proxy",

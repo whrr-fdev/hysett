@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 CONF_DIR = os.path.expanduser("~/.config/hypr/scripts")
 SUB_FILE = os.path.expanduser("~/.config/hysett_vpn_sub.txt")
+WL_SUB_FILE = os.path.expanduser("~/.config/hysett_vpn_wl_sub.txt")
 STATE_FILE = os.path.join(CONF_DIR, "vpn_state.json")
 SB_CONF = os.path.join(CONF_DIR, "singbox_vpn.json")
 BYPASS_REPOS = os.path.expanduser("~/bypass-lists/repos")
@@ -27,6 +28,7 @@ WHITE_SNI_KEYWORDS = (
 )
 
 WHITELIST_SOURCES = [
+    ("my_wl_subs", "⭐ Мои подписки БС", []),
     ("auto", "⚡ Все проверенные БС (Авто)", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt",
@@ -69,26 +71,56 @@ WHITELIST_SOURCES = [
 DOMAIN_RE = re.compile(r"^[a-zA-Z0-9._-]+(\.[a-zA-Z0-9_-]+)+$")
 CIDR_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$")
 
-def read_sub_urls():
+def read_url_list(path):
     urls = []
-    if os.path.exists(SUB_FILE):
-        with open(SUB_FILE, "r", encoding="utf-8") as f:
+    if os.path.exists(path):
+        with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 u = line.strip()
                 if u and u not in urls:
                     urls.append(u)
     return urls
 
-def write_sub_urls(urls):
+def write_url_list(path, urls):
     clean = []
     for u in urls:
         u = u.strip()
         if u and u not in clean:
             clean.append(u)
-    with open(SUB_FILE, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
         for u in clean:
             f.write(u + "\n")
-    os.chmod(SUB_FILE, 0o600)
+    os.chmod(path, 0o600)
+
+def read_sub_urls():
+    return read_url_list(SUB_FILE)
+
+def write_sub_urls(urls):
+    write_url_list(SUB_FILE, urls)
+
+def read_wl_sub_urls():
+    return read_url_list(WL_SUB_FILE)
+
+def write_wl_sub_urls(urls):
+    write_url_list(WL_SUB_FILE, urls)
+
+def short_sub_title(url, idx, custom_title=""):
+    if custom_title:
+        return custom_title[:28]
+    if "#" in url:
+        frag = urllib.parse.unquote(url.split("#", 1)[1]).strip()
+        if frag:
+            return frag[:28]
+    try:
+        u = urllib.parse.urlsplit(url)
+        if u.scheme in ("vless", "trojan", "hy2", "hysteria2", "ss"):
+            return f"Ключ #{idx+1} ({u.hostname or 'VPN'})"
+        if u.hostname:
+            return f"Подписка #{idx+1} ({u.hostname})"
+    except Exception:
+        pass
+    return f"Подписка #{idx+1}"
 
 def load_state():
     st = {
@@ -101,6 +133,8 @@ def load_state():
         "selected_index": 0,
         "servers": [],
         "sub_servers": [],
+        "sub_cache": {},
+        "wl_sub_cache": {},
         "wl_servers": [],
         "custom_proxy_domains": [],
         "custom_direct_domains": []
@@ -118,8 +152,10 @@ def load_state():
                 cur.append(st["url"])
                 write_sub_urls(cur)
         del st["url"]
-    if not st["sub_servers"] and st.get("servers") and not st.get("whitelist_mode"):
-        st["sub_servers"] = st["servers"]
+    if not isinstance(st.get("sub_cache"), dict):
+        st["sub_cache"] = {}
+    if not isinstance(st.get("wl_sub_cache"), dict):
+        st["wl_sub_cache"] = {}
     return st
 
 def save_state(st):
@@ -361,14 +397,129 @@ def load_bypass_routing_sets(st):
     blocked_cidrs = list(dict.fromkeys(discord_cidrs + read_cidr_file("Re-filter-lists/community_ips.lst", 1500)))
     return sorted(blocked_domains), sorted(ru_domains), blocked_cidrs
 
-def load_whitelist_servers(wl_key="auto", limit=120):
+def parse_subscription_content(raw):
+    found = []
+    if "://" not in raw and not raw.startswith("{"):
+        pad = len(raw) % 4
+        if pad:
+            raw += "=" * (4 - pad)
+        try:
+            raw = base64.b64decode(raw).decode("utf-8", errors="ignore")
+        except Exception:
+            try:
+                raw = base64.urlsafe_b64decode(raw).decode("utf-8", errors="ignore")
+            except Exception:
+                pass
+
+    if raw.startswith("{"):
+        try:
+            data = json.loads(raw)
+            for idx, ob in enumerate(data.get("outbounds", [])):
+                if ob.get("type") in ("vless", "trojan", "hysteria2", "shadowsocks", "vmess"):
+                    ob["tag"] = "proxy"
+                    nm = ob.get("tag_name") or ob.get("server") or f"Server {idx+1}"
+                    found.append({"name": nm, "outbound": ob})
+        except Exception:
+            pass
+        return found
+
+    for line in raw.splitlines():
+        line = line.strip()
+        if any(line.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
+            name, ob = parse_uri(line)
+            if ob:
+                found.append({"name": name, "outbound": ob})
+    return found
+
+def fetch_single_url(u):
+    if any(u.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
+        name, ob = parse_uri(u)
+        if ob:
+            return "", [{"name": name, "outbound": ob}]
+        return "", []
+
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    for ua in ("v2rayN/6.45", "SFA/1.11.0 sing-box/1.11.0", "ClashMetaForAndroid/2.10.1", "Mozilla/5.0"):
+        try:
+            req = urllib.request.Request(u, headers={"User-Agent": ua})
+            with opener.open(req, timeout=10) as r:
+                title = ""
+                 raw_title = r.headers.get("profile-title", "")
+                if raw_title.startswith("base64:"):
+                    try:
+                        title = base64.b64decode(raw_title.split(":", 1)[1]).decode("utf-8", errors="ignore").strip()
+                    except Exception:
+                        pass
+                elif raw_title:
+                    title = raw_title.strip()
+                raw = r.read().decode("utf-8", errors="ignore").strip()
+            parsed = parse_subscription_content(raw)
+            if parsed:
+                return title, parsed
+        except Exception as e:
+            print(f"Fetch error ({u}): {e}", file=sys.stderr)
+    return "", []
+
+def rebuild_sub_servers_from_cache(urls, cache_dict, mark_wl_badges=False):
+    starts, merged = (load_ru_whitelist_ip_intervals() if mark_wl_badges else ([], []))
+    all_srvs = []
+    groups = []
+    for idx, u in enumerate(urls):
+        entry = cache_dict.get(u, {})
+        if isinstance(entry, list):
+            srvs = entry
+            title = short_sub_title(u, idx)
+        else:
+            srvs = entry.get("servers", [])
+            title = short_sub_title(u, idx, entry.get("title", ""))
+        start_idx = len(all_srvs)
+        group_srv_names = []
+        for s in srvs:
+            nm = s.get("name", "Server")
+            ob = s.get("outbound", {})
+            if mark_wl_badges and ob and not nm.startswith("["):
+                badge, _ = classify_whitelist_badge(ob, starts, merged)
+                nm = f"[{badge}] {nm}"
+            item = {"name": nm, "outbound": ob, "sub_index": idx}
+            all_srvs.append(item)
+            group_srv_names.append({"name": nm, "global_index": len(all_srvs) - 1})
+        groups.append({
+            "index": idx,
+            "title": title,
+            "url": u,
+            "count": len(srvs),
+            "start_index": start_idx,
+            "servers": group_srv_names
+        })
+    return all_srvs, groups
+
+def load_whitelist_servers(st, wl_key="auto", limit=120):
+    if wl_key == "my_wl_subs":
+        wl_urls = read_wl_sub_urls()
+        srvs, _ = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), mark_wl_badges=True)
+        if len(srvs) > 1:
+            pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(srvs[:25])]
+            srvs.insert(0, {
+                "name": f"⚡ Авто-выбор (UrlTest из {len(pool)} серверов моих БС подписок)",
+                "outbound": {
+                    "type": "urltest",
+                    "tag": "proxy",
+                    "outbounds": [p["tag"] for p in pool],
+                    "url": "https://www.gstatic.com/generate_204",
+                    "interval": "3m",
+                    "tolerance": 80,
+                    "_pool": pool
+                }
+            })
+        return srvs
+
     rel_files = []
     for k, _, files in WHITELIST_SOURCES:
         if k == wl_key:
             rel_files = files
             break
     if not rel_files:
-        rel_files = WHITELIST_SOURCES[0][2]
+        rel_files = WHITELIST_SOURCES[1][2]
 
     starts, merged = load_ru_whitelist_ip_intervals()
     servers = []
@@ -448,7 +599,7 @@ def probe_http204_via_port(port, item, starts, merged, timeout=2.8):
     return None, item
 
 def test_and_sort_whitelist(st):
-    wl = load_whitelist_servers(st.get("whitelist_file", "auto"), limit=110)
+    wl = load_whitelist_servers(st, st.get("whitelist_file", "auto"), limit=110)
     real_srvs = [s for s in wl if s.get("outbound", {}).get("type") != "urltest"]
     if not real_srvs:
         return st
@@ -653,44 +804,21 @@ def build_config(outbound, st, use_tun=False):
         }
     }
 
-def parse_subscription_content(raw):
-    found = []
-    if "://" not in raw and not raw.startswith("{"):
-        pad = len(raw) % 4
-        if pad:
-            raw += "=" * (4 - pad)
-        try:
-            raw = base64.b64decode(raw).decode("utf-8", errors="ignore")
-        except Exception:
-            try:
-                raw = base64.urlsafe_b64decode(raw).decode("utf-8", errors="ignore")
-            except Exception:
-                pass
-
-    if raw.startswith("{"):
-        try:
-            data = json.loads(raw)
-            for idx, ob in enumerate(data.get("outbounds", [])):
-                if ob.get("type") in ("vless", "trojan", "hysteria2", "shadowsocks", "vmess"):
-                    ob["tag"] = "proxy"
-                    nm = ob.get("tag_name") or ob.get("server") or f"Server {idx+1}"
-                    found.append({"name": nm, "outbound": ob})
-        except Exception:
-            pass
-        return found
-
-    for line in raw.splitlines():
-        line = line.strip()
-        if any(line.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
-            name, ob = parse_uri(line)
-            if ob:
-                found.append({"name": name, "outbound": ob})
-    return found
-
 def sync_active_server_list(st):
+    urls = read_sub_urls()
+    sub_cache = st.get("sub_cache", {})
+    # Миграция старых серверов в кэш первой подписки, если кэш пуст
+    if urls and not sub_cache and st.get("sub_servers"):
+        sub_cache[urls[0]] = {"title": short_sub_title(urls[0], 0), "servers": st["sub_servers"]}
+        st["sub_cache"] = sub_cache
+
+    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, mark_wl_badges=False)
+    st["sub_servers"] = sub_srvs
+
     if st.get("whitelist_mode", False):
-        if not st.get("wl_servers"):
-            st["wl_servers"] = load_whitelist_servers(st.get("whitelist_file", "auto"))
+        wl_file = st.get("whitelist_file", "auto")
+        if wl_file == "my_wl_subs" or not st.get("wl_servers"):
+            st["wl_servers"] = load_whitelist_servers(st, wl_file)
         st["servers"] = st.get("wl_servers", [])
     else:
         st["servers"] = st.get("sub_servers", [])
@@ -701,33 +829,35 @@ def sync_active_server_list(st):
         st["selected_index"] = idx
         st["server_name"] = servers[idx]["name"]
         st["outbound"] = servers[idx]["outbound"]
+    else:
+        st["selected_index"] = 0
+        st["server_name"] = "Нет серверов"
+        st.pop("outbound", None)
     return st
 
-def fetch_subscriptions():
+def fetch_subscriptions(is_wl=False, only_url=None):
     st = load_state()
-    urls = read_sub_urls()
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
-    all_servers = []
-    for u in urls:
-        if any(u.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
-            name, ob = parse_uri(u)
-            if ob:
-                all_servers.append({"name": name, "outbound": ob})
-            continue
-        for ua in ("v2rayN/6.45", "SFA/1.11.0 sing-box/1.11.0", "ClashMetaForAndroid/2.10.1"):
-            try:
-                req = urllib.request.Request(u, headers={"User-Agent": ua})
-                with opener.open(req, timeout=10) as r:
-                    raw = r.read().decode("utf-8", errors="ignore").strip()
-                parsed = parse_subscription_content(raw)
-                if parsed:
-                    all_servers.extend(parsed)
-                    break
-            except Exception as e:
-                print(f"Fetch error ({u}): {e}", file=sys.stderr)
+    urls = read_wl_sub_urls() if is_wl else read_sub_urls()
+    cache_key = "wl_sub_cache" if is_wl else "sub_cache"
+    cache = st.get(cache_key, {})
 
-    if all_servers:
-        st["sub_servers"] = all_servers
+    for idx, u in enumerate(urls):
+        if only_url and u != only_url:
+            continue
+        title, parsed = fetch_single_url(u)
+        if parsed:
+            cache[u] = {
+                "title": short_sub_title(u, idx, title),
+                "servers": parsed
+            }
+    # Удаляем из кэша ссылки, которых больше нет в списке
+    for k in list(cache.keys()):
+        if k not in urls:
+            del cache[k]
+
+    st[cache_key] = cache
+    if is_wl and st.get("whitelist_file") == "my_wl_subs":
+        st["wl_servers"] = load_whitelist_servers(st, "my_wl_subs")
     st = sync_active_server_list(st)
     save_state(st)
     return st
@@ -805,7 +935,7 @@ def start_vpn():
     st = load_state()
     st = sync_active_server_list(st)
     if not st.get("servers") and not st.get("whitelist_mode"):
-        st = fetch_subscriptions()
+        st = fetch_subscriptions(is_wl=False)
     if "outbound" not in st or not st.get("servers"):
         return False
 
@@ -836,6 +966,10 @@ def dump_status_json():
     st = load_state()
     st = sync_active_server_list(st)
     urls = read_sub_urls()
+    wl_urls = read_wl_sub_urls()
+    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), mark_wl_badges=False)
+    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), mark_wl_badges=True)
+
     srv_names = [s.get("name", f"Server {i+1}") for i, s in enumerate(st.get("servers", []))]
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]
     blocked_d, ru_d, _ = load_bypass_routing_sets(st)
@@ -850,6 +984,9 @@ def dump_status_json():
         "selected_index": st.get("selected_index", 0),
         "servers": srv_names,
         "urls": urls,
+        "wl_urls": wl_urls,
+        "sub_groups": sub_groups,
+        "wl_sub_groups": wl_sub_groups,
         "custom_proxy_domains": st.get("custom_proxy_domains", []),
         "custom_direct_domains": st.get("custom_direct_domains", []),
         "status_hint": hint
@@ -865,19 +1002,14 @@ if __name__ == "__main__":
     if cmd == "status":
         dump_status_json()
     elif cmd == "update":
-        if len(sys.argv) > 2 and sys.argv[2].strip():
-            urls = read_sub_urls()
-            u = sys.argv[2].strip()
-            if u not in urls:
-                urls.append(u)
-                write_sub_urls(urls)
-        fetch_subscriptions()
+        fetch_subscriptions(is_wl=False)
+        fetch_subscriptions(is_wl=True)
         dump_status_json()
     elif cmd == "update_lists":
         if os.path.exists(UPDATE_SCRIPT):
             subprocess.run(["/usr/bin/bash", UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         st = load_state()
-        st["wl_servers"] = load_whitelist_servers(st.get("whitelist_file", "auto"))
+        st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"))
         st = sync_active_server_list(st)
         save_state(st)
         restart_if_running()
@@ -886,8 +1018,8 @@ if __name__ == "__main__":
         st = load_state()
         st["whitelist_mode"] = (sys.argv[2] == "1") if len(sys.argv) > 2 else False
         st["selected_index"] = 0
-        if st["whitelist_mode"] and not st.get("wl_servers"):
-            st["wl_servers"] = load_whitelist_servers(st.get("whitelist_file", "auto"))
+        if st["whitelist_mode"]:
+            st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"))
         st = sync_active_server_list(st)
         save_state(st)
         restart_if_running()
@@ -897,7 +1029,7 @@ if __name__ == "__main__":
             st = load_state()
             st["whitelist_file"] = sys.argv[2].strip()
             st["selected_index"] = 0
-            st["wl_servers"] = load_whitelist_servers(st["whitelist_file"])
+            st["wl_servers"] = load_whitelist_servers(st, st["whitelist_file"])
             st = sync_active_server_list(st)
             save_state(st)
             restart_if_running()
@@ -943,23 +1075,48 @@ if __name__ == "__main__":
                 save_state(st)
                 restart_if_running()
         dump_status_json()
-    elif cmd == "add_url":
+    elif cmd in ("add_url", "add_wl_url"):
+        is_wl = (cmd == "add_wl_url")
         if len(sys.argv) > 2 and sys.argv[2].strip():
-            urls = read_sub_urls()
-            u = sys.argv[2].strip()
-            if u not in urls:
-                urls.append(u)
-                write_sub_urls(urls)
-            fetch_subscriptions()
+            raw_in = sys.argv[2].strip()
+            urls = read_wl_sub_urls() if is_wl else read_sub_urls()
+            # Поддержка вставки сразу нескольких ссылок через пробел или перенос строки
+            for part in raw_in.split():
+                u = part.strip()
+                if u and u not in urls:
+                    urls.append(u)
+                    if is_wl:
+                        write_wl_sub_urls(urls)
+                    else:
+                        write_sub_urls(urls)
+                    fetch_subscriptions(is_wl=is_wl, only_url=u)
+            if is_wl:
+                st = load_state()
+                st["whitelist_file"] = "my_wl_subs"
+                st["wl_servers"] = load_whitelist_servers(st, "my_wl_subs")
+                st = sync_active_server_list(st)
+                save_state(st)
         dump_status_json()
-    elif cmd == "remove_url":
+    elif cmd in ("remove_url", "remove_wl_url"):
+        is_wl = (cmd == "remove_wl_url")
         if len(sys.argv) > 2:
             idx = int(sys.argv[2])
-            urls = read_sub_urls()
+            urls = read_wl_sub_urls() if is_wl else read_sub_urls()
             if 0 <= idx < len(urls):
-                urls.pop(idx)
-                write_sub_urls(urls)
-                fetch_subscriptions()
+                removed = urls.pop(idx)
+                if is_wl:
+                    write_wl_sub_urls(urls)
+                else:
+                    write_sub_urls(urls)
+                st = load_state()
+                cache_key = "wl_sub_cache" if is_wl else "sub_cache"
+                cache = st.get(cache_key, {})
+                cache.pop(removed, None)
+                st[cache_key] = cache
+                if is_wl and st.get("whitelist_file") == "my_wl_subs":
+                    st["wl_servers"] = load_whitelist_servers(st, "my_wl_subs")
+                st = sync_active_server_list(st)
+                save_state(st)
         dump_status_json()
     elif cmd == "select_server":
         if len(sys.argv) > 2:

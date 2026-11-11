@@ -7,6 +7,8 @@ import "../components"
 Item {
     id: netRoot
 
+    Component.onCompleted: if (Network) Network.refresh()
+
     ScrollView {
         id: netScroll
         anchors.fill: parent
@@ -20,15 +22,15 @@ Item {
             ColumnLayout {
                 id: netCol
                 width: Math.min(parent.width - 48, 880)
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.top: parent.top
-            anchors.topMargin: 20
+                anchors.horizontalCenter: parent.horizontalCenter
+                anchors.top: parent.top
+                anchors.topMargin: 20
                 spacing: 12
 
                 RowLayout {
                     Layout.fillWidth: true
                     Text {
-                        text: Config ? (Config.language, Config.trAuto("Сеть и Wi-Fi")) : "Сеть и Wi-Fi"
+                        text: Config ? (Config.language, Config.trAuto("Сеть и Интернет")) : "Сеть и Интернет"
                         color: "#ffffff"
                         font.pixelSize: Config.fontSize + 3
                         font.bold: true
@@ -44,10 +46,69 @@ Item {
                     }
                 }
 
+                // КАРТОЧКА ТЕКУЩЕГО ПОДКЛЮЧЕНИЯ (ТЕЛЕФОН USB / КАБЕЛЬ / WI-FI / НЕТ СЕТИ)
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
-                    implicitHeight: statusCol.implicitHeight + 20
+                    implicitHeight: activeConnRow.implicitHeight + 28
+
+                    RowLayout {
+                        id: activeConnRow
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 16
+
+                        Rectangle {
+                            width: 48; height: 48
+                            radius: (Theme && Theme.isRounded) ? 14 : 0
+                            color: Network.connectionType !== "none" ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 0.3, 0.3, 0.18)
+                            border.color: Network.connectionType !== "none" ? Qt.rgba(1, 1, 1, 0.22) : "#ff6b6b"
+                            border.width: 1
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: Network ? Network.connectionIcon : "󰖪"
+                                font.pixelSize: 22
+                                color: Network.connectionType !== "none" ? (Config ? Config.accentTextColor : "#000000") : "#ff6b6b"
+                            }
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 4
+
+                            Text {
+                                text: Network ? Network.connectionTitle : "Нет подключения"
+                                color: "#ffffff"
+                                font.pixelSize: Config.fontSize + 2
+                                font.bold: true
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+
+                            RowLayout {
+                                spacing: 14
+                                Text {
+                                    text: Network.connectionType !== "none" ? ("●  Активно  •  IPv4: " + Network.ipAddress) : "○  Отключено от интернета"
+                                    color: Network.connectionType !== "none" ? "#69f0ae" : "#ff6b6b"
+                                    font.pixelSize: Config.fontSize - 1
+                                }
+                                Text {
+                                    visible: Network && Network.activeInterface.length > 0
+                                    text: "Интерфейс: " + (Network ? Network.activeInterface : "")
+                                    color: "#999999"
+                                    font.pixelSize: Config.fontSize - 1
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // КАРТОЧКА УПРАВЛЕНИЯ WI-FI
+                GlassPanel {
+                    objectName: "atmoObstacle"
+                    Layout.fillWidth: true
+                    implicitHeight: statusCol.implicitHeight + 24
 
                     ColumnLayout {
                         id: statusCol
@@ -57,7 +118,7 @@ Item {
 
                         RowLayout {
                             Text {
-                                text: Config ? (Config.language, Config.trAuto("Беспроводная сеть (Wi-Fi)")) : "Беспроводная сеть (Wi-Fi)"
+                                text: Config ? (Config.language, Config.trAuto("Беспроводная сеть (Wi-Fi адаптер)")) : "Беспроводная сеть (Wi-Fi адаптер)"
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize + 1
                                 font.bold: true
@@ -70,23 +131,18 @@ Item {
                         }
 
                         RowLayout {
-                            Text { text: Config ? (Config.language, Config.trAuto("Активное подключение:")) : "Активное подключение:"; color: "#aaaaaa"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 180 }
+                            visible: Network.currentSsid.length > 0
+                            Text { text: "Подключенная сеть Wi-Fi:"; color: "#aaaaaa"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 180 }
                             Text {
-                                text: Network.currentSsid.length > 0 ? Network.currentSsid : "Не подключено"
+                                text: Network.currentSsid
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize
                                 Layout.fillWidth: true
                             }
                             StyledButton {
-                                visible: Network.currentSsid.length > 0
-                                text: Config ? (Config.language, Config.trAuto("Отключить")) : "Отключить"
+                                text: Config ? (Config.language, Config.trAuto("Отключить Wi-Fi")) : "Отключить Wi-Fi"
                                 onClicked: Network.disconnectCurrent()
                             }
-                        }
-
-                        RowLayout {
-                            Text { text: Config ? (Config.language, Config.trAuto("IPv4 адрес:")) : "IPv4 адрес:"; color: "#aaaaaa"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 180 }
-                            Text { text: Network.ipAddress; color: "#cccccc"; font.pixelSize: Config.fontSize }
                         }
 
                         Text {
@@ -99,7 +155,7 @@ Item {
                 }
 
                 Text {
-                    visible: Network.wifiEnabled
+                    visible: Network.wifiEnabled && Network.networks.length > 0
                     text: Config ? (Config.language, Config.trAuto("Доступные сети Wi-Fi")) : "Доступные сети Wi-Fi"
                     color: "#ffffff"
                     font.pixelSize: Config.fontSize + 1
@@ -136,7 +192,7 @@ Item {
                                     font.pixelSize: Config.fontSize
                                 }
                                 Text {
-                                    text: Config ? (Config.language, Config.trAuto("Сигнал: ")) : "Сигнал: " + modelData.signal + "%  •  " + modelData.security
+                                    text: "Сигнал: " + modelData.signal + "%  •  " + modelData.security
                                     color: "#777777"
                                     font.pixelSize: Config.fontSize - 2
                                 }
@@ -165,7 +221,6 @@ Item {
         }
     }
 
-    // Модальное окно ввода пароля Wi-Fi в стиле основного окна
     Item {
         id: pwModal
         parent: Overlay.overlay
@@ -203,7 +258,7 @@ Item {
                 spacing: 10
 
                 Text {
-                    text: Config ? (Config.language, Config.trAuto("Подключение к ")) : "Подключение к " + pwModal.targetSsid
+                    text: "Подключение к " + pwModal.targetSsid
                     color: "#ffffff"
                     font.pixelSize: Config.fontSize + 1
                     Layout.fillWidth: true
@@ -212,7 +267,7 @@ Item {
 
                 TextField {
                     id: pwField
-                    placeholderText: Config ? (Config.language, Config.trAuto("Пароль сети Wi-Fi...")) : "Пароль сети Wi-Fi..."
+                    placeholderText: "Пароль сети Wi-Fi..."
                     echoMode: TextInput.Password
                     color: "#ffffff"
                     font.pixelSize: Config.fontSize
@@ -233,12 +288,12 @@ Item {
                     spacing: 8
                     Layout.fillWidth: true
                     StyledButton {
-                        text: Config ? (Config.language, Config.trAuto("Отмена")) : "Отмена"
+                        text: "Отмена"
                         Layout.fillWidth: true
                         onClicked: { pwModal.opacity = 0.0; pwCard.scale = 0.92 }
                     }
                     StyledButton {
-                        text: Config ? (Config.language, Config.trAuto("Подключить")) : "Подключить"
+                        text: "Подключить"
                         Layout.fillWidth: true
                         onClicked: {
                             Network.connectToWifi(pwModal.targetSsid, pwField.text)

@@ -1081,6 +1081,46 @@ void WaybarManager::pollFastState() {
     });
     rec->start("pidof", {"-s", "gpu-screen-recorder"});
 
+    // Живое определение активного подключения (USB-модем телефона / Кабель / Wi-Fi / Нет сети)
+    {
+        QSet<QString> routedIfaces;
+        QFile routeF("/proc/net/route");
+        if (routeF.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            const QList<QByteArray> rLines = routeF.readAll().split('\n');
+            for (int i = 1; i < rLines.size(); ++i) {
+                QList<QByteArray> cols = rLines[i].trimmed().split('\t');
+                if (cols.size() >= 2 && !cols[0].isEmpty()) routedIfaces.insert(QString::fromUtf8(cols[0]));
+            }
+            routeF.close();
+        }
+        bool nextConn = false;
+        QString nextType = "none";
+        QString nextIcon = "󰖪";
+        QDir netDir("/sys/class/net");
+        for (const QString &iface : netDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
+            if (iface == "lo" || iface.startsWith("virbr") || iface.startsWith("docker") ||
+                iface.startsWith("veth") || iface.startsWith("tun") || iface.startsWith("tap") ||
+                iface.startsWith("singbox") || iface.startsWith("throne") || iface.startsWith("wg")) continue;
+            QFile cf("/sys/class/net/" + iface + "/carrier");
+            bool cUp = false;
+            if (cf.open(QIODevice::ReadOnly)) { cUp = (cf.readAll().trimmed() == "1"); cf.close(); }
+            if (!cUp || !routedIfaces.contains(iface)) continue;
+            QString sysP = QFileInfo("/sys/class/net/" + iface).canonicalFilePath();
+            bool isUsb = sysP.contains("/usb") || iface.startsWith("usb") || iface.startsWith("rndis");
+            bool isWifi = QFileInfo("/sys/class/net/" + iface + "/wireless").exists() || iface.startsWith("wl");
+            nextConn = true;
+            if (isUsb) { nextType = "usb"; nextIcon = "󰄜"; break; }
+            else if (isWifi && nextType == "none") { nextType = "wifi"; nextIcon = "󰤨"; }
+            else if (!isWifi && nextType != "usb") { nextType = "ethernet"; nextIcon = "󰈀"; }
+        }
+        if (m_netConnected != nextConn || m_netIcon != nextIcon || m_netType != nextType) {
+            m_netConnected = nextConn;
+            m_netIcon = nextIcon;
+            m_netType = nextType;
+            emit sysStatsChanged();
+        }
+    }
+
     QProcess *vp = new QProcess(this);
     connect(vp, &QProcess::finished, this, [this, vp](int code) {
         QString out = QString::fromUtf8(vp->readAllStandardOutput()).trimmed();
@@ -1561,6 +1601,14 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     for (const auto &v : o["urls"].toArray()) urls.append(v.toString());
     m_vpnSubUrls = urls;
     if (!urls.isEmpty()) m_vpnSubUrl = urls.first();
+    else m_vpnSubUrl.clear();
+
+    QStringList wlUrls;
+    for (const auto &v : o["wl_urls"].toArray()) wlUrls.append(v.toString());
+    m_vpnWlSubUrls = wlUrls;
+
+    m_vpnSubGroups = o["sub_groups"].toArray().toVariantList();
+    m_vpnWlSubGroups = o["wl_sub_groups"].toArray().toVariantList();
 
     QStringList cProxy, cDirect;
     for (const auto &v : o["custom_proxy_domains"].toArray()) cProxy.append(v.toString());
@@ -1672,4 +1720,13 @@ void WaybarManager::setVpnRuDirect(bool v) {
         QProcess::startDetached("/usr/bin/python3", {script, "set_ru", v ? "1" : "0"});
         emit sysStatsChanged();
     }
+}
+
+void WaybarManager::addVpnWlSubUrl(const QString &u) {
+    if (u.trimmed().isEmpty()) return;
+    runVpnScriptCmd({"add_wl_url", u.trimmed()});
+}
+
+void WaybarManager::removeVpnWlSubUrl(int idx) {
+    runVpnScriptCmd({"remove_wl_url", QString::number(idx)});
 }

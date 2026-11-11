@@ -1332,7 +1332,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "network"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: Waybar ? Waybar.netIcon : "󰖪"; color: (Waybar && !Waybar.netConnected) ? "#ff6b6b" : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"); font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) }
                             }
 
@@ -1949,7 +1949,7 @@ ApplicationWindow {
                             Item {
                                 visible: !Waybar || Waybar.isBarModuleVisible("network")
                                 width: topBarContainer.pillHeight; height: 15
-                                Text { anchors.centerIn: parent; text: (Waybar && Waybar.netConnected) ? "󰈀" : "󰖪"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+                                Text { anchors.centerIn: parent; text: Waybar ? Waybar.netIcon : "󰖪"; color: (Waybar && !Waybar.netConnected) ? "#ff6b6b" : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"); font.pixelSize: 12 }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 6) }
                             }
                             Item {

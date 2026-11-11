@@ -82,6 +82,11 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QString recordingTimeText READ recordingTimeText NOTIFY recordingChanged)
     Q_PROPERTY(bool btConnected READ btConnected NOTIFY sysStatsChanged)
     Q_PROPERTY(bool netConnected READ netConnected NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString netIcon READ netIcon NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString netType READ netType NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnWlSubUrls READ vpnWlSubUrls NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList vpnSubGroups READ vpnSubGroups NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList vpnWlSubGroups READ vpnWlSubGroups NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnActive READ vpnActive NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnServerName READ vpnServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnSubUrl READ vpnSubUrl WRITE setVpnSubUrl NOTIFY sysStatsChanged)
@@ -211,6 +216,13 @@ public:
     QString recordingTimeText() const { return m_recordingTimeText; }
     bool btConnected() const { return m_btConnected; }
     bool netConnected() const { return m_netConnected; }
+    QString netIcon() const { return m_netIcon; }
+    QString netType() const { return m_netType; }
+    QStringList vpnWlSubUrls() const { return m_vpnWlSubUrls; }
+    QVariantList vpnSubGroups() const { return m_vpnSubGroups; }
+    QVariantList vpnWlSubGroups() const { return m_vpnWlSubGroups; }
+    Q_INVOKABLE void addVpnWlSubUrl(const QString &u);
+    Q_INVOKABLE void removeVpnWlSubUrl(int idx);
     bool vpnActive() const { return m_vpnActive; }
     QString vpnServerName() const { return m_vpnServerName; }
     QString vpnSubUrl() const { return m_vpnSubUrl; }
@@ -383,6 +395,11 @@ private:
     QString m_recordingTimeText = "00:00";
     bool m_btConnected = false;
     bool m_netConnected = true;
+    QString m_netIcon = "󰈀";
+    QString m_netType = "ethernet";
+    QStringList m_vpnWlSubUrls;
+    QVariantList m_vpnSubGroups;
+    QVariantList m_vpnWlSubGroups;
     bool m_vpnActive = false;
     bool m_vpnRuDirect = true;
     QString m_vpnServerName = "StealthSurf VPN";

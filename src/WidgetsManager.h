@@ -23,6 +23,7 @@ class WidgetsManager : public QObject {
     Q_PROPERTY(qreal clockOpacity READ clockOpacity WRITE setClockOpacity NOTIFY clockChanged)
     Q_PROPERTY(bool clockRunning READ clockRunning NOTIFY clockChanged)
 
+    Q_PROPERTY(bool widgetsM3Sync READ widgetsM3Sync WRITE setWidgetsM3Sync NOTIFY sysStateChanged)
     Q_PROPERTY(bool sysRunning READ sysRunning NOTIFY sysStateChanged)
     Q_PROPERTY(bool sysShowCpu READ sysShowCpu WRITE setSysShowCpu NOTIFY sysStateChanged)
     Q_PROPERTY(bool sysShowRam READ sysShowRam WRITE setSysShowRam NOTIFY sysStateChanged)
@@ -101,6 +102,8 @@ public:
     Q_INVOKABLE void launchFastfetch();
     Q_INVOKABLE void launchBtop();
 
+    bool widgetsM3Sync() const { return m_widgetsM3Sync; }
+    void setWidgetsM3Sync(bool v);
     bool sysRunning() const { return m_sysRunning; }
     bool sysShowCpu() const { return m_sysShowCpu; }
     void setSysShowCpu(bool v);
@@ -170,6 +173,7 @@ private:
     void loadSysConfig();
     void saveSysConfig();
     QString findSysBinary() const;
+    bool m_widgetsM3Sync = true;
     bool m_sysRunning = false;
     bool m_sysShowCpu = true, m_sysShowRam = true, m_sysShowNet = true, m_sysShowTemp = true, m_sysShowExtra = true, m_sysShowProcs = true, m_sysTopLayer = true;
     QString m_sysProcSort = "cpu";

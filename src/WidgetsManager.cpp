@@ -16,6 +16,18 @@ static QTimer *s_sysRestartTimer = nullptr;
 WidgetsManager::WidgetsManager(QObject *parent) : QObject(parent) {
     QDir().mkpath(QDir::homePath() + "/.config/hypr/scripts");
     loadKbConfig();
+    {
+        QFile ccf(QDir::homePath() + "/.config/hypr/scripts/control_center.conf");
+        if (ccf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            for (const QByteArray &ln : ccf.readAll().split('\n')) {
+                if (ln.trimmed().startsWith("widgets_m3_sync=")) {
+                    QByteArray v = ln.trimmed().mid(16).trimmed();
+                    m_widgetsM3Sync = (v == "1" || v == "true");
+                }
+            }
+            ccf.close();
+        }
+    }
     loadClockConfig();
     loadSysConfig();
 
@@ -394,3 +406,38 @@ void WidgetsManager::setSysShowProcs(bool v) { if (m_sysShowProcs != v) { m_sysS
 void WidgetsManager::setSysProcSort(const QString &v) { if (m_sysProcSort != v && !v.isEmpty()) { m_sysProcSort = v; saveSysConfig(); } }
 
 void WidgetsManager::setSysProcCount(int v) { v = std::clamp(v, 1, 20); if (m_sysProcCount != v) { m_sysProcCount = v; saveSysConfig(); } }
+
+void WidgetsManager::setWidgetsM3Sync(bool v) {
+    if (m_widgetsM3Sync == v) return;
+    m_widgetsM3Sync = v;
+    QString ccPath = QDir::homePath() + "/.config/hypr/scripts/control_center.conf";
+    QFile file(ccPath);
+    QStringList lines;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        while (!in.atEnd()) lines.append(in.readLine());
+        file.close();
+    }
+    bool found = false;
+    for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].trimmed().startsWith("widgets_m3_sync=")) {
+            lines[i] = QString("widgets_m3_sync=%1").arg(v ? "1" : "0");
+            found = true;
+            break;
+        }
+    }
+    if (!found) lines.append(QString("widgets_m3_sync=%1").arg(v ? "1" : "0"));
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        QTextStream out(&file);
+        for (const auto &l : lines) out << l << "\n";
+        file.close();
+    }
+    emit sysStateChanged();
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
+    QTimer::singleShot(350, this, [this]() {
+        loadClockConfig();
+        loadSysConfig();
+        emit clockChanged();
+        emit sysStateChanged();
+    });
+}

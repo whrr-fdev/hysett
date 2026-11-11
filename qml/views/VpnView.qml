@@ -26,6 +26,7 @@ ScrollView {
             vpnScroll.copiedSubIdx = -1
             vpnScroll.copiedWlSubIdx = -1
             vpnScroll.copiedSrvSig = ""
+            vpnScroll.copiedLogs = false
         }
     }
 
@@ -47,6 +48,174 @@ ScrollView {
             return { icon: ic1, badge: b1, ping: "", title: parts.slice(1).join(" • ") }
         }
         return { icon: isWl ? "󰒃" : "󰈀", badge: "", ping: "", title: s }
+    }
+
+    property int logViewHeight: 160
+    property bool copiedLogs: false
+
+    Timer {
+        interval: 1500
+        repeat: true
+        running: vpnScroll.visible && Waybar && Waybar.vpnLogAutoRefresh && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
+        triggeredOnStart: true
+        onTriggered: if (Waybar) Waybar.refreshVpnLogs()
+    }
+
+    component VpnLogsCard: GlassPanel {
+        objectName: "atmoObstacle"
+        Layout.fillWidth: true
+        implicitHeight: logsInnerCol.implicitHeight + 28
+
+        ColumnLayout {
+            id: logsInnerCol
+            anchors.fill: parent
+            anchors.margins: 14
+            spacing: 10
+
+            RowLayout {
+                Layout.fillWidth: true; spacing: 8
+                Item {
+                    width: 18; height: 18
+                    Text { anchors.centerIn: parent; text: "󰌱"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                }
+                Text {
+                    text: "Журнал событий и логов"
+                    color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                    Layout.fillWidth: true
+                }
+                StyledButton {
+                    text: "󰑐 Обновить"
+                    implicitHeight: 24
+                    onClicked: if (Waybar) Waybar.refreshVpnLogs()
+                }
+                StyledButton {
+                    text: vpnScroll.copiedLogs ? "󰄬 Скопировано" : "󰆏 Копировать"
+                    implicitHeight: 24
+                    isActive: vpnScroll.copiedLogs
+                    onClicked: {
+                        if (Waybar && Waybar.vpnLogs.length > 0) {
+                            var safeTxt = Waybar.vpnLogs.join("\n").replace(/'/g, "'\\''")
+                            Waybar.runCommand("printf '%s' '" + safeTxt + "' | wl-copy")
+                            vpnScroll.copiedLogs = true
+                            copyResetTimer.restart()
+                        }
+                    }
+                }
+                StyledButton {
+                    text: "󰅖 Очистить"
+                    implicitHeight: 24
+                    onClicked: if (Waybar) Waybar.clearVpnLogs()
+                }
+            }
+
+            // Настройки длины (лимит строк + высота окна) и поведения (автообновление, автоскролл, уровень логов)
+            RowLayout {
+                Layout.fillWidth: true; spacing: 12
+
+                Text { text: "Длина:"; color: "#aaaaaa"; font.pixelSize: Config.fontSize - 1 }
+                SegmentedButton {
+                    Layout.preferredWidth: 210
+                    implicitHeight: 26
+                    options: ["50", "100", "250", "500"]
+                    selectedIndex: {
+                        if (!Waybar) return 1
+                        var m = Waybar.vpnLogMaxLines
+                        if (m <= 50) return 0
+                        if (m <= 100) return 1
+                        if (m <= 250) return 2
+                        return 3
+                    }
+                    onSelected: (idx) => {
+                        if (!Waybar) return
+                        var vals = [50, 100, 250, 500]
+                        Waybar.vpnLogMaxLines = vals[idx]
+                    }
+                }
+
+                Text { text: "Высота:"; color: "#aaaaaa"; font.pixelSize: Config.fontSize - 1 }
+                StyledSlider {
+                    Layout.fillWidth: true
+                    from: 90; to: 340; stepSize: 10
+                    value: vpnScroll.logViewHeight
+                    onMoved: vpnScroll.logViewHeight = Math.round(value)
+                }
+
+                SegmentedButton {
+                    Layout.preferredWidth: 180
+                    implicitHeight: 26
+                    options: ["Инфо", "Ошибки", "Отладка"]
+                    selectedIndex: {
+                        if (!Waybar) return 0
+                        if (Waybar.vpnLogLevel === "warn") return 1
+                        if (Waybar.vpnLogLevel === "debug") return 2
+                        return 0
+                    }
+                    onSelected: (idx) => {
+                        if (!Waybar) return
+                        var lvls = ["info", "warn", "debug"]
+                        Waybar.vpnLogLevel = lvls[idx]
+                    }
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true; spacing: 16
+                StyledCheckBox {
+                    text: "Живое обновление"
+                    checked: Waybar ? Waybar.vpnLogAutoRefresh : true
+                    onToggled: if (Waybar) Waybar.vpnLogAutoRefresh = checked
+                }
+                StyledCheckBox {
+                    text: "Автопрокрутка вниз"
+                    checked: Waybar ? Waybar.vpnLogAutoScroll : true
+                    onToggled: if (Waybar) Waybar.vpnLogAutoScroll = checked
+                }
+                Item { Layout.fillWidth: true }
+                Text {
+                    text: "Строк: " + (Waybar ? Waybar.vpnLogs.length : 0)
+                    color: "#888888"; font.pixelSize: Config.fontSize - 2
+                }
+            }
+
+            Rectangle {
+                Layout.fillWidth: true
+                height: vpnScroll.logViewHeight
+                radius: vpnScroll.isM3 ? 8 : 0
+                color: Qt.rgba(0, 0, 0, 0.28)
+                border.color: Qt.rgba(1, 1, 1, 0.12)
+                border.width: 1
+                clip: true
+
+                ListView {
+                    id: logListView
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    spacing: 2
+                    model: Waybar ? Waybar.vpnLogs : []
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    onCountChanged: {
+                        if (Waybar && Waybar.vpnLogAutoScroll && count > 0) {
+                            Qt.callLater(() => logListView.positionViewAtEnd())
+                        }
+                    }
+
+                    delegate: Text {
+                        width: logListView.width - 10
+                        text: modelData
+                        font.family: "monospace"
+                        font.pixelSize: 10
+                        wrapMode: Text.WrapAnywhere
+                        color: {
+                            var s = (modelData || "").toLowerCase()
+                            if (s.indexOf("error") !== -1 || s.indexOf("fatal") !== -1) return "#ff8a80"
+                            if (s.indexOf("warn") !== -1) return "#ffd54f"
+                            if (s.indexOf("outbound/vless") !== -1 || s.indexOf(" proxy") !== -1) return "#69f0ae"
+                            return "#cccccc"
+                        }
+                    }
+                }
+            }
+        }
     }
 
     component SplitTunnelCard: GlassPanel {
@@ -321,7 +490,8 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать" : "󰈈 Скрыть"
+                                        visible: Waybar && (vpnScroll.isWlMode ? Waybar.vpnWlSubGroups.length > 0 : Waybar.vpnSubGroups.length > 0)
+                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
                                         onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
@@ -757,6 +927,8 @@ ScrollView {
                         }
 
                         SplitTunnelCard {}
+
+                        VpnLogsCard {}
                     }
                 }
 
@@ -1000,7 +1172,8 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать" : "󰈈 Скрыть"
+                                        visible: Waybar && (vpnScroll.isWlMode ? Waybar.vpnWlSubGroups.length > 0 : Waybar.vpnSubGroups.length > 0)
+                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
                                         onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
@@ -1323,6 +1496,8 @@ ScrollView {
                         }
 
                         SplitTunnelCard {}
+
+                        VpnLogsCard {}
                     }
                 }
             }

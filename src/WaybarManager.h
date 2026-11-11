@@ -97,6 +97,11 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QVariantList vpnSubServerItems READ vpnSubServerItems NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList vpnWlServerItems READ vpnWlServerItems NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnFrozenCount READ vpnFrozenCount NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnLogs READ vpnLogs NOTIFY vpnLogsChanged)
+    Q_PROPERTY(int vpnLogMaxLines READ vpnLogMaxLines WRITE setVpnLogMaxLines NOTIFY vpnLogsChanged)
+    Q_PROPERTY(bool vpnLogAutoRefresh READ vpnLogAutoRefresh WRITE setVpnLogAutoRefresh NOTIFY vpnLogsChanged)
+    Q_PROPERTY(bool vpnLogAutoScroll READ vpnLogAutoScroll WRITE setVpnLogAutoScroll NOTIFY vpnLogsChanged)
+    Q_PROPERTY(QString vpnLogLevel READ vpnLogLevel WRITE setVpnLogLevel NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnSubServerName READ vpnSubServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnWlServerName READ vpnWlServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnSubSelectedServer READ vpnSubSelectedServer NOTIFY sysStatsChanged)
@@ -249,6 +254,17 @@ public:
     int vpnFrozenCount() const { return m_vpnFrozenCount; }
     Q_INVOKABLE void toggleFreezeVpnServer(int idx, bool isWl);
     Q_INVOKABLE void clearFrozenVpnServers();
+    QStringList vpnLogs() const { return m_vpnLogs; }
+    int vpnLogMaxLines() const { return m_vpnLogMaxLines; }
+    void setVpnLogMaxLines(int v);
+    bool vpnLogAutoRefresh() const { return m_vpnLogAutoRefresh; }
+    void setVpnLogAutoRefresh(bool v);
+    bool vpnLogAutoScroll() const { return m_vpnLogAutoScroll; }
+    void setVpnLogAutoScroll(bool v);
+    QString vpnLogLevel() const { return m_vpnLogLevel; }
+    void setVpnLogLevel(const QString &lvl);
+    Q_INVOKABLE void refreshVpnLogs();
+    Q_INVOKABLE void clearVpnLogs();
     QString vpnSubServerName() const { return m_vpnSubServerName; }
     QString vpnWlServerName() const { return m_vpnWlServerName; }
     int vpnSubSelectedServer() const { return m_vpnSubSelectedServer; }
@@ -302,6 +318,7 @@ public:
 
 signals:
     void stateChanged();
+    void vpnLogsChanged();
     void closeDrawerRequested();
     void workspacesChanged();
     void activeWindowChanged();
@@ -431,6 +448,11 @@ private:
     QVariantList m_vpnSubServerItems;
     QVariantList m_vpnWlServerItems;
     int m_vpnFrozenCount = 0;
+    QStringList m_vpnLogs;
+    int m_vpnLogMaxLines = 100;
+    bool m_vpnLogAutoRefresh = true;
+    bool m_vpnLogAutoScroll = true;
+    QString m_vpnLogLevel = "info";
     QString m_vpnSubServerName = "VPN";
     QString m_vpnWlServerName = "Авто-выбор лучшего сервера";
     int m_vpnSubSelectedServer = 0;

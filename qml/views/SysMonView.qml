@@ -8,53 +8,55 @@ Item {
     id: sysMonRoot
     property int pendingKillPid: -1
     property string pendingKillName: ""
-    property real graphPhase: 1.0
+    property real graphPhase: 0.0
+    property double lastTickMs: Date.now()
 
-    NumberAnimation {
-        id: smoothPhaseAnim
-        target: sysMonRoot
-        property: "graphPhase"
-        from: 0.0
-        to: 1.0
-        duration: 450
-        easing.type: Easing.Linear
-    }
-
-    onGraphPhaseChanged: {
-        if (!sysMonRoot.visible) return
-        cpuGraph.requestPaint()
-        memGraph.requestPaint()
-        vramGraph.requestPaint()
-        netGraph.requestPaint()
+    // 30 FPS таймер плавного горизонтального сдвига (в 5 раз легче для CPU, чем 160 FPS NumberAnimation)
+    Timer {
+        interval: 33
+        repeat: true
+        running: sysMonRoot.visible && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
+        onTriggered: {
+            var elapsed = Date.now() - sysMonRoot.lastTickMs
+            sysMonRoot.graphPhase = Math.min(1.0, Math.max(0.0, elapsed / 450.0))
+            cpuGraph.requestPaint()
+            memGraph.requestPaint()
+            vramGraph.requestPaint()
+            netGraph.requestPaint()
+        }
     }
 
     function drawSmoothGraph(ctx, w, h, hist, phase, strokeCol, fillTopCol, fillBotCol) {
         ctx.clearRect(0, 0, w, h)
-        if (!hist || hist.length < 3) return
+        if (!hist || hist.length < 4) return
         var n = hist.length
-        var visibleCount = n - 2
-        var step = w / Math.max(1, visibleCount - 1)
+        var visibleSegments = n - 2
+        var step = w / Math.max(1, visibleSegments)
         var topPad = 24
         var usableH = Math.max(10, h - topPad - 2)
 
+        // Точки сдвигаются строго ПО ГОРИЗОНТАЛИ: px = (i - phase) * step, а высота Y каждой точки неизменна!
+        // Благодаря этому пики и впадины никогда не усредняются и не распрямляются.
         var pts = []
-        for (var i = 0; i < n - 1; ++i) {
-            var val = hist[i] + (hist[i + 1] - hist[i]) * phase
-            var px = i * step
-            var py = h - 2 - (Math.max(0, Math.min(100, val)) / 100.0) * usableH
+        for (var i = 0; i < n; ++i) {
+            var px = (i - phase) * step
+            var py = h - 2 - (Math.max(0, Math.min(100, hist[i])) / 100.0) * usableH
             pts.push({ x: px, y: py })
         }
-        if (pts.length < 2) return
 
         ctx.beginPath()
         ctx.moveTo(pts[0].x, pts[0].y)
-        for (var j = 1; j < pts.length - 1; ++j) {
-            var midX = (pts[j].x + pts[j + 1].x) * 0.5
-            var midY = (pts[j].y + pts[j + 1].y) * 0.5
-            ctx.quadraticCurveTo(pts[j].x, pts[j].y, midX, midY)
+        for (var j = 0; j < pts.length - 1; ++j) {
+            var p0 = pts[Math.max(0, j - 1)]
+            var p1 = pts[j]
+            var p2 = pts[j + 1]
+            var p3 = pts[Math.min(pts.length - 1, j + 2)]
+            var cp1x = p1.x + (p2.x - p0.x) / 6.0
+            var cp1y = Math.max(topPad - 2, Math.min(h - 1, p1.y + (p2.y - p0.y) / 6.0))
+            var cp2x = p2.x - (p3.x - p1.x) / 6.0
+            var cp2y = Math.max(topPad - 2, Math.min(h - 1, p2.y - (p3.y - p1.y) / 6.0))
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
         }
-        var lastPt = pts[pts.length - 1]
-        ctx.lineTo(lastPt.x, lastPt.y)
 
         ctx.strokeStyle = strokeCol
         ctx.lineWidth = 2.0
@@ -62,6 +64,7 @@ Item {
         ctx.lineCap = "round"
         ctx.stroke()
 
+        var lastPt = pts[pts.length - 1]
         ctx.lineTo(lastPt.x, h)
         ctx.lineTo(pts[0].x, h)
         ctx.closePath()
@@ -87,6 +90,8 @@ Item {
     onVisibleChanged: {
         if (!visible && pendingKillPid !== -1) closeKillModal()
         if (visible) {
+            sysMonRoot.lastTickMs = Date.now()
+            sysMonRoot.graphPhase = 0.0
             cpuGraph.requestPaint()
             memGraph.requestPaint()
             vramGraph.requestPaint()
@@ -95,7 +100,7 @@ Item {
     }
 
     Timer {
-        interval: 2000
+        interval: 2500
         running: sysMonRoot.visible && sysMonRoot.pendingKillPid === -1
         repeat: true
         triggeredOnStart: true
@@ -106,7 +111,8 @@ Item {
         target: Waybar
         function onSysStatsChanged() {
             if (!sysMonRoot.visible) return
-            smoothPhaseAnim.restart()
+            sysMonRoot.lastTickMs = Date.now()
+            sysMonRoot.graphPhase = 0.0
         }
     }
 
@@ -118,7 +124,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Text {
-                text: "  Системный монитор ресурсов и процессов (Btop)"
+                text: "  Системный монитор ресурсов и процессов"
                 color: "#ffffff"
                 font.pixelSize: Config.fontSize + 3
                 font.bold: true
@@ -131,14 +137,12 @@ Item {
             }
         }
 
-        // СЕТКА 2x2: 4 ПЛАВНЫХ ЖИВЫХ ГРАФИКА (CPU, RAM, VRAM, СЕТЬ)
         GridLayout {
             Layout.fillWidth: true
             columns: 2
             columnSpacing: 8
             rowSpacing: 8
 
-            // 1. CPU + TEMP
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
@@ -153,7 +157,6 @@ Item {
                 }
             }
 
-            // 2. ОЗУ (RAM)
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
@@ -163,12 +166,11 @@ Item {
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
-                    Text { text: "󰍛  ОЗУ (RAM)"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
+                    Text { text: "󰍛  ОЗУ"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
                     Text { text: Waybar ? Waybar.memDetailText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
                 }
             }
 
-            // 3. ВИДЕОПАМЯТЬ (GPU VRAM)
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
@@ -178,12 +180,11 @@ Item {
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
-                    Text { text: "󰢮  Видеопамять (VRAM)"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
+                    Text { text: "󰢮  Видеопамять"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
                     Text { text: Waybar ? Waybar.vramDetailText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
                 }
             }
 
-            // 4. СКОРОСТЬ СЕТИ (NETWORK RX/TX)
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: 86; clip: true
@@ -199,7 +200,6 @@ Item {
             }
         }
 
-        // СПИСОК ПРОЦЕССОВ С КЛИКАБЕЛЬНЫМИ КОЛОНКАМИ CPU И RAM
         GlassPanel {
             objectName: "atmoObstacle"
             Layout.fillWidth: true; Layout.fillHeight: true
@@ -224,7 +224,7 @@ Item {
                         }
                         MouseArea {
                             id: cpuColMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (Waybar) Waybar.processSortMode = 0
+                            onPressed: if (Waybar) Waybar.processSortMode = 0
                         }
                     }
 
@@ -238,7 +238,7 @@ Item {
                         }
                         MouseArea {
                             id: ramColMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: if (Waybar) Waybar.processSortMode = 1
+                            onPressed: if (Waybar) Waybar.processSortMode = 1
                         }
                     }
 
@@ -283,7 +283,6 @@ Item {
         }
     }
 
-    // МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ ЗАВЕРШЕНИЯ ПРОЦЕССА
     Item {
         parent: Overlay.overlay
         anchors.fill: parent
@@ -336,7 +335,7 @@ Item {
                     spacing: 10
 
                     StyledButton {
-                        text: "✕  Завершить"
+                        text: "✕ Завершить"
                         isActive: true
                         implicitHeight: 26
                         onClicked: {

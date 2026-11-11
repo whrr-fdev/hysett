@@ -155,6 +155,28 @@ RowLayout {
             }
 
             Item { Layout.fillHeight: true }
+
+            Rectangle {
+                Layout.fillWidth: true; height: 1
+                color: Qt.rgba(1, 1, 1, 0.08)
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.margins: 6
+                spacing: 8
+                Text {
+                    text: "󰏘  Цвета палитры обоев"
+                    color: "#dddddd"
+                    font.pixelSize: Config.fontSize - 1
+                    Layout.fillWidth: true
+                    elide: Text.ElideRight
+                }
+                StyledSwitch {
+                    checked: Widgets ? Widgets.widgetsM3Sync : true
+                    onToggled: if (Widgets) Widgets.widgetsM3Sync = checked
+                }
+            }
         }
     }
 

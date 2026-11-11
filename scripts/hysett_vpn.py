@@ -864,7 +864,7 @@ def build_config(outbound, st, use_tun=False):
         dns_final = "dns-remote"
 
     return {
-        "log": {"level": "warn"},
+        "log": {"level": st.get("log_level", "info")},
         "dns": {
             "servers": [
                 {"type": "https", "tag": "dns-remote", "server": "1.1.1.1", "detour": "proxy"},
@@ -1123,7 +1123,8 @@ def dump_status_json():
         "wl_sub_groups": wl_sub_groups,
         "custom_proxy_domains": st.get("custom_proxy_domains", []),
         "custom_direct_domains": st.get("custom_direct_domains", []),
-        "status_hint": hint
+        "status_hint": hint,
+        "log_level": st.get("log_level", "info")
     }
     print(json.dumps(out, ensure_ascii=False))
 
@@ -1308,6 +1309,35 @@ if __name__ == "__main__":
         st["split_mode"] = "ru_direct" if ru_on else "all_vpn"
         save_state(st)
         restart_if_running()
+        dump_status_json()
+    elif cmd == "get_logs":
+        max_lines = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+        log_path = "/tmp/singbox_vpn.log"
+        lines = []
+        if os.path.exists(log_path):
+            try:
+                with open(log_path, "r", encoding="utf-8", errors="ignore") as f:
+                    all_l = [ re.sub(r"\x1b\[[0-9;]*m", "", ln.rstrip()) for ln in f.readlines() if ln.strip() ]
+                    lines = all_l[-max_lines:]
+            except Exception:
+                pass
+        if not lines:
+            lines = ["Журнал пуст. Включите VPN или запустите проверку серверов."]
+        print(json.dumps({"logs": lines}, ensure_ascii=False))
+    elif cmd == "clear_logs":
+        try:
+            open("/tmp/singbox_vpn.log", "w").close()
+        except Exception:
+            pass
+        print(json.dumps({"logs": ["Журнал очищен."]}, ensure_ascii=False))
+    elif cmd == "set_log_level":
+        if len(sys.argv) > 2:
+            lvl = sys.argv[2].strip()
+            if lvl in ("info", "warn", "debug"):
+                st = load_state()
+                st["log_level"] = lvl
+                save_state(st)
+                restart_if_running()
         dump_status_json()
     elif cmd == "start":
         start_vpn()

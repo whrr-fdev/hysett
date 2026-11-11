@@ -284,6 +284,7 @@ void WaybarManager::onHyprEventReady() {
         }
     }
     if (ev.contains("workspace>>") || ev.contains("openwindow>>")) {
+        applyShellKbInteractivity(nullptr, false);
         emit closeDrawerRequested();
     } else if (ev.contains("activewindow>>")) {
         for (const QString &l : ev.split('\n', Qt::SkipEmptyParts)) {
@@ -1332,8 +1333,9 @@ static int s_pendingTargetWs = -1;
 static qint64 s_pendingWsDeadlineMs = 0;
 
 void WaybarManager::switchWorkspace(int wsId) {
+    bool wasOpen = (s_lastKbState == 1);
     s_pendingTargetWs = wsId;
-    s_pendingWsDeadlineMs = QDateTime::currentMSecsSinceEpoch() + 650;
+    s_pendingWsDeadlineMs = QDateTime::currentMSecsSinceEpoch() + 600;
     m_activeWorkspace = wsId;
     for (int i = 0; i < m_workspaces.size(); ++i) {
         QVariantMap wm = m_workspaces[i].toMap();
@@ -1342,17 +1344,25 @@ void WaybarManager::switchWorkspace(int wsId) {
     }
     emit workspacesChanged();
 
-    applyShellKbInteractivity(nullptr, false);
-    emit closeDrawerRequested();
-
-    auto doSwitch = [this, wsId]() {
-        QProcess::startDetached("hyprctl", {"dispatch", "workspace", QString::number(wsId)});
+    auto doSwitch = [wsId]() {
+        queryHyprCtlSocket(QString("dispatch workspace %1").arg(wsId));
         runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
     };
+
+    if (wasOpen) {
+        applyShellKbInteractivity(nullptr, false);
+        emit closeDrawerRequested();
+        // Даем Wayland 1 кадр (25 мс) применить снятие KeyboardInteractivityExclusive, после чего переключаем стол
+        QTimer::singleShot(25, this, doSwitch);
+        QTimer::singleShot(90, this, [this, doSwitch]() { doSwitch(); pollHyprState(); });
+        QTimer::singleShot(220, this, [this, wsId, doSwitch]() {
+            if (m_activeWorkspace != wsId) doSwitch();
+            pollHyprState();
+        });
+        return;
+    }
     doSwitch();
-    QTimer::singleShot(35, this, doSwitch);
-    QTimer::singleShot(110, this, [this, doSwitch]() { doSwitch(); pollHyprState(); });
-    QTimer::singleShot(260, this, [this, doSwitch]() { doSwitch(); pollHyprState(); });
+    QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
 }
 
 void WaybarManager::stepWorkspace(int dir) {
@@ -1621,6 +1631,8 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnSubServerItems = o["sub_server_items"].toArray().toVariantList();
     m_vpnWlServerItems = o["wl_server_items"].toArray().toVariantList();
     m_vpnFrozenCount = o["frozen_count"].toInt(0);
+    m_vpnLogLevel = o["log_level"].toString(m_vpnLogLevel);
+    refreshVpnLogs();
 
     QStringList urls;
     for (const auto &v : o["urls"].toArray()) urls.append(v.toString());
@@ -1765,4 +1777,63 @@ void WaybarManager::toggleFreezeVpnServer(int idx, bool isWl) {
 
 void WaybarManager::clearFrozenVpnServers() {
     runVpnScriptCmd({"clear_frozen"});
+}
+
+void WaybarManager::setVpnLogMaxLines(int v) {
+    v = std::clamp(v, 20, 1000);
+    if (m_vpnLogMaxLines != v) {
+        m_vpnLogMaxLines = v;
+        emit vpnLogsChanged();
+        refreshVpnLogs();
+    }
+}
+
+void WaybarManager::setVpnLogAutoRefresh(bool v) {
+    if (m_vpnLogAutoRefresh != v) {
+        m_vpnLogAutoRefresh = v;
+        emit vpnLogsChanged();
+    }
+}
+
+void WaybarManager::setVpnLogAutoScroll(bool v) {
+    if (m_vpnLogAutoScroll != v) {
+        m_vpnLogAutoScroll = v;
+        emit vpnLogsChanged();
+    }
+}
+
+void WaybarManager::setVpnLogLevel(const QString &lvl) {
+    if (m_vpnLogLevel != lvl && !lvl.isEmpty()) {
+        m_vpnLogLevel = lvl;
+        runVpnScriptCmd({"set_log_level", lvl});
+    }
+}
+
+void WaybarManager::refreshVpnLogs() {
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QJsonDocument doc = QJsonDocument::fromJson(p->readAllStandardOutput().trimmed());
+        p->deleteLater();
+        if (doc.isObject()) {
+            QStringList nextLogs;
+            for (const auto &v : doc.object()["logs"].toArray()) nextLogs.append(v.toString());
+            if (m_vpnLogs != nextLogs) {
+                m_vpnLogs = nextLogs;
+                emit vpnLogsChanged();
+            }
+        }
+    });
+    p->start("/usr/bin/python3", {script, "get_logs", QString::number(m_vpnLogMaxLines)});
+}
+
+void WaybarManager::clearVpnLogs() {
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        p->deleteLater();
+        m_vpnLogs = {"Журнал очищен."};
+        emit vpnLogsChanged();
+    });
+    p->start("/usr/bin/python3", {script, "clear_logs"});
 }

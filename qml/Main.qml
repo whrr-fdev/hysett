@@ -308,7 +308,7 @@ ApplicationWindow {
 
     function syncInputMask() {
         if (Waybar) {
-            Waybar.syncShellRegion(root, root.drawerOpen || root.drawerActive, root.notifOpen || root.notifActive,
+            Waybar.syncShellRegion(root, root.drawerOpen, root.notifOpen || root.notifActive,
                                    Math.round(root.notifX), Math.round(root.notifY),
                                    Math.round(root.notifW), Math.round(root.notifTargetH + 12))
         }
@@ -586,7 +586,7 @@ ApplicationWindow {
             property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
                                           : (Config ? Config.opacity : 0.85)
-            Behavior on currentOpacity { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
+            Behavior on currentOpacity { enabled: pageController.currentIndex === 14; NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
             property color surfCol: Config ? Config.m3Surface : "#0e1015"
             property color notifBgCol: (Theme && Theme.isRounded && Config) ? Config.m3SurfaceContainer : (Mako ? Mako.bgColor : surfCol)
             property real notifAlpha: Mako ? Mako.bgOpacity : 0.90
@@ -915,7 +915,7 @@ ApplicationWindow {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
                                                 onExited: { if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1 }
-                                                onPressed: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                                onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                             }
                                         }
                                     }
@@ -1745,7 +1745,7 @@ ApplicationWindow {
                                         id: vWsMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onEntered: { vWsBox.lastHoverIdx = index; vWsBox.hoveredIdx = index }
                                         onExited: if (vWsBox.hoveredIdx === index) vWsBox.hoveredIdx = -1
-                                        onPressed: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                        onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                     }
                                 }
                             }

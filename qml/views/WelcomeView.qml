@@ -11,25 +11,17 @@ Item {
 
     property var winObj: ApplicationWindow.window
     readonly property bool isMaximized: winObj ? (winObj.isSettingsMaximized || winObj.isWallpaperExpanded) : false
+    readonly property real uiSc: Config ? Config.uiScale : 1.0
+    readonly property real targetViewW: winObj ? (winObj.targetDrawerW / uiSc) : width
+    readonly property real targetViewH: winObj ? (winObj.targetDrawerH / uiSc) : height
+
     property string settingsSearchQuery: ""
     readonly property bool isSearching: settingsSearchQuery.length > 0
     readonly property int wMode: Config ? Config.welcomeAlignMode : 1
     readonly property bool isM3: Theme && Theme.isRounded
-    readonly property int cardHeight: isM3 ? (isMaximized ? 62 : 56) : (isMaximized ? 50 : 44)
-    readonly property int cardGap: isM3 ? (isMaximized ? 14 : 11) : (isMaximized ? 10 : 7)
+    readonly property int cardHeight: isM3 ? (isMaximized ? 60 : 56) : (isMaximized ? 48 : 44)
+    readonly property int cardGap: isM3 ? (isMaximized ? 13 : 11) : (isMaximized ? 9 : 7)
     property int visibleCardsHeight: 280
-    property real springPulse: 1.0
-
-    SequentialAnimation {
-        id: welcomeMaxSpring
-        NumberAnimation { target: welcomeRoot; property: "springPulse"; from: 1.0; to: 1.035; duration: 150; easing.type: Easing.OutQuad }
-        NumberAnimation { target: welcomeRoot; property: "springPulse"; to: 1.0; duration: 290; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
-    }
-
-    onIsMaximizedChanged: {
-        welcomeMaxSpring.restart()
-        Qt.callLater(recalcCardsLayout)
-    }
 
     function recalcCardsLayout() {
         var cnt = welcomeCatRep.count
@@ -41,7 +33,9 @@ Item {
             if (b && b.matchesFilter) visList.push(b)
         }
 
-        var w = Math.max(400, gridWrapper.width)
+        var pad = welcomeRoot.isM3 ? 52 : 56
+        var maxContainerW = welcomeRoot.isMaximized ? 1640 : 1040
+        var w = Math.max(400, Math.min(welcomeRoot.targetViewW - pad, maxContainerW))
         var cardH = welcomeRoot.cardHeight
         var gap = welcomeRoot.cardGap
 
@@ -56,7 +50,7 @@ Item {
             }
             welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 8))
         } else {
-            var cols = w > 1200 ? (welcomeRoot.isM3 ? 5 : 6) : (welcomeRoot.isM3 ? 4 : 5)
+            var cols = welcomeRoot.isMaximized ? (welcomeRoot.isM3 ? 5 : 6) : (welcomeRoot.isM3 ? 4 : 5)
             var colW = Math.floor((w - (cols - 1) * gap) / cols)
             for (var k = 0; k < visList.length; ++k) {
                 var card = visList[k]
@@ -71,10 +65,10 @@ Item {
         }
     }
 
+    onIsMaximizedChanged: recalcCardsLayout()
+    onTargetViewWChanged: recalcCardsLayout()
     onIsM3Changed: Qt.callLater(recalcCardsLayout)
     onSettingsSearchQueryChanged: recalcCardsLayout()
-    onWidthChanged: Qt.callLater(recalcCardsLayout)
-    onHeightChanged: Qt.callLater(recalcCardsLayout)
     Component.onCompleted: Qt.callLater(recalcCardsLayout)
 
     Connections {
@@ -109,19 +103,19 @@ Item {
 
             Item {
                 id: mainContainer
-                width: Math.min(parent.width - (welcomeRoot.isM3 ? 52 : 56), welcomeRoot.isMaximized ? 1640 : 1040)
+                readonly property real targetW: Math.max(400, Math.min(welcomeRoot.targetViewW - (welcomeRoot.isM3 ? 52 : 56), welcomeRoot.isMaximized ? 1640 : 1040))
+                width: targetW
                 height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
-                Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.24 } }
+                Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
 
                 Item {
                     id: heroWrapper
                     width: parent.width
                     height: heroBlock.implicitHeight
-                    y: welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 44 : 16)
-                    scale: welcomeRoot.springPulse
+                    y: welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 42 : 16)
 
-                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
 
                     ColumnLayout {
                         id: heroBlock
@@ -132,7 +126,7 @@ Item {
                         }
                         spacing: welcomeRoot.isM3 ? 18 : 14
 
-                        Behavior on x { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                        Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
 
                         RowLayout {
                             Layout.alignment: welcomeRoot.isSearching ? Qt.AlignHCenter : (welcomeRoot.wMode === 0 ? Qt.AlignLeft : (welcomeRoot.wMode === 2 ? Qt.AlignRight : Qt.AlignHCenter))
@@ -199,7 +193,7 @@ Item {
                             placeholderText: Config ? (Config.language, Config.trAuto("Поиск по настройкам")) : "Поиск по настройкам"
                             placeholderTextColor: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.55) : "#777777"
 
-                            Behavior on Layout.preferredWidth { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                            Behavior on Layout.preferredWidth { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
 
                             background: GlassPanel {
                                 radius: welcomeRoot.isM3 ? height / 2 : 0
@@ -223,18 +217,17 @@ Item {
                     id: gridWrapper
                     width: parent.width
                     height: welcomeRoot.visibleCardsHeight
-                    onWidthChanged: Qt.callLater(welcomeRoot.recalcCardsLayout)
 
                     readonly property real targetYPos: {
-                        var heroBot = heroWrapper.y + heroWrapper.height
+                        var heroBot = (welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 42 : 16)) + heroWrapper.height
                         if (welcomeRoot.isSearching) return heroBot + 20
                         var minTop = heroBot + 18
-                        var midBottom = Math.round(heroBot + (welcomeRoot.height - heroBot - welcomeRoot.visibleCardsHeight) / 2)
+                        var midBottom = Math.round(heroBot + (welcomeRoot.targetViewH - heroBot - welcomeRoot.visibleCardsHeight) / 2)
                         return Math.max(minTop, midBottom)
                     }
                     y: targetYPos
 
-                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.22 } }
 
                     property Item hoveredCardObj: null
                     property Item lastHoveredCardObj: null
@@ -319,16 +312,17 @@ Item {
                             width: targetW
                             height: welcomeRoot.cardHeight
                             opacity: matchesFilter ? 1.0 : 0.0
-                            scale: matchesFilter ? welcomeRoot.springPulse : 0.88
+                            scale: matchesFilter ? 1.0 : 0.88
                             visible: opacity > 0.01
                             enabled: matchesFilter
                             flat: true
 
-                            Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.24 } }
-                            Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.24 } }
-                            Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.20 } }
-                            Behavior on height { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.20 } }
+                            Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.22 } }
+                            Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.22 } }
+                            Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
+                            Behavior on height { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
                             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                            Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
                             onHoveredChanged: {
                                 if (hovered && matchesFilter) {

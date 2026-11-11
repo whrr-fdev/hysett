@@ -14,7 +14,8 @@ Rectangle {
     readonly property int pillH: isM3 ? 30 : 24
 
     readonly property bool sidebarHovered: sidebarHoverHandler.hovered
-    property bool collapsed: !sidebarHovered
+    readonly property bool forceExpanded: (ApplicationWindow.window && ApplicationWindow.window.isSettingsMaximized && bar.currentIndex !== 14)
+    property bool collapsed: !forceExpanded && !sidebarHovered
     readonly property int targetWidth: collapsed ? (isM3 ? 56 : 46) : (isM3 ? 168 : 136)
 
     property var winObj: ApplicationWindow.window

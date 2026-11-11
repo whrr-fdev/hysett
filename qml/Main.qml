@@ -2167,8 +2167,8 @@ ApplicationWindow {
 
             Item {
                 id: drawerInner
-                width: Math.max(230, Math.round(root.animDrawerW))
-                height: Math.max(196, Math.round(root.smoothTargetH))
+                width: root.targetDrawerW
+                height: root.targetDrawerH
                 x: root.barPos === 2
                    ? (-(1.0 - root.drawerProgress) * 68)
                    : (root.barPos === 3 ? ((1.0 - root.drawerProgress) * 68) : Math.round((parent.width - width) * 0.5))

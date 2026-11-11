@@ -12,30 +12,33 @@ layout(std140, binding = 0) uniform buf {
 layout(binding = 1) uniform sampler2D source;
 
 void main() {
-    if (u_blur <= 0.005) {
+    float b = clamp(u_blur, 0.0, 1.0);
+    if (b <= 0.005) {
         fragColor = texture(source, qt_TexCoord0) * qt_Opacity;
         return;
     }
 
     vec2 texel = 1.0 / max(u_resolution, vec2(1.0));
-    float maxRadius = mix(1.5, 18.0, clamp(u_blur, 0.0, 1.0));
+    // Шаг между соседними сэмплами <= 1.45 текселя (с учетом билинейной фильтрации GPU),
+    // поэтому выборки полностью перекрываются и никогда не распадаются на крестики или сетку
+    float stepScale = mix(0.35, 1.45, b);
+
+    const float w[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
 
     vec4 acc = vec4(0.0);
     float weightSum = 0.0;
 
-    // 36-точечный диск Фогеля (Золотой угол 2.39996323 рад) — идеально круглое размытие без крестов
-    const int SAMPLES = 36;
-    const float GOLDEN_ANGLE = 2.39996323;
-
-    for (int i = 0; i < SAMPLES; ++i) {
-        float fi = float(i);
-        float rFrac = sqrt((fi + 0.5) / float(SAMPLES));
-        float theta = fi * GOLDEN_ANGLE;
-        vec2 offset = vec2(cos(theta), sin(theta)) * (rFrac * maxRadius) * texel;
-        float w = exp(-2.2 * rFrac * rFrac);
-        acc += texture(source, clamp(qt_TexCoord0 + offset, vec2(0.001), vec2(0.999))) * w;
-        weightSum += w;
+    for (int y = -4; y <= 4; ++y) {
+        float wy = w[abs(y)];
+        for (int x = -4; x <= 4; ++x) {
+            float wx = w[abs(x)];
+            float weight = wx * wy;
+            vec2 uv = clamp(qt_TexCoord0 + vec2(float(x), float(y)) * stepScale * texel, vec2(0.001), vec2(0.999));
+            acc += texture(source, uv) * weight;
+            weightSum += weight;
+        }
     }
 
-    fragColor = (acc / max(weightSum, 0.0001)) * qt_Opacity;
+    vec4 blurred = acc / max(weightSum, 0.0001);
+    fragColor = blurred * qt_Opacity;
 }

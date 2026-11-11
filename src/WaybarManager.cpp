@@ -93,7 +93,9 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
     QProcess *vpInit = new QProcess(this);
     connect(vpInit, &QProcess::finished, this, [this, vpInit]() { syncVpnStateFromScript(vpInit->readAllStandardOutput()); vpInit->deleteLater(); });
-    vpInit->start("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py", "status"});
+    vpInit->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "boot"});
+    // Фоновое обновление списков обхода через 25 секунд после старта демона hysett
+    QTimer::singleShot(25000, this, &WaybarManager::updateBypassLists);
 
     m_sysTimer = new QTimer(this);
     m_sysTimer->setInterval(450);
@@ -1330,24 +1332,27 @@ static int s_pendingTargetWs = -1;
 static qint64 s_pendingWsDeadlineMs = 0;
 
 void WaybarManager::switchWorkspace(int wsId) {
-    bool wasOpen = (s_lastKbState == 1);
-    if (wasOpen) {
-        s_pendingTargetWs = wsId;
-        s_pendingWsDeadlineMs = QDateTime::currentMSecsSinceEpoch() + 450;
-        applyShellKbInteractivity(nullptr, false);
-        emit closeDrawerRequested();
-        QTimer::singleShot(25, this, [this, wsId]() {
-            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
-            QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
-        });
-        QTimer::singleShot(95, this, [this, wsId]() {
-            runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
-            pollHyprState();
-        });
-        return;
+    s_pendingTargetWs = wsId;
+    s_pendingWsDeadlineMs = QDateTime::currentMSecsSinceEpoch() + 650;
+    m_activeWorkspace = wsId;
+    for (int i = 0; i < m_workspaces.size(); ++i) {
+        QVariantMap wm = m_workspaces[i].toMap();
+        wm["active"] = (wm["id"].toInt() == wsId);
+        m_workspaces[i] = wm;
     }
-    runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
-    QTimer::singleShot(45, this, &WaybarManager::pollHyprState);
+    emit workspacesChanged();
+
+    applyShellKbInteractivity(nullptr, false);
+    emit closeDrawerRequested();
+
+    auto doSwitch = [this, wsId]() {
+        QProcess::startDetached("hyprctl", {"dispatch", "workspace", QString::number(wsId)});
+        runHyprEvalSilent(QString("hl.dispatch(hl.dsp.focus({ workspace = %1 }))").arg(wsId));
+    };
+    doSwitch();
+    QTimer::singleShot(35, this, doSwitch);
+    QTimer::singleShot(110, this, [this, doSwitch]() { doSwitch(); pollHyprState(); });
+    QTimer::singleShot(260, this, [this, doSwitch]() { doSwitch(); pollHyprState(); });
 }
 
 void WaybarManager::stepWorkspace(int dir) {
@@ -1522,7 +1527,8 @@ void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool not
     }
 
     bool logicalOpen = win->property("drawerOpen").toBool();
-    applyShellKbInteractivity(win, logicalOpen && drawerOpen);
+    bool suppressKb = (QDateTime::currentMSecsSinceEpoch() < s_pendingWsDeadlineMs);
+    applyShellKbInteractivity(win, !suppressKb && logicalOpen && drawerOpen);
 }
 
 void WaybarManager::setHiddenBarModules(const QString &v) { if (m_hiddenBarModules != v) { m_hiddenBarModules = v; saveState(false); } }
@@ -1560,7 +1566,7 @@ void WaybarManager::setVpnSubUrl(const QString &u) {
 }
 
 void WaybarManager::toggleVpn() {
-    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     if (m_vpnActive) {
         QProcess::startDetached("/usr/bin/python3", {script, "stop"});
         // Также гасим tun/ThroneCore если он был запущен через Throne
@@ -1612,6 +1618,9 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnServers = srvs;
     m_vpnSubServers = subSrvs;
     m_vpnWlServers = wlSrvs;
+    m_vpnSubServerItems = o["sub_server_items"].toArray().toVariantList();
+    m_vpnWlServerItems = o["wl_server_items"].toArray().toVariantList();
+    m_vpnFrozenCount = o["frozen_count"].toInt(0);
 
     QStringList urls;
     for (const auto &v : o["urls"].toArray()) urls.append(v.toString());
@@ -1636,7 +1645,7 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
 }
 
 void WaybarManager::runVpnScriptCmd(const QStringList &args) {
-    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     bool isHeavy = (!args.isEmpty() && (args[0] == "update_lists" || args[0] == "update" || args[0] == "test_whitelist"));
     if (isHeavy) {
         m_vpnBusy = true;
@@ -1692,7 +1701,7 @@ void WaybarManager::removeVpnCustomDomain(int idx, bool isDirect) {
 }
 
 void WaybarManager::updateVpnSubscription() {
-    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         syncVpnStateFromScript(p->readAllStandardOutput());
@@ -1703,7 +1712,7 @@ void WaybarManager::updateVpnSubscription() {
 
 void WaybarManager::addVpnSubUrl(const QString &u) {
     if (u.trimmed().isEmpty()) return;
-    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         syncVpnStateFromScript(p->readAllStandardOutput());
@@ -1713,7 +1722,7 @@ void WaybarManager::addVpnSubUrl(const QString &u) {
 }
 
 void WaybarManager::removeVpnSubUrl(int idx) {
-    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         syncVpnStateFromScript(p->readAllStandardOutput());
@@ -1723,7 +1732,7 @@ void WaybarManager::removeVpnSubUrl(int idx) {
 }
 
 void WaybarManager::selectVpnServer(int idx) {
-    QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         syncVpnStateFromScript(p->readAllStandardOutput());
@@ -1735,7 +1744,7 @@ void WaybarManager::selectVpnServer(int idx) {
 void WaybarManager::setVpnRuDirect(bool v) {
     if (m_vpnRuDirect != v) {
         m_vpnRuDirect = v;
-        QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+        QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
         QProcess::startDetached("/usr/bin/python3", {script, "set_ru", v ? "1" : "0"});
         emit sysStatsChanged();
     }
@@ -1748,4 +1757,12 @@ void WaybarManager::addVpnWlSubUrl(const QString &u) {
 
 void WaybarManager::removeVpnWlSubUrl(int idx) {
     runVpnScriptCmd({"remove_wl_url", QString::number(idx)});
+}
+
+void WaybarManager::toggleFreezeVpnServer(int idx, bool isWl) {
+    runVpnScriptCmd({"toggle_freeze", QString::number(idx), isWl ? "1" : "0"});
+}
+
+void WaybarManager::clearFrozenVpnServers() {
+    runVpnScriptCmd({"clear_frozen"});
 }

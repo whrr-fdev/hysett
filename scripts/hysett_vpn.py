@@ -2,13 +2,16 @@
 import sys, os, json, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re, ipaddress, bisect
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+HYSETT_DIR = os.path.expanduser("~/hysett")
 CONF_DIR = os.path.expanduser("~/.config/hypr/scripts")
 SUB_FILE = os.path.expanduser("~/.config/hysett_vpn_sub.txt")
 WL_SUB_FILE = os.path.expanduser("~/.config/hysett_vpn_wl_sub.txt")
 STATE_FILE = os.path.join(CONF_DIR, "vpn_state.json")
 SB_CONF = os.path.join(CONF_DIR, "singbox_vpn.json")
-BYPASS_REPOS = os.path.expanduser("~/bypass-lists/repos")
-UPDATE_SCRIPT = os.path.expanduser("~/hysett/scripts/update-bypass-lists.sh")
+BYPASS_REPOS = os.path.join(HYSETT_DIR, "bypass-lists/repos")
+if not os.path.exists(BYPASS_REPOS):
+    BYPASS_REPOS = os.path.expanduser("~/bypass-lists/repos")
+UPDATE_SCRIPT = os.path.join(HYSETT_DIR, "scripts/update-bypass-lists.sh")
 
 RU_DOMAIN_SUFFIXES = [
     "ru", ".ru", "su", ".su", "xn--p1ai", ".xn--p1ai", "by", ".by", "kz", ".kz",
@@ -71,6 +74,49 @@ WHITELIST_SOURCES = [
 DOMAIN_RE = re.compile(r"^[a-zA-Z0-9._-]+(\.[a-zA-Z0-9_-]+)+$")
 CIDR_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$")
 IPV4_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+
+def server_sig(ob):
+    if not isinstance(ob, dict) or ob.get("type") == "urltest":
+        return ""
+    sni = ob.get("tls", {}).get("server_name", "")
+    return f"{ob.get('type')}://{ob.get('server')}:{ob.get('server_port')}/{ob.get('uuid', ob.get('password', ''))}/{sni}"
+
+def rebuild_uri_from_outbound(ob, name="Server"):
+    if not isinstance(ob, dict) or ob.get("type") == "urltest":
+        return ""
+    t = ob.get("type", "vless")
+    host = ob.get("server", "")
+    port = ob.get("server_port", 443)
+    frag = urllib.parse.quote(name)
+    if t == "vless":
+        uuid = ob.get("uuid", "")
+        params = {"type": ob.get("transport", {}).get("type", "tcp")}
+        if ob.get("flow"):
+            params["flow"] = ob["flow"]
+        tls = ob.get("tls", {})
+        if tls.get("enabled"):
+            if tls.get("reality", {}).get("enabled"):
+                params["security"] = "reality"
+                params["pbk"] = tls["reality"].get("public_key", "")
+                if tls["reality"].get("short_id"):
+                    params["sid"] = tls["reality"]["short_id"]
+            else:
+                params["security"] = "tls"
+            if tls.get("server_name"):
+                params["sni"] = tls["server_name"]
+            if tls.get("utls", {}).get("fingerprint"):
+                params["fp"] = tls["utls"]["fingerprint"]
+        q = urllib.parse.urlencode(params)
+        return f"vless://{uuid}@{host}:{port}?{q}#{frag}"
+    elif t == "trojan":
+        pw = ob.get("password", "")
+        sni = ob.get("tls", {}).get("server_name", host)
+        return f"trojan://{pw}@{host}:{port}?security=tls&sni={sni}#{frag}"
+    elif t == "hysteria2":
+        pw = ob.get("password", "")
+        sni = ob.get("tls", {}).get("server_name", host)
+        return f"hy2://{pw}@{host}:{port}?sni={sni}#{frag}"
+    return ""
 
 def read_url_list(path):
     urls = []
@@ -135,6 +181,7 @@ def short_sub_title(url, idx, custom_title=""):
 
 def load_state():
     st = {
+        "vpn_enabled": False,
         "server_name": "VPN",
         "sub_server_name": "VPN",
         "wl_server_name": "Авто-выбор лучшего сервера",
@@ -151,6 +198,7 @@ def load_state():
         "sub_cache": {},
         "wl_sub_cache": {},
         "wl_servers": [],
+        "frozen_sigs": [],
         "custom_proxy_domains": [],
         "custom_direct_domains": []
     }
@@ -164,6 +212,8 @@ def load_state():
         st["sub_cache"] = {}
     if not isinstance(st.get("wl_sub_cache"), dict):
         st["wl_sub_cache"] = {}
+    if not isinstance(st.get("frozen_sigs"), list):
+        st["frozen_sigs"] = []
     return st
 
 def save_state(st):
@@ -428,7 +478,7 @@ def parse_subscription_content(raw):
                 if ob.get("type") in ("vless", "trojan", "hysteria2", "shadowsocks", "vmess"):
                     ob["tag"] = "proxy"
                     nm = clean_server_title(ob.get("tag_name") or ob.get("server") or f"Сервер {idx+1}")
-                    found.append({"name": nm, "outbound": ob})
+                    found.append({"name": nm, "outbound": ob, "uri": rebuild_uri_from_outbound(ob, nm)})
         except Exception:
             pass
         return found
@@ -438,14 +488,14 @@ def parse_subscription_content(raw):
         if any(line.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
             name, ob = parse_uri(line)
             if ob:
-                found.append({"name": name, "outbound": ob})
+                found.append({"name": name, "outbound": ob, "uri": line})
     return found
 
 def fetch_single_url(u):
     if any(u.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
         name, ob = parse_uri(u)
         if ob:
-            return "", [{"name": name, "outbound": ob}]
+            return "", [{"name": name, "outbound": ob, "uri": u}]
         return "", []
 
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
@@ -470,7 +520,7 @@ def fetch_single_url(u):
             print(f"Fetch error ({u}): {e}", file=sys.stderr)
     return "", []
 
-def rebuild_sub_servers_from_cache(urls, cache_dict, mark_wl_badges=False):
+def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False):
     starts, merged = (load_ru_whitelist_ip_intervals() if mark_wl_badges else ([], []))
     all_srvs = []
     groups = []
@@ -487,12 +537,21 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, mark_wl_badges=False):
         for s in srvs:
             nm = clean_server_title(s.get("name", "Сервер"))
             ob = s.get("outbound", {})
+            uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
+            sig = server_sig(ob)
+            is_frz = (sig in frozen_set) if sig else False
             if mark_wl_badges and ob:
                 badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
                 nm = f"{badge} • {nm}"
-            item = {"name": nm, "outbound": ob, "sub_index": idx}
+            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "frozen": is_frz, "sub_index": idx}
             all_srvs.append(item)
-            group_srv_names.append({"name": nm, "global_index": len(all_srvs) - 1})
+            group_srv_names.append({
+                "name": nm,
+                "uri": uri,
+                "sig": sig,
+                "frozen": is_frz,
+                "global_index": len(all_srvs) - 1
+            })
         groups.append({
             "index": idx,
             "title": title,
@@ -503,25 +562,47 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, mark_wl_badges=False):
         })
     return all_srvs, groups
 
+def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера"):
+    real = [s for s in raw_servers if s.get("outbound", {}).get("type") != "urltest"]
+    active_list = []
+    frozen_list = []
+    for s in real:
+        ob = s.get("outbound", {})
+        sig = s.get("sig") or server_sig(ob)
+        uri = s.get("uri") or rebuild_uri_from_outbound(ob, s.get("name", "Server"))
+        is_frz = sig in frozen_set if sig else False
+        item = dict(s, sig=sig, uri=uri, frozen=is_frz)
+        if is_frz:
+            frozen_list.append(item)
+        else:
+            active_list.append(item)
+
+    ordered = active_list + frozen_list
+    if len(active_list) >= 1:
+        pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(active_list[:25])]
+        ordered.insert(0, {
+            "name": auto_title,
+            "uri": "",
+            "sig": "",
+            "frozen": False,
+            "outbound": {
+                "type": "urltest",
+                "tag": "proxy",
+                "outbounds": [p["tag"] for p in pool],
+                "url": "https://www.gstatic.com/generate_204",
+                "interval": "3m",
+                "tolerance": 80,
+                "_pool": pool
+            }
+        })
+    return ordered
+
 def load_whitelist_servers(st, wl_key="auto", limit=120):
+    frozen_set = set(st.get("frozen_sigs", []))
     if wl_key == "my_wl_subs":
         wl_urls = read_wl_sub_urls()
-        srvs, _ = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), mark_wl_badges=True)
-        if len(srvs) > 1:
-            pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(srvs[:25])]
-            srvs.insert(0, {
-                "name": "Авто-выбор лучшего сервера",
-                "outbound": {
-                    "type": "urltest",
-                    "tag": "proxy",
-                    "outbounds": [p["tag"] for p in pool],
-                    "url": "https://www.gstatic.com/generate_204",
-                    "interval": "3m",
-                    "tolerance": 80,
-                    "_pool": pool
-                }
-            })
-        return srvs
+        srvs, _ = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True)
+        return apply_freeze_and_urltest(srvs, frozen_set)
 
     rel_files = []
     for k, _, files in WHITELIST_SOURCES:
@@ -548,16 +629,22 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
                         name, ob = parse_uri(line)
                         if not ob:
                             continue
-                        sni = ob.get("tls", {}).get("server_name", "")
-                        sig = (ob.get("type"), ob.get("server"), ob.get("server_port"), ob.get("uuid", ob.get("password", "")), sni)
+                        sig = server_sig(ob)
                         if sig in seen:
                             continue
                         seen.add(sig)
+                        sni = ob.get("tls", {}).get("server_name", "")
                         badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
                         title = name if (name and name != "Сервер") else f"{ob['server']}:{ob['server_port']}"
                         if sni and sni not in title:
                             title = f"{title} • {sni}"
-                        servers.append({"name": f"{badge} • {title[:52]}", "outbound": ob})
+                        servers.append({
+                            "name": f"{badge} • {title[:52]}",
+                            "outbound": ob,
+                            "uri": line,
+                            "sig": sig,
+                            "frozen": (sig in frozen_set)
+                        })
                         if len(servers) >= limit:
                             break
         except Exception:
@@ -565,21 +652,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
         if len(servers) >= limit:
             break
 
-    if len(servers) > 1:
-        pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(servers[:25])]
-        servers.insert(0, {
-            "name": "Авто-выбор лучшего сервера",
-            "outbound": {
-                "type": "urltest",
-                "tag": "proxy",
-                "outbounds": [p["tag"] for p in pool],
-                "url": "https://www.gstatic.com/generate_204",
-                "interval": "3m",
-                "tolerance": 80,
-                "_pool": pool
-            }
-        })
-    return servers
+    return apply_freeze_and_urltest(servers, frozen_set)
 
 def tcp_quick_filter(item, timeout=0.9):
     ob = item.get("outbound", {})
@@ -606,14 +679,21 @@ def probe_http204_via_port(port, item, starts, merged, timeout=2.8):
                 badge, tier = classify_whitelist_badge(ob, starts, merged, resolve_dns=True)
                 parts = item.get("name", "").split(" • ")
                 base_title = parts[-1] if parts else f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
-                return (tier, ms), {"name": f"{ms} мс • {badge} • {base_title}", "outbound": ob}
+                return (tier, ms), {
+                    "name": f"{ms} мс • {badge} • {base_title}",
+                    "outbound": ob,
+                    "uri": item.get("uri", "") or rebuild_uri_from_outbound(ob, base_title),
+                    "sig": item.get("sig", "") or server_sig(ob),
+                    "frozen": False
+                }
     except Exception:
         pass
     return None, item
 
 def test_and_sort_whitelist(st):
+    frozen_set = set(st.get("frozen_sigs", []))
     wl = load_whitelist_servers(st, st.get("whitelist_file", "auto"), limit=110)
-    real_srvs = [s for s in wl if s.get("outbound", {}).get("type") != "urltest"]
+    real_srvs = [s for s in wl if s.get("outbound", {}).get("type") != "urltest" and not s.get("frozen")]
     if not real_srvs:
         return st
 
@@ -688,23 +768,12 @@ def test_and_sort_whitelist(st):
     if not alive:
         alive = candidates[:25]
 
-    pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(alive[:20])]
-    final_list = [{
-        "name": f"Авто-выбор • {len(alive)} проверенных серверов",
-        "outbound": {
-            "type": "urltest",
-            "tag": "proxy",
-            "outbounds": [p["tag"] for p in pool],
-            "url": "https://www.gstatic.com/generate_204",
-            "interval": "2m",
-            "tolerance": 60,
-            "_pool": pool
-        }
-    }] + alive
+    frozen_items = [s for s in wl if s.get("outbound", {}).get("type") != "urltest" and s.get("frozen")]
+    final_list = apply_freeze_and_urltest(alive + frozen_items, frozen_set, f"Авто-выбор • {len(alive)} проверенных серверов")
 
     st["wl_servers"] = final_list
     st["wl_selected_index"] = 0
-    st["wl_server_name"] = final_list[0]["name"]
+    st["wl_server_name"] = final_list[0]["name"] if final_list else "Нет серверов"
     st = sync_active_server_list(st)
     save_state(st)
     return st
@@ -816,13 +885,14 @@ def build_config(outbound, st, use_tun=False):
     }
 
 def sync_active_server_list(st):
+    frozen_set = set(st.get("frozen_sigs", []))
     urls = read_sub_urls()
     sub_cache = st.get("sub_cache", {})
     if urls and not sub_cache and st.get("sub_servers"):
         sub_cache[urls[0]] = {"title": short_sub_title(urls[0], 0), "servers": st["sub_servers"]}
         st["sub_cache"] = sub_cache
 
-    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, mark_wl_badges=False)
+    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, frozen_set, mark_wl_badges=False)
     st["sub_servers"] = sub_srvs
 
     if sub_srvs:
@@ -836,6 +906,8 @@ def sync_active_server_list(st):
     wl_file = st.get("whitelist_file", "auto")
     if not st.get("wl_servers") or wl_file == "my_wl_subs":
         st["wl_servers"] = load_whitelist_servers(st, wl_file)
+    else:
+        st["wl_servers"] = apply_freeze_and_urltest(st["wl_servers"], frozen_set)
 
     wl_srvs = st.get("wl_servers", [])
     if wl_srvs:
@@ -915,7 +987,11 @@ def set_desktop_proxy(enable):
     else:
         subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "none"], stderr=subprocess.DEVNULL)
 
-def stop_vpn():
+def stop_vpn(save_disabled=True):
+    if save_disabled:
+        st = load_state()
+        st["vpn_enabled"] = False
+        save_state(st)
     set_desktop_proxy(False)
     subprocess.run(["pkill", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
     for _ in range(30):
@@ -953,12 +1029,14 @@ def wait_network_ready(timeout=8.0):
 
 def start_vpn():
     wait_network_ready(8.0)
-    stop_vpn()
+    stop_vpn(save_disabled=False)
     st = load_state()
+    st["vpn_enabled"] = True
     st = sync_active_server_list(st)
     if not st.get("servers") and not st.get("whitelist_mode"):
         st = fetch_subscriptions(is_wl=False)
     if "outbound" not in st or not st.get("servers"):
+        save_state(st)
         return False
 
     sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
@@ -979,23 +1057,44 @@ def start_vpn():
                     idx = st.get("sub_selected_index", 0)
                     if 0 <= idx < len(st.get("sub_servers", [])):
                         st["sub_servers"][idx]["name"] = loc
-                    save_state(st)
+            save_state(st)
             return True
         else:
-            stop_vpn()
+            stop_vpn(save_disabled=False)
     return False
 
 def dump_status_json():
     st = load_state()
     st = sync_active_server_list(st)
     save_state(st)
+    frozen_set = set(st.get("frozen_sigs", []))
     urls = read_sub_urls()
     wl_urls = read_wl_sub_urls()
-    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), mark_wl_badges=False)
-    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), mark_wl_badges=True)
+    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), frozen_set, mark_wl_badges=False)
+    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True)
 
-    sub_srv_names = [s.get("name", f"Сервер {i+1}") for i, s in enumerate(st.get("sub_servers", []))]
-    wl_srv_names = [s.get("name", f"Сервер {i+1}") for i, s in enumerate(st.get("wl_servers", []))]
+    sub_srv_names = []
+    sub_srv_items = []
+    for i, s in enumerate(st.get("sub_servers", [])):
+        nm = s.get("name", f"Сервер {i+1}")
+        ob = s.get("outbound", {})
+        uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
+        sig = s.get("sig", "") or server_sig(ob)
+        frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
+        sub_srv_names.append(nm)
+        sub_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "global_index": i})
+
+    wl_srv_names = []
+    wl_srv_items = []
+    for i, s in enumerate(st.get("wl_servers", [])):
+        nm = s.get("name", f"Сервер {i+1}")
+        ob = s.get("outbound", {})
+        uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
+        sig = s.get("sig", "") or server_sig(ob)
+        frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
+        wl_srv_names.append(nm)
+        wl_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "global_index": i})
+
     srv_names = wl_srv_names if st.get("whitelist_mode", False) else sub_srv_names
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]
     blocked_d, ru_d, _ = load_bypass_routing_sets(st)
@@ -1015,6 +1114,9 @@ def dump_status_json():
         "servers": srv_names,
         "sub_servers": sub_srv_names,
         "wl_servers": wl_srv_names,
+        "sub_server_items": sub_srv_items,
+        "wl_server_items": wl_srv_items,
+        "frozen_count": len(frozen_set),
         "urls": urls,
         "wl_urls": wl_urls,
         "sub_groups": sub_groups,
@@ -1032,6 +1134,12 @@ def restart_if_running():
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     if cmd == "status":
+        dump_status_json()
+    elif cmd == "boot":
+        st = load_state()
+        is_running = (subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0)
+        if st.get("vpn_enabled", False) and not is_running:
+            start_vpn()
         dump_status_json()
     elif cmd == "update":
         fetch_subscriptions(is_wl=False)
@@ -1066,6 +1174,36 @@ if __name__ == "__main__":
     elif cmd == "test_whitelist":
         st = load_state()
         st = test_and_sort_whitelist(st)
+        restart_if_running()
+        dump_status_json()
+    elif cmd == "toggle_freeze":
+        if len(sys.argv) > 3:
+            idx = int(sys.argv[2])
+            is_wl = (sys.argv[3] == "1")
+            st = load_state()
+            st = sync_active_server_list(st)
+            target_list = st.get("wl_servers", []) if is_wl else st.get("sub_servers", [])
+            if 0 <= idx < len(target_list):
+                ob = target_list[idx].get("outbound", {})
+                sig = target_list[idx].get("sig") or server_sig(ob)
+                if sig:
+                    frz = st.get("frozen_sigs", [])
+                    if sig in frz:
+                        frz.remove(sig)
+                    else:
+                        frz.append(sig)
+                    st["frozen_sigs"] = frz
+                    if is_wl:
+                        st["wl_selected_index"] = 0
+                    st = sync_active_server_list(st)
+                    save_state(st)
+                    restart_if_running()
+        dump_status_json()
+    elif cmd == "clear_frozen":
+        st = load_state()
+        st["frozen_sigs"] = []
+        st = sync_active_server_list(st)
+        save_state(st)
         restart_if_running()
         dump_status_json()
     elif cmd == "set_split_mode":
@@ -1175,4 +1313,4 @@ if __name__ == "__main__":
         start_vpn()
         dump_status_json()
     elif cmd == "stop":
-        stop_vpn()
+        stop_vpn(save_disabled=True)

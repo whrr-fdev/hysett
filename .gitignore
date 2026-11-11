@@ -3,3 +3,8 @@ backups/
 .aider*
 *.o
 *.qsb
+bypass-lists/repos/
+bypass-lists/update.log
+scripts/vpn_state.json
+scripts/singbox_vpn.json
+scripts/preferred_net_iface.txt

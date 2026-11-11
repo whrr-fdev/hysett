@@ -154,7 +154,7 @@ Item {
                         control.isHovering = true
                     }
                     onExited: segHoverHold.restart()
-                    onClicked: {
+                    onPressed: {
                         control.selectedIndex = index
                         control.selected(index)
                     }

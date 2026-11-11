@@ -94,6 +94,9 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QStringList vpnServers READ vpnServers NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnSubServers READ vpnSubServers NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnWlServers READ vpnWlServers NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList vpnSubServerItems READ vpnSubServerItems NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList vpnWlServerItems READ vpnWlServerItems NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vpnFrozenCount READ vpnFrozenCount NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnSubServerName READ vpnSubServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnWlServerName READ vpnWlServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnSubSelectedServer READ vpnSubSelectedServer NOTIFY sysStatsChanged)
@@ -241,6 +244,11 @@ public:
     QStringList vpnServers() const { return m_vpnServers; }
     QStringList vpnSubServers() const { return m_vpnSubServers; }
     QStringList vpnWlServers() const { return m_vpnWlServers; }
+    QVariantList vpnSubServerItems() const { return m_vpnSubServerItems; }
+    QVariantList vpnWlServerItems() const { return m_vpnWlServerItems; }
+    int vpnFrozenCount() const { return m_vpnFrozenCount; }
+    Q_INVOKABLE void toggleFreezeVpnServer(int idx, bool isWl);
+    Q_INVOKABLE void clearFrozenVpnServers();
     QString vpnSubServerName() const { return m_vpnSubServerName; }
     QString vpnWlServerName() const { return m_vpnWlServerName; }
     int vpnSubSelectedServer() const { return m_vpnSubSelectedServer; }
@@ -420,6 +428,9 @@ private:
     QStringList m_vpnServers;
     QStringList m_vpnSubServers;
     QStringList m_vpnWlServers;
+    QVariantList m_vpnSubServerItems;
+    QVariantList m_vpnWlServerItems;
+    int m_vpnFrozenCount = 0;
     QString m_vpnSubServerName = "VPN";
     QString m_vpnWlServerName = "Авто-выбор лучшего сервера";
     int m_vpnSubSelectedServer = 0;

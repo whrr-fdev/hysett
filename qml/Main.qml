@@ -915,7 +915,7 @@ ApplicationWindow {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
                                                 onExited: { if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1 }
-                                                onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                                onPressed: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                             }
                                         }
                                     }
@@ -1745,7 +1745,7 @@ ApplicationWindow {
                                         id: vWsMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onEntered: { vWsBox.lastHoverIdx = index; vWsBox.hoveredIdx = index }
                                         onExited: if (vWsBox.hoveredIdx === index) vWsBox.hoveredIdx = -1
-                                        onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                        onPressed: if (Waybar) Waybar.switchWorkspace(modelData.id)
                                     }
                                 }
                             }

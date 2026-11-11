@@ -268,6 +268,8 @@ void WaybarManager::connectHyprEventSocket() {
     connect(m_hyprNotifier, &QSocketNotifier::activated, this, &WaybarManager::onHyprEventReady);
 }
 
+static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive);
+
 void WaybarManager::onHyprEventReady() {
     char buf[4096];
     ssize_t n = ::read(m_hyprEventFd, buf, sizeof(buf) - 1);

@@ -39,9 +39,9 @@ ScrollView {
     }
 
     Timer {
-        interval: 400
+        interval: 750
         repeat: true
-        running: vpnScroll.visible && Waybar && Waybar.vpnLogAutoRefresh && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
+        running: vpnScroll.visible && Waybar && Waybar.vpnLogAutoRefresh && (ApplicationWindow.window ? ApplicationWindow.window.drawerOpen : true)
         triggeredOnStart: true
         onTriggered: if (Waybar) Waybar.refreshVpnLogs()
     }
@@ -272,7 +272,7 @@ ScrollView {
                         width: logFlick.width - 10
                         readOnly: true
                         selectByMouse: true
-                        textFormat: TextEdit.RichText
+                        textFormat: TextEdit.PlainText
                         wrapMode: TextEdit.WrapAnywhere
                         font.family: "monospace"
                         font.pixelSize: 10

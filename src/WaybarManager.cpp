@@ -1840,15 +1840,40 @@ void WaybarManager::setVpnLogLevel(const QString &lvl) {
 
 void WaybarManager::refreshVpnLogs() {
     QFile f("/tmp/singbox_vpn.log");
+    if (!f.exists()) {
+        if (m_vpnLogs.isEmpty()) {
+            m_vpnLogs = {"Журнал пуст. Включите VPN или запустите проверку серверов."};
+            m_vpnLogHtml = m_vpnLogs.first();
+            emit vpnLogsChanged();
+        }
+        return;
+    }
+    qint64 sz = f.size();
+    if (sz == m_lastLogFileSize && m_vpnLogMaxLines == m_lastLogMaxLines && !m_vpnLogs.isEmpty()) {
+        return;
+    }
+    m_lastLogFileSize = sz;
+    m_lastLogMaxLines = m_vpnLogMaxLines;
+
     QStringList nextLogs;
-    if (f.exists() && f.open(QIODevice::ReadOnly)) {
-        qint64 sz = f.size();
-        if (sz > 96 * 1024) f.seek(sz - 96 * 1024);
+    if (f.open(QIODevice::ReadOnly)) {
+        qint64 tailBytes = std::min<qint64>(sz, std::max<qint64>(16384, qint64(m_vpnLogMaxLines) * 140));
+        if (sz > tailBytes) f.seek(sz - tailBytes);
         QByteArray raw = f.readAll();
         f.close();
+
         static const QRegularExpression ansiRe("\x1b\[[0-9;]*m");
+        const bool isDebug = (m_vpnLogLevel == "debug");
         const QList<QByteArray> lines = raw.split('\n');
-        for (const QByteArray &b : lines) {
+        int startIdx = (sz > tailBytes && lines.size() > 1) ? 1 : 0;
+        for (int i = startIdx; i < lines.size(); ++i) {
+            const QByteArray &b = lines[i];
+            if (b.isEmpty()) continue;
+            if (!isDebug) {
+                if (b.contains("inbound DNS packet") || b.contains("OPT PSEUDOSECTION") || b.contains("inbound packet connection")) {
+                    continue;
+                }
+            }
             QString ln = QString::fromUtf8(b).trimmed();
             if (ln.isEmpty()) continue;
             ln.remove(ansiRe);
@@ -1863,19 +1888,7 @@ void WaybarManager::refreshVpnLogs() {
     }
     if (m_vpnLogs != nextLogs) {
         m_vpnLogs = nextLogs;
-        QStringList htmlLines;
-        htmlLines.reserve(nextLogs.size());
-        for (const QString &ln : nextLogs) {
-            QString esc = ln.toHtmlEscaped();
-            QString low = ln.toLower();
-            QString col = "#cccccc";
-            if (low.contains("error") || low.contains("fatal")) col = "#ff8a80";
-            else if (low.contains("warn")) col = "#ffd54f";
-            else if (low.contains("outbound/vless") || low.contains("[proxy]")) col = "#69f0ae";
-            else if (low.contains("outbound/direct")) col = "#80d8ff";
-            htmlLines.append(QString("<span style=\"color:%1;\">%2</span>").arg(col, esc));
-        }
-        m_vpnLogHtml = htmlLines.join("<br>");
+        m_vpnLogHtml = nextLogs.join("\n");
         emit vpnLogsChanged();
     }
 }
@@ -1885,8 +1898,9 @@ void WaybarManager::clearVpnLogs() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         p->deleteLater();
+        m_lastLogFileSize = -1;
         m_vpnLogs = {"Журнал очищен."};
-        m_vpnLogHtml = "<span style=\"color:#cccccc;\">Журнал очищен.</span>";
+        m_vpnLogHtml = "Журнал очищен.";
         emit vpnLogsChanged();
     });
     p->start("/usr/bin/python3", {script, "clear_logs"});

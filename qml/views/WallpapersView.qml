@@ -10,35 +10,39 @@ Item {
     property var winObj: ApplicationWindow.window
     readonly property real curOp: (winObj && !isNaN(winObj.wallpapersLiveOpacity)) ? winObj.wallpapersLiveOpacity : (Config ? Config.wallpapersOpacity : 0.30)
     readonly property real curBl: (winObj && !isNaN(winObj.wallpapersLiveBlur)) ? winObj.wallpapersLiveBlur : (Config ? Config.wallpapersBlur : 0.02)
-    readonly property bool isExpanded: wallRoot.width > 1050
+    readonly property bool isExpanded: wallRoot.width > 1050 || (winObj ? (winObj.isWallpaperExpanded || winObj.isSettingsMaximized) : false)
     property real targetScrollY: 0
     property real targetScrollX: 0
     property int activeCatIndex: 0
     property string activeCatName: Wallpapers.categories.length > 0 ? Wallpapers.categories[0].name : ""
     property bool isProgrammaticScroll: false
+    property real maxVertCatW: 114
 
-    // Точный пересчет горизонтальных позиций кнопок категорий (чтобы не налезали друг на друга и чтобы бегунок всегда знал координаты!)
     function recalcCatLayout() {
         var cnt = morphCatRepeater.count
         if (cnt === 0) return
 
         var spacing = (Theme && Theme.isRounded) ? 3 : 2
-        var availW = Math.max(300, sceneContainer.rightAreaW - 8)
+        var availW = Math.max(300, sceneContainer.rightAreaW - 4)
         var sumW = 0
+        var maxV = 114
         var widths = []
         for (var i = 0; i < cnt; ++i) {
             var item = morphCatRepeater.itemAt(i)
-            var w = item ? Math.ceil(item.textImplicitW + 14) : 48
+            var w = item ? Math.ceil(item.textImplicitW + 16) : 54
+            if (w > maxV) maxV = w
             widths.push(w)
             sumW += w
         }
+        wallRoot.maxVertCatW = Math.min(138, maxV)
+
         var totalGaps = Math.max(0, cnt - 1) * spacing
         var totalW = sumW + totalGaps
         if (totalW > availW && sumW > 0) {
             var scale = Math.max(0.5, (availW - totalGaps) / sumW)
             totalW = totalGaps
             for (var k = 0; k < cnt; ++k) {
-                widths[k] = Math.max(34, Math.floor(widths[k] * scale))
+                widths[k] = Math.max(38, Math.floor(widths[k] * scale))
                 totalW += widths[k]
             }
         }
@@ -57,11 +61,13 @@ Item {
 
     onWidthChanged: recalcCatLayout()
     onHeightChanged: recalcCatLayout()
-    onIsExpandedChanged: recalcCatLayout()
-    onActiveCatIndexChanged: {
-        
-    }
+    onIsExpandedChanged: Qt.callLater(recalcCatLayout)
     Component.onCompleted: Qt.callLater(recalcCatLayout)
+
+    Connections {
+        target: Config
+        function onFontSizeChanged() { Qt.callLater(wallRoot.recalcCatLayout) }
+    }
 
     NumberAnimation {
         id: fastWheelAnim
@@ -116,7 +122,7 @@ Item {
         anchors.fill: parent
 
         readonly property real leftPanelW: wallRoot.isExpanded ? Math.max(250, Math.min(295, Math.round(wallRoot.width * 0.20))) : 250
-        readonly property real leftPanelX: wallRoot.isExpanded ? 16 : Math.round(Math.max(18, (wallRoot.width - 668) / 2))
+        readonly property real leftPanelX: wallRoot.isExpanded ? 16 : Math.round(Math.max(18, (wallRoot.width - (250 + 24 + wallRoot.maxVertCatW + 24 + 260)) / 2))
         readonly property real rightAreaX: leftPanelX + leftPanelW + 20
         readonly property real rightAreaW: Math.max(260, wallRoot.width - rightAreaX - 18)
 
@@ -217,7 +223,7 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 3
-                                
+
                                 RowLayout {
                                     Text { text: Config ? (Config.language, Config.trAuto("Прозрачность вкладки:")) : "Прозрачность вкладки:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                     Text { text: Math.round(wallRoot.curOp * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize }
@@ -237,7 +243,7 @@ Item {
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 3
-                                
+
                                 RowLayout {
                                     Text { text: Config ? (Config.language, Config.trAuto("Блюр вкладки:")) : "Блюр вкладки:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                                     Text { text: wallRoot.curBl <= 0.01 ? "Выкл" : Math.round(wallRoot.curBl * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize }
@@ -362,13 +368,13 @@ Item {
             }
         }
 
-        // 2. ТРАНСФОРМИРУЕМЫЙ КОНТЕЙНЕР ГАЛЕРЕИ ОБОЕВ
+        // 2. ТРАНСФОРМИРУЕМЫЙ КОНТЕЙНЕР ГАЛЕРЕИ ОБОЕВ (С ПЛАВНЫМ ХОВЕРОМ И ЗУМОМ МИНИАТЮР)
         Item {
             id: morphGalleryBox
-            x: wallRoot.isExpanded ? sceneContainer.rightAreaX : (sceneContainer.leftPanelX + 250 + 24 + 110 + 24)
-            y: wallRoot.isExpanded ? (wallRoot.height - 174) : 6
+            x: wallRoot.isExpanded ? sceneContainer.rightAreaX : (sceneContainer.leftPanelX + 250 + 24 + wallRoot.maxVertCatW + 24)
+            y: wallRoot.isExpanded ? (wallRoot.height - 178) : 6
             width: wallRoot.isExpanded ? sceneContainer.rightAreaW : 260
-            height: wallRoot.isExpanded ? 130 : (wallRoot.height - 12)
+            height: wallRoot.isExpanded ? 134 : (wallRoot.height - 12)
             clip: true
 
             Behavior on x { NumberAnimation { duration: 440; easing.type: Easing.OutQuint } }
@@ -423,21 +429,23 @@ Item {
                     delegate: Item {
                         width: wallListView.width
                         height: 120
+                        z: wallBtn.hovered ? 10 : 1
 
                         Button {
                             id: wallBtn
                             objectName: "unifiedAtmoCard"
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.centerIn: parent
                             width: 210
-                            height: 120
+                            height: 116
                             flat: true
+                            hoverEnabled: true
+                            scale: wallBtn.pressed ? 0.96 : (wallBtn.hovered ? 1.045 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
                             onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
-                                radius: (Theme && Theme.isRounded) ? 6 : 0
-                                color: Qt.rgba(0.04, 0.04, 0.04, 0.85)
-                                border.color: wallBtn.hovered ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.16)
-                                border.width: wallBtn.hovered ? 2 : 1
+                                radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
+                                color: Qt.rgba(0.04, 0.04, 0.04, 0.88)
                                 clip: true
 
                                 Image {
@@ -448,8 +456,22 @@ Item {
                                     asynchronous: true
                                     cache: false
                                     fillMode: Image.PreserveAspectCrop
-                                    opacity: wallBtn.hovered ? 1.0 : 0.85
-                                    Behavior on opacity { NumberAnimation { duration: 90 } }
+                                    opacity: wallBtn.hovered ? 1.0 : 0.82
+                                    scale: wallBtn.hovered ? 1.08 : 1.0
+                                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    color: Qt.rgba(1, 1, 1, wallBtn.hovered ? 0.06 : 0.0)
+                                    border.color: wallBtn.hovered
+                                                  ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : Qt.rgba(1, 1, 1, 0.92))
+                                                  : Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: wallBtn.hovered ? 2 : 1
+                                    Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                    Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                 }
 
                                 Rectangle {
@@ -459,8 +481,8 @@ Item {
                                     anchors.margins: 6
                                     width: 18
                                     height: 14
-                                    radius: 2
-                                    color: Qt.rgba(0, 0, 0, 0.75)
+                                    radius: 3
+                                    color: Qt.rgba(0, 0, 0, 0.78)
                                     Text { anchors.centerIn: parent; text: "▶"; color: "#ffffff"; font.pixelSize: 8 }
                                 }
                             }
@@ -502,6 +524,8 @@ Item {
                 ListView {
                     id: horizWallListView
                     anchors.fill: parent
+                    leftMargin: 6
+                    rightMargin: 6
                     orientation: ListView.Horizontal
                     spacing: 12
                     clip: true
@@ -541,20 +565,24 @@ Item {
 
                     delegate: Item {
                         width: 210
-                        height: 120
+                        height: 126
+                        z: hWallBtn.hovered ? 10 : 1
 
                         Button {
                             id: hWallBtn
                             objectName: "unifiedAtmoCard"
-                            anchors.fill: parent
+                            anchors.centerIn: parent
+                            width: 204
+                            height: 116
                             flat: true
+                            hoverEnabled: true
+                            scale: hWallBtn.pressed ? 0.96 : (hWallBtn.hovered ? 1.048 : 1.0)
+                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
                             onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
-                                radius: (Theme && Theme.isRounded) ? 6 : 0
-                                color: Qt.rgba(0.04, 0.04, 0.04, 0.85)
-                                border.color: hWallBtn.hovered ? Qt.rgba(1, 1, 1, 0.85) : Qt.rgba(1, 1, 1, 0.16)
-                                border.width: hWallBtn.hovered ? 2 : 1
+                                radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
+                                color: Qt.rgba(0.04, 0.04, 0.04, 0.88)
                                 clip: true
 
                                 Image {
@@ -565,8 +593,22 @@ Item {
                                     asynchronous: true
                                     cache: false
                                     fillMode: Image.PreserveAspectCrop
-                                    opacity: hWallBtn.hovered ? 1.0 : 0.85
-                                    Behavior on opacity { NumberAnimation { duration: 90 } }
+                                    opacity: hWallBtn.hovered ? 1.0 : 0.82
+                                    scale: hWallBtn.hovered ? 1.08 : 1.0
+                                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+                                }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: parent.radius
+                                    color: Qt.rgba(1, 1, 1, hWallBtn.hovered ? 0.06 : 0.0)
+                                    border.color: hWallBtn.hovered
+                                                  ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : Qt.rgba(1, 1, 1, 0.92))
+                                                  : Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: hWallBtn.hovered ? 2 : 1
+                                    Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                    Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                 }
 
                                 Rectangle {
@@ -576,8 +618,8 @@ Item {
                                     anchors.margins: 6
                                     width: 18
                                     height: 14
-                                    radius: 2
-                                    color: Qt.rgba(0, 0, 0, 0.75)
+                                    radius: 3
+                                    color: Qt.rgba(0, 0, 0, 0.78)
                                     Text { anchors.centerIn: parent; text: "▶"; color: "#ffffff"; font.pixelSize: 8 }
                                 }
                             }
@@ -644,7 +686,7 @@ Item {
 
                     x: btnItem ? btnItem.x : morphCategoriesLayer.vertX
                     y: btnItem ? btnItem.y : morphCategoriesLayer.vertStartY
-                    width: btnItem ? btnItem.width : 114
+                    width: btnItem ? btnItem.width : wallRoot.maxVertCatW
                     height: btnItem ? btnItem.height : 24
 
                     topLeftRadius: isFirst ? outerR : innerR
@@ -670,7 +712,7 @@ Item {
 
                 x: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.x : morphCategoriesLayer.vertX
                 y: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.y : morphCategoriesLayer.vertStartY
-                width: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.width : 114
+                width: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.width : wallRoot.maxVertCatW
                 height: morphCategoriesLayer.lastHoveredCatBtnObj ? morphCategoriesLayer.lastHoveredCatBtnObj.height : 24
 
                 topLeftRadius: isFirst ? outerR : innerR
@@ -702,7 +744,7 @@ Item {
 
                 x: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetX : morphCategoriesLayer.vertX
                 y: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetY : morphCategoriesLayer.vertStartY
-                width: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetW : 114
+                width: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetW : wallRoot.maxVertCatW
                 height: morphCategoriesLayer.activeCatBtnObj ? morphCategoriesLayer.activeCatBtnObj.targetH : 24
 
                 topLeftRadius: isFirst ? outerR : innerR
@@ -719,7 +761,7 @@ Item {
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Слой 4 (z: 4): Текст и обработка кликов (с прозрачным background, чтобы не перекрывать морф-плашки!)
+            // Слой 4 (z: 4): Текст и обработка кликов (с обнуленными padding и замером жирного шрифта!)
             Repeater {
                 id: morphCatRepeater
                 model: Wallpapers.categories
@@ -729,18 +771,30 @@ Item {
                     id: morphCatBtn
                     z: 4
                     flat: true
+                    padding: 0
+                    leftPadding: 4
+                    rightPadding: 4
+                    topPadding: 0
+                    bottomPadding: 0
                     property int catIdx: index
                     property bool isSel: wallRoot.activeCatIndex === index
 
-                    property real textImplicitW: mCatTxt.implicitWidth
+                    TextMetrics {
+                        id: boldCatMetrics
+                        font.pixelSize: Math.max(10, Config ? Config.fontSize - 1 : 10)
+                        font.bold: true
+                        text: modelData.name
+                    }
+
+                    property real textImplicitW: Math.max(mCatTxt.implicitWidth, boldCatMetrics.advanceWidth)
                     property real calcHorizX: morphCategoriesLayer.vertX
-                    property real calcHorizW: Math.ceil(mCatTxt.implicitWidth + 14)
+                    property real calcHorizW: Math.ceil(textImplicitW + 16)
 
                     onTextImplicitWChanged: Qt.callLater(wallRoot.recalcCatLayout)
 
                     readonly property real targetX: wallRoot.isExpanded ? calcHorizX : morphCategoriesLayer.vertX
                     readonly property real targetY: wallRoot.isExpanded ? morphCategoriesLayer.horizY : (morphCategoriesLayer.vertStartY + index * morphCategoriesLayer.vertStep)
-                    readonly property real targetW: wallRoot.isExpanded ? calcHorizW : 114
+                    readonly property real targetW: wallRoot.isExpanded ? calcHorizW : wallRoot.maxVertCatW
                     readonly property real targetH: wallRoot.isExpanded ? 26 : morphCategoriesLayer.vertBtnH
 
                     x: targetX
@@ -761,7 +815,7 @@ Item {
                         color: morphCatBtn.isSel
                                ? (Config ? Config.accentTextColor : "#000000")
                                : (morphCatBtn.hovered ? "#ffffff" : (morphCategoriesLayer.isM3 && Config ? Config.m3OnPrimaryContainer : "#cccccc"))
-                        font.pixelSize: wallRoot.isExpanded ? Math.max(9, Config.fontSize - 1) : 10
+                        font.pixelSize: wallRoot.isExpanded ? Math.max(9, Config ? Config.fontSize - 1 : 10) : 10
                         font.bold: morphCatBtn.isSel
                         elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
@@ -830,7 +884,6 @@ Item {
 
             Behavior on scale { NumberAnimation { duration: 180; easing.type: Easing.OutBack } }
 
-            // Светящаяся обводка диалогового окна (как у главного окна)
             ShaderEffect {
                 anchors.fill: parent
                 z: 20

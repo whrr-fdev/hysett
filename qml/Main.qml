@@ -2460,7 +2460,7 @@ ApplicationWindow {
                     height: parent.height / (Config ? Config.uiScale : 1.0)
                     scale: Config ? Config.uiScale : 1.0
                     transformOrigin: Item.TopLeft
-                    clip: true
+                    clip: pageController.inTransition || pageController.currentIndex !== 0
                     layer.enabled: root.anyModalActive && Config && Config.dialogBlur > 0.01
                     layer.smooth: true
                     layer.effect: ShaderEffect {
@@ -2471,7 +2471,7 @@ ApplicationWindow {
                     Item {
                     id: pageController
                     anchors.fill: parent
-                    clip: true
+                    clip: pageController.inTransition || pageController.currentIndex !== 0
 
                     property int currentIndex: 0
                     property int previousIndex: 0

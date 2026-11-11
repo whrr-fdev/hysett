@@ -22,6 +22,22 @@ Item {
     readonly property int cardHeight: isM3 ? (isMaximized ? 60 : 56) : (isMaximized ? 48 : 44)
     readonly property int cardGap: isM3 ? (isMaximized ? 13 : 11) : (isMaximized ? 9 : 7)
     property int visibleCardsHeight: 280
+    property real gridTopYPos: 170
+
+    readonly property int stageFixedW: 1640
+    readonly property real effContainerW: {
+        var pad = welcomeRoot.isM3 ? 52 : 56
+        var maxContainerW = welcomeRoot.isMaximized ? 1640 : 1040
+        return Math.max(400, Math.min(welcomeRoot.targetViewW - pad, maxContainerW))
+    }
+    readonly property real effStartX: Math.round((stageFixedW - effContainerW) * 0.5)
+
+    property real maxPulseScale: 1.0
+    SequentialAnimation {
+        id: welcomeSpringPulse
+        NumberAnimation { target: welcomeRoot; property: "maxPulseScale"; from: 1.0; to: 1.045; duration: 150; easing.type: Easing.OutQuad }
+        NumberAnimation { target: welcomeRoot; property: "maxPulseScale"; to: 1.0; duration: 310; easing.type: Easing.OutBack; easing.overshoot: 1.75 }
+    }
 
     function recalcCardsLayout() {
         var cnt = welcomeCatRep.count
@@ -33,40 +49,55 @@ Item {
             if (b && b.matchesFilter) visList.push(b)
         }
 
-        var pad = welcomeRoot.isM3 ? 52 : 56
-        var maxContainerW = welcomeRoot.isMaximized ? 1640 : 1040
-        var w = Math.max(400, Math.min(welcomeRoot.targetViewW - pad, maxContainerW))
+        var w = welcomeRoot.effContainerW
+        var baseStartX = welcomeRoot.effStartX
         var cardH = welcomeRoot.cardHeight
         var gap = welcomeRoot.cardGap
 
+        var cols = welcomeRoot.isMaximized ? (welcomeRoot.isM3 ? 5 : 6) : (welcomeRoot.isM3 ? 4 : 5)
         if (welcomeRoot.isSearching) {
-            var singleW = Math.min(540, Math.round(w * 0.60))
-            var startX = Math.round((w - singleW) / 2)
-            for (var m = 0; m < visList.length; ++m) {
-                var item = visList[m]
-                item.targetX = startX
-                item.targetY = m * (cardH + 8)
-                item.targetW = singleW
-            }
             welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 8))
         } else {
-            var cols = welcomeRoot.isMaximized ? (welcomeRoot.isM3 ? 5 : 6) : (welcomeRoot.isM3 ? 4 : 5)
+            var totalRows = Math.max(1, Math.ceil(visList.length / cols))
+            welcomeRoot.visibleCardsHeight = totalRows * cardH + (totalRows - 1) * gap
+        }
+
+        var heroTop = welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 46 : 16)
+        var heroH = Math.max(heroLeftBox.implicitHeight, heroRightBox.implicitHeight, 52) + (welcomeRoot.isM3 ? 18 : 14) + (welcomeRoot.isM3 ? 38 : 30)
+        var heroBot = heroTop + heroH
+        var gTop = welcomeRoot.isSearching
+                   ? (heroBot + 20)
+                   : Math.max(heroBot + 18, Math.round(heroBot + (welcomeRoot.targetViewH - heroBot - welcomeRoot.visibleCardsHeight) * 0.5))
+        welcomeRoot.gridTopYPos = gTop
+
+        if (welcomeRoot.isSearching) {
+            var singleW = Math.min(540, Math.round(w * 0.60))
+            var searchStartX = Math.round((welcomeRoot.stageFixedW - singleW) * 0.5)
+            for (var m = 0; m < visList.length; ++m) {
+                var item = visList[m]
+                item.targetX = searchStartX
+                item.targetY = gTop + m * (cardH + 8)
+                item.targetW = singleW
+            }
+        } else {
             var colW = Math.floor((w - (cols - 1) * gap) / cols)
             for (var k = 0; k < visList.length; ++k) {
                 var card = visList[k]
                 var c = k % cols
                 var r = Math.floor(k / cols)
-                card.targetX = c * (colW + gap)
-                card.targetY = r * (cardH + gap)
+                card.targetX = baseStartX + c * (colW + gap)
+                card.targetY = gTop + r * (cardH + gap)
                 card.targetW = colW
             }
-            var totalRows = Math.max(1, Math.ceil(visList.length / cols))
-            welcomeRoot.visibleCardsHeight = totalRows * cardH + (totalRows - 1) * gap
         }
     }
 
-    onIsMaximizedChanged: recalcCardsLayout()
+    onIsMaximizedChanged: {
+        recalcCardsLayout()
+        welcomeSpringPulse.restart()
+    }
     onTargetViewWChanged: recalcCardsLayout()
+    onTargetViewHChanged: recalcCardsLayout()
     onIsM3Changed: Qt.callLater(recalcCardsLayout)
     onSettingsSearchQueryChanged: recalcCardsLayout()
     Component.onCompleted: Qt.callLater(recalcCardsLayout)
@@ -82,7 +113,7 @@ Item {
         anchors.fill: parent
         contentWidth: welcomeRoot.width
         ScrollBar.vertical.policy: ScrollBar.AsNeeded
-        clip: true
+        clip: false
 
         Timer {
             interval: 500
@@ -98,136 +129,152 @@ Item {
         Item {
             id: scrollArea
             width: welcomeRoot.width
-            implicitHeight: Math.max(welcomeRoot.height, gridWrapper.targetYPos + welcomeRoot.visibleCardsHeight + 28)
+            implicitHeight: Math.max(welcomeRoot.height, welcomeRoot.gridTopYPos + welcomeRoot.visibleCardsHeight + 28)
             height: implicitHeight
 
+            // Неподвижная координатная сцена 1640px по центру экрана (исключает встречное движение родителя и карточек)
             Item {
                 id: mainContainer
-                readonly property real targetW: Math.max(400, Math.min(welcomeRoot.targetViewW - (welcomeRoot.isM3 ? 52 : 56), welcomeRoot.isMaximized ? 1640 : 1040))
-                width: targetW
+                width: welcomeRoot.stageFixedW
                 height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
-                Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
 
-                Item {
-                    id: heroWrapper
-                    width: parent.width
-                    height: heroBlock.implicitHeight
-                    y: welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 42 : 16)
+                readonly property real heroTopY: welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 46 : 16)
+                readonly property real heroRowH: Math.max(heroLeftBox.implicitHeight, heroRightBox.implicitHeight, 52)
+                readonly property real heroGap: welcomeRoot.isMaximized ? 34 : 21
+                readonly property real leftBoxW: heroLeftBox.implicitWidth
+                readonly property real rightBoxW: heroRightBox.implicitWidth
+                readonly property real totalHeroRowW: leftBoxW + heroGap + 1 + heroGap + rightBoxW
+                readonly property real heroRowStartX: {
+                    if (welcomeRoot.isSearching || welcomeRoot.wMode === 1) return Math.round((mainContainer.width - totalHeroRowW) * 0.5)
+                    if (welcomeRoot.wMode === 0) return welcomeRoot.effStartX
+                    return welcomeRoot.effStartX + welcomeRoot.effContainerW - totalHeroRowW
+                }
 
-                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                // 1. Левая часть шапки (Логотип CachyOS + Приветствие)
+                ColumnLayout {
+                    id: heroLeftBox
+                    x: mainContainer.heroRowStartX - (welcomeRoot.isMaximized && (welcomeRoot.wMode === 1 || welcomeRoot.isSearching) ? 10 : 0)
+                    y: mainContainer.heroTopY + Math.round((mainContainer.heroRowH - implicitHeight) * 0.5)
+                    spacing: 6
+                    scale: (welcomeRoot.isMaximized ? 1.05 : 1.0) * welcomeRoot.maxPulseScale
+                    transformOrigin: Item.Right
 
-                    ColumnLayout {
-                        id: heroBlock
-                        x: {
-                            if (welcomeRoot.isSearching || welcomeRoot.wMode === 1) return Math.round((parent.width - width) / 2)
-                            if (welcomeRoot.wMode === 0) return 0
-                            return parent.width - width
-                        }
-                        spacing: welcomeRoot.isM3 ? 18 : 14
+                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on scale { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
 
-                        Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
+                    RowLayout {
+                        spacing: 8
+                        Image { width: 18; height: 18; sourceSize: Qt.size(36, 36); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
+                        Text { text: "HYPRLAND"; color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"; font.pixelSize: 13; font.bold: welcomeRoot.isM3; font.letterSpacing: 2 }
+                    }
 
-                        RowLayout {
-                            Layout.alignment: welcomeRoot.isSearching ? Qt.AlignHCenter : (welcomeRoot.wMode === 0 ? Qt.AlignLeft : (welcomeRoot.wMode === 2 ? Qt.AlignRight : Qt.AlignHCenter))
-                            spacing: 42
+                    Text {
+                        text: Config ? (Config.language, Config.trAuto("Привет, Whrr!")) : "Привет, Whrr!"
+                        color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
+                        font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 10 : 8)
+                        font.bold: welcomeRoot.isM3
+                    }
+                }
 
-                            ColumnLayout {
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 6
+                // 2. Разделитель шапки
+                Rectangle {
+                    id: heroDivider
+                    width: 1
+                    height: welcomeRoot.isMaximized ? 54 : 48
+                    x: mainContainer.heroRowStartX + mainContainer.leftBoxW + mainContainer.heroGap
+                    y: mainContainer.heroTopY + Math.round((mainContainer.heroRowH - height) * 0.5)
+                    color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.16)
+                    scale: welcomeRoot.maxPulseScale
 
-                                RowLayout {
-                                    spacing: 8
-                                    Image { width: 18; height: 18; sourceSize: Qt.size(36, 36); smooth: true; source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg" }
-                                    Text { text: "HYPRLAND"; color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"; font.pixelSize: 13; font.bold: welcomeRoot.isM3; font.letterSpacing: 2 }
-                                }
+                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on height { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                }
 
-                                Text {
-                                    text: Config ? (Config.language, Config.trAuto("Привет, Whrr!")) : "Привет, Whrr!"
-                                    color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
-                                    font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 10 : 8)
-                                    font.bold: welcomeRoot.isM3
-                                }
-                            }
+                // 3. Правая часть шапки (Часы + Дата)
+                ColumnLayout {
+                    id: heroRightBox
+                    x: mainContainer.heroRowStartX + mainContainer.leftBoxW + mainContainer.heroGap + 1 + mainContainer.heroGap + (welcomeRoot.isMaximized && (welcomeRoot.wMode === 1 || welcomeRoot.isSearching) ? 10 : 0)
+                    y: mainContainer.heroTopY + Math.round((mainContainer.heroRowH - implicitHeight) * 0.5)
+                    spacing: 2
+                    scale: (welcomeRoot.isMaximized ? 1.05 : 1.0) * welcomeRoot.maxPulseScale
+                    transformOrigin: Item.Left
 
-                            Rectangle {
-                                width: 1
-                                height: 48
-                                color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.16)
-                                Layout.alignment: Qt.AlignVCenter
-                            }
+                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on scale { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
 
-                            ColumnLayout {
-                                Layout.alignment: Qt.AlignVCenter
-                                spacing: 2
+                    Text {
+                        id: timeLabel
+                        text: Qt.formatDateTime(new Date(), "hh:mm:ss")
+                        color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
+                        font.pixelSize: 38
+                        font.bold: welcomeRoot.isM3
+                        font.letterSpacing: 2
+                        Layout.alignment: Qt.AlignLeft
+                    }
 
-                                Text {
-                                    id: timeLabel
-                                    text: Qt.formatDateTime(new Date(), "hh:mm:ss")
-                                    color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                    font.pixelSize: 38
-                                    font.bold: welcomeRoot.isM3
-                                    font.letterSpacing: 2
-                                    Layout.alignment: Qt.AlignLeft
-                                }
+                    Text {
+                        id: dateLabel
+                        text: Qt.formatDateTime(new Date(), "dddd, d MMMM yyyy")
+                        color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.72) : "#888888"
+                        font.pixelSize: Config.fontSize
+                        Layout.alignment: Qt.AlignLeft
+                    }
+                }
 
-                                Text {
-                                    id: dateLabel
-                                    text: Qt.formatDateTime(new Date(), "dddd, d MMMM yyyy")
-                                    color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.72) : "#888888"
-                                    font.pixelSize: Config.fontSize
-                                    Layout.alignment: Qt.AlignLeft
-                                }
-                            }
-                        }
+                // 4. Поле поиска (позиционируется напрямую от targetSearchW без перезапуска Behavior в каждом кадре)
+                TextField {
+                    id: welcomeSearchField
+                    readonly property real targetSearchW: welcomeRoot.isSearching ? 480 : (welcomeRoot.isMaximized ? 560 : (welcomeRoot.isM3 ? 400 : 340))
+                    readonly property real targetSearchX: {
+                        if (welcomeRoot.isSearching || welcomeRoot.wMode === 1) return Math.round((mainContainer.width - targetSearchW) * 0.5)
+                        if (welcomeRoot.wMode === 0) return welcomeRoot.effStartX
+                        return welcomeRoot.effStartX + welcomeRoot.effContainerW - targetSearchW
+                    }
+                    readonly property real targetSearchY: mainContainer.heroTopY + mainContainer.heroRowH + (welcomeRoot.isM3 ? 18 : 14)
 
-                        TextField {
-                            id: welcomeSearchField
-                            Layout.alignment: welcomeRoot.isSearching ? Qt.AlignHCenter : (welcomeRoot.wMode === 0 ? Qt.AlignLeft : (welcomeRoot.wMode === 2 ? Qt.AlignRight : Qt.AlignHCenter))
-                            Layout.preferredWidth: welcomeRoot.isSearching ? 480 : (welcomeRoot.isMaximized ? 520 : (welcomeRoot.isM3 ? 400 : 340))
-                            implicitHeight: welcomeRoot.isM3 ? 38 : 30
-                            leftPadding: 16
-                            rightPadding: 16
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 1 : 0)
-                            placeholderText: Config ? (Config.language, Config.trAuto("Поиск по настройкам")) : "Поиск по настройкам"
-                            placeholderTextColor: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.55) : "#777777"
+                    x: targetSearchX
+                    y: targetSearchY
+                    width: targetSearchW
+                    implicitHeight: welcomeRoot.isM3 ? 38 : 30
+                    height: implicitHeight
+                    leftPadding: 16
+                    rightPadding: 16
+                    color: "#ffffff"
+                    font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 1 : 0)
+                    placeholderText: Config ? (Config.language, Config.trAuto("Поиск по настройкам")) : "Поиск по настройкам"
+                    placeholderTextColor: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.55) : "#777777"
+                    scale: welcomeRoot.maxPulseScale
 
-                            Behavior on Layout.preferredWidth { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on width { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
 
-                            background: GlassPanel {
-                                radius: welcomeRoot.isM3 ? height / 2 : 0
-                                baseSurf: Config ? Config.m3SurfaceContainerHigh : "#252832"
-                            }
-                            onTextChanged: welcomeRoot.settingsSearchQuery = text.trim().toLowerCase()
-                            onAccepted: {
-                                for (var i = 0; i < welcomeCatRep.count; ++i) {
-                                    var b = welcomeCatRep.itemAt(i)
-                                    if (b && b.matchesFilter) {
-                                        welcomeRoot.navigateTo(b.catIdx)
-                                        break
-                                    }
-                                }
+                    background: GlassPanel {
+                        radius: welcomeRoot.isM3 ? height / 2 : 0
+                        baseSurf: Config ? Config.m3SurfaceContainerHigh : "#252832"
+                    }
+                    onTextChanged: welcomeRoot.settingsSearchQuery = text.trim().toLowerCase()
+                    onAccepted: {
+                        for (var i = 0; i < welcomeCatRep.count; ++i) {
+                            var b = welcomeCatRep.itemAt(i)
+                            if (b && b.matchesFilter) {
+                                welcomeRoot.navigateTo(b.catIdx)
+                                break
                             }
                         }
                     }
                 }
 
+                // 5. Сетка карточек (y: 0, каждая карточка летит напрямую к своим абсолютным координатам targetX / targetY)
                 Item {
                     id: gridWrapper
                     width: parent.width
-                    height: welcomeRoot.visibleCardsHeight
-
-                    readonly property real targetYPos: {
-                        var heroBot = (welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 42 : 16)) + heroWrapper.height
-                        if (welcomeRoot.isSearching) return heroBot + 20
-                        var minTop = heroBot + 18
-                        var midBottom = Math.round(heroBot + (welcomeRoot.targetViewH - heroBot - welcomeRoot.visibleCardsHeight) / 2)
-                        return Math.max(minTop, midBottom)
-                    }
-                    y: targetYPos
-
-                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.22 } }
+                    height: parent.height
+                    y: 0
 
                     property Item hoveredCardObj: null
                     property Item lastHoveredCardObj: null
@@ -287,7 +334,7 @@ Item {
                             id: cardBtn
                             property int catIdx: modelData.idx
                             property real targetX: 0
-                            property real targetY: 0
+                            property real targetY: 170
                             property real targetW: 220
 
                             readonly property string rawTitle: Config ? (Config.language, Config.trAuto(modelData.title)) : modelData.title
@@ -312,15 +359,15 @@ Item {
                             width: targetW
                             height: welcomeRoot.cardHeight
                             opacity: matchesFilter ? 1.0 : 0.0
-                            scale: matchesFilter ? 1.0 : 0.88
+                            scale: matchesFilter ? welcomeRoot.maxPulseScale : 0.88
                             visible: opacity > 0.01
                             enabled: matchesFilter
                             flat: true
 
-                            Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.22 } }
-                            Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.22 } }
-                            Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
-                            Behavior on height { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
+                            Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.32 } }
+                            Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.32 } }
+                            Behavior on width { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                            Behavior on height { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
                             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 

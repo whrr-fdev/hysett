@@ -9,8 +9,11 @@ ScrollView {
     property bool hideSubLinks: false
     property int copiedSubIdx: -1
     property int copiedWlSubIdx: -1
-    property int activeSubTab: 0      // 0 = Все серверы, 1..N = конкретная подписка
-    property int activeWlSubTab: 0    // 0 = Все мои БС, 1..N = конкретная БС-подписка
+    property int activeSubTab: 0
+    property bool isWlMode: Waybar ? Waybar.vpnWhitelistMode : false
+    property real modeSlideProgress: isWlMode ? 1.0 : 0.0
+    Behavior on modeSlideProgress { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+
     contentWidth: availableWidth
     clip: true
 
@@ -43,7 +46,7 @@ ScrollView {
                     Layout.fillWidth: true
                 }
                 StyledButton {
-                    text: (Waybar && Waybar.vpnBusy) ? "⟳ Синхронизация..." : "󰊢  Обновить списки (Git)"
+                    text: (Waybar && Waybar.vpnBusy) ? "󰑐  Синхронизация..." : "󰊢  Обновить списки (Git)"
                     implicitHeight: 26
                     enabled: !(Waybar && Waybar.vpnBusy)
                     onClicked: if (Waybar) Waybar.updateBypassLists()
@@ -56,56 +59,116 @@ ScrollView {
                 }
             }
 
-            // 2. КРУПНЫЙ ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА НА САМОМ ВИДНОМ МЕСТЕ: ОБЫЧНЫЙ VPN / БЕЛЫЕ СПИСКИ
-            GlassPanel {
-                objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 50
+            // 2. ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМА В СТИЛЕ СЕГМЕНТНОЙ КОЛБАСКИ (БЕЗ МИГАНИЯ ПРИ НАВЕДЕНИИ)
+            Item {
+                id: topModeSeg
+                Layout.fillWidth: true
+                implicitHeight: 38
+                property bool m3: Theme && Theme.isRounded
+                property real outerR: m3 ? 12 : 0
+                property real innerR: m3 ? 5 : 0
+                property int hoveredIdx: -1
+                property int lastHoveredIdx: 0
+                property int activeIdx: vpnScroll.isWlMode ? 1 : 0
 
-                Item {
-                    id: topModeBar
-                    anchors.fill: parent; anchors.margins: 6
-                    property int hoveredIdx: -1
-                    property int activeIdx: (Waybar && Waybar.vpnWhitelistMode) ? 1 : 0
+                Timer {
+                    id: topModeHoverHold
+                    interval: 50
+                    onTriggered: topModeSeg.hoveredIdx = -1
+                }
+
+                Row {
+                    anchors.fill: parent
+                    spacing: 3
+                    Repeater {
+                        model: 2
+                        delegate: Rectangle {
+                            width: (topModeSeg.width - 3) * 0.5
+                            height: topModeSeg.height
+                            radius: topModeSeg.innerR
+                            color: (topModeSeg.m3 && Config) ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.05)
+                            border.color: (topModeSeg.m3 && Config) ? Config.m3OutlineVariant : Qt.rgba(1, 1, 1, 0.14)
+                            border.width: 1
+
+                            Rectangle {
+                                visible: topModeSeg.m3 && index === 0
+                                anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                                width: topModeSeg.outerR; radius: topModeSeg.outerR; color: parent.color
+                            }
+                            Rectangle {
+                                visible: topModeSeg.m3 && index === 1
+                                anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                                width: topModeSeg.outerR; radius: topModeSeg.outerR; color: parent.color
+                            }
+                        }
+                    }
+                }
+
+                // Непрерывно скользящая плашка наведения
+                Rectangle {
+                    z: 2
+                    opacity: topModeSeg.hoveredIdx >= 0 ? 1.0 : 0.0
+                    x: topModeSeg.lastHoveredIdx * ((topModeSeg.width - 3) * 0.5 + 3)
+                    y: 0
+                    width: (topModeSeg.width - 3) * 0.5
+                    height: topModeSeg.height
+                    radius: topModeSeg.lastHoveredIdx === 0 || topModeSeg.lastHoveredIdx === 1 ? topModeSeg.innerR : topModeSeg.innerR
+                    color: Qt.rgba(1, 1, 1, 0.10)
+                    Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                }
+
+                // Плашка активного режима
+                Rectangle {
+                    z: 3
+                    x: topModeSeg.activeIdx * ((topModeSeg.width - 3) * 0.5 + 3)
+                    y: 0
+                    width: (topModeSeg.width - 3) * 0.5
+                    height: topModeSeg.height
+                    radius: topModeSeg.innerR
+                    color: Config ? Config.m3Primary : "#ffffff"
+                    Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
 
                     Rectangle {
-                        visible: topModeBar.hoveredIdx >= 0 && topModeBar.hoveredIdx !== topModeBar.activeIdx
-                        x: topModeBar.hoveredIdx === 1 ? parent.width * 0.5 : 0
-                        y: 0; width: parent.width * 0.5; height: parent.height
-                        radius: (Theme && Theme.isRounded) ? 10 : 0
-                        color: Qt.rgba(1, 1, 1, 0.10)
-                        Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                        visible: topModeSeg.m3 && topModeSeg.activeIdx === 0
+                        anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+                        width: topModeSeg.outerR; radius: topModeSeg.outerR; color: parent.color
                     }
-
                     Rectangle {
-                        x: topModeBar.activeIdx === 1 ? parent.width * 0.5 : 0
-                        y: 0; width: parent.width * 0.5; height: parent.height
-                        radius: (Theme && Theme.isRounded) ? 10 : 0
-                        color: Config ? Config.m3Primary : "#ffffff"
-                        Behavior on x { NumberAnimation { duration: 250; easing.type: Easing.OutQuint } }
+                        visible: topModeSeg.m3 && topModeSeg.activeIdx === 1
+                        anchors.right: parent.right; anchors.top: parent.top; anchors.bottom: parent.bottom
+                        width: topModeSeg.outerR; radius: topModeSeg.outerR; color: parent.color
                     }
+                }
 
-                    Row {
-                        anchors.fill: parent
-                        Repeater {
-                            model: [
-                                "🌐  Режим: Обычный VPN (Мои подписки)",
-                                "🛡️  Режим: Обход Белых Списков (БС)"
-                            ]
-                            delegate: Item {
-                                width: topModeBar.width * 0.5; height: topModeBar.height
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData
-                                    font.pixelSize: Config.fontSize + 1
-                                    font.bold: true
-                                    color: topModeBar.activeIdx === index ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                Row {
+                    z: 4
+                    anchors.fill: parent
+                    spacing: 3
+                    Repeater {
+                        model: [
+                            "󰦝  Режим: Обычный VPN (Мои подписки)",
+                            "󰒃  Режим: Обход Белых Списков (БС)"
+                        ]
+                        delegate: Item {
+                            width: (topModeSeg.width - 3) * 0.5
+                            height: topModeSeg.height
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData
+                                font.pixelSize: Config.fontSize
+                                font.bold: topModeSeg.activeIdx === index
+                                color: topModeSeg.activeIdx === index ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                            }
+                            MouseArea {
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onEntered: {
+                                    topModeHoverHold.stop()
+                                    topModeSeg.lastHoveredIdx = index
+                                    topModeSeg.hoveredIdx = index
                                 }
-                                MouseArea {
-                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onEntered: topModeBar.hoveredIdx = index
-                                    onExited: if (topModeBar.hoveredIdx === index) topModeBar.hoveredIdx = -1
-                                    onClicked: if (Waybar) Waybar.vpnWhitelistMode = (index === 1)
-                                }
+                                onExited: topModeHoverHold.restart()
+                                onClicked: if (Waybar) Waybar.vpnWhitelistMode = (index === 1)
                             }
                         }
                     }
@@ -115,17 +178,19 @@ ScrollView {
             // 3. ГЛАВНАЯ КАРТОЧКА ВКЛЮЧЕНИЯ VPN
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 82
+                Layout.fillWidth: true; implicitHeight: 80
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 16; spacing: 16
 
                     Rectangle {
-                        width: 46; height: 46
-                        radius: (Theme && Theme.isRounded) ? 14 : 0
+                        width: 44; height: 44
+                        radius: (Theme && Theme.isRounded) ? 12 : 0
                         color: (Waybar && Waybar.vpnActive) ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.08)
                         border.color: Qt.rgba(1, 1, 1, 0.20); border.width: 1
                         Text {
-                            anchors.centerIn: parent; text: (Waybar && Waybar.vpnWhitelistMode) ? "🛡️" : "󰦝"; font.pixelSize: 22
+                            anchors.centerIn: parent
+                            text: vpnScroll.isWlMode ? "󰒃" : "󰦝"
+                            font.pixelSize: 20
                             color: (Waybar && Waybar.vpnActive) ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                         }
                     }
@@ -140,7 +205,7 @@ ScrollView {
                         RowLayout {
                             spacing: 10
                             Text {
-                                text: (Waybar && Waybar.vpnBusy) ? "⟳ Проверка и обновление..." : ((Waybar && Waybar.vpnActive) ? "●  Подключено (sing-box TUN)" : "○  Отключено")
+                                text: (Waybar && Waybar.vpnBusy) ? "󰑐  Проверка и применение..." : ((Waybar && Waybar.vpnActive) ? "󰄬  Подключено (sing-box TUN)" : "○  Отключено")
                                 color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : ((Waybar && Waybar.vpnActive) ? "#69f0ae" : "#888888")
                                 font.pixelSize: Config.fontSize - 1
                             }
@@ -159,412 +224,541 @@ ScrollView {
                 }
             }
 
-            // 4А. ПАНЕЛЬ КАТЕГОРИЙ И СВОИХ ПОДПИСОК В РЕЖИМЕ БЕЛЫХ СПИСКОВ (БС)
-            GlassPanel {
-                objectName: "atmoObstacle"
-                visible: Waybar && Waybar.vpnWhitelistMode
-                Layout.fillWidth: true; implicitHeight: wlPanelCol.implicitHeight + 24
+            // 4. ПОЛНОЦЕННЫЙ ГОРИЗОНТАЛЬНЫЙ СЛАЙДЕР СТРАНИЦ: [СТРАНИЦА 0: ОБЫЧНЫЙ VPN] <-> [СТРАНИЦА 1: БЕЛЫЕ СПИСКИ]
+            Item {
+                id: modePagesViewport
+                Layout.fillWidth: true
+                implicitHeight: vpnScroll.isWlMode ? wlModePage.implicitHeight : normalVpnPage.implicitHeight
+                clip: true
+                Behavior on implicitHeight { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
 
-                ColumnLayout {
-                    id: wlPanelCol; anchors.fill: parent; anchors.margins: 14; spacing: 10
+                Row {
+                    width: modePagesViewport.width * 2
+                    x: -vpnScroll.modeSlideProgress * modePagesViewport.width
 
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Text {
-                            text: "Источники Белых Списков (локальные базы bypass-lists и свои подписки БС)"
-                            color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
-                            Layout.fillWidth: true
-                        }
-                        StyledButton {
-                            text: (Waybar && Waybar.vpnBusy) ? "⟳ Тест HTTP 204..." : "⚡ Проверить БС (HTTP 204 + CIDR/SNI)"
-                            implicitHeight: 26
-                            enabled: !(Waybar && Waybar.vpnBusy)
-                            onClicked: if (Waybar) Waybar.testWhitelistServers()
-                        }
-                    }
-
-                    // Сетка категорий БС с плавно скользящей плашкой
+                    // ================= СТРАНИЦА 0: ОБЫЧНЫЙ VPN (ПОДПИСКИ И ВКЛАДКИ) =================
                     Item {
-                        id: wlCatContainer
-                        Layout.fillWidth: true
-                        implicitHeight: wlCatFlow.implicitHeight
-                        property var hoveredItem: null
-                        property var activeItem: null
-
-                        Rectangle {
-                            z: 1
-                            visible: wlCatContainer.hoveredItem !== null && wlCatContainer.hoveredItem !== wlCatContainer.activeItem
-                            x: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.x : 0
-                            y: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.y : 0
-                            width: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.width : 0
-                            height: wlCatContainer.hoveredItem ? wlCatContainer.hoveredItem.height : 26
-                            radius: (Theme && Theme.isRounded) ? 6 : 0
-                            color: Qt.rgba(1, 1, 1, 0.12)
-                            Behavior on x { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
-                            Behavior on y { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
-                            Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
-                        }
-
-                        Rectangle {
-                            z: 2
-                            visible: wlCatContainer.activeItem !== null
-                            x: wlCatContainer.activeItem ? wlCatContainer.activeItem.x : 0
-                            y: wlCatContainer.activeItem ? wlCatContainer.activeItem.y : 0
-                            width: wlCatContainer.activeItem ? wlCatContainer.activeItem.width : 0
-                            height: wlCatContainer.activeItem ? wlCatContainer.activeItem.height : 26
-                            radius: (Theme && Theme.isRounded) ? 6 : 0
-                            color: Config ? Config.m3Primary : "#ffffff"
-                            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                            Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                            Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                        }
-
-                        Flow {
-                            id: wlCatFlow
-                            z: 3; width: parent.width; spacing: 6
-                            Repeater {
-                                model: Waybar ? Waybar.vpnWhitelistFiles : []
-                                delegate: Item {
-                                    id: catBtn
-                                    width: catTxt.implicitWidth + 20; height: 26
-                                    property bool isSel: Waybar && Waybar.vpnWhitelistFile === modelData.key
-                                    onIsSelChanged: if (isSel) wlCatContainer.activeItem = catBtn
-                                    Component.onCompleted: if (isSel) wlCatContainer.activeItem = catBtn
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: (Theme && Theme.isRounded) ? 6 : 0
-                                        color: Qt.rgba(1, 1, 1, 0.04)
-                                        border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
-                                    }
-                                    Text {
-                                        id: catTxt; anchors.centerIn: parent
-                                        text: modelData.label
-                                        font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
-                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onEntered: wlCatContainer.hoveredItem = catBtn
-                                        onExited: if (wlCatContainer.hoveredItem === catBtn) wlCatContainer.hoveredItem = null
-                                        onClicked: if (Waybar) Waybar.vpnWhitelistFile = modelData.key
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Блок добавления своих отдельных подписок специально для Белых Списков
-                    Rectangle {
-                        Layout.fillWidth: true; height: 1
-                        color: Qt.rgba(1, 1, 1, 0.10)
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        Text {
-                            text: "⭐ Свои подписки и ключи для обхода Белых Списков (хранятся отдельно):"
-                            color: "#dddddd"; font.pixelSize: Config.fontSize; font.bold: true
-                            Layout.fillWidth: true
-                        }
-                        StyledButton {
-                            text: vpnScroll.hideSubLinks ? "󰈉  Показать" : "󰈈  Скрыть (блюр)"
-                            implicitHeight: 22
-                            isActive: vpnScroll.hideSubLinks
-                            onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
-                        }
-                    }
-
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        TextField {
-                            id: wlSubUrlField
-                            Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
-                            color: "#ffffff"; font.pixelSize: 11
-                            placeholderText: "Вставьте ссылку на БС-подписку или несколько vless:// ключей..."
-                            placeholderTextColor: "#777777"
-                            background: Rectangle { radius: (Theme && Theme.isRounded) ? 6 : 0; color: Qt.rgba(1,1,1,0.06); border.color: Qt.rgba(1,1,1,0.18) }
-                        }
-                        StyledButton {
-                            text: "+ Добавить в БС"
-                            implicitHeight: 28
-                            onClicked: {
-                                if (Waybar && wlSubUrlField.text.trim().length > 0) {
-                                    Waybar.addVpnWlSubUrl(wlSubUrlField.text.trim())
-                                    wlSubUrlField.text = ""
-                                }
-                            }
-                        }
-                    }
-
-                    // Вкладки своих подписок БС
-                    ColumnLayout {
-                        visible: Waybar && Waybar.vpnWlSubGroups.length > 0
-                        Layout.fillWidth: true; spacing: 6
-                        layer.enabled: vpnScroll.hideSubLinks
-                        layer.smooth: true
-                        layer.effect: ShaderEffect {
-                            property vector2d u_resolution: Qt.vector2d(Math.max(1, parent.width), Math.max(1, parent.height))
-                            property real u_blur: 0.92
-                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
-                        }
-
-                        Repeater {
-                            model: Waybar ? Waybar.vpnWlSubGroups : []
-                            delegate: Rectangle {
-                                Layout.fillWidth: true; implicitHeight: 30
-                                radius: (Theme && Theme.isRounded) ? 6 : 0
-                                color: Qt.rgba(1, 1, 1, 0.04)
-                                border.color: Qt.rgba(1, 1, 1, 0.14); border.width: 1
-
-                                RowLayout {
-                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
-                                    Text {
-                                        text: modelData.title + " (" + modelData.count + " серв.) — " + modelData.url
-                                        color: "#ffffff"; font.pixelSize: 10; font.bold: true
-                                        Layout.fillWidth: true; elide: Text.ElideMiddle
-                                    }
-                                    StyledButton {
-                                        text: vpnScroll.copiedWlSubIdx === index ? "✓ Скопировано" : "󰆏 Копировать"
-                                        implicitHeight: 22
-                                        isActive: vpnScroll.copiedWlSubIdx === index
-                                        enabled: !vpnScroll.hideSubLinks
-                                        onClicked: {
-                                            if (Waybar) {
-                                                var safeUrl = modelData.url.replace(/'/g, "'\\''");
-                                                Waybar.runCommand("printf '%s' '" + safeUrl + "' | wl-copy");
-                                                vpnScroll.copiedWlSubIdx = index;
-                                                copyResetTimer.restart();
-                                            }
-                                        }
-                                    }
-                                    StyledButton {
-                                        text: "✕"
-                                        implicitWidth: 22; implicitHeight: 22
-                                        enabled: !vpnScroll.hideSubLinks
-                                        onClicked: if (Waybar) Waybar.removeVpnWlSubUrl(index)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 4Б. ВКЛАДКИ И УПРАВЛЕНИЕ ОБЫЧНЫМИ ПОДПИСКАМИ (КОГДА ВКЛЮЧЕН ОБЫЧНЫЙ VPN)
-            GlassPanel {
-                objectName: "atmoObstacle"
-                visible: !(Waybar && Waybar.vpnWhitelistMode)
-                Layout.fillWidth: true; implicitHeight: subTabsCol.implicitHeight + 24
-
-                ColumnLayout {
-                    id: subTabsCol; anchors.fill: parent; anchors.margins: 14; spacing: 10
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text {
-                            text: "Мои подписки и ключи (каждая подписка в отдельной вкладке)"
-                            color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
-                            Layout.fillWidth: true
-                        }
-                        StyledButton {
-                            text: vpnScroll.hideSubLinks ? "󰈉  Показать ссылки" : "󰈈  Скрыть ссылки (блюр)"
-                            implicitHeight: 22
-                            isActive: vpnScroll.hideSubLinks
-                            onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
-                        }
-                    }
-
-                    // Строка добавления новой подписки
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 8
-                        TextField {
-                            id: subUrlField
-                            Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
-                            color: "#ffffff"; font.pixelSize: 11
-                            placeholderText: "Вставьте ссылку на подписку (https://...) или vless:// ключ..."
-                            placeholderTextColor: "#777777"
-                            background: Rectangle { radius: (Theme && Theme.isRounded) ? 6 : 0; color: Qt.rgba(1,1,1,0.06); border.color: Qt.rgba(1,1,1,0.18) }
-                        }
-                        StyledButton {
-                            text: "+ Добавить подписку"
-                            implicitHeight: 28
-                            onClicked: {
-                                if (Waybar && subUrlField.text.trim().length > 0) {
-                                    Waybar.addVpnSubUrl(subUrlField.text.trim())
-                                    subUrlField.text = ""
-                                }
-                            }
-                        }
-                    }
-
-                    // ВКЛАДКИ ПОДПИСОК С ПЛАВНЫМ БЕГУНКОМ
-                    Item {
-                        id: subTabBar
-                        visible: Waybar && Waybar.vpnSubGroups.length > 0
-                        Layout.fillWidth: true
-                        implicitHeight: subTabFlow.implicitHeight
-                        property var hoveredItem: null
-                        property var activeItem: null
-
-                        Rectangle {
-                            z: 1
-                            visible: subTabBar.hoveredItem !== null && subTabBar.hoveredItem !== subTabBar.activeItem
-                            x: subTabBar.hoveredItem ? subTabBar.hoveredItem.x : 0
-                            y: subTabBar.hoveredItem ? subTabBar.hoveredItem.y : 0
-                            width: subTabBar.hoveredItem ? subTabBar.hoveredItem.width : 0
-                            height: subTabBar.hoveredItem ? subTabBar.hoveredItem.height : 28
-                            radius: (Theme && Theme.isRounded) ? 6 : 0
-                            color: Qt.rgba(1, 1, 1, 0.12)
-                            Behavior on x { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
-                            Behavior on y { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
-                            Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
-                        }
-
-                        Rectangle {
-                            z: 2
-                            visible: subTabBar.activeItem !== null
-                            x: subTabBar.activeItem ? subTabBar.activeItem.x : 0
-                            y: subTabBar.activeItem ? subTabBar.activeItem.y : 0
-                            width: subTabBar.activeItem ? subTabBar.activeItem.width : 0
-                            height: subTabBar.activeItem ? subTabBar.activeItem.height : 28
-                            radius: (Theme && Theme.isRounded) ? 6 : 0
-                            color: Config ? Config.m3Primary : "#ffffff"
-                            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                            Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                            Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                        }
-
-                        Flow {
-                            id: subTabFlow
-                            z: 3; width: parent.width; spacing: 6
-
-                            // Вкладка 0: Все подписки
-                            Item {
-                                id: allSubTabBtn
-                                width: allSubTabTxt.implicitWidth + 22; height: 28
-                                property bool isSel: vpnScroll.activeSubTab === 0
-                                onIsSelChanged: if (isSel) subTabBar.activeItem = allSubTabBtn
-                                Component.onCompleted: if (isSel) subTabBar.activeItem = allSubTabBtn
-
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: (Theme && Theme.isRounded) ? 6 : 0
-                                    color: Qt.rgba(1, 1, 1, 0.04)
-                                    border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
-                                }
-                                Text {
-                                    id: allSubTabTxt; anchors.centerIn: parent
-                                    text: "Все серверы (" + (Waybar ? Waybar.vpnServers.length : 0) + ")"
-                                    font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
-                                    color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                }
-                                MouseArea {
-                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onEntered: subTabBar.hoveredItem = allSubTabBtn
-                                    onExited: if (subTabBar.hoveredItem === allSubTabBtn) subTabBar.hoveredItem = null
-                                    onClicked: vpnScroll.activeSubTab = 0
-                                }
-                            }
-
-                            // Отдельная вкладка для каждой подписки
-                            Repeater {
-                                model: Waybar ? Waybar.vpnSubGroups : []
-                                delegate: Item {
-                                    id: oneSubTabBtn
-                                    width: oneSubTabTxt.implicitWidth + 22; height: 28
-                                    property bool isSel: vpnScroll.activeSubTab === (index + 1)
-                                    onIsSelChanged: if (isSel) subTabBar.activeItem = oneSubTabBtn
-
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: (Theme && Theme.isRounded) ? 6 : 0
-                                        color: Qt.rgba(1, 1, 1, 0.04)
-                                        border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
-                                    }
-                                    Text {
-                                        id: oneSubTabTxt; anchors.centerIn: parent
-                                        text: modelData.title + " (" + modelData.count + ")"
-                                        font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
-                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                    }
-                                    MouseArea {
-                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onEntered: subTabBar.hoveredItem = oneSubTabBtn
-                                        onExited: if (subTabBar.hoveredItem === oneSubTabBtn) subTabBar.hoveredItem = null
-                                        onClicked: vpnScroll.activeSubTab = index + 1
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Карточка выбранной вкладки подписки (или список всех подписок, если выбрано "Все серверы")
-                    Item {
-                        id: urlsBlurBox
-                        Layout.fillWidth: true
-                        implicitHeight: subListCol.implicitHeight
-                        property int hoveredSubIdx: -1
-
-                        layer.enabled: vpnScroll.hideSubLinks
-                        layer.smooth: true
-                        layer.effect: ShaderEffect {
-                            property vector2d u_resolution: Qt.vector2d(Math.max(1, urlsBlurBox.width), Math.max(1, urlsBlurBox.height))
-                            property real u_blur: 0.92
-                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
-                        }
+                        id: normalVpnPage
+                        width: modePagesViewport.width
+                        implicitHeight: normalVpnCol.implicitHeight
 
                         ColumnLayout {
-                            id: subListCol
+                            id: normalVpnCol
                             width: parent.width
-                            spacing: 6
+                            spacing: 12
 
-                            Repeater {
-                                model: Waybar ? Waybar.vpnSubGroups : []
-                                delegate: Rectangle {
-                                    visible: vpnScroll.activeSubTab === 0 || vpnScroll.activeSubTab === (index + 1)
-                                    Layout.fillWidth: true; implicitHeight: 32
-                                    radius: (Theme && Theme.isRounded) ? 6 : 0
-                                    color: urlsBlurBox.hoveredSubIdx === index ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16) : Qt.rgba(1,1,1,0.10)) : Qt.rgba(1, 1, 1, 0.04)
-                                    border.color: urlsBlurBox.hoveredSubIdx === index ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.12)
-                                    border.width: 1
-                                    Behavior on color { ColorAnimation { duration: 150 } }
+                            GlassPanel {
+                                objectName: "atmoObstacle"
+                                Layout.fillWidth: true
+                                implicitHeight: subTabsCol.implicitHeight + 24
 
-                                    MouseArea {
-                                        anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton
-                                        onEntered: urlsBlurBox.hoveredSubIdx = index
-                                        onExited: if (urlsBlurBox.hoveredSubIdx === index) urlsBlurBox.hoveredSubIdx = -1
+                                ColumnLayout {
+                                    id: subTabsCol
+                                    anchors.fill: parent; anchors.margins: 14; spacing: 10
+
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text: "󰌘  Мои подписки и ключи"
+                                            color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                                            Layout.fillWidth: true
+                                        }
+                                        StyledButton {
+                                            text: vpnScroll.hideSubLinks ? "󰈉  Показать ссылки" : "󰈈  Скрыть ссылки (блюр)"
+                                            implicitHeight: 24
+                                            isActive: vpnScroll.hideSubLinks
+                                            onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
+                                        }
                                     }
 
                                     RowLayout {
-                                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
-                                        Text {
-                                            text: modelData.title + " [" + modelData.count + " серв.]  •  " + modelData.url
-                                            color: "#ffffff"; font.pixelSize: 10; font.bold: vpnScroll.activeSubTab === (index + 1)
-                                            Layout.fillWidth: true; elide: Text.ElideMiddle
+                                        Layout.fillWidth: true; spacing: 8
+                                        TextField {
+                                            id: subUrlField
+                                            Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
+                                            color: "#ffffff"; font.pixelSize: 11
+                                            placeholderText: "Вставьте ссылку на подписку (https://...) или vless:// ключ..."
+                                            placeholderTextColor: "#777777"
+                                            background: Rectangle { radius: (Theme && Theme.isRounded) ? 6 : 0; color: Qt.rgba(1,1,1,0.06); border.color: Qt.rgba(1,1,1,0.18) }
                                         }
                                         StyledButton {
-                                            text: vpnScroll.copiedSubIdx === index ? "✓ Скопировано" : "󰆏 Копировать"
-                                            implicitHeight: 22
-                                            isActive: vpnScroll.copiedSubIdx === index
-                                            enabled: !vpnScroll.hideSubLinks
+                                            text: "+ Добавить подписку"
+                                            implicitHeight: 28
                                             onClicked: {
-                                                if (Waybar) {
-                                                    var safeUrl = modelData.url.replace(/'/g, "'\\''");
-                                                    Waybar.runCommand("printf '%s' '" + safeUrl + "' | wl-copy");
-                                                    vpnScroll.copiedSubIdx = index;
-                                                    copyResetTimer.restart();
+                                                if (Waybar && subUrlField.text.trim().length > 0) {
+                                                    Waybar.addVpnSubUrl(subUrlField.text.trim())
+                                                    subUrlField.text = ""
                                                 }
                                             }
                                         }
+                                    }
+
+                                    // Вкладки подписок с бесшовным скольжением плашки наведения
+                                    Item {
+                                        id: subTabBar
+                                        visible: Waybar && Waybar.vpnSubGroups.length > 0
+                                        Layout.fillWidth: true
+                                        implicitHeight: subTabFlow.implicitHeight
+                                        property bool isHovering: false
+                                        property real hovX: 0
+                                        property real hovY: 0
+                                        property real hovW: 90
+                                        property var activeItem: allSubTabBtn
+
+                                        Timer {
+                                            id: subTabHoverHold
+                                            interval: 50
+                                            onTriggered: subTabBar.isHovering = false
+                                        }
+
+                                        Rectangle {
+                                            z: 1
+                                            opacity: subTabBar.isHovering ? 1.0 : 0.0
+                                            x: subTabBar.hovX; y: subTabBar.hovY
+                                            width: subTabBar.hovW; height: 28
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.11)
+                                            Behavior on x { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                            Behavior on y { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                            Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                                        }
+
+                                        Rectangle {
+                                            z: 2
+                                            visible: subTabBar.activeItem !== null
+                                            x: subTabBar.activeItem ? subTabBar.activeItem.x : 0
+                                            y: subTabBar.activeItem ? subTabBar.activeItem.y : 0
+                                            width: subTabBar.activeItem ? subTabBar.activeItem.width : 90
+                                            height: 28
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Config ? Config.m3Primary : "#ffffff"
+                                            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                            Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                            Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                        }
+
+                                        Flow {
+                                            id: subTabFlow
+                                            z: 3; width: parent.width; spacing: 5
+
+                                            Item {
+                                                id: allSubTabBtn
+                                                width: allSubTabTxt.implicitWidth + 22; height: 28
+                                                property bool isSel: vpnScroll.activeSubTab === 0
+                                                onIsSelChanged: if (isSel) subTabBar.activeItem = allSubTabBtn
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    radius: (Theme && Theme.isRounded) ? 6 : 0
+                                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                                    border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
+                                                }
+                                                Text {
+                                                    id: allSubTabTxt; anchors.centerIn: parent
+                                                    text: "Все (" + (Waybar ? Waybar.vpnServers.length : 0) + ")"
+                                                    font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
+                                                    color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                                }
+                                                MouseArea {
+                                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                    onEntered: {
+                                                        subTabHoverHold.stop()
+                                                        subTabBar.hovX = allSubTabBtn.x
+                                                        subTabBar.hovY = allSubTabBtn.y
+                                                        subTabBar.hovW = allSubTabBtn.width
+                                                        subTabBar.isHovering = true
+                                                    }
+                                                    onExited: subTabHoverHold.restart()
+                                                    onClicked: vpnScroll.activeSubTab = 0
+                                                }
+                                            }
+
+                                            Repeater {
+                                                model: Waybar ? Waybar.vpnSubGroups : []
+                                                delegate: Item {
+                                                    id: oneSubTabBtn
+                                                    width: oneSubTabTxt.implicitWidth + 22; height: 28
+                                                    property bool isSel: vpnScroll.activeSubTab === (index + 1)
+                                                    onIsSelChanged: if (isSel) subTabBar.activeItem = oneSubTabBtn
+
+                                                    Rectangle {
+                                                        anchors.fill: parent
+                                                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                                                        color: Qt.rgba(1, 1, 1, 0.04)
+                                                        border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
+                                                    }
+                                                    Text {
+                                                        id: oneSubTabTxt; anchors.centerIn: parent
+                                                        text: modelData.title + " (" + modelData.count + ")"
+                                                        font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
+                                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        onEntered: {
+                                                            subTabHoverHold.stop()
+                                                            subTabBar.hovX = oneSubTabBtn.x
+                                                            subTabBar.hovY = oneSubTabBtn.y
+                                                            subTabBar.hovW = oneSubTabBtn.width
+                                                            subTabBar.isHovering = true
+                                                        }
+                                                        onExited: subTabHoverHold.restart()
+                                                        onClicked: vpnScroll.activeSubTab = index + 1
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Список ссылок подписок с плавной плашкой наведения и копированием
+                                    Item {
+                                        id: urlsBlurBox
+                                        visible: Waybar && Waybar.vpnSubGroups.length > 0
+                                        Layout.fillWidth: true
+                                        implicitHeight: subListCol.implicitHeight
+                                        property bool isHovering: false
+                                        property real hovY: 0
+
+                                        Timer {
+                                            id: subRowHoverHold
+                                            interval: 50
+                                            onTriggered: urlsBlurBox.isHovering = false
+                                        }
+
+                                        layer.enabled: vpnScroll.hideSubLinks
+                                        layer.smooth: true
+                                        layer.effect: ShaderEffect {
+                                            property vector2d u_resolution: Qt.vector2d(Math.max(1, urlsBlurBox.width), Math.max(1, urlsBlurBox.height))
+                                            property real u_blur: 0.92
+                                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                                        }
+
+                                        Rectangle {
+                                            z: 1
+                                            opacity: urlsBlurBox.isHovering ? 1.0 : 0.0
+                                            x: 0; y: urlsBlurBox.hovY
+                                            width: urlsBlurBox.width; height: 32
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14) : Qt.rgba(1, 1, 1, 0.10)
+                                            border.color: Config ? Config.m3Primary : "#ffffff"; border.width: 1
+                                            Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                                        }
+
+                                        ColumnLayout {
+                                            id: subListCol
+                                            z: 2; width: parent.width; spacing: 6
+
+                                            Repeater {
+                                                model: Waybar ? Waybar.vpnSubGroups : []
+                                                delegate: Rectangle {
+                                                    id: subRowItem
+                                                    visible: vpnScroll.activeSubTab === 0 || vpnScroll.activeSubTab === (index + 1)
+                                                    Layout.fillWidth: true; implicitHeight: 32
+                                                    radius: (Theme && Theme.isRounded) ? 6 : 0
+                                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                                    border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+
+                                                    MouseArea {
+                                                        anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton
+                                                        onEntered: {
+                                                            subRowHoverHold.stop()
+                                                            urlsBlurBox.hovY = subRowItem.y
+                                                            urlsBlurBox.isHovering = true
+                                                        }
+                                                        onExited: subRowHoverHold.restart()
+                                                    }
+
+                                                    RowLayout {
+                                                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
+                                                        Text {
+                                                            text: modelData.title + " [" + modelData.count + " серв.]  •  " + modelData.url
+                                                            color: "#ffffff"; font.pixelSize: 10
+                                                            Layout.fillWidth: true; elide: Text.ElideMiddle
+                                                        }
+                                                        StyledButton {
+                                                            text: vpnScroll.copiedSubIdx === index ? "󰄬 Скопировано" : "󰆏 Копировать"
+                                                            implicitHeight: 22
+                                                            isActive: vpnScroll.copiedSubIdx === index
+                                                            enabled: !vpnScroll.hideSubLinks
+                                                            onClicked: {
+                                                                if (Waybar) {
+                                                                    var safeUrl = modelData.url.replace(/'/g, "'\\''");
+                                                                    Waybar.runCommand("printf '%s' '" + safeUrl + "' | wl-copy");
+                                                                    vpnScroll.copiedSubIdx = index;
+                                                                    copyResetTimer.restart();
+                                                                }
+                                                            }
+                                                        }
+                                                        StyledButton {
+                                                            text: "󰅖 Удалить"
+                                                            implicitHeight: 22
+                                                            enabled: !vpnScroll.hideSubLinks
+                                                            onClicked: {
+                                                                if (Waybar) {
+                                                                    vpnScroll.activeSubTab = 0;
+                                                                    Waybar.removeVpnSubUrl(index);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // ================= СТРАНИЦА 1: БЕЛЫЕ СПИСКИ (КАТЕГОРИИ И СВОИ БС-ПОДПИСКИ) =================
+                    Item {
+                        id: wlModePage
+                        width: modePagesViewport.width
+                        implicitHeight: wlPageCol.implicitHeight
+
+                        ColumnLayout {
+                            id: wlPageCol
+                            width: parent.width
+                            spacing: 12
+
+                            GlassPanel {
+                                objectName: "atmoObstacle"
+                                Layout.fillWidth: true
+                                implicitHeight: wlPanelCol.implicitHeight + 24
+
+                                ColumnLayout {
+                                    id: wlPanelCol
+                                    anchors.fill: parent; anchors.margins: 14; spacing: 10
+
+                                    RowLayout {
+                                        Layout.fillWidth: true; spacing: 8
+                                        Text {
+                                            text: "󰒃  Категории Белых Списков (bypass-lists и свои подписки БС)"
+                                            color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                                            Layout.fillWidth: true
+                                        }
                                         StyledButton {
-                                            text: "✕ Удалить"
+                                            text: (Waybar && Waybar.vpnBusy) ? "󰑐  Тест HTTP 204..." : "󰓅  Проверить БС (HTTP 204 + CIDR/SNI)"
+                                            implicitHeight: 26
+                                            enabled: !(Waybar && Waybar.vpnBusy)
+                                            onClicked: if (Waybar) Waybar.testWhitelistServers()
+                                        }
+                                    }
+
+                                    // Сетка категорий БС в стиле колбаски с бесшовным 2D-бегунком наведения
+                                    Item {
+                                        id: wlCatContainer
+                                        Layout.fillWidth: true
+                                        implicitHeight: wlCatFlow.implicitHeight
+                                        property bool isHovering: false
+                                        property real hovX: 0
+                                        property real hovY: 0
+                                        property real hovW: 110
+                                        property var activeItem: null
+
+                                        Timer {
+                                            id: wlCatHoverHold
+                                            interval: 50
+                                            onTriggered: wlCatContainer.isHovering = false
+                                        }
+
+                                        Rectangle {
+                                            z: 1
+                                            opacity: wlCatContainer.isHovering ? 1.0 : 0.0
+                                            x: wlCatContainer.hovX; y: wlCatContainer.hovY
+                                            width: wlCatContainer.hovW; height: 28
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.11)
+                                            Behavior on x { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                            Behavior on y { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                            Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                                        }
+
+                                        Rectangle {
+                                            z: 2
+                                            visible: wlCatContainer.activeItem !== null
+                                            x: wlCatContainer.activeItem ? wlCatContainer.activeItem.x : 0
+                                            y: wlCatContainer.activeItem ? wlCatContainer.activeItem.y : 0
+                                            width: wlCatContainer.activeItem ? wlCatContainer.activeItem.width : 110
+                                            height: 28
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Config ? Config.m3Primary : "#ffffff"
+                                            Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                            Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                            Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                        }
+
+                                        Flow {
+                                            id: wlCatFlow
+                                            z: 3; width: parent.width; spacing: 5
+                                            Repeater {
+                                                model: Waybar ? Waybar.vpnWhitelistFiles : []
+                                                delegate: Item {
+                                                    id: catBtn
+                                                    width: catTxt.implicitWidth + 20; height: 28
+                                                    property bool isSel: Waybar && Waybar.vpnWhitelistFile === modelData.key
+                                                    onIsSelChanged: if (isSel) wlCatContainer.activeItem = catBtn
+                                                    Component.onCompleted: if (isSel) wlCatContainer.activeItem = catBtn
+
+                                                    Rectangle {
+                                                        anchors.fill: parent
+                                                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                                                        color: (Theme && Theme.isRounded && Config) ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.04)
+                                                        border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14); border.width: 1
+                                                    }
+                                                    Text {
+                                                        id: catTxt; anchors.centerIn: parent
+                                                        text: modelData.label
+                                                        font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
+                                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                                    }
+                                                    MouseArea {
+                                                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                                        onEntered: {
+                                                            wlCatHoverHold.stop()
+                                                            wlCatContainer.hovX = catBtn.x
+                                                            wlCatContainer.hovY = catBtn.y
+                                                            wlCatContainer.hovW = catBtn.width
+                                                            wlCatContainer.isHovering = true
+                                                        }
+                                                        onExited: wlCatHoverHold.restart()
+                                                        onClicked: if (Waybar) Waybar.vpnWhitelistFile = modelData.key
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Rectangle {
+                                        Layout.fillWidth: true; height: 1
+                                        color: Qt.rgba(1, 1, 1, 0.10)
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true; spacing: 8
+                                        Text {
+                                            text: "󰌘  Свои подписки и ключи для Белых Списков (хранятся отдельно):"
+                                            color: "#dddddd"; font.pixelSize: Config.fontSize; font.bold: true
+                                            Layout.fillWidth: true
+                                        }
+                                        StyledButton {
+                                            text: vpnScroll.hideSubLinks ? "󰈉  Показать" : "󰈈  Скрыть (блюр)"
                                             implicitHeight: 22
-                                            enabled: !vpnScroll.hideSubLinks
+                                            isActive: vpnScroll.hideSubLinks
+                                            onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
+                                        }
+                                    }
+
+                                    RowLayout {
+                                        Layout.fillWidth: true; spacing: 8
+                                        TextField {
+                                            id: wlSubUrlField
+                                            Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
+                                            color: "#ffffff"; font.pixelSize: 11
+                                            placeholderText: "Вставьте ссылку на БС-подписку или несколько vless:// ключей..."
+                                            placeholderTextColor: "#777777"
+                                            background: Rectangle { radius: (Theme && Theme.isRounded) ? 6 : 0; color: Qt.rgba(1,1,1,0.06); border.color: Qt.rgba(1,1,1,0.18) }
+                                        }
+                                        StyledButton {
+                                            text: "+ Добавить в БС"
+                                            implicitHeight: 28
                                             onClicked: {
-                                                if (Waybar) {
-                                                    vpnScroll.activeSubTab = 0;
-                                                    Waybar.removeVpnSubUrl(index);
+                                                if (Waybar && wlSubUrlField.text.trim().length > 0) {
+                                                    Waybar.addVpnWlSubUrl(wlSubUrlField.text.trim())
+                                                    wlSubUrlField.text = ""
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Item {
+                                        id: wlSubsBlurBox
+                                        visible: Waybar && Waybar.vpnWlSubGroups.length > 0
+                                        Layout.fillWidth: true
+                                        implicitHeight: wlSubListCol.implicitHeight
+                                        property bool isHovering: false
+                                        property real hovY: 0
+
+                                        Timer {
+                                            id: wlSubHoverHold
+                                            interval: 50
+                                            onTriggered: wlSubsBlurBox.isHovering = false
+                                        }
+
+                                        layer.enabled: vpnScroll.hideSubLinks
+                                        layer.smooth: true
+                                        layer.effect: ShaderEffect {
+                                            property vector2d u_resolution: Qt.vector2d(Math.max(1, wlSubsBlurBox.width), Math.max(1, wlSubsBlurBox.height))
+                                            property real u_blur: 0.92
+                                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                                        }
+
+                                        Rectangle {
+                                            z: 1
+                                            opacity: wlSubsBlurBox.isHovering ? 1.0 : 0.0
+                                            x: 0; y: wlSubsBlurBox.hovY
+                                            width: wlSubsBlurBox.width; height: 32
+                                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                                            color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14) : Qt.rgba(1, 1, 1, 0.10)
+                                            border.color: Config ? Config.m3Primary : "#ffffff"; border.width: 1
+                                            Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                                        }
+
+                                        ColumnLayout {
+                                            id: wlSubListCol
+                                            z: 2; width: parent.width; spacing: 6
+
+                                            Repeater {
+                                                model: Waybar ? Waybar.vpnWlSubGroups : []
+                                                delegate: Rectangle {
+                                                    id: wlSubRowItem
+                                                    Layout.fillWidth: true; implicitHeight: 32
+                                                    radius: (Theme && Theme.isRounded) ? 6 : 0
+                                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                                    border.color: Qt.rgba(1, 1, 1, 0.14); border.width: 1
+
+                                                    MouseArea {
+                                                        anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton
+                                                        onEntered: {
+                                                            wlSubHoverHold.stop()
+                                                            wlSubsBlurBox.hovY = wlSubRowItem.y
+                                                            wlSubsBlurBox.isHovering = true
+                                                        }
+                                                        onExited: wlSubHoverHold.restart()
+                                                    }
+
+                                                    RowLayout {
+                                                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
+                                                        Text {
+                                                            text: modelData.title + " [" + modelData.count + " серв.]  •  " + modelData.url
+                                                            color: "#ffffff"; font.pixelSize: 10; font.bold: true
+                                                            Layout.fillWidth: true; elide: Text.ElideMiddle
+                                                        }
+                                                        StyledButton {
+                                                            text: vpnScroll.copiedWlSubIdx === index ? "󰄬 Скопировано" : "󰆏 Копировать"
+                                                            implicitHeight: 22
+                                                            isActive: vpnScroll.copiedWlSubIdx === index
+                                                            enabled: !vpnScroll.hideSubLinks
+                                                            onClicked: {
+                                                                if (Waybar) {
+                                                                    var safeUrl = modelData.url.replace(/'/g, "'\\''");
+                                                                    Waybar.runCommand("printf '%s' '" + safeUrl + "' | wl-copy");
+                                                                    vpnScroll.copiedWlSubIdx = index;
+                                                                    copyResetTimer.restart();
+                                                                }
+                                                            }
+                                                        }
+                                                        StyledButton {
+                                                            text: "󰅖 Удалить"
+                                                            implicitHeight: 22
+                                                            enabled: !vpnScroll.hideSubLinks
+                                                            onClicked: if (Waybar) Waybar.removeVpnWlSubUrl(index)
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
@@ -576,10 +770,9 @@ ScrollView {
                 }
             }
 
-            // 5. СПИСОК СЕРВЕРОВ (ФИЛЬТРУЕТСЯ ПО ВЫБРАННОЙ ВКЛАДКЕ ПОДПИСКИ ИЛИ КАТЕГОРИИ БС)
+            // 5. СПИСОК СЕРВЕРОВ С ПЛАВНОЙ СКОЛЬЗЯЩЕЙ ПЛАШКОЙ НАВЕДЕНИЯ И ВЫБОРА
             GlassPanel {
                 objectName: "atmoObstacle"
-                visible: Waybar && Waybar.vpnServers.length > 0
                 Layout.fillWidth: true
                 implicitHeight: srvCol.implicitHeight + 24
 
@@ -591,74 +784,125 @@ ScrollView {
                         Layout.fillWidth: true
                         Text {
                             text: {
-                                if (!Waybar) return "Серверы";
-                                if (Waybar.vpnWhitelistMode) return "Серверы Белого Списка (" + Waybar.vpnServers.length + ")";
+                                if (!Waybar) return "󰈀  Серверы";
+                                if (vpnScroll.isWlMode) return "󰒃  Серверы Белого Списка (" + Waybar.vpnServers.length + ")";
                                 if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
                                     var g = Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1];
-                                    return "Серверы из «" + g.title + "» (" + g.count + ")";
+                                    return "󰈀  Серверы из «" + g.title + "» (" + g.count + ")";
                                 }
-                                return "Все доступные серверы (" + Waybar.vpnServers.length + ")";
+                                return "󰈀  Доступные серверы (" + Waybar.vpnServers.length + ")";
                             }
                             color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                             Layout.fillWidth: true
                         }
                         Text {
-                            visible: Waybar && Waybar.vpnWhitelistMode
-                            text: "[✅ БС CIDR+SNI] = выживет при жестком белом списке"
+                            visible: vpnScroll.isWlMode
+                            text: "[󰄬 БС CIDR+SNI] = выживет при жестком белом списке"
                             color: "#69f0ae"; font.pixelSize: Config.fontSize - 2
                         }
                     }
 
-                    ListView {
-                        id: srvList
-                        Layout.fillWidth: true
-                        implicitHeight: Math.min(contentHeight, 230)
-                        clip: true
-                        spacing: 5
-                        ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    Text {
+                        visible: !Waybar || Waybar.vpnServers.length === 0
+                        text: vpnScroll.isWlMode
+                            ? "Нет серверов в выбранной категории БС. Нажмите «󰊢 Обновить списки (Git)» или добавьте свою БС-подписку."
+                            : "Нет добавленных серверов. Добавьте ссылку на подписку или vless:// ключ выше."
+                        color: "#888888"; font.pixelSize: Config.fontSize - 1
+                    }
 
-                        model: {
-                            if (!Waybar) return [];
-                            if (!Waybar.vpnWhitelistMode && vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
-                                return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
-                            }
-                            var res = [];
-                            for (var i = 0; i < Waybar.vpnServers.length; ++i) {
-                                res.push({ name: Waybar.vpnServers[i], global_index: i });
-                            }
-                            return res;
+                    Item {
+                        id: srvListContainer
+                        visible: Waybar && Waybar.vpnServers.length > 0
+                        Layout.fillWidth: true
+                        implicitHeight: Math.min(srvList.contentHeight, 238)
+                        clip: true
+                        property bool isHovering: false
+                        property int lastHoveredRow: 0
+
+                        Timer {
+                            id: srvHoverHold
+                            interval: 50
+                            onTriggered: srvListContainer.isHovering = false
                         }
 
-                        delegate: Rectangle {
+                        // Плавно скользящая плашка наведения по списку серверов
+                        Rectangle {
+                            z: 1
+                            opacity: srvListContainer.isHovering ? 1.0 : 0.0
+                            x: 0
+                            y: srvListContainer.lastHoveredRow * 34 - srvList.contentY
                             width: srvList.width
                             height: 30
-                            property int realIdx: modelData.global_index !== undefined ? modelData.global_index : index
-                            property bool isSel: Waybar && Waybar.vpnSelectedServer === realIdx
                             radius: (Theme && Theme.isRounded) ? 6 : 0
-                            color: isSel ? (Config ? Config.m3Primary : "#ffffff") : (srvMa.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.04))
-                            border.color: isSel ? "transparent" : Qt.rgba(1,1,1,0.14); border.width: 1
-                            Behavior on color { ColorAnimation { duration: 150 } }
+                            color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14) : Qt.rgba(1, 1, 1, 0.10)
+                            border.color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.45) : Qt.rgba(1, 1, 1, 0.22)
+                            border.width: 1
+                            Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                        }
 
-                            RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
-                                Text {
-                                    text: modelData.name !== undefined ? modelData.name : modelData
-                                    color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                    font.pixelSize: Config.fontSize
-                                    font.bold: parent.parent.isSel
-                                    Layout.fillWidth: true; elide: Text.ElideRight
+                        ListView {
+                            id: srvList
+                            z: 2
+                            anchors.fill: parent
+                            spacing: 4
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                            model: {
+                                if (!Waybar) return [];
+                                if (!vpnScroll.isWlMode && vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
+                                    return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
                                 }
+                                var res = [];
+                                for (var i = 0; i < Waybar.vpnServers.length; ++i) {
+                                    res.push({ name: Waybar.vpnServers[i], global_index: i });
+                                }
+                                return res;
                             }
-                            MouseArea {
-                                id: srvMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: if (Waybar) Waybar.selectVpnServer(parent.realIdx)
+
+                            delegate: Rectangle {
+                                width: srvList.width
+                                height: 30
+                                property int realIdx: modelData.global_index !== undefined ? modelData.global_index : index
+                                property bool isSel: Waybar && Waybar.vpnSelectedServer === realIdx
+                                radius: (Theme && Theme.isRounded) ? 6 : 0
+                                color: isSel ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.03)
+                                border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.12); border.width: 1
+                                Behavior on color { ColorAnimation { duration: 160 } }
+
+                                RowLayout {
+                                    anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                                    Text {
+                                        text: modelData.name !== undefined ? modelData.name : modelData
+                                        color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        font.pixelSize: Config.fontSize
+                                        font.bold: parent.parent.isSel
+                                        Layout.fillWidth: true; elide: Text.ElideRight
+                                    }
+                                    Text {
+                                        visible: parent.parent.isSel
+                                        text: "󰄬"
+                                        color: Config ? Config.accentTextColor : "#000000"
+                                        font.pixelSize: Config.fontSize
+                                    }
+                                }
+                                MouseArea {
+                                    anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onEntered: {
+                                        srvHoverHold.stop()
+                                        srvListContainer.lastHoveredRow = index
+                                        srvListContainer.isHovering = true
+                                    }
+                                    onExited: srvHoverHold.restart()
+                                    onClicked: if (Waybar) Waybar.selectVpnServer(parent.realIdx)
+                                }
                             }
                         }
                     }
                 }
             }
 
-            // 6. КАРТОЧКА РАЗДЕЛЬНОГО ТУННЕЛИРОВАНИЯ С ПЛАВНЫМ БЕГУНКОМ
+            // 6. КАРТОЧКА РАЗДЕЛЬНОГО ТУННЕЛИРОВАНИЯ В СТИЛЕ СЕГМЕНТНОЙ КОЛБАСКИ
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true; implicitHeight: splitCol.implicitHeight + 24
@@ -666,14 +910,19 @@ ScrollView {
                     id: splitCol; anchors.fill: parent; anchors.margins: 14; spacing: 10
 
                     Text {
-                        text: "Раздельное туннелирование (Split Tunneling + allow-domains / Re-filter)"
+                        text: "󰒓  Раздельное туннелирование (Split Tunneling + allow-domains / Re-filter)"
                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                     }
 
                     Item {
                         id: splitSegWrap
-                        Layout.fillWidth: true; height: 30
+                        Layout.fillWidth: true; height: 32
+                        property bool m3: Theme && Theme.isRounded
+                        property real outerR: m3 ? 10 : 0
+                        property real innerR: m3 ? 5 : 0
+                        property real itemW: (width - 6) / 3.0
                         property int hoveredIdx: -1
+                        property int lastHoveredIdx: 0
                         property int activeIdx: {
                             if (!Waybar) return 0;
                             if (Waybar.vpnSplitMode === "only_blocked") return 1;
@@ -681,40 +930,56 @@ ScrollView {
                             return 0;
                         }
 
-                        Rectangle {
-                            anchors.fill: parent
-                            radius: (Theme && Theme.isRounded) ? 8 : 0
-                            color: Qt.rgba(1, 1, 1, 0.04)
-                            border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+                        Timer {
+                            id: splitHoverHold
+                            interval: 50
+                            onTriggered: splitSegWrap.hoveredIdx = -1
+                        }
+
+                        Row {
+                            anchors.fill: parent; spacing: 3
+                            Repeater {
+                                model: 3
+                                delegate: Rectangle {
+                                    width: splitSegWrap.itemW; height: splitSegWrap.height
+                                    radius: splitSegWrap.innerR
+                                    color: (splitSegWrap.m3 && Config) ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.04)
+                                    border.color: (splitSegWrap.m3 && Config) ? Config.m3OutlineVariant : Qt.rgba(1, 1, 1, 0.12)
+                                    border.width: 1
+                                }
+                            }
                         }
 
                         Rectangle {
-                            visible: splitSegWrap.hoveredIdx >= 0 && splitSegWrap.hoveredIdx !== splitSegWrap.activeIdx
-                            x: splitSegWrap.hoveredIdx * (parent.width / 3.0)
-                            y: 0; width: parent.width / 3.0; height: parent.height
-                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            z: 2
+                            opacity: splitSegWrap.hoveredIdx >= 0 ? 1.0 : 0.0
+                            x: splitSegWrap.lastHoveredIdx * (splitSegWrap.itemW + 3)
+                            y: 0; width: splitSegWrap.itemW; height: splitSegWrap.height
+                            radius: splitSegWrap.innerR
                             color: Qt.rgba(1, 1, 1, 0.10)
                             Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
                         }
 
                         Rectangle {
-                            x: splitSegWrap.activeIdx * (parent.width / 3.0)
-                            y: 0; width: parent.width / 3.0; height: parent.height
-                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            z: 3
+                            x: splitSegWrap.activeIdx * (splitSegWrap.itemW + 3)
+                            y: 0; width: splitSegWrap.itemW; height: splitSegWrap.height
+                            radius: splitSegWrap.innerR
                             color: Config ? Config.m3Primary : "#ffffff"
                             Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
                         }
 
                         Row {
-                            anchors.fill: parent
+                            z: 4; anchors.fill: parent; spacing: 3
                             Repeater {
                                 model: [
-                                    { key: "ru_direct", label: "🇷🇺 Обход РФ (RU Direct)" },
-                                    { key: "only_blocked", label: "🎯 Только заблокированные" },
-                                    { key: "all_vpn", label: "🌐 Весь трафик в VPN" }
+                                    { key: "ru_direct", label: "󰈀  Обход РФ (RU Direct)" },
+                                    { key: "only_blocked", label: "󰞀  Только заблокированные" },
+                                    { key: "all_vpn", label: "󰦝  Весь трафик в VPN" }
                                 ]
                                 delegate: Item {
-                                    width: splitSegWrap.width / 3.0; height: splitSegWrap.height
+                                    width: splitSegWrap.itemW; height: splitSegWrap.height
                                     Text {
                                         anchors.centerIn: parent
                                         text: modelData.label
@@ -724,8 +989,12 @@ ScrollView {
                                     }
                                     MouseArea {
                                         anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                        onEntered: splitSegWrap.hoveredIdx = index
-                                        onExited: if (splitSegWrap.hoveredIdx === index) splitSegWrap.hoveredIdx = -1
+                                        onEntered: {
+                                            splitHoverHold.stop()
+                                            splitSegWrap.lastHoveredIdx = index
+                                            splitSegWrap.hoveredIdx = index
+                                        }
+                                        onExited: splitHoverHold.restart()
                                         onClicked: if (Waybar) Waybar.vpnSplitMode = modelData.key
                                     }
                                 }
@@ -792,7 +1061,7 @@ ScrollView {
                                     id: cpRow; anchors.centerIn: parent; spacing: 5
                                     Text { text: "VPN: " + modelData; color: "#ffffff"; font.pixelSize: 10 }
                                     Text {
-                                        text: "✕"; color: "#cccccc"; font.pixelSize: 10
+                                        text: "󰅖"; color: "#cccccc"; font.pixelSize: 10
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Waybar.removeVpnCustomDomain(index, false) }
                                     }
                                 }
@@ -809,7 +1078,7 @@ ScrollView {
                                     id: cdRow; anchors.centerIn: parent; spacing: 5
                                     Text { text: "Прямой: " + modelData; color: "#ffffff"; font.pixelSize: 10 }
                                     Text {
-                                        text: "✕"; color: "#cccccc"; font.pixelSize: 10
+                                        text: "󰅖"; color: "#cccccc"; font.pixelSize: 10
                                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Waybar.removeVpnCustomDomain(index, true) }
                                     }
                                 }

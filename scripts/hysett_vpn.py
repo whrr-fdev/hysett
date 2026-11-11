@@ -28,41 +28,41 @@ WHITE_SNI_KEYWORDS = (
 )
 
 WHITELIST_SOURCES = [
-    ("my_wl_subs", "⭐ Мои подписки БС", []),
-    ("auto", "⚡ Все проверенные БС (Авто)", [
+    ("auto", "󰓅 Все проверенные БС", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt",
         "vpn-configs/white_sni_ru.txt",
         "vpn-configs/whitelist_cidr1_ru.txt"
     ]),
-    ("igareck_mobile", "🇷🇺 igareck: White-Lists Mobile", [
+    ("my_wl_subs", "󰌘 Мои подписки БС", []),
+    ("igareck_mobile", "󰄜 igareck: Mobile БС", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt"
     ]),
-    ("igareck_cidr_checked", "🇷🇺 igareck: WHITE-CIDR (Проверенные)", [
+    ("igareck_cidr_checked", "󰞀 igareck: CIDR Проверенные", [
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt"
     ]),
-    ("igareck_sni", "🇷🇺 igareck: WHITE-SNI-RU", [
+    ("igareck_sni", "󰒃 igareck: Белые SNI РФ", [
         "vpn-configs-for-russia/WHITE-SNI-RU-all.txt"
     ]),
-    ("igareck_cidr_all", "🇷🇺 igareck: WHITE-CIDR (Все)", [
+    ("igareck_cidr_all", "󰒃 igareck: Все CIDR РФ", [
         "vpn-configs-for-russia/WHITE-CIDR-RU-all.txt"
     ]),
-    ("wl_sni_ru", "🛡️ wlunlocker: white_sni_ru", [
+    ("wl_sni_ru", "󰒃 wlunlocker: white_sni_ru", [
         "vpn-configs/white_sni_ru.txt"
     ]),
-    ("wl_cidr1_ru", "🛡️ wlunlocker: whitelist_cidr1_ru", [
+    ("wl_cidr1_ru", "󰞀 wlunlocker: cidr1_ru", [
         "vpn-configs/whitelist_cidr1_ru.txt"
     ]),
-    ("wl_cidr2_ru", "🛡️ wlunlocker: whitelist_cidr2_ru", [
+    ("wl_cidr2_ru", "󰞀 wlunlocker: cidr2_ru", [
         "vpn-configs/whitelist_cidr2_ru.txt"
     ]),
-    ("wl_cidr3_eu", "🇪🇺 wlunlocker: whitelist_cidr3_eu", [
+    ("wl_cidr3_eu", "󰈀 wlunlocker: cidr3_eu", [
         "vpn-configs/whitelist_cidr3_eu.txt"
     ]),
-    ("wl_all", "🛡️ wlunlocker: whitelist_all", [
+    ("wl_all", "󰒃 wlunlocker: whitelist_all", [
         "vpn-configs/whitelist_all.txt"
     ]),
-    ("igareck_black", "🌐 igareck: BLACK_VLESS_RUS", [
+    ("igareck_black", "󰦝 igareck: BLACK_VLESS", [
         "vpn-configs-for-russia/BLACK_VLESS_RUS.txt",
         "vpn-configs-for-russia/BLACK_VLESS_RUS_mobile.txt"
     ])
@@ -70,6 +70,7 @@ WHITELIST_SOURCES = [
 
 DOMAIN_RE = re.compile(r"^[a-zA-Z0-9._-]+(\.[a-zA-Z0-9_-]+)+$")
 CIDR_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}(/\d{1,2})?$")
+IPV4_RE = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
 
 def read_url_list(path):
     urls = []
@@ -122,6 +123,10 @@ def short_sub_title(url, idx, custom_title=""):
         pass
     return f"Подписка #{idx+1}"
 
+def strip_emojis(text):
+    clean = re.sub(r"[\U0001F1E0-\U0001F1FF\U0001F300-\U0001FAFF\u2600-\u27BF]+", "", text or "").strip()
+    return clean or "VPN Server"
+
 def load_state():
     st = {
         "server_name": "VPN",
@@ -172,7 +177,8 @@ def parse_uri(uri):
     try:
         u = urllib.parse.urlsplit(uri)
         scheme = u.scheme.lower()
-        name = urllib.parse.unquote(u.fragment or "VPN Server").strip()
+        raw_name = urllib.parse.unquote(u.fragment or "VPN Server").strip()
+        name = strip_emojis(raw_name)
         q = dict(urllib.parse.parse_qsl(u.query))
         host = (u.hostname or "").strip()
         port = int(u.port or 443)
@@ -353,24 +359,24 @@ def check_ip_in_intervals(ip_str, starts, merged):
         return True
     return False
 
-def classify_whitelist_badge(ob, starts, merged):
+def classify_whitelist_badge(ob, starts, merged, resolve_dns=False):
     host = ob.get("server", "")
     sni = (ob.get("tls", {}).get("server_name", "") or "").lower()
     is_sni_wl = any(k in sni for k in WHITE_SNI_KEYWORDS)
-    ip_str = host
-    if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", host):
+    ip_str = host if IPV4_RE.match(host) else ""
+    if not ip_str and resolve_dns:
         try:
             ip_str = socket.gethostbyname(host)
         except Exception:
             ip_str = ""
     is_cidr_wl = check_ip_in_intervals(ip_str, starts, merged) if ip_str else False
     if is_cidr_wl and is_sni_wl:
-        return "✅ БС CIDR+SNI", 0
+        return "󰄬 БС CIDR+SNI", 0
     if is_cidr_wl:
-        return "🛡️ БС CIDR", 1
+        return "󰞀 БС CIDR", 1
     if is_sni_wl:
-        return "🎭 БС SNI", 2
-    return "🌐 Обычный", 3
+        return "󰒃 БС SNI", 2
+    return "󰈀 Сервер", 3
 
 def load_bypass_routing_sets(st):
     blocked_domains = set()
@@ -417,7 +423,7 @@ def parse_subscription_content(raw):
             for idx, ob in enumerate(data.get("outbounds", [])):
                 if ob.get("type") in ("vless", "trojan", "hysteria2", "shadowsocks", "vmess"):
                     ob["tag"] = "proxy"
-                    nm = ob.get("tag_name") or ob.get("server") or f"Server {idx+1}"
+                    nm = strip_emojis(ob.get("tag_name") or ob.get("server") or f"Server {idx+1}")
                     found.append({"name": nm, "outbound": ob})
         except Exception:
             pass
@@ -444,7 +450,7 @@ def fetch_single_url(u):
             req = urllib.request.Request(u, headers={"User-Agent": ua})
             with opener.open(req, timeout=10) as r:
                 title = ""
-                 raw_title = r.headers.get("profile-title", "")
+                raw_title = r.headers.get("profile-title", "")
                 if raw_title.startswith("base64:"):
                     try:
                         title = base64.b64decode(raw_title.split(":", 1)[1]).decode("utf-8", errors="ignore").strip()
@@ -455,7 +461,7 @@ def fetch_single_url(u):
                 raw = r.read().decode("utf-8", errors="ignore").strip()
             parsed = parse_subscription_content(raw)
             if parsed:
-                return title, parsed
+                return strip_emojis(title), parsed
         except Exception as e:
             print(f"Fetch error ({u}): {e}", file=sys.stderr)
     return "", []
@@ -475,10 +481,10 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, mark_wl_badges=False):
         start_idx = len(all_srvs)
         group_srv_names = []
         for s in srvs:
-            nm = s.get("name", "Server")
+            nm = strip_emojis(s.get("name", "Server"))
             ob = s.get("outbound", {})
             if mark_wl_badges and ob and not nm.startswith("["):
-                badge, _ = classify_whitelist_badge(ob, starts, merged)
+                badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
                 nm = f"[{badge}] {nm}"
             item = {"name": nm, "outbound": ob, "sub_index": idx}
             all_srvs.append(item)
@@ -500,7 +506,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
         if len(srvs) > 1:
             pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(srvs[:25])]
             srvs.insert(0, {
-                "name": f"⚡ Авто-выбор (UrlTest из {len(pool)} серверов моих БС подписок)",
+                "name": f"󰓅 Авто-выбор (UrlTest из {len(pool)} серверов моих БС подписок)",
                 "outbound": {
                     "type": "urltest",
                     "tag": "proxy",
@@ -519,7 +525,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
             rel_files = files
             break
     if not rel_files:
-        rel_files = WHITELIST_SOURCES[1][2]
+        rel_files = WHITELIST_SOURCES[0][2]
 
     starts, merged = load_ru_whitelist_ip_intervals()
     servers = []
@@ -543,8 +549,9 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
                         if sig in seen:
                             continue
                         seen.add(sig)
-                        badge, _ = classify_whitelist_badge(ob, starts, merged)
-                        short_name = name[:55] if name else f"{ob['server']}:{ob['server_port']}"
+                        badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
+                        sni_hint = f" ({sni})" if sni and sni not in name else ""
+                        short_name = (name[:48] + sni_hint) if name else f"{ob['server']}:{ob['server_port']}{sni_hint}"
                         servers.append({"name": f"[{badge}] {short_name}", "outbound": ob})
                         if len(servers) >= limit:
                             break
@@ -556,7 +563,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
     if len(servers) > 1:
         pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(servers[:25])]
         servers.insert(0, {
-            "name": f"⚡ Авто-выбор (UrlTest из {len(pool)} серверов белого списка)",
+            "name": f"󰓅 Авто-выбор (UrlTest из {len(pool)} серверов белого списка)",
             "outbound": {
                 "type": "urltest",
                 "tag": "proxy",
@@ -591,7 +598,7 @@ def probe_http204_via_port(port, item, starts, merged, timeout=2.8):
             if r.status in (200, 204):
                 ms = int((time.monotonic() - t0) * 1000)
                 ob = item["outbound"]
-                badge, tier = classify_whitelist_badge(ob, starts, merged)
+                badge, tier = classify_whitelist_badge(ob, starts, merged, resolve_dns=True)
                 raw_name = re.sub(r"^(\[.*?\]\s*)+", "", item.get("name", ""))
                 return (tier, ms), {"name": f"[{ms} мс | {badge}] {raw_name}", "outbound": ob}
     except Exception:
@@ -677,7 +684,7 @@ def test_and_sort_whitelist(st):
 
     pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(alive[:20])]
     final_list = [{
-        "name": f"⚡ Авто-выбор ({len(alive)} реально пробивающих HTTP-204 БС серверов)",
+        "name": f"󰓅 Авто-выбор ({len(alive)} проверенных БС серверов)",
         "outbound": {
             "type": "urltest",
             "tag": "proxy",
@@ -807,7 +814,6 @@ def build_config(outbound, st, use_tun=False):
 def sync_active_server_list(st):
     urls = read_sub_urls()
     sub_cache = st.get("sub_cache", {})
-    # Миграция старых серверов в кэш первой подписки, если кэш пуст
     if urls and not sub_cache and st.get("sub_servers"):
         sub_cache[urls[0]] = {"title": short_sub_title(urls[0], 0), "servers": st["sub_servers"]}
         st["sub_cache"] = sub_cache
@@ -815,10 +821,11 @@ def sync_active_server_list(st):
     sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, mark_wl_badges=False)
     st["sub_servers"] = sub_srvs
 
+    wl_file = st.get("whitelist_file", "auto")
+    if not st.get("wl_servers") or wl_file == "my_wl_subs":
+        st["wl_servers"] = load_whitelist_servers(st, wl_file)
+
     if st.get("whitelist_mode", False):
-        wl_file = st.get("whitelist_file", "auto")
-        if wl_file == "my_wl_subs" or not st.get("wl_servers"):
-            st["wl_servers"] = load_whitelist_servers(st, wl_file)
         st["servers"] = st.get("wl_servers", [])
     else:
         st["servers"] = st.get("sub_servers", [])
@@ -827,7 +834,7 @@ def sync_active_server_list(st):
     if servers:
         idx = min(max(0, st.get("selected_index", 0)), len(servers) - 1)
         st["selected_index"] = idx
-        st["server_name"] = servers[idx]["name"]
+        st["server_name"] = strip_emojis(servers[idx]["name"])
         st["outbound"] = servers[idx]["outbound"]
     else:
         st["selected_index"] = 0
@@ -850,7 +857,6 @@ def fetch_subscriptions(is_wl=False, only_url=None):
                 "title": short_sub_title(u, idx, title),
                 "servers": parsed
             }
-    # Удаляем из кэша ссылки, которых больше нет в списке
     for k in list(cache.keys()):
         if k not in urls:
             del cache[k]
@@ -896,11 +902,6 @@ def stop_vpn():
         time.sleep(0.05)
     time.sleep(0.15)
 
-def country_flag(cc):
-    if not cc or len(cc) != 2 or not cc.isalpha():
-        return "🌐"
-    return "".join(chr(0x1F1E6 + ord(c) - ord("A")) for c in cc.upper())
-
 def detect_live_location():
     proxy_handler = urllib.request.ProxyHandler({"http": "http://127.0.0.1:2080", "https": "http://127.0.0.1:2080"})
     opener = urllib.request.build_opener(proxy_handler)
@@ -909,10 +910,11 @@ def detect_live_location():
         with opener.open(req, timeout=3.5) as r:
             d = json.loads(r.read().decode("utf-8", errors="ignore"))
         if d.get("status") == "success" and d.get("country"):
-            flag = country_flag(d.get("countryCode", ""))
+            cc = (d.get("countryCode", "") or "").upper()
             country = d.get("country", "")
             city = d.get("city", "")
-            return f"{flag} {country}" + (f" ({city})" if city else "")
+            prefix = f"[{cc}] " if cc else ""
+            return f"{prefix}{country}" + (f" ({city})" if city else "")
     except Exception:
         pass
     return None
@@ -965,17 +967,18 @@ def start_vpn():
 def dump_status_json():
     st = load_state()
     st = sync_active_server_list(st)
+    save_state(st)
     urls = read_sub_urls()
     wl_urls = read_wl_sub_urls()
     _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), mark_wl_badges=False)
     _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), mark_wl_badges=True)
 
-    srv_names = [s.get("name", f"Server {i+1}") for i, s in enumerate(st.get("servers", []))]
+    srv_names = [strip_emojis(s.get("name", f"Server {i+1}")) for i, s in enumerate(st.get("servers", []))]
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]
     blocked_d, ru_d, _ = load_bypass_routing_sets(st)
-    hint = f"Маршруты: {len(blocked_d)} в обход блокировок | {len(ru_d)} РФ напрямую"
+    hint = f"Маршруты: {len(blocked_d)} в обход | {len(ru_d)} РФ напрямую"
     out = {
-        "server_name": st.get("server_name", "VPN"),
+        "server_name": strip_emojis(st.get("server_name", "VPN")),
         "ru_direct": st.get("ru_direct", True),
         "split_mode": st.get("split_mode", "ru_direct"),
         "whitelist_mode": st.get("whitelist_mode", False),
@@ -1080,7 +1083,6 @@ if __name__ == "__main__":
         if len(sys.argv) > 2 and sys.argv[2].strip():
             raw_in = sys.argv[2].strip()
             urls = read_wl_sub_urls() if is_wl else read_sub_urls()
-            # Поддержка вставки сразу нескольких ссылок через пробел или перенос строки
             for part in raw_in.split():
                 u = part.strip()
                 if u and u not in urls:
@@ -1126,7 +1128,7 @@ if __name__ == "__main__":
             servers = st.get("servers", [])
             if 0 <= idx < len(servers):
                 st["selected_index"] = idx
-                st["server_name"] = servers[idx]["name"]
+                st["server_name"] = strip_emojis(servers[idx]["name"])
                 st["outbound"] = servers[idx]["outbound"]
                 save_state(st)
                 restart_if_running()

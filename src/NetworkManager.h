@@ -12,6 +12,7 @@ class NetworkManager : public QObject {
     Q_PROPERTY(QString connectionTitle READ connectionTitle NOTIFY stateChanged)
     Q_PROPERTY(QString connectionIcon READ connectionIcon NOTIFY stateChanged)
     Q_PROPERTY(QString activeInterface READ activeInterface NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList activeConnections READ activeConnections NOTIFY stateChanged)
     Q_PROPERTY(QVariantList networks READ networks NOTIFY networksChanged)
     Q_PROPERTY(bool scanning READ scanning NOTIFY scanningChanged)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusChanged)
@@ -28,11 +29,13 @@ public:
     QString connectionTitle() const { return m_connectionTitle; }
     QString connectionIcon() const { return m_connectionIcon; }
     QString activeInterface() const { return m_activeInterface; }
+    QVariantList activeConnections() const { return m_activeConnections; }
     QVariantList networks() const { return m_networks; }
     bool scanning() const { return m_scanning; }
     QString statusMessage() const { return m_statusMessage; }
 
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void selectInterface(const QString &iface);
     Q_INVOKABLE void scanWifi();
     Q_INVOKABLE void connectToWifi(const QString &ssid, const QString &password);
     Q_INVOKABLE void disconnectCurrent();
@@ -53,6 +56,7 @@ private:
     QString m_connectionTitle = "Нет подключения";
     QString m_connectionIcon = "󰖪";
     QString m_activeInterface = "";
+    QVariantList m_activeConnections;
     QVariantList m_networks;
     bool m_scanning = false;
     QString m_statusMessage;

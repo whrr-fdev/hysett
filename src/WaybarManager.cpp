@@ -1093,6 +1093,9 @@ void WaybarManager::pollFastState() {
             }
             routeF.close();
         }
+        QString prefIface;
+        QFile pf(QDir::homePath() + "/.config/hypr/scripts/preferred_net_iface.txt");
+        if (pf.open(QIODevice::ReadOnly | QIODevice::Text)) { prefIface = QString::fromUtf8(pf.readAll()).trimmed(); pf.close(); }
         bool nextConn = false;
         QString nextType = "none";
         QString nextIcon = "󰖪";
@@ -1109,9 +1112,14 @@ void WaybarManager::pollFastState() {
             bool isUsb = sysP.contains("/usb") || iface.startsWith("usb") || iface.startsWith("rndis");
             bool isWifi = QFileInfo("/sys/class/net/" + iface + "/wireless").exists() || iface.startsWith("wl");
             nextConn = true;
-            if (isUsb) { nextType = "usb"; nextIcon = "󰄜"; break; }
+            if (!prefIface.isEmpty() && iface == prefIface) {
+                nextType = isUsb ? "usb" : (isWifi ? "wifi" : "ethernet");
+                nextIcon = isUsb ? "󰄜" : (isWifi ? "󰤨" : "󰈀");
+                break;
+            }
+            if (isUsb && nextType == "none") { nextType = "usb"; nextIcon = "󰄜"; }
+            else if (!isUsb && !isWifi && nextType == "none") { nextType = "ethernet"; nextIcon = "󰈀"; }
             else if (isWifi && nextType == "none") { nextType = "wifi"; nextIcon = "󰤨"; }
-            else if (!isWifi && nextType != "usb") { nextType = "ethernet"; nextIcon = "󰈀"; }
         }
         if (m_netConnected != nextConn || m_netIcon != nextIcon || m_netType != nextType) {
             m_netConnected = nextConn;

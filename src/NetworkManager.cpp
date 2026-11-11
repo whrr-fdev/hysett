@@ -1,6 +1,7 @@
 #include "NetworkManager.h"
 #include <QProcess>
 #include <QSet>
+#include <QMap>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -11,6 +12,9 @@ NetworkManager::NetworkManager(QObject *parent) : QObject(parent) {
 
 void NetworkManager::detectActiveConnection() {
     QSet<QString> routedIfaces;
+    QString primaryDefaultIface;
+    int bestMetric = 999999;
+
     QFile routeFile("/proc/net/route");
     if (routeFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
         const QList<QByteArray> lines = routeFile.readAll().split('\n');
@@ -18,19 +22,45 @@ void NetworkManager::detectActiveConnection() {
             QByteArray line = lines[i].trimmed();
             if (line.isEmpty()) continue;
             QList<QByteArray> cols = line.split('\t');
-            if (cols.size() >= 2) {
+            if (cols.size() >= 7) {
                 QString iface = QString::fromUtf8(cols[0]).trimmed();
-                if (!iface.isEmpty()) routedIfaces.insert(iface);
+                QString dest = QString::fromUtf8(cols[1]).trimmed();
+                int metric = cols[6].trimmed().toInt();
+                if (!iface.isEmpty()) {
+                    routedIfaces.insert(iface);
+                    if (dest == "00000000" && !iface.startsWith("tun") && !iface.startsWith("singbox") && !iface.startsWith("throne")) {
+                        if (metric < bestMetric) {
+                            bestMetric = metric;
+                            primaryDefaultIface = iface;
+                        }
+                    }
+                }
             }
         }
         routeFile.close();
     }
 
-    QString chosenIface;
-    QString chosenType = "none";
+    QString prefFile = QDir::homePath() + "/.config/hypr/scripts/preferred_net_iface.txt";
+    QString preferredIface;
+    QFile pf(prefFile);
+    if (pf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        preferredIface = QString::fromUtf8(pf.readAll()).trimmed();
+        pf.close();
+    }
 
+    m_activeConnections.clear();
     QDir netDir("/sys/class/net");
     const QStringList ifaces = netDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+
+    struct ConnEntry {
+        QString iface;
+        QString type;
+        QString icon;
+        QString title;
+        QString ip;
+    };
+    QList<ConnEntry> found;
+
     for (const QString &iface : ifaces) {
         if (iface == "lo" || iface.startsWith("virbr") || iface.startsWith("docker") ||
             iface.startsWith("veth") || iface.startsWith("tun") || iface.startsWith("tap") ||
@@ -45,51 +75,104 @@ void NetworkManager::detectActiveConnection() {
         }
         if (!carrierUp && !routedIfaces.contains(iface)) continue;
 
+        QProcess pIp;
+        pIp.start("ip", {"-4", "-br", "addr", "show", "dev", iface});
+        pIp.waitForFinished(250);
+        QString out = QString::fromUtf8(pIp.readAllStandardOutput()).trimmed();
+        QStringList parts = out.split(' ', Qt::SkipEmptyParts);
+        QString ip = (parts.size() >= 3) ? parts[2] : "";
+        if (ip.isEmpty() && !carrierUp) continue;
+
         QString sysPath = QFileInfo("/sys/class/net/" + iface).canonicalFilePath();
         bool isUsb = sysPath.contains("/usb") || iface.startsWith("usb") || iface.startsWith("rndis");
         bool isWifi = QFileInfo("/sys/class/net/" + iface + "/wireless").exists() || iface.startsWith("wl");
 
+        ConnEntry ce;
+        ce.iface = iface;
+        ce.ip = ip.isEmpty() ? "Получение IP..." : ip;
         if (isUsb) {
-            chosenIface = iface;
-            chosenType = "usb";
-            break; // Приоритет индикации активного USB-модема
-        } else if (isWifi && chosenType == "none") {
-            chosenIface = iface;
-            chosenType = "wifi";
-        } else if (!isWifi && chosenType != "usb") {
-            chosenIface = iface;
-            chosenType = "ethernet";
+            ce.type = "usb";
+            ce.icon = "󰄜";
+            ce.title = "Телефон (USB-модем • " + iface + ")";
+        } else if (isWifi) {
+            ce.type = "wifi";
+            ce.icon = "󰤨";
+            ce.title = m_currentSsid.isEmpty() ? ("Wi-Fi (" + iface + ")") : ("Wi-Fi • " + m_currentSsid);
+        } else {
+            ce.type = "ethernet";
+            ce.icon = "󰈀";
+            ce.title = "Проводная сеть (Кабель • " + iface + ")";
         }
+        found.append(ce);
     }
 
-    m_activeInterface = chosenIface;
-    m_connectionType = chosenType;
+    int chosenIdx = -1;
+    if (!preferredIface.isEmpty()) {
+        for (int i = 0; i < found.size(); ++i) {
+            if (found[i].iface == preferredIface) { chosenIdx = i; break; }
+        }
+    }
+    if (chosenIdx < 0 && !primaryDefaultIface.isEmpty()) {
+        for (int i = 0; i < found.size(); ++i) {
+            if (found[i].iface == primaryDefaultIface) { chosenIdx = i; break; }
+        }
+    }
+    if (chosenIdx < 0 && !found.isEmpty()) chosenIdx = 0;
 
-    if (chosenType == "usb") {
-        m_connectionIcon = "󰄜";
-        m_connectionTitle = "Раздача с телефона (USB-модем • " + chosenIface + ")";
-    } else if (chosenType == "ethernet") {
-        m_connectionIcon = "󰈀";
-        m_connectionTitle = "Проводной интернет (Кабель • " + chosenIface + ")";
-    } else if (chosenType == "wifi") {
-        m_connectionIcon = "󰤨";
-        m_connectionTitle = m_currentSsid.isEmpty() ? ("Wi-Fi (" + chosenIface + ")") : ("Wi-Fi • " + m_currentSsid);
+    for (int i = 0; i < found.size(); ++i) {
+        QVariantMap m;
+        m["iface"] = found[i].iface;
+        m["type"] = found[i].type;
+        m["icon"] = found[i].icon;
+        m["title"] = found[i].title;
+        m["ip"] = found[i].ip;
+        m["selected"] = (i == chosenIdx);
+        m_activeConnections.append(m);
+    }
+
+    if (chosenIdx >= 0) {
+        m_activeInterface = found[chosenIdx].iface;
+        m_connectionType = found[chosenIdx].type;
+        m_connectionIcon = found[chosenIdx].icon;
+        m_connectionTitle = found[chosenIdx].title;
+        m_ipAddress = found[chosenIdx].ip;
     } else {
+        m_activeInterface.clear();
+        m_connectionType = "none";
         m_connectionIcon = "󰖪";
         m_connectionTitle = "Нет подключения к сети";
+        m_ipAddress = "Нет IP";
+    }
+}
+
+void NetworkManager::selectInterface(const QString &iface) {
+    if (iface.trimmed().isEmpty()) return;
+    QDir().mkpath(QDir::homePath() + "/.config/hypr/scripts");
+    QFile pf(QDir::homePath() + "/.config/hypr/scripts/preferred_net_iface.txt");
+    if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        pf.write(iface.trimmed().toUtf8() + "\n");
+        pf.close();
     }
 
-    m_ipAddress = "Нет IP";
-    if (!chosenIface.isEmpty()) {
-        QProcess pIp;
-        pIp.start("ip", {"-4", "-br", "addr", "show", "dev", chosenIface});
-        pIp.waitForFinished(400);
-        QString out = QString::fromUtf8(pIp.readAllStandardOutput()).trimmed();
-        QStringList parts = out.split(' ', Qt::SkipEmptyParts);
-        if (parts.size() >= 3) {
-            m_ipAddress = parts[2];
+    // Повышаем приоритет выбранного интерфейса в NetworkManager (metric 20 против 250 у остальных)
+    QProcess pCon;
+    pCon.start("nmcli", {"-t", "-f", "UUID,DEVICE", "con", "show", "--active"});
+    pCon.waitForFinished(500);
+    const QStringList lines = QString::fromUtf8(pCon.readAllStandardOutput()).split('\n', Qt::SkipEmptyParts);
+    for (const QString &l : lines) {
+        QStringList p = l.split(':');
+        if (p.size() >= 2) {
+            QString uuid = p[0].trimmed();
+            QString dev = p[1].trimmed();
+            if (dev == "lo" || dev.startsWith("tun") || dev.startsWith("singbox") || dev.startsWith("throne")) continue;
+            int metric = (dev == iface.trimmed()) ? 20 : 250;
+            QProcess::execute("nmcli", {"con", "modify", uuid, "ipv4.route-metric", QString::number(metric)});
+            QProcess::startDetached("nmcli", {"con", "up", uuid});
         }
     }
+
+    detectActiveConnection();
+    emit stateChanged();
 }
 
 void NetworkManager::refresh() {

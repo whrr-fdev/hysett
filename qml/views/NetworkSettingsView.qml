@@ -28,76 +28,171 @@ Item {
                 spacing: 12
 
                 RowLayout {
-                    Layout.fillWidth: true
+                    Layout.fillWidth: true; spacing: 8
                     Text {
-                        text: Config ? (Config.language, Config.trAuto("Сеть и Интернет")) : "Сеть и Интернет"
+                        text: "󰈀  Сеть и Интернет"
                         color: "#ffffff"
                         font.pixelSize: Config.fontSize + 3
                         font.bold: true
                         Layout.fillWidth: true
                     }
                     StyledButton {
-                        text: Network.scanning ? "⏳ Поиск..." : "↺  Обновить"
+                        text: Network.scanning ? "󰑐  Поиск..." : "󰑐  Обновить"
                         onClicked: Network.refresh()
                     }
                     StyledButton {
-                        text: Config ? (Config.language, Config.trAuto("⚙  Редактор соединений")) : "⚙  Редактор соединений"
+                        text: "󰒓  Редактор соединений"
                         onClicked: Network.openConnectionEditor()
                     }
                 }
 
-                // КАРТОЧКА ТЕКУЩЕГО ПОДКЛЮЧЕНИЯ (ТЕЛЕФОН USB / КАБЕЛЬ / WI-FI / НЕТ СЕТИ)
+                // ВЫБОР АКТИВНОГО ПОДКЛЮЧЕНИЯ (ЕСЛИ ПОДКЛЮЧЕНЫ И ТЕЛЕФОН USB, И ПРОВОД)
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
-                    implicitHeight: activeConnRow.implicitHeight + 28
+                    implicitHeight: connSelectorCol.implicitHeight + 28
 
-                    RowLayout {
-                        id: activeConnRow
+                    ColumnLayout {
+                        id: connSelectorCol
                         anchors.fill: parent
                         anchors.margins: 14
-                        spacing: 16
+                        spacing: 10
 
-                        Rectangle {
-                            width: 48; height: 48
-                            radius: (Theme && Theme.isRounded) ? 14 : 0
-                            color: Network.connectionType !== "none" ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 0.3, 0.3, 0.18)
-                            border.color: Network.connectionType !== "none" ? Qt.rgba(1, 1, 1, 0.22) : "#ff6b6b"
-                            border.width: 1
-
+                        RowLayout {
+                            Layout.fillWidth: true
                             Text {
-                                anchors.centerIn: parent
-                                text: Network ? Network.connectionIcon : "󰖪"
-                                font.pixelSize: 22
-                                color: Network.connectionType !== "none" ? (Config ? Config.accentTextColor : "#000000") : "#ff6b6b"
+                                text: (Network && Network.activeConnections.length > 1)
+                                    ? "Активные подключения (выберите основное соединение)"
+                                    : "Текущее подключение к интернету"
+                                color: "#ffffff"
+                                font.pixelSize: Config.fontSize + 1
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            Text {
+                                visible: Network && Network.activeConnections.length > 1
+                                text: "Кликните для переключения маршрута"
+                                color: "#888888"
+                                font.pixelSize: Config.fontSize - 2
                             }
                         }
 
-                        ColumnLayout {
+                        // Если нет ни одного подключения
+                        Rectangle {
+                            visible: !Network || Network.activeConnections.length === 0
                             Layout.fillWidth: true
-                            spacing: 4
-
-                            Text {
-                                text: Network ? Network.connectionTitle : "Нет подключения"
-                                color: "#ffffff"
-                                font.pixelSize: Config.fontSize + 2
-                                font.bold: true
-                                Layout.fillWidth: true
-                                elide: Text.ElideRight
-                            }
+                            implicitHeight: 58
+                            radius: (Theme && Theme.isRounded) ? 10 : 0
+                            color: Qt.rgba(1, 0.3, 0.3, 0.10)
+                            border.color: "#ff6b6b"; border.width: 1
 
                             RowLayout {
-                                spacing: 14
-                                Text {
-                                    text: Network.connectionType !== "none" ? ("●  Активно  •  IPv4: " + Network.ipAddress) : "○  Отключено от интернета"
-                                    color: Network.connectionType !== "none" ? "#69f0ae" : "#ff6b6b"
-                                    font.pixelSize: Config.fontSize - 1
+                                anchors.fill: parent; anchors.margins: 12; spacing: 14
+                                Text { text: "󰖪"; font.pixelSize: 22; color: "#ff6b6b" }
+                                ColumnLayout {
+                                    Layout.fillWidth: true; spacing: 2
+                                    Text { text: "Нет подключения к сети"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+                                    Text { text: "Подключите кабель Ethernet, USB-модем телефона или Wi-Fi"; color: "#ff8a80"; font.pixelSize: Config.fontSize - 1 }
                                 }
-                                Text {
-                                    visible: Network && Network.activeInterface.length > 0
-                                    text: "Интерфейс: " + (Network ? Network.activeInterface : "")
-                                    color: "#999999"
-                                    font.pixelSize: Config.fontSize - 1
+                            }
+                        }
+
+                        // Список подключенных интерфейсов с плавной плашкой выбора и наведения
+                        Item {
+                            id: connListWrap
+                            visible: Network && Network.activeConnections.length > 0
+                            Layout.fillWidth: true
+                            implicitHeight: connListCol.implicitHeight
+                            property int hoveredIdx: -1
+                            property int lastHoveredIdx: 0
+
+                            Timer {
+                                id: connHoverHold
+                                interval: 45
+                                onTriggered: connListWrap.hoveredIdx = -1
+                            }
+
+                            Rectangle {
+                                z: 1
+                                opacity: connListWrap.hoveredIdx >= 0 ? 1.0 : 0.0
+                                x: 0
+                                y: connListWrap.lastHoveredIdx * 62
+                                width: connListWrap.width
+                                height: 56
+                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                color: Qt.rgba(1, 1, 1, 0.07)
+                                Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 140 } }
+                            }
+
+                            ColumnLayout {
+                                id: connListCol
+                                z: 2
+                                width: parent.width
+                                spacing: 6
+
+                                Repeater {
+                                    model: Network ? Network.activeConnections : []
+                                    delegate: Rectangle {
+                                        Layout.fillWidth: true
+                                        implicitHeight: 56
+                                        radius: (Theme && Theme.isRounded) ? 10 : 0
+                                        color: modelData.selected
+                                            ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18) : Qt.rgba(1,1,1,0.14))
+                                            : Qt.rgba(1, 1, 1, 0.03)
+                                        border.color: modelData.selected ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.14)
+                                        border.width: modelData.selected ? 1.5 : 1
+                                        Behavior on color { ColorAnimation { duration: 160 } }
+
+                                        RowLayout {
+                                            anchors.fill: parent; anchors.margins: 12; spacing: 14
+
+                                            Rectangle {
+                                                width: 36; height: 36
+                                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                                color: modelData.selected ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.08)
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.icon
+                                                    font.pixelSize: 18
+                                                    color: modelData.selected ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true; spacing: 2
+                                                Text {
+                                                    text: modelData.title
+                                                    color: "#ffffff"
+                                                    font.pixelSize: Config.fontSize + 1
+                                                    font.bold: modelData.selected
+                                                }
+                                                Text {
+                                                    text: (modelData.selected ? "󰄬 Основной маршрут интернета  •  " : "Доступно  •  ") + "IPv4: " + modelData.ip
+                                                    color: modelData.selected ? "#69f0ae" : "#999999"
+                                                    font.pixelSize: Config.fontSize - 1
+                                                }
+                                            }
+
+                                            StyledButton {
+                                                text: modelData.selected ? "󰄬 Выбрано" : "Выбрать"
+                                                isActive: modelData.selected
+                                                implicitHeight: 26
+                                                onClicked: if (Network) Network.selectInterface(modelData.iface)
+                                            }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                            onEntered: {
+                                                connHoverHold.stop()
+                                                connListWrap.lastHoveredIdx = index
+                                                connListWrap.hoveredIdx = index
+                                            }
+                                            onExited: connHoverHold.restart()
+                                            onClicked: if (Network) Network.selectInterface(modelData.iface)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -118,7 +213,7 @@ Item {
 
                         RowLayout {
                             Text {
-                                text: Config ? (Config.language, Config.trAuto("Беспроводная сеть (Wi-Fi адаптер)")) : "Беспроводная сеть (Wi-Fi адаптер)"
+                                text: "󰤨  Беспроводная сеть (Wi-Fi адаптер)"
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize + 1
                                 font.bold: true
@@ -140,7 +235,7 @@ Item {
                                 Layout.fillWidth: true
                             }
                             StyledButton {
-                                text: Config ? (Config.language, Config.trAuto("Отключить Wi-Fi")) : "Отключить Wi-Fi"
+                                text: "Отключить Wi-Fi"
                                 onClicked: Network.disconnectCurrent()
                             }
                         }
@@ -156,7 +251,7 @@ Item {
 
                 Text {
                     visible: Network.wifiEnabled && Network.networks.length > 0
-                    text: Config ? (Config.language, Config.trAuto("Доступные сети Wi-Fi")) : "Доступные сети Wi-Fi"
+                    text: "Доступные сети Wi-Fi"
                     color: "#ffffff"
                     font.pixelSize: Config.fontSize + 1
                     font.bold: true

@@ -455,6 +455,9 @@ def load_bypass_routing_sets(st):
             ru_domains.add(d)
             blocked_domains.discard(d)
 
+    # Базовые сервисы РФ (Яндекс, ВК, Госуслуги, Банки, Stamina) всегда идут напрямую
+    core_ru = {d.lstrip(".") for d in RU_DOMAIN_SUFFIXES}
+    blocked_domains.difference_update(core_ru)
     ru_domains.difference_update(blocked_domains)
 
     discord_cidrs = read_cidr_file("Re-filter-lists/discord_ips.lst", 500)

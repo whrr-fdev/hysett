@@ -54,7 +54,7 @@ ScrollView {
     property bool copiedLogs: false
 
     Timer {
-        interval: 1500
+        interval: 350
         repeat: true
         running: vpnScroll.visible && Waybar && Waybar.vpnLogAutoRefresh && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
         triggeredOnStart: true
@@ -179,6 +179,8 @@ ScrollView {
 
             Rectangle {
                 Layout.fillWidth: true
+                Layout.preferredHeight: vpnScroll.logViewHeight
+                implicitHeight: vpnScroll.logViewHeight
                 height: vpnScroll.logViewHeight
                 radius: vpnScroll.isM3 ? 8 : 0
                 color: Qt.rgba(0, 0, 0, 0.28)
@@ -191,11 +193,53 @@ ScrollView {
                     anchors.fill: parent
                     anchors.margins: 8
                     spacing: 2
+                    boundsBehavior: Flickable.StopAtBounds
                     model: Waybar ? Waybar.vpnLogs : []
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+
+                    property real targetY: 0
+
+                    NumberAnimation {
+                        id: smoothLogAnim
+                        target: logListView
+                        property: "contentY"
+                        duration: 210
+                        easing.type: Easing.OutCubic
+                    }
+
+                    function scrollToBottomSmooth() {
+                        var maxY = Math.max(0, logListView.contentHeight - logListView.height)
+                        logListView.targetY = maxY
+                        smoothLogAnim.stop()
+                        smoothLogAnim.from = logListView.contentY
+                        smoothLogAnim.to = maxY
+                        smoothLogAnim.start()
+                    }
+
+                    WheelHandler {
+                        acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        onWheel: (event) => {
+                            var step = (event.angleDelta.y / 120.0) * 64.0
+                            var maxY = Math.max(0, logListView.contentHeight - logListView.height)
+                            var base = smoothLogAnim.running ? logListView.targetY : logListView.contentY
+                            var nextY = Math.max(0, Math.min(maxY, base - step))
+                            logListView.targetY = nextY
+                            smoothLogAnim.stop()
+                            smoothLogAnim.from = logListView.contentY
+                            smoothLogAnim.to = nextY
+                            smoothLogAnim.start()
+                            event.accepted = true
+                        }
+                    }
+
                     onCountChanged: {
                         if (Waybar && Waybar.vpnLogAutoScroll && count > 0) {
-                            Qt.callLater(() => logListView.positionViewAtEnd())
+                            Qt.callLater(() => logListView.scrollToBottomSmooth())
+                        }
+                    }
+                    onContentHeightChanged: {
+                        if (Waybar && Waybar.vpnLogAutoScroll && count > 0) {
+                            Qt.callLater(() => logListView.scrollToBottomSmooth())
                         }
                     }
 

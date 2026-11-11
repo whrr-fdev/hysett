@@ -1812,21 +1812,32 @@ void WaybarManager::setVpnLogLevel(const QString &lvl) {
 }
 
 void WaybarManager::refreshVpnLogs() {
-    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
-    QProcess *p = new QProcess(this);
-    connect(p, &QProcess::finished, this, [this, p]() {
-        QJsonDocument doc = QJsonDocument::fromJson(p->readAllStandardOutput().trimmed());
-        p->deleteLater();
-        if (doc.isObject()) {
-            QStringList nextLogs;
-            for (const auto &v : doc.object()["logs"].toArray()) nextLogs.append(v.toString());
-            if (m_vpnLogs != nextLogs) {
-                m_vpnLogs = nextLogs;
-                emit vpnLogsChanged();
-            }
+    QFile f("/tmp/singbox_vpn.log");
+    QStringList nextLogs;
+    if (f.exists() && f.open(QIODevice::ReadOnly)) {
+        qint64 sz = f.size();
+        if (sz > 96 * 1024) f.seek(sz - 96 * 1024);
+        QByteArray raw = f.readAll();
+        f.close();
+        static const QRegularExpression ansiRe("\x1b\[[0-9;]*m");
+        const QList<QByteArray> lines = raw.split('\n');
+        for (const QByteArray &b : lines) {
+            QString ln = QString::fromUtf8(b).trimmed();
+            if (ln.isEmpty()) continue;
+            ln.remove(ansiRe);
+            nextLogs.append(ln);
         }
-    });
-    p->start("/usr/bin/python3", {script, "get_logs", QString::number(m_vpnLogMaxLines)});
+        if (nextLogs.size() > m_vpnLogMaxLines) {
+            nextLogs = nextLogs.mid(nextLogs.size() - m_vpnLogMaxLines);
+        }
+    }
+    if (nextLogs.isEmpty()) {
+        nextLogs.append("Журнал пуст. Включите VPN или запустите проверку серверов.");
+    }
+    if (m_vpnLogs != nextLogs) {
+        m_vpnLogs = nextLogs;
+        emit vpnLogsChanged();
+    }
 }
 
 void WaybarManager::clearVpnLogs() {

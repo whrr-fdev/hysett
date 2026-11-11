@@ -433,7 +433,11 @@ def classify_whitelist_badge(ob, starts, merged, resolve_dns=False):
     return "VLESS", 3
 
 def load_bypass_routing_sets(st):
-    blocked_domains = set()
+    blocked_domains = {
+        "google.ru", "www.google.ru", "google.com", "youtube.ru", "www.youtube.ru",
+        "youtube.com", "youtu.be", "googlevideo.com", "ytimg.com", "ggpht.com",
+        "gstatic.com", "googleapis.com", "2ip.ru", "2ip.io"
+    }
     for svc in ("youtube.lst", "discord.lst", "telegram.lst", "google_ai.lst", "meta.lst", "twitter.lst", "tiktok.lst", "hdrezka.lst", "roblox.lst", "google_meet.lst"):
         blocked_domains.update(read_domain_file(f"allow-domains/Services/{svc}", 2000))
     blocked_domains.update(read_domain_file("allow-domains/Russia/outside-raw.lst", 8000))
@@ -739,6 +743,7 @@ def test_and_sort_whitelist(st):
             "outbounds": outbounds,
             "route": {
                 "default_domain_resolver": "dns-direct",
+                "auto_detect_interface": True,
                 "rules": rules,
                 "final": "direct"
             }
@@ -994,6 +999,7 @@ def stop_vpn(save_disabled=True):
         save_state(st)
     set_desktop_proxy(False)
     subprocess.run(["pkill", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
+    subprocess.run(["killall", "-q", "Throne", "throne", "ThroneCore"], stderr=subprocess.DEVNULL)
     for _ in range(30):
         if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode != 0:
             break

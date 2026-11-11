@@ -193,22 +193,26 @@ ScrollView {
                     anchors.fill: parent
                     anchors.margins: 8
                     spacing: 2
+                    interactive: false
                     boundsBehavior: Flickable.StopAtBounds
                     model: Waybar ? Waybar.vpnLogs : []
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                     property real targetY: 0
+                    property bool userPausedAutoScroll: false
 
                     NumberAnimation {
                         id: smoothLogAnim
                         target: logListView
                         property: "contentY"
-                        duration: 210
+                        duration: 150
                         easing.type: Easing.OutCubic
                     }
 
                     function scrollToBottomSmooth() {
+                        if (logListView.userPausedAutoScroll) return
                         var maxY = Math.max(0, logListView.contentHeight - logListView.height)
+                        if (Math.abs(logListView.contentY - maxY) < 2) return
                         logListView.targetY = maxY
                         smoothLogAnim.stop()
                         smoothLogAnim.from = logListView.contentY
@@ -218,11 +222,14 @@ ScrollView {
 
                     WheelHandler {
                         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
+                        blocking: true
                         onWheel: (event) => {
-                            var step = (event.angleDelta.y / 120.0) * 64.0
+                            var rawDelta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : ((event.angleDelta.y / 120.0) * 22.0)
+                            var step = Math.max(-28.0, Math.min(28.0, rawDelta))
                             var maxY = Math.max(0, logListView.contentHeight - logListView.height)
                             var base = smoothLogAnim.running ? logListView.targetY : logListView.contentY
                             var nextY = Math.max(0, Math.min(maxY, base - step))
+                            logListView.userPausedAutoScroll = (maxY - nextY > 18)
                             logListView.targetY = nextY
                             smoothLogAnim.stop()
                             smoothLogAnim.from = logListView.contentY

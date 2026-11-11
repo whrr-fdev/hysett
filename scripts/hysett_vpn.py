@@ -783,6 +783,38 @@ def test_and_sort_whitelist(st):
     save_state(st)
     return st
 
+def detect_physical_interface():
+    pref_path = os.path.expanduser("~/.config/hypr/scripts/preferred_net_iface.txt")
+    if os.path.exists(pref_path):
+        try:
+            pref = open(pref_path, "r", encoding="utf-8").read().strip()
+            if pref and os.path.exists(f"/sys/class/net/{pref}"):
+                return pref
+        except Exception:
+            pass
+    try:
+        out = subprocess.check_output(["ip", "-4", "route", "show", "default"], text=True, stderr=subprocess.DEVNULL)
+        for line in out.splitlines():
+            parts = line.split()
+            if "dev" in parts:
+                dev = parts[parts.index("dev") + 1]
+                if not any(dev.startswith(p) for p in ("tun", "tap", "singbox", "throne", "lo", "virbr", "docker", "veth", "wg")):
+                    return dev
+    except Exception:
+        pass
+    return ""
+
+def collect_outbound_exclude_cidrs(outbound):
+    cidrs = ["127.0.0.0/8"]
+    obs = outbound.get("_pool", [outbound]) if outbound.get("type") == "urltest" else [outbound]
+    for ob in obs:
+        host = (ob.get("server") or "").strip()
+        if IPV4_RE.match(host):
+            c = f"{host}/32"
+            if c not in cidrs:
+                cidrs.append(c)
+    return cidrs
+
 def has_cap_net_admin(sb_bin):
     try:
         out = subprocess.check_output(["getcap", sb_bin], text=True, stderr=subprocess.DEVNULL)
@@ -830,6 +862,7 @@ def build_config(outbound, st, use_tun=False):
             "mtu": 1400,
             "auto_route": True,
             "strict_route": False,
+            "route_exclude_address": collect_outbound_exclude_cidrs(outbound),
             "stack": "gvisor"
         })
 
@@ -884,6 +917,7 @@ def build_config(outbound, st, use_tun=False):
         "route": {
             "default_domain_resolver": "dns-direct",
             "auto_detect_interface": True,
+            **({"default_interface": detect_physical_interface()} if detect_physical_interface() else {}),
             "rules": rules,
             "final": route_final
         }
@@ -1044,6 +1078,19 @@ def start_vpn():
     if "outbound" not in st or not st.get("servers"):
         save_state(st)
         return False
+
+    if st["outbound"].get("type") == "urltest" and "_pool" in st["outbound"]:
+        raw_pool = st["outbound"]["_pool"]
+        alive_pool = []
+        with ThreadPoolExecutor(max_workers=16) as ex:
+            futs = {ex.submit(tcp_quick_filter, {"outbound": p}, 0.65): p for p in raw_pool[:20]}
+            for f in as_completed(futs):
+                ok, _ = f.result()
+                if ok:
+                    alive_pool.append(futs[f])
+        if alive_pool:
+            st["outbound"]["_pool"] = alive_pool[:8]
+            st["outbound"]["outbounds"] = [p["tag"] for p in st["outbound"]["_pool"]]
 
     sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
     use_tun = has_cap_net_admin(sb_bin)

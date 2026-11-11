@@ -598,7 +598,7 @@ ApplicationWindow {
             property vector4d u_notif_rect: Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
-            property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, (root.drawerActive || root.notifActive) ? 0.36 : 0.16)
+            property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
             property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
             property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88

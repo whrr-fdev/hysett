@@ -239,9 +239,10 @@ ApplicationWindow {
         if (drawerMode === "power") return isM3 ? 315 : 295
         if (drawerMode === "calendar") return isM3 ? 305 : 285
         if (drawerMode === "clipboard") return isM3 ? 400 : 370
-        return (isWallpaperExpanded || isSettingsMaximized)
-               ? (root.height - (barTop + barH) - 14)
-               : (isM3 ? Math.min(680, Config ? Math.max(640, Config.windowHeight) : 640) : Math.min(540, Config ? Config.windowHeight : 520))
+        if (isWallpaperExpanded || isSettingsMaximized) {
+            return isVertBar ? (root.height - 12) : (root.height - (barRectY + barH) - Math.max(4, fullBarLeft))
+        }
+        return isM3 ? Math.min(680, Config ? Math.max(640, Config.windowHeight) : 640) : Math.min(540, Config ? Config.windowHeight : 520)
     }
 
     property real animDrawerW: targetDrawerW
@@ -517,9 +518,10 @@ ApplicationWindow {
     Shortcut {
         sequences: ["Escape"]
         context: Qt.ApplicationShortcut
-        enabled: root.drawerOpen || root.isWallpaperExpanded || root.barSavePromptOpen
+        enabled: root.drawerOpen || root.isWallpaperExpanded || root.isSettingsMaximized || root.barSavePromptOpen
         onActivated: {
             if (root.isWallpaperExpanded) root.isWallpaperExpanded = false
+            else if (root.isSettingsMaximized) root.isSettingsMaximized = false
             else if (root.barSavePromptOpen) root.barSavePromptOpen = false
             else if (root.modalOpen) root.modalOpen = false
             else if (root.drawerOpen) root.requestCloseDrawer()

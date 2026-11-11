@@ -214,14 +214,6 @@ Item {
                                 StyledSwitch { checked: Wallpapers.randomAnim; onToggled: Wallpapers.randomAnim = checked }
                             }
 
-                            RowLayout {
-                                Text { text: Config ? (Config.language, Config.trAuto("Скругления окон:")) : "Скругления окон:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-                                StyledSwitch {
-                                    checked: Theme.isRounded
-                                    onToggled: Theme.setRoundedState(checked)
-                                }
-                            }
-
                             ColumnLayout {
                                 Layout.fillWidth: true
                                 spacing: 3

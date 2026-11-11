@@ -235,3 +235,15 @@
 - Выставлен оптимальный `mtu: 1320`, IPv4-only адрес туннеля `singbox_tun0`, сброс зависающих сессий UDP 443 (QUIC -> мгновенный переход на TCP HTTP/2) и исключение IP прокси-серверов из захвата туннеля (`route_exclude_address`).
 - В `WaybarManager.cpp` и `VpnView.qml` чтение логов переведено на проверку размера файла (`m_lastLogFileSize`, 0% нагрузки в простое), фильтрацию технического DNS-спама и рендеринг через `Flickable` + `TextEdit.PlainText` с сохранением высоты и настроек логов в `waybar.conf`.
 - Разделены тумблеры включения для вкладок «Обычный VPN» и «Белые списки» (`vpnActiveIsWl` / `toggleVpnForMode`), добавлено автовосстановление активного туннеля при старте ПК и при подключении интернета с телефона.
+
+## Выполнено в Шаге 26 (Полноэкранный режим с кнопки CachyOS, Пружинящие анимации и Оптимизация шейдеров)
+- Таблетка логотипа CachyOS (`launcher` в `qml/Main.qml`) больше не скрывается при открытии настроек: логотип плавно трансформируется в иконку полноэкранного режима (`󰊓` / `󰊔`).
+- По клику на `󰊓` окно настроек разворачивается на весь экран (как полноценное окно под панелью задач, до самого низа экрана с отступом `6px`). Первое нажатие `Esc` возвращает обычный размер окна (`isSettingsMaximized = false`), второе нажатие `Esc` закрывает шторку.
+- Из вкладки «Обои» (`WallpapersView.qml`) убран дублирующий переключатель скругления окон.
+- Добавлена пружинящая физика (`Easing.OutBack` + `pageMaxSpringAnim` / `welcomeMaxSpring` / `sidebarMaxSpringAnim`) при разворачивании/сворачивании окна на весь экран:
+  - На экране приветствия (`WelcomeView.qml`) сетка расширяется до `1640px` (5 колонок в MD3), а шапка, поиск и все 27 карточек перестраиваются с упругим пружинящим эффектом.
+  - На остальных вкладках пружинят само окно (`drawerInner`), активная страница и боковая панель навигации (`Sidebar.qml`).
+- В `GlassPanel.qml` и `StyledButton.qml` шейдеры жидкого стекла обернуты в ленивый `Loader`, а в `Main.qml` отключены холостые 160-FPS таймеры при выключенных эффектах свечения.
+
+## Команда быстрого восстановления главного бэкапа
+`cd ~/hysett && cp -rf ~/.cache/hysett_final_backup/src ~/.cache/hysett_final_backup/qml ~/.cache/hysett_final_backup/scripts ~/.cache/hysett_final_backup/CMakeLists.txt ~/.cache/hysett_final_backup/README.md ~/.cache/hysett_final_backup/CONTEXT_PROGRESS.md ~/hysett/ && cp -f ~/.cache/hysett_final_backup/hyprland.lua ~/.config/hypr/hyprland.lua && cp -f ~/.cache/hysett_final_backup/sync_m3_windows.py ~/.config/hypr/scripts/sync_m3_windows.py && cmake --build build -j$(nproc) && pkill -x hysett; nohup ./build/hysett --daemon >/dev/null 2>&1 &`

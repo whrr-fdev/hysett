@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import HySett
@@ -8,13 +9,27 @@ Item {
     id: welcomeRoot
     signal navigateTo(int index)
 
+    property var winObj: ApplicationWindow.window
+    readonly property bool isMaximized: winObj ? (winObj.isSettingsMaximized || winObj.isWallpaperExpanded) : false
     property string settingsSearchQuery: ""
     readonly property bool isSearching: settingsSearchQuery.length > 0
     readonly property int wMode: Config ? Config.welcomeAlignMode : 1
     readonly property bool isM3: Theme && Theme.isRounded
-    readonly property int cardHeight: isM3 ? 56 : 44
-    readonly property int cardGap: isM3 ? 11 : 7
+    readonly property int cardHeight: isM3 ? (isMaximized ? 62 : 56) : (isMaximized ? 50 : 44)
+    readonly property int cardGap: isM3 ? (isMaximized ? 14 : 11) : (isMaximized ? 10 : 7)
     property int visibleCardsHeight: 280
+    property real springPulse: 1.0
+
+    SequentialAnimation {
+        id: welcomeMaxSpring
+        NumberAnimation { target: welcomeRoot; property: "springPulse"; from: 1.0; to: 1.035; duration: 150; easing.type: Easing.OutQuad }
+        NumberAnimation { target: welcomeRoot; property: "springPulse"; to: 1.0; duration: 290; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
+    }
+
+    onIsMaximizedChanged: {
+        welcomeMaxSpring.restart()
+        Qt.callLater(recalcCardsLayout)
+    }
 
     function recalcCardsLayout() {
         var cnt = welcomeCatRep.count
@@ -31,7 +46,7 @@ Item {
         var gap = welcomeRoot.cardGap
 
         if (welcomeRoot.isSearching) {
-            var singleW = Math.min(480, Math.round(w * 0.60))
+            var singleW = Math.min(540, Math.round(w * 0.60))
             var startX = Math.round((w - singleW) / 2)
             for (var m = 0; m < visList.length; ++m) {
                 var item = visList[m]
@@ -41,7 +56,7 @@ Item {
             }
             welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 8))
         } else {
-            var cols = welcomeRoot.isM3 ? 4 : 5
+            var cols = w > 1200 ? (welcomeRoot.isM3 ? 5 : 6) : (welcomeRoot.isM3 ? 4 : 5)
             var colW = Math.floor((w - (cols - 1) * gap) / cols)
             for (var k = 0; k < visList.length; ++k) {
                 var card = visList[k]
@@ -94,17 +109,19 @@ Item {
 
             Item {
                 id: mainContainer
-                width: Math.min(parent.width - (welcomeRoot.isM3 ? 44 : 56), 1040)
+                width: Math.min(parent.width - (welcomeRoot.isM3 ? 52 : 56), welcomeRoot.isMaximized ? 1640 : 1040)
                 height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
+                Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.24 } }
 
                 Item {
                     id: heroWrapper
                     width: parent.width
                     height: heroBlock.implicitHeight
-                    y: welcomeRoot.isSearching ? 24 : 16
+                    y: welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 44 : 16)
+                    scale: welcomeRoot.springPulse
 
-                    Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
 
                     ColumnLayout {
                         id: heroBlock
@@ -115,7 +132,7 @@ Item {
                         }
                         spacing: welcomeRoot.isM3 ? 18 : 14
 
-                        Behavior on x { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+                        Behavior on x { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
 
                         RowLayout {
                             Layout.alignment: welcomeRoot.isSearching ? Qt.AlignHCenter : (welcomeRoot.wMode === 0 ? Qt.AlignLeft : (welcomeRoot.wMode === 2 ? Qt.AlignRight : Qt.AlignHCenter))
@@ -173,7 +190,7 @@ Item {
                         TextField {
                             id: welcomeSearchField
                             Layout.alignment: welcomeRoot.isSearching ? Qt.AlignHCenter : (welcomeRoot.wMode === 0 ? Qt.AlignLeft : (welcomeRoot.wMode === 2 ? Qt.AlignRight : Qt.AlignHCenter))
-                            Layout.preferredWidth: welcomeRoot.isSearching ? 460 : (welcomeRoot.isM3 ? 400 : 340)
+                            Layout.preferredWidth: welcomeRoot.isSearching ? 480 : (welcomeRoot.isMaximized ? 520 : (welcomeRoot.isM3 ? 400 : 340))
                             implicitHeight: welcomeRoot.isM3 ? 38 : 30
                             leftPadding: 16
                             rightPadding: 16
@@ -182,7 +199,7 @@ Item {
                             placeholderText: Config ? (Config.language, Config.trAuto("Поиск по настройкам")) : "Поиск по настройкам"
                             placeholderTextColor: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.55) : "#777777"
 
-                            Behavior on Layout.preferredWidth { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+                            Behavior on Layout.preferredWidth { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
 
                             background: GlassPanel {
                                 radius: welcomeRoot.isM3 ? height / 2 : 0
@@ -209,7 +226,7 @@ Item {
                     onWidthChanged: Qt.callLater(welcomeRoot.recalcCardsLayout)
 
                     readonly property real targetYPos: {
-                        var heroBot = (welcomeRoot.isSearching ? 24 : 16) + heroWrapper.height
+                        var heroBot = heroWrapper.y + heroWrapper.height
                         if (welcomeRoot.isSearching) return heroBot + 20
                         var minTop = heroBot + 18
                         var midBottom = Math.round(heroBot + (welcomeRoot.height - heroBot - welcomeRoot.visibleCardsHeight) / 2)
@@ -217,7 +234,7 @@ Item {
                     }
                     y: targetYPos
 
-                    Behavior on y { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
+                    Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
 
                     property Item hoveredCardObj: null
                     property Item lastHoveredCardObj: null
@@ -234,9 +251,9 @@ Item {
                         border.width: welcomeRoot.isM3 ? 1.5 : 1
                         opacity: gridWrapper.hoveredCardObj && gridWrapper.hoveredCardObj.matchesFilter ? 1.0 : 0.0
 
-                        Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
-                        Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
-                        Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                        Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
                         Behavior on opacity { NumberAnimation { duration: 110 } }
                     }
 
@@ -258,7 +275,7 @@ Item {
                             { title: "󰍹  Мониторы", desc: "Разрешение, Гц, VRR", idx: 4, kw: "мониторы экран дисплей разрешение герцовка частота гц масштаб ориентация фрисинк monitors display resolution hz scale vrr freesync dpms" },
                             { title: "󰌌  Устройства", desc: "Клавиатура, мышь, тачпад", idx: 5, kw: "устройства клавиатура мышь тачпад раскладка язык чувствительность сенса повтор клавиш devices keyboard mouse touchpad layout sensitivity" },
                             { title: "󰖩  Сеть", desc: "Wi-Fi сети и подключения", idx: 6, kw: "сеть вайфай интернет подключение пароль wifi network internet ssid" },
-                            { title: "󰦝  VPN", desc: "StealthSurf подписка и легкий туннель", idx: 26, kw: "впн прокси трон обход vpn proxy throne singbox stealthsurf" },
+                            { title: "󰦝  VPN", desc: "Белые списки и раздельное туннелирование", idx: 26, kw: "впн прокси трон обход белые списки vpn proxy throne singbox" },
                             { title: "󰂯  Блютуз", desc: "Беспроводные устройства", idx: 7, kw: "блютуз наушники устройства сопряжение bluetooth audio pair" },
                             { title: "󱓞  Панель", desc: "Позиция, отступы, пилюли", idx: 8, kw: "вайбар панель сверху отступы пилюли рабочие столы waybar bar top margin pills workspaces" },
                             { title: "󰂚  Уведомления", desc: "Уведомления, таймаут, цвета", idx: 18, kw: "мако уведомления оповещения позиция таймаут рамка цвет mako notifications timeout anchor border color" },
@@ -302,16 +319,16 @@ Item {
                             width: targetW
                             height: welcomeRoot.cardHeight
                             opacity: matchesFilter ? 1.0 : 0.0
-                            scale: matchesFilter ? 1.0 : 0.88
+                            scale: matchesFilter ? welcomeRoot.springPulse : 0.88
                             visible: opacity > 0.01
                             enabled: matchesFilter
                             flat: true
 
-                            Behavior on x { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
-                            Behavior on y { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
-                            Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+                            Behavior on x { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.24 } }
+                            Behavior on y { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.24 } }
+                            Behavior on width { NumberAnimation { duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.20 } }
+                            Behavior on height { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.20 } }
                             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                            Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
                             onHoveredChanged: {
                                 if (hovered && matchesFilter) {
@@ -335,7 +352,6 @@ Item {
                                 anchors.rightMargin: welcomeRoot.isM3 ? 11 : 8
                                 spacing: welcomeRoot.isM3 ? 11 : 6
 
-                                // Иконка в тональном контейнере M3 SecondaryContainer / Primary
                                 Rectangle {
                                     visible: welcomeRoot.isM3
                                     Layout.preferredWidth: 36

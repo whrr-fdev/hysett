@@ -19,6 +19,13 @@ ApplicationWindow {
     property string drawerMode: "settings"
     property bool isWallpaperExpanded: false
     property bool isSettingsMaximized: false
+    property real contentMaxBounce: 1.0
+    SequentialAnimation {
+        id: pageMaxSpringAnim
+        NumberAnimation { target: root; property: "contentMaxBounce"; from: 0.965; to: 1.022; duration: 160; easing.type: Easing.OutQuad }
+        NumberAnimation { target: root; property: "contentMaxBounce"; to: 1.0; duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+    }
+    onIsSettingsMaximizedChanged: if (drawerOpen) pageMaxSpringAnim.restart()
     property int powerSelectedIndex: 0
     property string clipSearchQuery: ""
     property int calYear: new Date().getFullYear()
@@ -261,8 +268,8 @@ ApplicationWindow {
         return root.width * 0.5
     }
     Behavior on centerAnchorX { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
-    Behavior on animDrawerW { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
-    Behavior on smoothTargetH { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+    Behavior on animDrawerW { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
+    Behavior on smoothTargetH { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
 
     readonly property real drawerX: {
         if (barPos === 2) return barLeft + barW
@@ -2160,8 +2167,8 @@ ApplicationWindow {
 
             Item {
                 id: drawerInner
-                width: root.targetDrawerW
-                height: root.targetDrawerH
+                width: Math.max(230, Math.round(root.animDrawerW))
+                height: Math.max(196, Math.round(root.smoothTargetH))
                 x: root.barPos === 2
                    ? (-(1.0 - root.drawerProgress) * 68)
                    : (root.barPos === 3 ? ((1.0 - root.drawerProgress) * 68) : Math.round((parent.width - width) * 0.5))
@@ -2171,8 +2178,8 @@ ApplicationWindow {
                 transform: Scale {
                     origin.x: drawerInner.width * 0.5
                     origin.y: 0
-                    xScale: root.drawerWidthScale * ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)
-                    yScale: 0.90 + 0.10 * root.drawerProgress
+                    xScale: root.contentMaxBounce * root.drawerWidthScale * ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)
+                    yScale: root.contentMaxBounce * (0.90 + 0.10 * root.drawerProgress)
                 }
                 opacity: Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
 

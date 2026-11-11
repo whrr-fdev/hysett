@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import HySett
@@ -16,8 +17,27 @@ Rectangle {
     property bool collapsed: !sidebarHovered
     readonly property int targetWidth: collapsed ? (isM3 ? 56 : 46) : (isM3 ? 168 : 136)
 
+    property var winObj: ApplicationWindow.window
+    readonly property bool winMax: winObj ? (winObj.isSettingsMaximized || winObj.isWallpaperExpanded) : false
+    property real sidebarSpringScale: 1.0
+
+    SequentialAnimation {
+        id: sidebarMaxSpringAnim
+        NumberAnimation { target: bar; property: "sidebarSpringScale"; from: 1.0; to: 1.045; duration: 140; easing.type: Easing.OutQuad }
+        NumberAnimation { target: bar; property: "sidebarSpringScale"; to: 1.0; duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.75 }
+    }
+
+    onWinMaxChanged: sidebarMaxSpringAnim.restart()
+
+    transform: Scale {
+        origin.x: 0
+        origin.y: bar.height * 0.5
+        xScale: bar.sidebarSpringScale
+        yScale: bar.sidebarSpringScale
+    }
+
     width: targetWidth
-    Behavior on width { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+    Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
 
     HoverHandler {
         id: sidebarHoverHandler

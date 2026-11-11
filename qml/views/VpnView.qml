@@ -13,7 +13,7 @@ ScrollView {
     readonly property bool isM3: Theme && Theme.isRounded
     readonly property bool isWlMode: Waybar ? Waybar.vpnWhitelistMode : false
     property real modeSlideProgress: isWlMode ? 1.0 : 0.0
-    Behavior on modeSlideProgress { NumberAnimation { duration: 300; easing.type: Easing.OutQuint } }
+    Behavior on modeSlideProgress { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
 
     contentWidth: availableWidth
     clip: true
@@ -27,7 +27,27 @@ ScrollView {
         }
     }
 
-    // Reusable inline component for Split Tunneling card (used on both pages of the full-page slider)
+    // Парсер строки сервера для раздельного рендеринга иконки, бейджа и названия
+    function parseServerItem(rawStr, isWl) {
+        var s = (rawStr || "").trim()
+        if (!s) return { icon: "󰈀", badge: "", ping: "", title: "Сервер" }
+        if (s.indexOf("Авто-выбор") === 0) {
+            return { icon: "󰓅", badge: "АВТО", ping: "", title: s }
+        }
+        var parts = s.split(" • ")
+        if (parts.length >= 3 && parts[0].indexOf("мс") !== -1) {
+            var b0 = parts[1]
+            var ic0 = b0.indexOf("CIDR+SNI") !== -1 ? "󰄬" : (b0.indexOf("CIDR") !== -1 ? "󰞀" : (b0.indexOf("SNI") !== -1 ? "󰒃" : "󰈀"))
+            return { icon: ic0, badge: b0, ping: parts[0], title: parts.slice(2).join(" • ") }
+        }
+        if (parts.length >= 2 && (parts[0] === "CIDR+SNI" || parts[0] === "CIDR РФ" || parts[0] === "Белый SNI" || parts[0] === "VLESS")) {
+            var b1 = parts[0]
+            var ic1 = b1 === "CIDR+SNI" ? "󰄬" : (b1 === "CIDR РФ" ? "󰞀" : (b1 === "Белый SNI" ? "󰒃" : "󰈀"))
+            return { icon: ic1, badge: b1, ping: "", title: parts.slice(1).join(" • ") }
+        }
+        return { icon: isWl ? "󰒃" : "󰈀", badge: "", ping: "", title: s }
+    }
+
     component SplitTunnelCard: GlassPanel {
         objectName: "atmoObstacle"
         Layout.fillWidth: true
@@ -41,13 +61,12 @@ ScrollView {
 
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
-                Text {
-                    text: "󰒓"
-                    color: Config ? Config.m3Primary : "#ffffff"
-                    font.pixelSize: Config.fontSize + 2
+                Item {
+                    width: 18; height: 18
+                    Text { anchors.centerIn: parent; text: "󰒓"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
                 }
                 Text {
-                    text: "Раздельное туннелирование (Split Tunneling + allow-domains / Re-filter)"
+                    text: "Раздельное туннелирование"
                     color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                     Layout.fillWidth: true
                 }
@@ -57,7 +76,7 @@ ScrollView {
                 Layout.fillWidth: true
                 implicitHeight: 30
                 options: [
-                    "󰈀 Обход РФ (RU Direct)",
+                    "󰈀 Обход РФ",
                     "󰞀 Только заблокированные",
                     "󰦝 Весь трафик в VPN"
                 ]
@@ -81,10 +100,10 @@ ScrollView {
                 text: {
                     if (!Waybar) return "";
                     if (Waybar.vpnSplitMode === "only_blocked")
-                        return "Через VPN идут только заблокированные сайты и сервисы из списков (YouTube, Discord + голос, Telegram, ChatGPT, Instagram, X, HDRezka, Re-filter). Весь остальной трафик и игры идут напрямую.";
+                        return "Через VPN идут только заблокированные сайты и сервисы из списков. Весь остальной трафик и игры идут напрямую.";
                     if (Waybar.vpnSplitMode === "all_vpn")
-                        return "Весь трафик системы маршрутизируется через VPN-туннель (кроме доменов, добавленных в исключения ниже).";
-                    return "Российские сайты (inside-raw.lst, .ru, .рф, Госуслуги, Банки, ВК, Яндекс, Ozon, WB) идут напрямую без потери скорости, но заблокированные сайты РФ (outside-raw.lst) и зарубежные ресурсы идут через VPN.";
+                        return "Весь трафик системы направляется через VPN-туннель.";
+                    return "Российские сайты и сервисы работают напрямую без потери скорости, а заблокированные и зарубежные ресурсы идут через VPN.";
                 }
             }
 
@@ -94,7 +113,7 @@ ScrollView {
                     id: customDomField
                     Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
                     color: "#ffffff"; font.pixelSize: 11
-                    placeholderText: "Свой домен (например: kinopub.me или mybank.ru)..."
+                    placeholderText: "Введите домен..."
                     placeholderTextColor: "#777777"
                     background: Rectangle {
                         radius: vpnScroll.isM3 ? 8 : 0
@@ -154,7 +173,7 @@ ScrollView {
         width: vpnScroll.availableWidth
         implicitHeight: topHeaderCol.implicitHeight + fullPageSlider.implicitHeight + 52
 
-        // ВЕРХНЯЯ ШАПКА И ПЕРЕКЛЮЧАТЕЛЬ ВСЕГО ЭКРАНА (VPN <-> БЕЛЫЕ СПИСКИ)
+        // ВЕРХНЯЯ ШАПКА И ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ
         ColumnLayout {
             id: topHeaderCol
             width: Math.min(parent.width - 48, 780)
@@ -164,10 +183,9 @@ ScrollView {
 
             RowLayout {
                 Layout.fillWidth: true; spacing: 8
-                Text {
-                    text: "󰦝"
-                    color: Config ? Config.m3Primary : "#ffffff"
-                    font.pixelSize: Config.fontSize + 4
+                Item {
+                    width: 20; height: 20
+                    Text { anchors.centerIn: parent; text: "󰦝"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 4 }
                 }
                 Text {
                     text: "VPN и Обход блокировок"
@@ -175,7 +193,7 @@ ScrollView {
                     Layout.fillWidth: true
                 }
                 StyledButton {
-                    text: (Waybar && Waybar.vpnBusy) ? "󰑐 Синхронизация..." : "󰊢 Обновить списки (Git)"
+                    text: (Waybar && Waybar.vpnBusy) ? "󰑐 Синхронизация..." : "󰊢 Обновить списки"
                     implicitHeight: 26
                     enabled: !(Waybar && Waybar.vpnBusy)
                     onClicked: if (Waybar) Waybar.updateBypassLists()
@@ -188,13 +206,12 @@ ScrollView {
                 }
             }
 
-            // Переключатель режимов в едином стиле SegmentedButton (как на остальных вкладках)
             SegmentedButton {
                 Layout.fillWidth: true
                 implicitHeight: 34
                 options: [
-                    "󰦝 Обычный VPN (Мои подписки)",
-                    "󰒃 Обход Белых Списков (БС)"
+                    "󰦝 Обычный VPN",
+                    "󰒃 Белые списки"
                 ]
                 selectedIndex: vpnScroll.isWlMode ? 1 : 0
                 onSelected: (idx) => {
@@ -203,7 +220,7 @@ ScrollView {
             }
         }
 
-        // ПОЛНОЦЕННЫЙ ГОРИЗОНТАЛЬНЫЙ СЛАЙДЕР ВСЕЙ ВКЛАДКИ (ВО ВСЮ ШИРИНУ ОКНА БЕЗ ОБРЕЗКИ КАРТОЧЕК)
+        // ПОЛНОЦЕННЫЙ ГОРИЗОНТАЛЬНЫЙ СЛАЙДЕР ВСЕЙ ВКЛАДКИ (ОБЕ СТРАНИЦЫ ИМЕЮТ СВОИ ПОСТОЯННЫЕ ДАННЫЕ)
         Item {
             id: fullPageSlider
             anchors.top: topHeaderCol.bottom
@@ -217,7 +234,7 @@ ScrollView {
                 x: -vpnScroll.modeSlideProgress * fullPageSlider.width
 
                 // =========================================================================
-                // ЭКРАН 0: ПОЛНАЯ СТРАНИЦА «ОБЫЧНЫЙ VPN (МОИ ПОДПИСКИ)»
+                // ЭКРАН 0: ОБЫЧНЫЙ VPN
                 // =========================================================================
                 Item {
                     width: fullPageSlider.width
@@ -229,7 +246,6 @@ ScrollView {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 12
 
-                        // Карточка включения Обычного VPN
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true; implicitHeight: 82
@@ -239,12 +255,12 @@ ScrollView {
                                 Rectangle {
                                     width: 44; height: 44
                                     radius: vpnScroll.isM3 ? 12 : 0
-                                    color: (Waybar && Waybar.vpnActive)
+                                    color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode)
                                            ? (Config ? Config.m3Primary : "#ffffff")
                                            : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.08))
                                     Text {
                                         anchors.centerIn: parent; text: "󰦝"; font.pixelSize: 20
-                                        color: (Waybar && Waybar.vpnActive)
+                                        color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode)
                                                ? (Config ? Config.accentTextColor : "#000000")
                                                : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
                                     }
@@ -253,15 +269,19 @@ ScrollView {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
                                     Text {
-                                        text: Waybar ? Waybar.vpnServerName : "VPN"
+                                        text: Waybar ? Waybar.vpnSubServerName : "VPN"
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 2; font.bold: true
                                         Layout.fillWidth: true; elide: Text.ElideRight
                                     }
                                     RowLayout {
-                                        spacing: 10
+                                        spacing: 8
+                                        Rectangle {
+                                            width: 7; height: 7; radius: 3.5
+                                            color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode) ? "#69f0ae" : "#777777"
+                                        }
                                         Text {
-                                            text: (Waybar && Waybar.vpnBusy) ? "󰑐 Обновление..." : ((Waybar && Waybar.vpnActive) ? "󰄬 Подключено (sing-box TUN)" : "○ Отключено")
-                                            color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : ((Waybar && Waybar.vpnActive) ? "#69f0ae" : "#888888")
+                                            text: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode) ? "Подключено" : "Отключено"
+                                            color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode) ? "#69f0ae" : "#888888"
                                             font.pixelSize: Config.fontSize - 1
                                         }
                                         Text {
@@ -279,7 +299,7 @@ ScrollView {
                             }
                         }
 
-                        // Карточка управления подписками и вкладками подписок
+                        // Карточка подписок Обычного VPN
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -291,14 +311,17 @@ ScrollView {
 
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 8
-                                    Text { text: "󰌘"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                                    Item {
+                                        width: 18; height: 18
+                                        Text { anchors.centerIn: parent; text: "󰌘"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                                    }
                                     Text {
                                         text: "Мои подписки и ключи"
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Скрыть ссылки (блюр)"
+                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать" : "󰈈 Скрыть"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
                                         onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
@@ -311,7 +334,7 @@ ScrollView {
                                         id: subUrlField
                                         Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
                                         color: "#ffffff"; font.pixelSize: 11
-                                        placeholderText: "Вставьте ссылку на подписку (https://...) или vless:// ключ..."
+                                        placeholderText: "Вставьте ссылку на подписку или ключ..."
                                         placeholderTextColor: "#777777"
                                         background: Rectangle {
                                             radius: vpnScroll.isM3 ? 8 : 0
@@ -321,7 +344,7 @@ ScrollView {
                                         }
                                     }
                                     StyledButton {
-                                        text: "+ Добавить подписку"
+                                        text: "+ Добавить"
                                         implicitHeight: 28
                                         onClicked: {
                                             if (Waybar && subUrlField.text.trim().length > 0) {
@@ -332,7 +355,7 @@ ScrollView {
                                     }
                                 }
 
-                                // Вкладки подписок (правильный z-order: фоны z:1, наведение z:2, активная плашка z:3, текст z:4)
+                                // Вкладки подписок
                                 Item {
                                     id: subTabBar
                                     visible: Waybar && Waybar.vpnSubGroups.length > 0
@@ -350,7 +373,6 @@ ScrollView {
                                         onTriggered: subTabBar.isHovering = false
                                     }
 
-                                    // Слой 2: Плавная плашка наведения
                                     Rectangle {
                                         z: 2
                                         opacity: subTabBar.isHovering ? 1.0 : 0.0
@@ -364,7 +386,6 @@ ScrollView {
                                         Behavior on opacity { NumberAnimation { duration: 130 } }
                                     }
 
-                                    // Слой 3: Активная плашка выбора (ПОВЕРХ фонов кнопок!)
                                     Rectangle {
                                         z: 3
                                         visible: subTabBar.activeItem !== null
@@ -379,7 +400,6 @@ ScrollView {
                                         Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
                                     }
 
-                                    // Слой 1 (фоны): подложены под плашки
                                     Flow {
                                         z: 1
                                         width: parent.width; spacing: 5
@@ -401,7 +421,6 @@ ScrollView {
                                         }
                                     }
 
-                                    // Слой 4: Только текст и MouseArea (без закрашивающего фона!)
                                     Flow {
                                         id: subTabFlow
                                         z: 4; width: parent.width; spacing: 5
@@ -414,7 +433,7 @@ ScrollView {
 
                                             Text {
                                                 id: allSubTabTxt; anchors.centerIn: parent
-                                                text: "Все (" + (Waybar ? Waybar.vpnServers.length : 0) + ")"
+                                                text: "Все • " + (Waybar ? Waybar.vpnSubServers.length : 0)
                                                 font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
                                                 color: parent.isSel
                                                        ? (Config ? Config.accentTextColor : "#000000")
@@ -445,7 +464,7 @@ ScrollView {
 
                                                 Text {
                                                     id: oneSubTabTxt; anchors.centerIn: parent
-                                                    text: modelData.title + " (" + modelData.count + ")"
+                                                    text: modelData.title + " • " + modelData.count
                                                     font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
                                                     color: parent.isSel
                                                            ? (Config ? Config.accentTextColor : "#000000")
@@ -468,7 +487,6 @@ ScrollView {
                                     }
                                 }
 
-                                // Список ссылок подписок с копированием и удалением
                                 Item {
                                     id: urlsBlurBox
                                     visible: Waybar && Waybar.vpnSubGroups.length > 0
@@ -529,7 +547,7 @@ ScrollView {
                                                 RowLayout {
                                                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
                                                     Text {
-                                                        text: modelData.title + " [" + modelData.count + " серв.]  •  " + modelData.url
+                                                        text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
                                                         color: "#ffffff"; font.pixelSize: 10
                                                         Layout.fillWidth: true; elide: Text.ElideMiddle
                                                     }
@@ -566,7 +584,7 @@ ScrollView {
                             }
                         }
 
-                        // Карточка серверов Обычного VPN
+                        // Карточка серверов Обычного VPN (постоянная привязка к vpnSubServers!)
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -578,15 +596,18 @@ ScrollView {
 
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 8
-                                    Text { text: "󰈀"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                                    Item {
+                                        width: 18; height: 18
+                                        Text { anchors.centerIn: parent; text: "󰈀"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                                    }
                                     Text {
                                         text: {
-                                            if (!Waybar) return "Серверы подписок";
+                                            if (!Waybar) return "Серверы";
                                             if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
                                                 var g = Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1];
-                                                return "Серверы из «" + g.title + "» (" + g.count + ")";
+                                                return "Серверы • " + g.title;
                                             }
-                                            return "Доступные серверы подписок (" + (vpnScroll.isWlMode ? 0 : Waybar.vpnServers.length) + ")";
+                                            return "Доступные серверы • " + Waybar.vpnSubServers.length;
                                         }
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                         Layout.fillWidth: true
@@ -594,14 +615,14 @@ ScrollView {
                                 }
 
                                 Text {
-                                    visible: !Waybar || vpnScroll.isWlMode || Waybar.vpnServers.length === 0
-                                    text: "Нет добавленных серверов. Вставьте ссылку на подписку или vless:// ключ выше."
+                                    visible: !Waybar || Waybar.vpnSubServers.length === 0
+                                    text: "Нет добавленных серверов. Вставьте ссылку на подписку или ключ выше."
                                     color: "#888888"; font.pixelSize: Config.fontSize - 1
                                 }
 
                                 Item {
                                     id: normalSrvListWrap
-                                    visible: Waybar && !vpnScroll.isWlMode && Waybar.vpnServers.length > 0
+                                    visible: Waybar && Waybar.vpnSubServers.length > 0
                                     Layout.fillWidth: true
                                     implicitHeight: Math.min(normalSrvList.contentHeight, 238)
                                     clip: true
@@ -631,13 +652,13 @@ ScrollView {
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                                         model: {
-                                            if (!Waybar || vpnScroll.isWlMode) return [];
+                                            if (!Waybar) return [];
                                             if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
                                                 return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
                                             }
                                             var res = [];
-                                            for (var i = 0; i < Waybar.vpnServers.length; ++i) {
-                                                res.push({ name: Waybar.vpnServers[i], global_index: i });
+                                            for (var i = 0; i < Waybar.vpnSubServers.length; ++i) {
+                                                res.push({ name: Waybar.vpnSubServers[i], global_index: i });
                                             }
                                             return res;
                                         }
@@ -645,7 +666,8 @@ ScrollView {
                                         delegate: Rectangle {
                                             width: normalSrvList.width; height: 30
                                             property int realIdx: modelData.global_index !== undefined ? modelData.global_index : index
-                                            property bool isSel: Waybar && Waybar.vpnSelectedServer === realIdx
+                                            property bool isSel: Waybar && Waybar.vpnSubSelectedServer === realIdx
+                                            property var parsed: vpnScroll.parseServerItem(modelData.name !== undefined ? modelData.name : modelData, false)
                                             radius: vpnScroll.isM3 ? 8 : 0
                                             color: isSel
                                                    ? (Config ? Config.m3Primary : "#ffffff")
@@ -655,21 +677,37 @@ ScrollView {
                                             Behavior on color { ColorAnimation { duration: 140 } }
 
                                             RowLayout {
-                                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
+                                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
+
+                                                Item {
+                                                    width: 16; height: 16
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: parsed.icon
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : (Config ? Config.m3Primary : "#ffffff")
+                                                        font.pixelSize: Config.fontSize + 1
+                                                    }
+                                                }
+
                                                 Text {
-                                                    text: modelData.name !== undefined ? modelData.name : modelData
-                                                    color: parent.parent.isSel
+                                                    text: parsed.title
+                                                    color: isSel
                                                            ? (Config ? Config.accentTextColor : "#000000")
                                                            : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
                                                     font.pixelSize: Config.fontSize
-                                                    font.bold: parent.parent.isSel
+                                                    font.bold: isSel
                                                     Layout.fillWidth: true; elide: Text.ElideRight
                                                 }
-                                                Text {
-                                                    visible: parent.parent.isSel
-                                                    text: "󰄬"
-                                                    color: Config ? Config.accentTextColor : "#000000"
-                                                    font.pixelSize: Config.fontSize
+
+                                                Item {
+                                                    visible: isSel
+                                                    width: 16; height: 16
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "󰄬"
+                                                        color: Config ? Config.accentTextColor : "#000000"
+                                                        font.pixelSize: Config.fontSize
+                                                    }
                                                 }
                                             }
                                             MouseArea {
@@ -693,7 +731,7 @@ ScrollView {
                 }
 
                 // =========================================================================
-                // ЭКРАН 1: ПОЛНАЯ СТРАНИЦА «ОБХОД БЕЛЫХ СПИСКОВ (БС)»
+                // ЭКРАН 1: БЕЛЫЕ СПИСКИ (ПОСТОЯННАЯ ПРИВЯЗКА К vpnWlServers!)
                 // =========================================================================
                 Item {
                     width: fullPageSlider.width
@@ -705,7 +743,6 @@ ScrollView {
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 12
 
-                        // Карточка включения Обхода Белых Списков
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true; implicitHeight: 82
@@ -715,12 +752,12 @@ ScrollView {
                                 Rectangle {
                                     width: 44; height: 44
                                     radius: vpnScroll.isM3 ? 12 : 0
-                                    color: (Waybar && Waybar.vpnActive)
+                                    color: (Waybar && Waybar.vpnActive && vpnScroll.isWlMode)
                                            ? (Config ? Config.m3Primary : "#ffffff")
                                            : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.08))
                                     Text {
                                         anchors.centerIn: parent; text: "󰒃"; font.pixelSize: 20
-                                        color: (Waybar && Waybar.vpnActive)
+                                        color: (Waybar && Waybar.vpnActive && vpnScroll.isWlMode)
                                                ? (Config ? Config.accentTextColor : "#000000")
                                                : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
                                     }
@@ -729,15 +766,19 @@ ScrollView {
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 3
                                     Text {
-                                        text: Waybar ? Waybar.vpnServerName : "Обход Белых Списков"
+                                        text: Waybar ? Waybar.vpnWlServerName : "Авто-выбор лучшего сервера"
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 2; font.bold: true
                                         Layout.fillWidth: true; elide: Text.ElideRight
                                     }
                                     RowLayout {
-                                        spacing: 10
+                                        spacing: 8
+                                        Rectangle {
+                                            width: 7; height: 7; radius: 3.5
+                                            color: (Waybar && Waybar.vpnActive && vpnScroll.isWlMode) ? "#69f0ae" : "#777777"
+                                        }
                                         Text {
-                                            text: (Waybar && Waybar.vpnBusy) ? "󰑐 Проверка туннелей через sing-box (HTTP 204)..." : ((Waybar && Waybar.vpnActive) ? "󰄬 Подключено в режиме БС" : "○ Отключено")
-                                            color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : ((Waybar && Waybar.vpnActive) ? "#69f0ae" : "#888888")
+                                            text: (Waybar && Waybar.vpnBusy) ? "Проверка туннелей..." : ((Waybar && Waybar.vpnActive && vpnScroll.isWlMode) ? "Подключено" : "Отключено")
+                                            color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : ((Waybar && Waybar.vpnActive && vpnScroll.isWlMode) ? "#69f0ae" : "#888888")
                                             font.pixelSize: Config.fontSize - 1
                                         }
                                         Text {
@@ -755,7 +796,7 @@ ScrollView {
                             }
                         }
 
-                        // Карточка категорий Белых Списков и своих БС-подписок (исправленный z-order!)
+                        // Карточка категорий Белых Списков
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -767,21 +808,23 @@ ScrollView {
 
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 8
-                                    Text { text: "󰒃"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                                    Item {
+                                        width: 18; height: 18
+                                        Text { anchors.centerIn: parent; text: "󰒃"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
+                                    }
                                     Text {
-                                        text: "Категории Белых Списков (bypass-lists и свои БС-подписки)"
+                                        text: "Категории белых списков"
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: (Waybar && Waybar.vpnBusy) ? "󰑐 Тест HTTP 204..." : "󰓅 Проверить БС (HTTP 204 + CIDR/SNI)"
+                                        text: (Waybar && Waybar.vpnBusy) ? "󰑐 Проверка..." : "󰓅 Проверить серверы"
                                         implicitHeight: 26
                                         enabled: !(Waybar && Waybar.vpnBusy)
                                         onClicked: if (Waybar) Waybar.testWhitelistServers()
                                     }
                                 }
 
-                                // Сетка категорий БС: Слой 1 = фоны, Слой 2 = наведение, Слой 3 = активная плашка, Слой 4 = текст + иконка
                                 Item {
                                     id: wlCatContainer
                                     Layout.fillWidth: true
@@ -798,7 +841,6 @@ ScrollView {
                                         onTriggered: wlCatContainer.isHovering = false
                                     }
 
-                                    // Слой 2: Плавная плашка наведения
                                     Rectangle {
                                         z: 2
                                         opacity: wlCatContainer.isHovering ? 1.0 : 0.0
@@ -812,7 +854,6 @@ ScrollView {
                                         Behavior on opacity { NumberAnimation { duration: 130 } }
                                     }
 
-                                    // Слой 3: Яркая активная плашка ПОВЕРХ фонов кнопок
                                     Rectangle {
                                         z: 3
                                         visible: wlCatContainer.activeItem !== null
@@ -827,7 +868,6 @@ ScrollView {
                                         Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
                                     }
 
-                                    // Слой 1: Фоны кнопок (под плашками z:2 и z:3!)
                                     Flow {
                                         z: 1
                                         width: parent.width; spacing: 5
@@ -844,7 +884,6 @@ ScrollView {
                                         }
                                     }
 
-                                    // Слой 4: Только иконка + текст (отдельно друг от друга!) и MouseArea
                                     Flow {
                                         id: wlCatFlow
                                         z: 4; width: parent.width; spacing: 5
@@ -853,7 +892,7 @@ ScrollView {
                                             model: Waybar ? Waybar.vpnWhitelistFiles : []
                                             delegate: Item {
                                                 id: catBtn
-                                                width: catContentRow.implicitWidth + 22; height: 28
+                                                width: catContentRow.implicitWidth + 24; height: 28
                                                 property bool isSel: Waybar && Waybar.vpnWhitelistFile === modelData.key
                                                 readonly property var splitParts: {
                                                     var s = (modelData.label || "").trim()
@@ -871,14 +910,18 @@ ScrollView {
                                                 Row {
                                                     id: catContentRow
                                                     anchors.centerIn: parent
-                                                    spacing: catBtn.splitParts.icon.length > 0 ? 7 : 0
+                                                    spacing: catBtn.splitParts.icon.length > 0 ? 8 : 0
 
-                                                    Text {
+                                                    Item {
                                                         visible: catBtn.splitParts.icon.length > 0
-                                                        text: catBtn.splitParts.icon
-                                                        font.pixelSize: Config.fontSize
-                                                        color: catTxt.color
+                                                        width: 15; height: 16
                                                         anchors.verticalCenter: parent.verticalCenter
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: catBtn.splitParts.icon
+                                                            font.pixelSize: Config.fontSize
+                                                            color: catTxt.color
+                                                        }
                                                     }
                                                     Text {
                                                         id: catTxt
@@ -917,14 +960,17 @@ ScrollView {
 
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 8
-                                    Text { text: "󰌘"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 1 }
+                                    Item {
+                                        width: 18; height: 18
+                                        Text { anchors.centerIn: parent; text: "󰌘"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 1 }
+                                    }
                                     Text {
-                                        text: "Свои подписки и ключи для Белых Списков (хранятся отдельно):"
+                                        text: "Свои подписки для белых списков"
                                         color: "#dddddd"; font.pixelSize: Config.fontSize; font.bold: true
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать" : "󰈈 Скрыть (блюр)"
+                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать" : "󰈈 Скрыть"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
                                         onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
@@ -937,7 +983,7 @@ ScrollView {
                                         id: wlSubUrlField
                                         Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
                                         color: "#ffffff"; font.pixelSize: 11
-                                        placeholderText: "Вставьте ссылку на БС-подписку или несколько vless:// ключей..."
+                                        placeholderText: "Вставьте ссылку на подписку или ключи..."
                                         placeholderTextColor: "#777777"
                                         background: Rectangle {
                                             radius: vpnScroll.isM3 ? 8 : 0
@@ -947,7 +993,7 @@ ScrollView {
                                         }
                                     }
                                     StyledButton {
-                                        text: "+ Добавить в БС"
+                                        text: "+ Добавить"
                                         implicitHeight: 28
                                         onClicked: {
                                             if (Waybar && wlSubUrlField.text.trim().length > 0) {
@@ -1017,7 +1063,7 @@ ScrollView {
                                                 RowLayout {
                                                     anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
                                                     Text {
-                                                        text: modelData.title + " [" + modelData.count + " серв.]  •  " + modelData.url
+                                                        text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
                                                         color: "#ffffff"; font.pixelSize: 10; font.bold: true
                                                         Layout.fillWidth: true; elide: Text.ElideMiddle
                                                     }
@@ -1049,7 +1095,7 @@ ScrollView {
                             }
                         }
 
-                        // Карточка серверов Белого Списка
+                        // Карточка серверов Белого Списка (отдельные колонки для иконки, бейджа и названия сервера)
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -1061,27 +1107,26 @@ ScrollView {
 
                                 RowLayout {
                                     Layout.fillWidth: true; spacing: 8
-                                    Text { text: "󰒃"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
-                                    Text {
-                                        text: "Серверы Белого Списка (" + (Waybar && vpnScroll.isWlMode ? Waybar.vpnServers.length : 0) + ")"
-                                        color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
-                                        Layout.fillWidth: true
+                                    Item {
+                                        width: 18; height: 18
+                                        Text { anchors.centerIn: parent; text: "󰒃"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: Config.fontSize + 2 }
                                     }
                                     Text {
-                                        text: "[󰄬 БС CIDR+SNI] = выживет при жестком белом списке"
-                                        color: "#69f0ae"; font.pixelSize: Config.fontSize - 2
+                                        text: "Серверы белого списка • " + (Waybar ? Waybar.vpnWlServers.length : 0)
+                                        color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                                        Layout.fillWidth: true
                                     }
                                 }
 
                                 Text {
-                                    visible: !Waybar || !vpnScroll.isWlMode || Waybar.vpnServers.length === 0
-                                    text: "Нет серверов в выбранной категории БС. Нажмите «󰊢 Обновить списки (Git)» или добавьте свою БС-подписку."
+                                    visible: !Waybar || Waybar.vpnWlServers.length === 0
+                                    text: "Нет серверов в выбранной категории. Нажмите «Обновить списки» или добавьте свою подписку."
                                     color: "#888888"; font.pixelSize: Config.fontSize - 1
                                 }
 
                                 Item {
                                     id: wlSrvListWrap
-                                    visible: Waybar && vpnScroll.isWlMode && Waybar.vpnServers.length > 0
+                                    visible: Waybar && Waybar.vpnWlServers.length > 0
                                     Layout.fillWidth: true
                                     implicitHeight: Math.min(wlSrvList.contentHeight, 238)
                                     clip: true
@@ -1109,11 +1154,12 @@ ScrollView {
                                         id: wlSrvList
                                         z: 2; anchors.fill: parent; spacing: 4
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                                        model: (Waybar && vpnScroll.isWlMode) ? Waybar.vpnServers : []
+                                        model: Waybar ? Waybar.vpnWlServers : []
 
                                         delegate: Rectangle {
                                             width: wlSrvList.width; height: 30
-                                            property bool isSel: Waybar && Waybar.vpnSelectedServer === index
+                                            property bool isSel: Waybar && Waybar.vpnWlSelectedServer === index
+                                            property var parsed: vpnScroll.parseServerItem(modelData, true)
                                             radius: vpnScroll.isM3 ? 8 : 0
                                             color: isSel
                                                    ? (Config ? Config.m3Primary : "#ffffff")
@@ -1123,21 +1169,79 @@ ScrollView {
                                             Behavior on color { ColorAnimation { duration: 140 } }
 
                                             RowLayout {
-                                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 8
+                                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; spacing: 10
+
+                                                // Отдельный фиксированный слот под иконку (никогда не слипается с текстом!)
+                                                Item {
+                                                    width: 16; height: 16
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: parsed.icon
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : (Config ? Config.m3Primary : "#ffffff")
+                                                        font.pixelSize: Config.fontSize + 1
+                                                    }
+                                                }
+
+                                                // Аккуратная плашка бейджа (CIDR+SNI / CIDR РФ / Белый SNI / VLESS / АВТО)
+                                                Rectangle {
+                                                    visible: parsed.badge.length > 0
+                                                    width: badgeTxt.implicitWidth + 12
+                                                    height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel
+                                                           ? Qt.rgba(0, 0, 0, 0.18)
+                                                           : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.10))
+
+                                                    Text {
+                                                        id: badgeTxt
+                                                        anchors.centerIn: parent
+                                                        text: parsed.badge
+                                                        font.pixelSize: Config.fontSize - 2
+                                                        font.bold: true
+                                                        color: isSel
+                                                               ? (Config ? Config.accentTextColor : "#000000")
+                                                               : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#dddddd")
+                                                    }
+                                                }
+
+                                                // Плашка пинга (если была нажата проверка серверов)
+                                                Rectangle {
+                                                    visible: parsed.ping.length > 0
+                                                    width: pingTxt.implicitWidth + 10
+                                                    height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(0.4, 0.95, 0.68, 0.16)
+
+                                                    Text {
+                                                        id: pingTxt
+                                                        anchors.centerIn: parent
+                                                        text: parsed.ping
+                                                        font.pixelSize: Config.fontSize - 2
+                                                        font.bold: true
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
+                                                    }
+                                                }
+
+                                                // Чистое название сервера без встроенных глифов и скобок
                                                 Text {
-                                                    text: modelData
-                                                    color: parent.parent.isSel
+                                                    text: parsed.title
+                                                    color: isSel
                                                            ? (Config ? Config.accentTextColor : "#000000")
                                                            : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
                                                     font.pixelSize: Config.fontSize
-                                                    font.bold: parent.parent.isSel
+                                                    font.bold: isSel
                                                     Layout.fillWidth: true; elide: Text.ElideRight
                                                 }
-                                                Text {
-                                                    visible: parent.parent.isSel
-                                                    text: "󰄬"
-                                                    color: Config ? Config.accentTextColor : "#000000"
-                                                    font.pixelSize: Config.fontSize
+
+                                                Item {
+                                                    visible: isSel
+                                                    width: 16; height: 16
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "󰄬"
+                                                        color: Config ? Config.accentTextColor : "#000000"
+                                                        font.pixelSize: Config.fontSize
+                                                    }
                                                 }
                                             }
                                             MouseArea {

@@ -28,7 +28,6 @@ Item {
         onTriggered: control.isHovering = false
     }
 
-    // Слой 1: Фоны сегментов колбаски
     Row {
         z: 1
         anchors.fill: parent
@@ -53,7 +52,6 @@ Item {
         }
     }
 
-    // Слой 2: Плавно скользящая плашка наведения
     Rectangle {
         z: 2
         opacity: control.isHovering ? 1.0 : 0.0
@@ -72,7 +70,6 @@ Item {
         Behavior on opacity { NumberAnimation { duration: 130 } }
     }
 
-    // Слой 3: Плавно скользящая активная плашка выбора
     Rectangle {
         z: 3
         visible: control.count > 0
@@ -91,7 +88,6 @@ Item {
         Behavior on color { ColorAnimation { duration: 140 } }
     }
 
-    // Слой 4: Текст и разделенные иконки (без закрашивающего фона!)
     Row {
         z: 4
         anchors.fill: parent
@@ -119,14 +115,20 @@ Item {
 
                 Row {
                     anchors.centerIn: parent
-                    spacing: segItem.splitParts.icon.length > 0 ? 7 : 0
+                    spacing: segItem.splitParts.icon.length > 0 ? 8 : 0
 
-                    Text {
+                    Item {
                         visible: segItem.splitParts.icon.length > 0
-                        text: segItem.splitParts.icon
-                        color: segLabel.color
-                        font.pixelSize: (Config ? Config.fontSize : 11) + 1
+                        width: 15
+                        height: 16
                         anchors.verticalCenter: parent.verticalCenter
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: segItem.splitParts.icon
+                            color: segLabel.color
+                            font.pixelSize: (Config ? Config.fontSize : 11) + 1
+                        }
                     }
 
                     Text {

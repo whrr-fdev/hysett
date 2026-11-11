@@ -62,7 +62,7 @@ Item {
                             Layout.fillWidth: true
                             Text {
                                 text: (Network && Network.activeConnections.length > 1)
-                                    ? "Активные подключения (выберите основное соединение)"
+                                    ? "Активные подключения"
                                     : "Текущее подключение к интернету"
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize + 1
@@ -213,7 +213,7 @@ Item {
 
                         RowLayout {
                             Text {
-                                text: "󰤨  Беспроводная сеть (Wi-Fi адаптер)"
+                                text: "󰤨  Беспроводная сеть Wi-Fi"
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize + 1
                                 font.bold: true

@@ -93,15 +93,15 @@ void NetworkManager::detectActiveConnection() {
         if (isUsb) {
             ce.type = "usb";
             ce.icon = "󰄜";
-            ce.title = "Телефон (USB-модем • " + iface + ")";
+            ce.title = "USB-модем • " + iface;
         } else if (isWifi) {
             ce.type = "wifi";
             ce.icon = "󰤨";
-            ce.title = m_currentSsid.isEmpty() ? ("Wi-Fi (" + iface + ")") : ("Wi-Fi • " + m_currentSsid);
+            ce.title = m_currentSsid.isEmpty() ? ("Wi-Fi • " + iface) : ("Wi-Fi • " + m_currentSsid);
         } else {
             ce.type = "ethernet";
             ce.icon = "󰈀";
-            ce.title = "Проводная сеть (Кабель • " + iface + ")";
+            ce.title = "Проводная сеть • " + iface;
         }
         found.append(ce);
     }

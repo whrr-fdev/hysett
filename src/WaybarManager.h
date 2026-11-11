@@ -92,6 +92,12 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QString vpnSubUrl READ vpnSubUrl WRITE setVpnSubUrl NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnSubUrls READ vpnSubUrls NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnServers READ vpnServers NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnSubServers READ vpnSubServers NOTIFY sysStatsChanged)
+    Q_PROPERTY(QStringList vpnWlServers READ vpnWlServers NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnSubServerName READ vpnSubServerName NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnWlServerName READ vpnWlServerName NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vpnSubSelectedServer READ vpnSubSelectedServer NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vpnWlSelectedServer READ vpnWlSelectedServer NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnSelectedServer READ vpnSelectedServer NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnRuDirect READ vpnRuDirect WRITE setVpnRuDirect NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnWhitelistMode READ vpnWhitelistMode WRITE setVpnWhitelistMode NOTIFY sysStatsChanged)
@@ -233,6 +239,12 @@ public:
     Q_INVOKABLE void updateVpnSubscription();
     QStringList vpnSubUrls() const { return m_vpnSubUrls; }
     QStringList vpnServers() const { return m_vpnServers; }
+    QStringList vpnSubServers() const { return m_vpnSubServers; }
+    QStringList vpnWlServers() const { return m_vpnWlServers; }
+    QString vpnSubServerName() const { return m_vpnSubServerName; }
+    QString vpnWlServerName() const { return m_vpnWlServerName; }
+    int vpnSubSelectedServer() const { return m_vpnSubSelectedServer; }
+    int vpnWlSelectedServer() const { return m_vpnWlSelectedServer; }
     int vpnSelectedServer() const { return m_vpnSelectedServer; }
     Q_INVOKABLE void addVpnSubUrl(const QString &u);
     Q_INVOKABLE void removeVpnSubUrl(int idx);
@@ -406,6 +418,12 @@ private:
     QString m_vpnSubUrl = "";
     QStringList m_vpnSubUrls;
     QStringList m_vpnServers;
+    QStringList m_vpnSubServers;
+    QStringList m_vpnWlServers;
+    QString m_vpnSubServerName = "VPN";
+    QString m_vpnWlServerName = "Авто-выбор лучшего сервера";
+    int m_vpnSubSelectedServer = 0;
+    int m_vpnWlSelectedServer = 0;
     int m_vpnSelectedServer = 0;
     bool m_vpnWhitelistMode = false;
     QString m_vpnWhitelistFile = "auto";

@@ -26,7 +26,7 @@ Button {
     }
 
     implicitHeight: 26
-    implicitWidth: isIconOnly ? 26 : contentRow.implicitWidth + 22
+    implicitWidth: isIconOnly ? 26 : contentRow.implicitWidth + 24
     Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 30 : 340)
     flat: true
 
@@ -40,14 +40,20 @@ Button {
         Row {
             id: contentRow
             anchors.centerIn: parent
-            spacing: btn.splitParts.icon.length > 0 ? 7 : 0
+            spacing: btn.splitParts.icon.length > 0 ? 8 : 0
 
-            Text {
+            Item {
                 visible: btn.splitParts.icon.length > 0
-                text: btn.splitParts.icon
-                color: labelTxt.color
-                font.pixelSize: (Config ? Config.fontSize : 11) + 1
+                width: 15
+                height: 16
                 anchors.verticalCenter: parent.verticalCenter
+
+                Text {
+                    anchors.centerIn: parent
+                    text: btn.splitParts.icon
+                    color: labelTxt.color
+                    font.pixelSize: (Config ? Config.fontSize : 11) + 1
+                }
             }
 
             Text {

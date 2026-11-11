@@ -1584,11 +1584,15 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     if (!doc.isObject()) { emit sysStatsChanged(); return; }
     QJsonObject o = doc.object();
     m_vpnServerName = o["server_name"].toString(m_vpnServerName);
+    m_vpnSubServerName = o["sub_server_name"].toString(m_vpnSubServerName);
+    m_vpnWlServerName = o["wl_server_name"].toString(m_vpnWlServerName);
     m_vpnRuDirect = o["ru_direct"].toBool(m_vpnRuDirect);
     m_vpnSplitMode = o["split_mode"].toString(m_vpnSplitMode);
     m_vpnWhitelistMode = o["whitelist_mode"].toBool(m_vpnWhitelistMode);
     m_vpnWhitelistFile = o["whitelist_file"].toString(m_vpnWhitelistFile);
     m_vpnSelectedServer = o["selected_index"].toInt(0);
+    m_vpnSubSelectedServer = o["sub_selected_index"].toInt(0);
+    m_vpnWlSelectedServer = o["wl_selected_index"].toInt(0);
     m_vpnStatusHint = o["status_hint"].toString(m_vpnStatusHint);
 
     QVariantList wlFiles;
@@ -1601,9 +1605,13 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     }
     if (!wlFiles.isEmpty()) m_vpnWhitelistFiles = wlFiles;
 
-    QStringList srvs;
+    QStringList srvs, subSrvs, wlSrvs;
     for (const auto &v : o["servers"].toArray()) srvs.append(v.toString());
+    for (const auto &v : o["sub_servers"].toArray()) subSrvs.append(v.toString());
+    for (const auto &v : o["wl_servers"].toArray()) wlSrvs.append(v.toString());
     m_vpnServers = srvs;
+    m_vpnSubServers = subSrvs;
+    m_vpnWlServers = wlSrvs;
 
     QStringList urls;
     for (const auto &v : o["urls"].toArray()) urls.append(v.toString());
@@ -1629,8 +1637,11 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
 
 void WaybarManager::runVpnScriptCmd(const QStringList &args) {
     QString script = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
-    m_vpnBusy = true;
-    emit sysStatsChanged();
+    bool isHeavy = (!args.isEmpty() && (args[0] == "update_lists" || args[0] == "update" || args[0] == "test_whitelist"));
+    if (isHeavy) {
+        m_vpnBusy = true;
+        emit sysStatsChanged();
+    }
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         syncVpnStateFromScript(p->readAllStandardOutput());

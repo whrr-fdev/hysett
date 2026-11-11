@@ -88,6 +88,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QVariantList vpnSubGroups READ vpnSubGroups NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList vpnWlSubGroups READ vpnWlSubGroups NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnActive READ vpnActive NOTIFY sysStatsChanged)
+    Q_PROPERTY(bool vpnActiveIsWl READ vpnActiveIsWl NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnServerName READ vpnServerName NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnSubUrl READ vpnSubUrl WRITE setVpnSubUrl NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnSubUrls READ vpnSubUrls NOTIFY sysStatsChanged)
@@ -98,6 +99,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QVariantList vpnWlServerItems READ vpnWlServerItems NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnFrozenCount READ vpnFrozenCount NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnLogs READ vpnLogs NOTIFY vpnLogsChanged)
+    Q_PROPERTY(QString vpnLogHtml READ vpnLogHtml NOTIFY vpnLogsChanged)
+    Q_PROPERTY(int vpnLogHeight READ vpnLogHeight WRITE setVpnLogHeight NOTIFY vpnLogsChanged)
     Q_PROPERTY(int vpnLogMaxLines READ vpnLogMaxLines WRITE setVpnLogMaxLines NOTIFY vpnLogsChanged)
     Q_PROPERTY(bool vpnLogAutoRefresh READ vpnLogAutoRefresh WRITE setVpnLogAutoRefresh NOTIFY vpnLogsChanged)
     Q_PROPERTY(bool vpnLogAutoScroll READ vpnLogAutoScroll WRITE setVpnLogAutoScroll NOTIFY vpnLogsChanged)
@@ -238,6 +241,8 @@ public:
     Q_INVOKABLE void addVpnWlSubUrl(const QString &u);
     Q_INVOKABLE void removeVpnWlSubUrl(int idx);
     bool vpnActive() const { return m_vpnActive; }
+    bool vpnActiveIsWl() const { return m_vpnActiveIsWl; }
+    Q_INVOKABLE void toggleVpnForMode(bool isWl);
     QString vpnServerName() const { return m_vpnServerName; }
     QString vpnSubUrl() const { return m_vpnSubUrl; }
     void setVpnSubUrl(const QString &u);
@@ -255,6 +260,9 @@ public:
     Q_INVOKABLE void toggleFreezeVpnServer(int idx, bool isWl);
     Q_INVOKABLE void clearFrozenVpnServers();
     QStringList vpnLogs() const { return m_vpnLogs; }
+    QString vpnLogHtml() const { return m_vpnLogHtml; }
+    int vpnLogHeight() const { return m_vpnLogHeight; }
+    void setVpnLogHeight(int v);
     int vpnLogMaxLines() const { return m_vpnLogMaxLines; }
     void setVpnLogMaxLines(int v);
     bool vpnLogAutoRefresh() const { return m_vpnLogAutoRefresh; }
@@ -438,6 +446,8 @@ private:
     QVariantList m_vpnSubGroups;
     QVariantList m_vpnWlSubGroups;
     bool m_vpnActive = false;
+    bool m_vpnActiveIsWl = false;
+    bool m_vpnWantedEnabled = false;
     bool m_vpnRuDirect = true;
     QString m_vpnServerName = "StealthSurf VPN";
     QString m_vpnSubUrl = "";
@@ -449,6 +459,8 @@ private:
     QVariantList m_vpnWlServerItems;
     int m_vpnFrozenCount = 0;
     QStringList m_vpnLogs;
+    QString m_vpnLogHtml;
+    int m_vpnLogHeight = 160;
     int m_vpnLogMaxLines = 100;
     bool m_vpnLogAutoRefresh = true;
     bool m_vpnLogAutoScroll = true;

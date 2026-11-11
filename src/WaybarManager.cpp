@@ -87,6 +87,9 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
         QJsonObject vo = QJsonDocument::fromJson(vstF.readAll()).object();
         if (vo.contains("server_name")) m_vpnServerName = vo["server_name"].toString(m_vpnServerName);
         if (vo.contains("ru_direct")) m_vpnRuDirect = vo["ru_direct"].toBool(true);
+        if (vo.contains("vpn_enabled")) m_vpnWantedEnabled = vo["vpn_enabled"].toBool(false);
+        if (vo.contains("active_is_wl")) m_vpnActiveIsWl = vo["active_is_wl"].toBool(false);
+        if (vo.contains("whitelist_mode")) m_vpnWhitelistMode = vo["whitelist_mode"].toBool(false);
         vstF.close();
     }
     pollWeather();
@@ -219,6 +222,10 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
         out << "uniform_bar_spacing=" << (m_uniformBarSpacing ? "1" : "0") << "\n";
+        out << "vpn_log_height=" << m_vpnLogHeight << "\n";
+        out << "vpn_log_max_lines=" << m_vpnLogMaxLines << "\n";
+        out << "vpn_log_auto_refresh=" << (m_vpnLogAutoRefresh ? "1" : "0") << "\n";
+        out << "vpn_log_auto_scroll=" << (m_vpnLogAutoScroll ? "1" : "0") << "\n";
         out << "left_bar_order=" << m_leftBarOrder.join(',') << "\n";
         out << "right_bar_order=" << m_rightBarOrder.join(',') << "\n";
         for (const auto &item : m_specs) {
@@ -1126,11 +1133,15 @@ void WaybarManager::pollFastState() {
             else if (!isUsb && !isWifi && nextType == "none") { nextType = "ethernet"; nextIcon = "󰈀"; }
             else if (isWifi && nextType == "none") { nextType = "wifi"; nextIcon = "󰤨"; }
         }
+        bool becameOnline = (!m_netConnected && nextConn);
         if (m_netConnected != nextConn || m_netIcon != nextIcon || m_netType != nextType) {
             m_netConnected = nextConn;
             m_netIcon = nextIcon;
             m_netType = nextType;
             emit sysStatsChanged();
+        }
+        if (becameOnline && m_vpnWantedEnabled && !m_vpnActive && !m_vpnBusy) {
+            runVpnScriptCmd({"boot"});
         }
     }
 
@@ -1578,20 +1589,22 @@ void WaybarManager::setVpnSubUrl(const QString &u) {
 }
 
 void WaybarManager::toggleVpn() {
+    toggleVpnForMode(m_vpnWhitelistMode);
+}
+
+void WaybarManager::toggleVpnForMode(bool isWl) {
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
-    if (m_vpnActive) {
-        QProcess::startDetached("/usr/bin/python3", {script, "stop"});
-        // Также гасим tun/ThroneCore если он был запущен через Throne
-        QProcess::startDetached("pkill", {"-f", "sing-box.*singbox_vpn.json"});
+    if (m_vpnActive && m_vpnActiveIsWl == isWl) {
+        m_vpnWantedEnabled = false;
         m_vpnActive = false;
+        QProcess::startDetached("/usr/bin/python3", {script, "stop"});
+        QProcess::startDetached("pkill", {"-f", "sing-box.*singbox_vpn.json"});
     } else {
+        m_vpnWantedEnabled = true;
         m_vpnActive = true;
-        QProcess *p = new QProcess(this);
-        connect(p, &QProcess::finished, this, [this, p]() {
-            syncVpnStateFromScript(p->readAllStandardOutput());
-            p->deleteLater();
-        });
-        p->start("/usr/bin/python3", {script, "start"});
+        m_vpnActiveIsWl = isWl;
+        m_vpnWhitelistMode = isWl;
+        runVpnScriptCmd({"start_mode", isWl ? "1" : "0"});
     }
     emit sysStatsChanged();
 }
@@ -1607,6 +1620,8 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnRuDirect = o["ru_direct"].toBool(m_vpnRuDirect);
     m_vpnSplitMode = o["split_mode"].toString(m_vpnSplitMode);
     m_vpnWhitelistMode = o["whitelist_mode"].toBool(m_vpnWhitelistMode);
+    m_vpnActiveIsWl = o["active_is_wl"].toBool(m_vpnActiveIsWl);
+    m_vpnWantedEnabled = o["vpn_enabled"].toBool(m_vpnWantedEnabled);
     m_vpnWhitelistFile = o["whitelist_file"].toString(m_vpnWhitelistFile);
     m_vpnSelectedServer = o["selected_index"].toInt(0);
     m_vpnSubSelectedServer = o["sub_selected_index"].toInt(0);
@@ -1781,10 +1796,20 @@ void WaybarManager::clearFrozenVpnServers() {
     runVpnScriptCmd({"clear_frozen"});
 }
 
+void WaybarManager::setVpnLogHeight(int v) {
+    v = std::clamp(v, 90, 420);
+    if (m_vpnLogHeight != v) {
+        m_vpnLogHeight = v;
+        saveState(false);
+        emit vpnLogsChanged();
+    }
+}
+
 void WaybarManager::setVpnLogMaxLines(int v) {
     v = std::clamp(v, 20, 1000);
     if (m_vpnLogMaxLines != v) {
         m_vpnLogMaxLines = v;
+        saveState(false);
         emit vpnLogsChanged();
         refreshVpnLogs();
     }
@@ -1793,6 +1818,7 @@ void WaybarManager::setVpnLogMaxLines(int v) {
 void WaybarManager::setVpnLogAutoRefresh(bool v) {
     if (m_vpnLogAutoRefresh != v) {
         m_vpnLogAutoRefresh = v;
+        saveState(false);
         emit vpnLogsChanged();
     }
 }
@@ -1800,6 +1826,7 @@ void WaybarManager::setVpnLogAutoRefresh(bool v) {
 void WaybarManager::setVpnLogAutoScroll(bool v) {
     if (m_vpnLogAutoScroll != v) {
         m_vpnLogAutoScroll = v;
+        saveState(false);
         emit vpnLogsChanged();
     }
 }
@@ -1836,6 +1863,19 @@ void WaybarManager::refreshVpnLogs() {
     }
     if (m_vpnLogs != nextLogs) {
         m_vpnLogs = nextLogs;
+        QStringList htmlLines;
+        htmlLines.reserve(nextLogs.size());
+        for (const QString &ln : nextLogs) {
+            QString esc = ln.toHtmlEscaped();
+            QString low = ln.toLower();
+            QString col = "#cccccc";
+            if (low.contains("error") || low.contains("fatal")) col = "#ff8a80";
+            else if (low.contains("warn")) col = "#ffd54f";
+            else if (low.contains("outbound/vless") || low.contains("[proxy]")) col = "#69f0ae";
+            else if (low.contains("outbound/direct")) col = "#80d8ff";
+            htmlLines.append(QString("<span style=\"color:%1;\">%2</span>").arg(col, esc));
+        }
+        m_vpnLogHtml = htmlLines.join("<br>");
         emit vpnLogsChanged();
     }
 }
@@ -1846,6 +1886,7 @@ void WaybarManager::clearVpnLogs() {
     connect(p, &QProcess::finished, this, [this, p]() {
         p->deleteLater();
         m_vpnLogs = {"Журнал очищен."};
+        m_vpnLogHtml = "<span style=\"color:#cccccc;\">Журнал очищен.</span>";
         emit vpnLogsChanged();
     });
     p->start("/usr/bin/python3", {script, "clear_logs"});

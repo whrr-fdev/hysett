@@ -1269,7 +1269,7 @@ ApplicationWindow {
                                         visible: Waybar ? Waybar.vpnActive : false
                                         width: 32; height: topBarContainer.pillHeight - 4
                                         anchors.verticalCenter: parent.verticalCenter
-                                        radius: (Theme && Theme.isRounded) ? height / 2 : 0
+                                        radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
                                         color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
                                         border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                         border.width: 1

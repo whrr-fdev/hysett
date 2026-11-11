@@ -858,8 +858,8 @@ def build_config(outbound, st, use_tun=False):
             "type": "tun",
             "tag": "tun-in",
             "interface_name": "singbox_tun0",
-            "address": ["172.19.0.1/30", "fdfe:dcba:9876::1/126"],
-            "mtu": 1400,
+            "address": ["172.19.0.1/30"],
+            "mtu": 1320,
             "auto_route": True,
             "strict_route": False,
             "route_exclude_address": collect_outbound_exclude_cidrs(outbound),
@@ -869,7 +869,8 @@ def build_config(outbound, st, use_tun=False):
     rules = [
         {"action": "sniff", "timeout": "300ms"},
         {"protocol": "dns", "action": "hijack-dns"},
-        {"ip_is_private": True, "outbound": "direct"}
+        {"ip_is_private": True, "outbound": "direct"},
+        {"network": "udp", "port": 443, "action": "reject"}
     ]
     dns_rules = []
 
@@ -905,7 +906,7 @@ def build_config(outbound, st, use_tun=False):
         "log": {"level": st.get("log_level", "info")},
         "dns": {
             "servers": [
-                {"type": "https", "tag": "dns-remote", "server": "1.1.1.1", "detour": "proxy"},
+                {"type": "tls", "tag": "dns-remote", "server": "1.1.1.1", "detour": "proxy"},
                 {"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}
             ],
             "rules": dns_rules,
@@ -957,18 +958,22 @@ def sync_active_server_list(st):
         st["wl_selected_index"] = 0
         st["wl_server_name"] = "Нет серверов"
 
+    use_wl_ob = st.get("active_is_wl", st.get("whitelist_mode", False))
     if st.get("whitelist_mode", False):
         st["servers"] = wl_srvs
         st["selected_index"] = st["wl_selected_index"]
         st["server_name"] = st["wl_server_name"]
+    else:
+        st["servers"] = sub_srvs
+        st["selected_index"] = st["sub_selected_index"]
+        st["server_name"] = st["sub_server_name"]
+
+    if use_wl_ob:
         if wl_srvs:
             st["outbound"] = wl_srvs[st["wl_selected_index"]]["outbound"]
         else:
             st.pop("outbound", None)
     else:
-        st["servers"] = sub_srvs
-        st["selected_index"] = st["sub_selected_index"]
-        st["server_name"] = st["sub_server_name"]
         if sub_srvs:
             st["outbound"] = sub_srvs[st["sub_selected_index"]]["outbound"]
         else:
@@ -1033,7 +1038,7 @@ def stop_vpn(save_disabled=True):
         save_state(st)
     set_desktop_proxy(False)
     subprocess.run(["pkill", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
-    subprocess.run(["killall", "-q", "Throne", "throne", "ThroneCore"], stderr=subprocess.DEVNULL)
+    subprocess.run(["killall", "-q", "Throne", "throne", "ThroneCore", "hiddify", "HiddifyCli"], stderr=subprocess.DEVNULL)
     for _ in range(30):
         if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode != 0:
             break
@@ -1072,6 +1077,7 @@ def start_vpn():
     stop_vpn(save_disabled=False)
     st = load_state()
     st["vpn_enabled"] = True
+    st["active_is_wl"] = st.get("whitelist_mode", False)
     st = sync_active_server_list(st)
     if not st.get("servers") and not st.get("whitelist_mode"):
         st = fetch_subscriptions(is_wl=False)
@@ -1158,6 +1164,8 @@ def dump_status_json():
         "wl_server_name": st.get("wl_server_name", "Авто-выбор лучшего сервера"),
         "ru_direct": st.get("ru_direct", True),
         "split_mode": st.get("split_mode", "ru_direct"),
+        "vpn_enabled": st.get("vpn_enabled", False),
+        "active_is_wl": st.get("active_is_wl", st.get("whitelist_mode", False)),
         "whitelist_mode": st.get("whitelist_mode", False),
         "whitelist_file": st.get("whitelist_file", "auto"),
         "whitelist_files": wl_files,
@@ -1213,7 +1221,16 @@ if __name__ == "__main__":
         st["whitelist_mode"] = (sys.argv[2] == "1") if len(sys.argv) > 2 else False
         st = sync_active_server_list(st)
         save_state(st)
-        restart_if_running()
+        dump_status_json()
+    elif cmd == "start_mode":
+        st = load_state()
+        is_wl = (sys.argv[2] == "1") if len(sys.argv) > 2 else st.get("whitelist_mode", False)
+        st["whitelist_mode"] = is_wl
+        st["active_is_wl"] = is_wl
+        st["vpn_enabled"] = True
+        st = sync_active_server_list(st)
+        save_state(st)
+        start_vpn()
         dump_status_json()
     elif cmd == "set_whitelist_file":
         if len(sys.argv) > 2:

@@ -10,11 +10,19 @@ ScrollView {
     property int copiedSubIdx: -1
     property int copiedWlSubIdx: -1
     property string copiedSrvSig: ""
+    property bool copiedLogs: false
     property int activeSubTab: 0
     readonly property bool isM3: Theme && Theme.isRounded
-    readonly property bool isWlMode: Waybar ? Waybar.vpnWhitelistMode : false
-    property real modeSlideProgress: isWlMode ? 1.0 : 0.0
-    Behavior on modeSlideProgress { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+
+    // Мгновенное переключение вкладок в 0 мс без ожидания Python-скрипта
+    property bool viewWlMode: Waybar ? Waybar.vpnWhitelistMode : false
+    readonly property bool isWlMode: viewWlMode
+    property real modeSlideProgress: viewWlMode ? 1.0 : 0.0
+    Behavior on modeSlideProgress { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+
+    // Независимые состояния активности для каждой вкладки
+    readonly property bool normalVpnOn: Waybar ? (Waybar.vpnActive && !Waybar.vpnActiveIsWl) : false
+    readonly property bool wlVpnOn: Waybar ? (Waybar.vpnActive && Waybar.vpnActiveIsWl) : false
 
     contentWidth: availableWidth
     clip: true
@@ -28,6 +36,14 @@ ScrollView {
             vpnScroll.copiedSrvSig = ""
             vpnScroll.copiedLogs = false
         }
+    }
+
+    Timer {
+        interval: 400
+        repeat: true
+        running: vpnScroll.visible && Waybar && Waybar.vpnLogAutoRefresh && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
+        triggeredOnStart: true
+        onTriggered: if (Waybar) Waybar.refreshVpnLogs()
     }
 
     function parseServerItem(rawStr, isWl) {
@@ -48,17 +64,6 @@ ScrollView {
             return { icon: ic1, badge: b1, ping: "", title: parts.slice(1).join(" • ") }
         }
         return { icon: isWl ? "󰒃" : "󰈀", badge: "", ping: "", title: s }
-    }
-
-    property int logViewHeight: 160
-    property bool copiedLogs: false
-
-    Timer {
-        interval: 350
-        repeat: true
-        running: vpnScroll.visible && Waybar && Waybar.vpnLogAutoRefresh && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
-        triggeredOnStart: true
-        onTriggered: if (Waybar) Waybar.refreshVpnLogs()
     }
 
     component VpnLogsCard: GlassPanel {
@@ -108,7 +113,6 @@ ScrollView {
                 }
             }
 
-            // Настройки длины (лимит строк + высота окна) и поведения (автообновление, автоскролл, уровень логов)
             RowLayout {
                 Layout.fillWidth: true; spacing: 12
 
@@ -135,9 +139,9 @@ ScrollView {
                 Text { text: "Высота:"; color: "#aaaaaa"; font.pixelSize: Config.fontSize - 1 }
                 StyledSlider {
                     Layout.fillWidth: true
-                    from: 90; to: 340; stepSize: 10
-                    value: vpnScroll.logViewHeight
-                    onMoved: vpnScroll.logViewHeight = Math.round(value)
+                    from: 90; to: 380; stepSize: 10
+                    value: Waybar ? Waybar.vpnLogHeight : 160
+                    onMoved: if (Waybar) Waybar.vpnLogHeight = Math.round(value)
                 }
 
                 SegmentedButton {
@@ -168,7 +172,12 @@ ScrollView {
                 StyledCheckBox {
                     text: "Автопрокрутка вниз"
                     checked: Waybar ? Waybar.vpnLogAutoScroll : true
-                    onToggled: if (Waybar) Waybar.vpnLogAutoScroll = checked
+                    onToggled: {
+                        if (Waybar) {
+                            Waybar.vpnLogAutoScroll = checked
+                            if (checked) logFlick.scrollToBottom()
+                        }
+                    }
                 }
                 Item { Layout.fillWidth: true }
                 Text {
@@ -177,92 +186,98 @@ ScrollView {
                 }
             }
 
+            // Плавный Flickable + TextEdit (не сбрасывает позицию при обновлении текста и не дергается!)
             Rectangle {
+                readonly property int boxH: Waybar ? Waybar.vpnLogHeight : 160
                 Layout.fillWidth: true
-                Layout.preferredHeight: vpnScroll.logViewHeight
-                implicitHeight: vpnScroll.logViewHeight
-                height: vpnScroll.logViewHeight
+                Layout.preferredHeight: boxH
+                implicitHeight: boxH
+                height: boxH
                 radius: vpnScroll.isM3 ? 8 : 0
                 color: Qt.rgba(0, 0, 0, 0.28)
                 border.color: Qt.rgba(1, 1, 1, 0.12)
                 border.width: 1
                 clip: true
 
-                ListView {
-                    id: logListView
+                Flickable {
+                    id: logFlick
                     anchors.fill: parent
                     anchors.margins: 8
-                    spacing: 2
-                    interactive: false
+                    contentWidth: width
+                    contentHeight: logEdit.implicitHeight
                     boundsBehavior: Flickable.StopAtBounds
-                    model: Waybar ? Waybar.vpnLogs : []
+                    interactive: true
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                     property real targetY: 0
-                    property bool userPausedAutoScroll: false
 
                     NumberAnimation {
                         id: smoothLogAnim
-                        target: logListView
+                        target: logFlick
                         property: "contentY"
-                        duration: 150
+                        duration: 140
                         easing.type: Easing.OutCubic
                     }
 
-                    function scrollToBottomSmooth() {
-                        if (logListView.userPausedAutoScroll) return
-                        var maxY = Math.max(0, logListView.contentHeight - logListView.height)
-                        if (Math.abs(logListView.contentY - maxY) < 2) return
-                        logListView.targetY = maxY
+                    function scrollToBottom() {
+                        var maxY = Math.max(0, logFlick.contentHeight - logFlick.height)
+                        if (Math.abs(logFlick.contentY - maxY) < 1.5) return
+                        logFlick.targetY = maxY
                         smoothLogAnim.stop()
-                        smoothLogAnim.from = logListView.contentY
+                        smoothLogAnim.from = logFlick.contentY
                         smoothLogAnim.to = maxY
                         smoothLogAnim.start()
+                    }
+
+                    onContentHeightChanged: {
+                        if (Waybar && Waybar.vpnLogAutoScroll) {
+                            var maxY = Math.max(0, logFlick.contentHeight - logFlick.height)
+                            if (!smoothLogAnim.running) {
+                                logFlick.contentY = maxY
+                                logFlick.targetY = maxY
+                            } else {
+                                logFlick.scrollToBottom()
+                            }
+                        }
                     }
 
                     WheelHandler {
                         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                         blocking: true
                         onWheel: (event) => {
-                            var rawDelta = event.pixelDelta.y !== 0 ? event.pixelDelta.y : ((event.angleDelta.y / 120.0) * 22.0)
-                            var step = Math.max(-28.0, Math.min(28.0, rawDelta))
-                            var maxY = Math.max(0, logListView.contentHeight - logListView.height)
-                            var base = smoothLogAnim.running ? logListView.targetY : logListView.contentY
+                            var step = (event.angleDelta.y / 120.0) * 58.0
+                            if (step === 0 && event.pixelDelta.y !== 0) step = event.pixelDelta.y * 1.5
+                            var maxY = Math.max(0, logFlick.contentHeight - logFlick.height)
+                            var base = smoothLogAnim.running ? logFlick.targetY : logFlick.contentY
                             var nextY = Math.max(0, Math.min(maxY, base - step))
-                            logListView.userPausedAutoScroll = (maxY - nextY > 18)
-                            logListView.targetY = nextY
+
+                            // Если пользователь крутит наверх — выключаем автопрокрутку, чтобы она не тянула обратно вниз!
+                            if (step > 0 && Waybar && Waybar.vpnLogAutoScroll && (maxY - nextY > 24)) {
+                                Waybar.vpnLogAutoScroll = false
+                            } else if (step < 0 && Waybar && !Waybar.vpnLogAutoScroll && (maxY - nextY <= 8)) {
+                                Waybar.vpnLogAutoScroll = true
+                            }
+
+                            logFlick.targetY = nextY
                             smoothLogAnim.stop()
-                            smoothLogAnim.from = logListView.contentY
+                            smoothLogAnim.from = logFlick.contentY
                             smoothLogAnim.to = nextY
                             smoothLogAnim.start()
                             event.accepted = true
                         }
                     }
 
-                    onCountChanged: {
-                        if (Waybar && Waybar.vpnLogAutoScroll && count > 0) {
-                            Qt.callLater(() => logListView.scrollToBottomSmooth())
-                        }
-                    }
-                    onContentHeightChanged: {
-                        if (Waybar && Waybar.vpnLogAutoScroll && count > 0) {
-                            Qt.callLater(() => logListView.scrollToBottomSmooth())
-                        }
-                    }
-
-                    delegate: Text {
-                        width: logListView.width - 10
-                        text: modelData
+                    TextEdit {
+                        id: logEdit
+                        width: logFlick.width - 10
+                        readOnly: true
+                        selectByMouse: true
+                        textFormat: TextEdit.RichText
+                        wrapMode: TextEdit.WrapAnywhere
                         font.family: "monospace"
                         font.pixelSize: 10
-                        wrapMode: Text.WrapAnywhere
-                        color: {
-                            var s = (modelData || "").toLowerCase()
-                            if (s.indexOf("error") !== -1 || s.indexOf("fatal") !== -1) return "#ff8a80"
-                            if (s.indexOf("warn") !== -1) return "#ffd54f"
-                            if (s.indexOf("outbound/vless") !== -1 || s.indexOf(" proxy") !== -1) return "#69f0ae"
-                            return "#cccccc"
-                        }
+                        color: "#cccccc"
+                        text: Waybar ? Waybar.vpnLogHtml : ""
                     }
                 }
             }
@@ -426,7 +441,7 @@ ScrollView {
                 }
             }
 
-            // Переключение по нажатию мыши (onPressed внутри SegmentedButton)
+            // Мгновенное переключение слайдера (0 мс)
             SegmentedButton {
                 Layout.fillWidth: true
                 implicitHeight: 34
@@ -434,9 +449,11 @@ ScrollView {
                     "󰦝 Обычный VPN",
                     "󰒃 Белые списки"
                 ]
-                selectedIndex: vpnScroll.isWlMode ? 1 : 0
+                selectedIndex: vpnScroll.viewWlMode ? 1 : 0
                 onSelected: (idx) => {
-                    if (Waybar) Waybar.vpnWhitelistMode = (idx === 1)
+                    var targetWl = (idx === 1)
+                    vpnScroll.viewWlMode = targetWl
+                    if (Waybar) Waybar.vpnWhitelistMode = targetWl
                 }
             }
         }
@@ -446,8 +463,8 @@ ScrollView {
             anchors.top: topHeaderCol.bottom
             anchors.topMargin: 12
             width: parent.width
-            implicitHeight: vpnScroll.isWlMode ? wlFullCol.implicitHeight : normalFullCol.implicitHeight
-            Behavior on implicitHeight { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+            implicitHeight: vpnScroll.viewWlMode ? wlFullCol.implicitHeight : normalFullCol.implicitHeight
+            Behavior on implicitHeight { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
 
             Row {
                 width: fullPageSlider.width * 2
@@ -474,13 +491,17 @@ ScrollView {
 
                                 Rectangle {
                                     width: 44; height: 44
-                                    radius: vpnScroll.isM3 ? 12 : 0
-                                    color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode)
+                                    radius: vpnScroll.isM3 ? 10 : 0
+                                    color: vpnScroll.normalVpnOn
                                            ? (Config ? Config.m3Primary : "#ffffff")
                                            : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.08))
+                                    border.color: vpnScroll.normalVpnOn
+                                                  ? (Config ? Config.m3Primary : "#ffffff")
+                                                  : Qt.rgba(1, 1, 1, 0.22)
+                                    border.width: 1
                                     Text {
                                         anchors.centerIn: parent; text: "󰦝"; font.pixelSize: 20
-                                        color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode)
+                                        color: vpnScroll.normalVpnOn
                                                ? (Config ? Config.accentTextColor : "#000000")
                                                : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
                                     }
@@ -497,11 +518,11 @@ ScrollView {
                                         spacing: 8
                                         Rectangle {
                                             width: 7; height: 7; radius: 3.5
-                                            color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode) ? "#69f0ae" : "#777777"
+                                            color: vpnScroll.normalVpnOn ? "#69f0ae" : "#777777"
                                         }
                                         Text {
-                                            text: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode) ? "Подключено" : "Отключено"
-                                            color: (Waybar && Waybar.vpnActive && !vpnScroll.isWlMode) ? "#69f0ae" : "#888888"
+                                            text: vpnScroll.normalVpnOn ? "Подключено" : "Отключено"
+                                            color: vpnScroll.normalVpnOn ? "#69f0ae" : "#888888"
                                             font.pixelSize: Config.fontSize - 1
                                         }
                                         Text {
@@ -513,8 +534,8 @@ ScrollView {
                                 }
 
                                 StyledSwitch {
-                                    checked: Waybar ? Waybar.vpnActive : false
-                                    onToggled: if (Waybar) Waybar.toggleVpn()
+                                    checked: vpnScroll.normalVpnOn
+                                    onToggled: if (Waybar) Waybar.toggleVpnForMode(false)
                                 }
                             }
                         }
@@ -541,7 +562,7 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        visible: Waybar && (vpnScroll.isWlMode ? Waybar.vpnWlSubGroups.length > 0 : Waybar.vpnSubGroups.length > 0)
+                                        visible: Waybar && Waybar.vpnSubGroups.length > 0
                                         text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
@@ -804,7 +825,7 @@ ScrollView {
                             }
                         }
 
-                        // Карточка серверов Обычного VPN (с копированием ключа и заморозкой)
+                        // Карточка серверов Обычного VPN
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -1004,13 +1025,17 @@ ScrollView {
 
                                 Rectangle {
                                     width: 44; height: 44
-                                    radius: vpnScroll.isM3 ? 12 : 0
-                                    color: (Waybar && Waybar.vpnActive && vpnScroll.isWlMode)
+                                    radius: vpnScroll.isM3 ? 10 : 0
+                                    color: vpnScroll.wlVpnOn
                                            ? (Config ? Config.m3Primary : "#ffffff")
                                            : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.08))
+                                    border.color: vpnScroll.wlVpnOn
+                                                  ? (Config ? Config.m3Primary : "#ffffff")
+                                                  : Qt.rgba(1, 1, 1, 0.22)
+                                    border.width: 1
                                     Text {
                                         anchors.centerIn: parent; text: "󰒃"; font.pixelSize: 20
-                                        color: (Waybar && Waybar.vpnActive && vpnScroll.isWlMode)
+                                        color: vpnScroll.wlVpnOn
                                                ? (Config ? Config.accentTextColor : "#000000")
                                                : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
                                     }
@@ -1027,11 +1052,11 @@ ScrollView {
                                         spacing: 8
                                         Rectangle {
                                             width: 7; height: 7; radius: 3.5
-                                            color: (Waybar && Waybar.vpnActive && vpnScroll.isWlMode) ? "#69f0ae" : "#777777"
+                                            color: vpnScroll.wlVpnOn ? "#69f0ae" : "#777777"
                                         }
                                         Text {
-                                            text: (Waybar && Waybar.vpnBusy) ? "Проверка туннелей..." : ((Waybar && Waybar.vpnActive && vpnScroll.isWlMode) ? "Подключено" : "Отключено")
-                                            color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : ((Waybar && Waybar.vpnActive && vpnScroll.isWlMode) ? "#69f0ae" : "#888888")
+                                            text: (Waybar && Waybar.vpnBusy) ? "Проверка туннелей..." : (vpnScroll.wlVpnOn ? "Подключено" : "Отключено")
+                                            color: (Waybar && Waybar.vpnBusy) ? "#ffd54f" : (vpnScroll.wlVpnOn ? "#69f0ae" : "#888888")
                                             font.pixelSize: Config.fontSize - 1
                                         }
                                         Text {
@@ -1043,8 +1068,8 @@ ScrollView {
                                 }
 
                                 StyledSwitch {
-                                    checked: Waybar ? Waybar.vpnActive : false
-                                    onToggled: if (Waybar) Waybar.toggleVpn()
+                                    checked: vpnScroll.wlVpnOn
+                                    onToggled: if (Waybar) Waybar.toggleVpnForMode(true)
                                 }
                             }
                         }
@@ -1223,7 +1248,7 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        visible: Waybar && (vpnScroll.isWlMode ? Waybar.vpnWlSubGroups.length > 0 : Waybar.vpnSubGroups.length > 0)
+                                        visible: Waybar && Waybar.vpnWlSubGroups.length > 0
                                         text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
@@ -1349,7 +1374,7 @@ ScrollView {
                             }
                         }
 
-                        // Карточка серверов Белого Списка (с копированием ключа и заморозкой)
+                        // Карточка серверов Белого Списка
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true

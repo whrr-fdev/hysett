@@ -12,28 +12,41 @@ Slider {
     topPadding: 0
     bottomPadding: 0
     implicitHeight: 22
+    hoverEnabled: true
     Layout.alignment: Qt.AlignVCenter
     readonly property bool isM3: Theme && Theme.isRounded
 
     readonly property real waveSpeed: Config ? Config.sliderWaveSpeed : 1.25
-    readonly property real waveAmp: control.isM3 ? (Config ? Config.sliderWaveAmplitude : 2.0) : 0.0
+    readonly property real baseWaveAmp: control.isM3 ? (Config ? Config.sliderWaveAmplitude : 2.0) : 0.0
+    property real waveAmp: baseWaveAmp * (control.pressed ? 1.32 : (control.hovered ? 1.15 : 1.0))
+    Behavior on waveAmp { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+
     readonly property real waveLen: Config ? Config.sliderWaveLength : 24.0
     readonly property real lineThick: Config ? Config.sliderThickness : 2.4
+
+    property real animPos: control.visualPosition
+    Behavior on animPos {
+        NumberAnimation {
+            duration: control.pressed ? 55 : 210
+            easing.type: Easing.OutQuint
+        }
+    }
 
     property real wavePhase: 0.0
 
     Timer {
-        interval: 33
+        interval: 16
         repeat: true
-        running: control.visible && control.isM3 && control.waveSpeed > 0.02 && control.waveAmp > 0.1 && control.visualPosition > 0.01 &&
+        running: control.visible && control.isM3 && control.waveSpeed > 0.02 && control.waveAmp > 0.08 && control.animPos > 0.01 &&
                  (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
         onTriggered: {
-            control.wavePhase = (control.wavePhase + 0.14 * control.waveSpeed) % (Math.PI * 2.0)
+            var boost = control.pressed ? 1.45 : (control.hovered ? 1.18 : 1.0)
+            control.wavePhase = (control.wavePhase + 0.075 * control.waveSpeed * boost) % (Math.PI * 2.0)
             waveCanvas.requestPaint()
         }
     }
 
-    onVisualPositionChanged: waveCanvas.requestPaint()
+    onAnimPosChanged: waveCanvas.requestPaint()
     onWaveAmpChanged: waveCanvas.requestPaint()
     onWaveLenChanged: waveCanvas.requestPaint()
     onLineThickChanged: waveCanvas.requestPaint()
@@ -52,7 +65,7 @@ Slider {
         width: control.availableWidth
         height: 18
 
-        readonly property real handleX: control.visualPosition * (width - 10) + 5
+        readonly property real handleX: control.animPos * (width - 10) + 5
         readonly property real gapHalf: control.isM3 ? 6 : 2
 
         Canvas {
@@ -73,7 +86,7 @@ Slider {
                 if (width <= 3) return
 
                 var cy = height * 0.5
-                var amp = control.isM3 ? Math.min(height * 0.36, control.waveAmp) : 0.0
+                var amp = control.isM3 ? Math.min(height * 0.38, control.waveAmp) : 0.0
                 var wl = Math.max(10.0, control.waveLen)
                 var thick = control.lineThick
                 var col = Config ? Config.m3Primary.toString() : "#a8c7fa"
@@ -88,16 +101,16 @@ Slider {
                 ctx.lineJoin = "round"
                 ctx.strokeStyle = col
 
-                if (amp <= 0.12 || span < 6.0) {
+                if (amp <= 0.10 || span < 6.0) {
                     ctx.moveTo(startX, cy)
                     ctx.lineTo(endX, cy)
                 } else {
-                    var steps = Math.max(12, Math.min(80, Math.ceil(span / 2.5)))
+                    var steps = Math.max(16, Math.min(96, Math.ceil(span / 2.0)))
                     for (var i = 0; i <= steps; ++i) {
                         var t = i / steps
                         var px = startX + t * span
-                        var env = Math.sin(Math.min(1.0, (px - startX) / 10.0) * Math.PI * 0.5) *
-                                  Math.sin(Math.min(1.0, (endX - px) / 10.0) * Math.PI * 0.5)
+                        var env = Math.sin(Math.min(1.0, (px - startX) / 11.0) * Math.PI * 0.5) *
+                                  Math.sin(Math.min(1.0, (endX - px) / 11.0) * Math.PI * 0.5)
                         var wy = cy + Math.sin((px / wl) * Math.PI * 2.0 - control.wavePhase) * amp * env
                         if (i === 0) ctx.moveTo(px, wy)
                         else ctx.lineTo(px, wy)
@@ -121,11 +134,13 @@ Slider {
     }
 
     handle: Rectangle {
-        x: Math.round(control.leftPadding + control.visualPosition * (control.availableWidth - width))
+        x: Math.round(control.leftPadding + control.animPos * (control.availableWidth - width))
         y: Math.round(control.topPadding + (control.availableHeight - height) / 2)
-        implicitWidth: control.isM3 ? 4 : 6
-        implicitHeight: control.isM3 ? (control.pressed ? 18 : 15) : (control.pressed ? 16 : 14)
+        implicitWidth: control.isM3 ? (control.pressed ? 6 : (control.hovered ? 5 : 4)) : 6
+        implicitHeight: control.isM3 ? (control.pressed ? 19 : (control.hovered ? 17 : 15)) : (control.pressed ? 16 : 14)
         radius: control.isM3 ? width / 2 : 0
         color: Config ? Config.m3Primary : "#a8c7fa"
+        Behavior on implicitWidth { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+        Behavior on implicitHeight { NumberAnimation { duration: 170; easing.type: Easing.OutBack } }
     }
 }

@@ -5,29 +5,63 @@ import HySett
 
 Button {
     id: btn
-    property bool isIconOnly: text.length <= 2
+    property bool isIconOnly: text.trim().length <= 2
     property bool allowFullWidth: false
     property bool isActive: false
     readonly property bool isM3: Theme && Theme.isRounded
 
+    readonly property string fullTxt: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
+    readonly property var splitParts: {
+        var s = fullTxt.trim()
+        if (!s) return { icon: "", label: "" }
+        var cp = s.codePointAt(0)
+        if (cp >= 0xE000 || (cp >= 0x2190 && cp <= 0x2BFF) || cp === 0x002B) {
+            var chLen = cp > 0xFFFF ? 2 : 1
+            var rest = s.slice(chLen).trim()
+            if (rest.length > 0) {
+                return { icon: s.slice(0, chLen), label: rest }
+            }
+        }
+        return { icon: "", label: s }
+    }
+
     implicitHeight: 26
-    implicitWidth: isIconOnly ? 26 : implicitContentWidth + 20
-    Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 30 : 300)
+    implicitWidth: isIconOnly ? 26 : contentRow.implicitWidth + 22
+    Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 30 : 340)
     flat: true
 
     scale: btn.down ? 0.96 : 1.0
     Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
 
-    contentItem: Text {
-        text: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
-        color: (btn.down || btn.hovered || btn.isActive)
-               ? (Config ? Config.accentTextColor : "#000000")
-               : (btn.enabled ? (btn.isM3 && Config ? Config.m3OnPrimaryContainer : "#ececec") : "#666666")
-        font.pixelSize: Config ? Config.fontSize : 11
-        font.bold: btn.isM3 || btn.isActive
-        horizontalAlignment: Text.AlignHCenter
-        verticalAlignment: Text.AlignVCenter
-        Behavior on color { ColorAnimation { duration: 110 } }
+    contentItem: Item {
+        implicitWidth: contentRow.implicitWidth
+        implicitHeight: contentRow.implicitHeight
+
+        Row {
+            id: contentRow
+            anchors.centerIn: parent
+            spacing: btn.splitParts.icon.length > 0 ? 7 : 0
+
+            Text {
+                visible: btn.splitParts.icon.length > 0
+                text: btn.splitParts.icon
+                color: labelTxt.color
+                font.pixelSize: (Config ? Config.fontSize : 11) + 1
+                anchors.verticalCenter: parent.verticalCenter
+            }
+
+            Text {
+                id: labelTxt
+                text: btn.splitParts.label
+                color: (btn.down || btn.hovered || btn.isActive)
+                       ? (Config ? Config.accentTextColor : "#000000")
+                       : (btn.enabled ? (btn.isM3 && Config ? Config.m3OnPrimaryContainer : "#ececec") : "#666666")
+                font.pixelSize: Config ? Config.fontSize : 11
+                font.bold: btn.isM3 || btn.isActive
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on color { ColorAnimation { duration: 110 } }
+            }
+        }
     }
 
     background: Item {

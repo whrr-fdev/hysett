@@ -147,7 +147,7 @@ ApplicationWindow {
                     root.timerRunning = false
                     root.timerActive = false
                     if (Mako) {
-                        Mako.showInternalNotification("Таймер HySett", "⏰ Время таймера вышло!", "Обратный отсчёт успешно завершён.", "preferences-system-time", true, 8000)
+                        Mako.showInternalNotification("Таймер HySett", "󰔛 Время таймера вышло!", "Обратный отсчёт успешно завершён.", "preferences-system-time", true, 8000)
                     }
                     if (Waybar) {
                         Waybar.runCommand("paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || canberra-gtk-play -i complete 2>/dev/null || true")

@@ -1725,14 +1725,7 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnProgressPercent = 100;
     m_vpnProgressText.clear();
     QJsonDocument doc = QJsonDocument::fromJson(raw.trimmed());
-    if (!doc.isObject()) {     QFileInfo swLockCheck("/tmp/hysett_vpn_switching.lock");
-    bool isSwitchingNow = swLockCheck.exists() && swLockCheck.lastModified().msecsTo(QDateTime::currentDateTime()) < 5000;
-    if (!isSwitchingNow) {
-        if (o.contains("ip_check_state")) m_vpnIpCheckState = o["ip_check_state"].toInt(m_vpnIpCheckState);
-        if (o.contains("ip_check_text") && !o["ip_check_text"].toString().isEmpty())
-            m_vpnIpCheckText = o["ip_check_text"].toString();
-    }
-    emit sysStatsChanged(); return; }
+    if (!doc.isObject()) { emit sysStatsChanged(); return; }
     QJsonObject o = doc.object();
     m_vpnServerName = o["server_name"].toString(m_vpnServerName);
     m_vpnSubServerName = o["sub_server_name"].toString(m_vpnSubServerName);
@@ -1791,6 +1784,13 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnCustomProxyDomains = cProxy;
     m_vpnCustomDirectDomains = cDirect;
 
+        QFileInfo swLockCheck("/tmp/hysett_vpn_switching.lock");
+    bool isSwitchingNow = swLockCheck.exists() && swLockCheck.lastModified().msecsTo(QDateTime::currentDateTime()) < 5000;
+    if (!isSwitchingNow) {
+        if (o.contains("ip_check_state")) m_vpnIpCheckState = o["ip_check_state"].toInt(m_vpnIpCheckState);
+        if (o.contains("ip_check_text") && !o["ip_check_text"].toString().isEmpty())
+            m_vpnIpCheckText = o["ip_check_text"].toString();
+    }
     emit sysStatsChanged();
 }
 

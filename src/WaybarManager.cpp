@@ -373,10 +373,14 @@ void WaybarManager::pollSysStats() {
                     icf.close();
                     int stCode = ico["state"].toInt(m_vpnIpCheckState);
                     QString stTxt = ico["text"].toString();
+                    bool reloadSt = ico["reload_state"].toBool(false);
                     if (!stTxt.isEmpty() && (stCode != m_vpnIpCheckState || stTxt != m_vpnIpCheckText)) {
                         m_vpnIpCheckState = stCode;
                         m_vpnIpCheckText = stTxt;
                         emit sysStatsChanged();
+                    }
+                    if (reloadSt) {
+                        runVpnScriptCmd({"status"});
                     }
                 }
             }

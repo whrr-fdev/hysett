@@ -377,6 +377,11 @@ def load_state():
 def save_state(st):
     os.makedirs(CONF_DIR, exist_ok=True)
     st.pop("url", None)
+    for ck in ("ping_cache", "country_cache"):
+        d = st.get(ck)
+        if isinstance(d, dict) and len(d) > 350:
+            keys = list(d.keys())[-300:]
+            st[ck] = {k: d[k] for k in keys}
     tmp = STATE_FILE + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(st, f, ensure_ascii=False, indent=2)
@@ -750,24 +755,9 @@ def detect_physical_interface():
             pass
     return routed_devs[0] if routed_devs else ""
 
-def quick_host_ping_ms(host, port=443, timeout=0.60):
+def quick_host_ping_ms(host, port=443, timeout=0.45):
     if not host:
         return None
-    phys_if = detect_physical_interface()
-    try:
-        cmd = ["ping", "-c", "1", "-W", "1", "-q"]
-        if phys_if:
-            cmd.extend(["-I", phys_if])
-        cmd.append(host)
-        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=0.80)
-        m = re.search(r"min/avg/max.*=\s*[0-9.]+/([0-9.]+)/", out)
-        if m:
-            icmp_ms = int(round(float(m.group(1))))
-            if icmp_ms >= 3:
-                return icmp_ms
-    except Exception:
-        pass
-
     t0 = time.monotonic()
     try:
         with socket.create_connection((host, int(port or 443)), timeout=timeout) as sock:
@@ -799,7 +789,7 @@ def extract_ping_str(name_str, ping_ms=0):
             pass
     return ""
 
-def populate_server_pings(srv_list, ping_cache, max_new_probes=50, timeout=0.55):
+def populate_server_pings(srv_list, ping_cache, max_new_probes=24, timeout=0.45):
     if not isinstance(ping_cache, dict):
         ping_cache = {}
     to_probe = []
@@ -828,7 +818,7 @@ def populate_server_pings(srv_list, ping_cache, max_new_probes=50, timeout=0.55)
             to_probe.append((hp, ob.get("server", ""), ob.get("server_port", 443), s))
 
     if to_probe:
-        with ThreadPoolExecutor(max_workers=36) as ex:
+        with ThreadPoolExecutor(max_workers=12) as ex:
             futs = {ex.submit(quick_host_ping_ms, host, port, timeout): (hp, s_ref) for hp, host, port, s_ref in to_probe}
             for f in as_completed(futs):
                 hp, s_ref = futs[f]
@@ -861,7 +851,9 @@ def ensure_sub_cache_metadata(cache_dict, ping_cache, country_cache):
         populate_server_pings(all_s, ping_cache, max_new_probes=32, timeout=0.55)
         resolve_countries_batch(all_s, country_cache)
 
-def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=28, allow_network_probe=False):
+def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=28, allow_network_probe=False, verified_set=None):
+    if verified_set is None:
+        verified_set = set()
     bl_groups = []
     seen_sigs = {s.get("sig") for s in all_srvs if s.get("sig")}
     base_group_idx = 100
@@ -937,7 +929,7 @@ def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm, "country": cc, "uri": uri, "sig": sig, "ping": p_str,
-                "frozen": is_frz, "pinned": is_pin, "verified": bool(sig and sig in set(load_state().get("verified_sigs", []))) and not is_frz,
+                "frozen": is_frz, "pinned": is_pin, "verified": bool(sig and sig in verified_set) and not is_frz,
                 "global_index": len(all_srvs) - 1
             })
         bl_groups.append({
@@ -953,9 +945,11 @@ def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_
         })
     return bl_groups
 
-def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False, pinned_set=None, ping_cache=None, country_cache=None, include_public_bl=False, allow_network_probe=False):
+def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False, pinned_set=None, ping_cache=None, country_cache=None, include_public_bl=False, allow_network_probe=False, verified_set=None):
     if pinned_set is None:
         pinned_set = set()
+    if verified_set is None:
+        verified_set = set()
     if ping_cache is None:
         ping_cache = {}
     if country_cache is None:
@@ -1007,7 +1001,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm, "country": cc, "uri": uri, "sig": sig, "ping": p_str,
-                "frozen": is_frz, "pinned": is_pin, "verified": bool(sig and sig in set(load_state().get("verified_sigs", []))) and not is_frz,
+                "frozen": is_frz, "pinned": is_pin, "verified": bool(sig and sig in verified_set) and not is_frz,
                 "global_index": len(all_srvs) - 1
             })
         groups.append({
@@ -1024,7 +1018,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
 
     # 2. После импортированных серверов добавляем публичные серверы обхода Чёрных списков
     if include_public_bl and not mark_wl_badges:
-        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=25, allow_network_probe=allow_network_probe)
+        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=25, allow_network_probe=allow_network_probe, verified_set=verified_set)
         groups.extend(bl_groups)
 
     # 3. Формируем умный "Авто-выбор (Импорт в приоритете)" на позиции 0 для Обычного VPN
@@ -1078,6 +1072,8 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
 def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера", pinned_set=None, pinned_items=None):
     if pinned_set is None:
         pinned_set = set()
+    if verified_set is None:
+        verified_set = set()
     if pinned_items is None:
         pinned_items = []
 
@@ -1858,7 +1854,7 @@ def sync_active_server_list(st, allow_network_probe=False):
         urls, sub_cache, frozen_set,
         mark_wl_badges=False, pinned_set=pinned_set,
         ping_cache=ping_cache, country_cache=country_cache,
-        include_public_bl=True, allow_network_probe=allow_network_probe
+        include_public_bl=True, allow_network_probe=allow_network_probe, verified_set=set(st.get("verified_sigs", []))
     )
     st["sub_servers"] = sub_srvs
 
@@ -2232,13 +2228,13 @@ def dump_status_json():
         urls, st.get("sub_cache", {}), frozen_set,
         mark_wl_badges=False, pinned_set=pinned_set,
         ping_cache=ping_cache, country_cache=country_cache,
-        include_public_bl=True, allow_network_probe=False
+        include_public_bl=True, allow_network_probe=False, verified_set=verified_set
     )
     _, wl_sub_groups = rebuild_sub_servers_from_cache(
         wl_urls, st.get("wl_sub_cache", {}), frozen_set,
         mark_wl_badges=True, pinned_set=pinned_set,
         ping_cache=ping_cache, country_cache=country_cache,
-        include_public_bl=False, allow_network_probe=False
+        include_public_bl=False, allow_network_probe=False, verified_set=verified_set
     )
 
     sub_srv_names = []
@@ -2347,15 +2343,18 @@ if __name__ == "__main__":
             start_vpn()
         dump_status_json()
     elif cmd == "update_lists":
-        # Обновляет ТОЛЬКО репозитории с GitHub (не трогает ручные подписки и НЕ роняет активный рабочий туннель!)
+        try:
+            os.nice(15)
+        except Exception:
+            pass
         write_progress(5, "Запуск обновления репозиториев БС и ЧС с GitHub...")
         if os.path.exists(UPDATE_SCRIPT):
             subprocess.run(["/usr/bin/bash", UPDATE_SCRIPT], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
-        write_progress(75, "Проверка пинга и стран серверов GitHub (~3 сек)...")
+        write_progress(80, "Обновление списков серверов...")
         st = load_state()
         st["last_updated"] = time.strftime("%d.%m в %H:%M")
         st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"), allow_network_probe=True)
-        st = sync_active_server_list(st, allow_network_probe=True)
+        st = sync_active_server_list(st, allow_network_probe=False)
         save_state(st)
         write_progress(100, "Готово")
         dump_status_json()

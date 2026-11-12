@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -uo pipefail
+renice -n 15 $$ >/dev/null 2>&1 || true
 
 BASE_DIR="$HOME/hysett/bypass-lists"
 REPOS_DIR="$BASE_DIR/repos"
@@ -27,7 +28,7 @@ write_prog() {
 }
 
 log() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" >> "$LOG_FILE"
 }
 
 UPDATED_COUNT=0
@@ -42,19 +43,17 @@ for repo_url in "${GIT_REPOS[@]}"; do
     ((IDX++))
     repo_name=$(basename "$repo_url" .git)
     target_dir="$REPOS_DIR/$repo_name"
-    rem_repos=$((TOTAL_REPOS - IDX + 1))
-    est_sec=$((rem_repos * 2 + 4))
-    pct=$((5 + IDX * 50 / TOTAL_REPOS))
-    write_prog "$pct" "Репозиторий $IDX/$TOTAL_REPOS: $repo_name (~${est_sec} сек)"
+    pct=$((5 + IDX * 55 / TOTAL_REPOS))
+    write_prog "$pct" "Репозиторий $IDX/$TOTAL_REPOS: $repo_name..."
 
     if [[ -d "$target_dir/.git" ]]; then
-        if timeout 20 git -C "$target_dir" pull --ff-only --quiet 2>/dev/null; then
+        if timeout 15 nice -n 15 git -C "$target_dir" pull --ff-only --quiet 2>/dev/null; then
             ((UPDATED_COUNT++))
         else
             ((ERROR_COUNT++))
         fi
     else
-        if timeout 30 git clone --depth 1 --quiet "$repo_url" "$target_dir" 2>/dev/null; then
+        if timeout 25 nice -n 15 git clone --depth 1 --quiet "$repo_url" "$target_dir" 2>/dev/null; then
             ((UPDATED_COUNT++))
         else
             ((ERROR_COUNT++))
@@ -62,9 +61,9 @@ for repo_url in "${GIT_REPOS[@]}"; do
     fi
 done
 
-write_prog 62 "Распаковка ключей БС и ЧС (~4 сек)..."
+write_prog 68 "Фильтрация ключей БС и ЧС..."
 
-python3 - << 'PYEOF'
+nice -n 15 python3 - << 'PYEOF'
 import os, base64, re
 
 repos_dir = os.path.expanduser("~/hysett/bypass-lists/repos")
@@ -81,21 +80,22 @@ for rname in target_repos:
         if ".git" in dirs:
             dirs.remove(".git")
         for fn in sorted(files):
-            if fn == "hysett_wl.txt" or fn.endswith((".png", ".jpg", ".gif", ".md", ".py", ".sh", ".json")):
+            if fn == "hysett_wl.txt" or fn.endswith((".png", ".jpg", ".gif", ".md", ".py", ".sh", ".json", ".exe", ".apk", ".zip")):
                 continue
             fpath = os.path.join(root, fn)
             try:
-                if os.path.getsize(fpath) > 15 * 1024 * 1024:
+                if os.path.getsize(fpath) > 4 * 1024 * 1024:
                     continue
-                raw = open(fpath, "r", encoding="utf-8", errors="ignore").read().strip()
+                with open(fpath, "r", encoding="utf-8", errors="ignore") as rf:
+                    raw = rf.read(393216).strip()
             except Exception:
                 continue
             if not raw:
                 continue
             chunks = [raw]
-            if "://" not in raw[:200] and len(raw) > 32:
+            if "://" not in raw[:200] and 32 < len(raw) < 262144:
                 try:
-                    b64_clean = re.sub(r"\s+", "", raw)
+                    b64_clean = "".join(raw.split())
                     pad = len(b64_clean) % 4
                     if pad:
                         b64_clean += "=" * (4 - pad)
@@ -110,9 +110,9 @@ for rname in target_repos:
                     if u not in seen:
                         seen.add(u)
                         found.append(u)
-                        if len(found) >= 1500:
+                        if len(found) >= 350:
                             break
-            if len(found) >= 1500:
+            if len(found) >= 350:
                 break
     if found:
         out_file = os.path.join(rpath, "hysett_wl.txt")

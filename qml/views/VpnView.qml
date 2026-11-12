@@ -1059,10 +1059,14 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: (Waybar && Waybar.vpnBusy) ? ("󰑐 " + Waybar.vpnProgressPercent + "%") : "󰓅 Проверить доступные"
+                                        text: (Waybar && Waybar.vpnBusy) ? ("󰅖 Стоп (" + Waybar.vpnProgressPercent + "%)") : "󰓅 Проверка конфигов"
                                         implicitHeight: 24
-                                        enabled: !(Waybar && Waybar.vpnBusy)
-                                        onClicked: if (Waybar) Waybar.testNormalVpnServers()
+                                        isActive: Waybar && Waybar.vpnBusy
+                                        onClicked: {
+                                            if (!Waybar) return
+                                            if (Waybar.vpnBusy) Waybar.stopVpnConfigAudit()
+                                            else Waybar.testNormalVpnServers(vpnScroll.activeSubTab)
+                                        }
                                     }
                                     StyledButton {
                                         visible: Waybar && Waybar.vpnFrozenCount > 0
@@ -1182,6 +1186,19 @@ ScrollView {
                                                         text: isFrz ? "󰜺" : parsed.icon
                                                         color: isSel ? (Config ? Config.accentTextColor : "#000000") : (isFrz ? "#ff8a80" : (Config ? Config.m3Primary : "#ffffff"))
                                                         font.pixelSize: Config.fontSize + 1
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: !isFrz && modelData.verified === true
+                                                    width: verSubTxt.implicitWidth + 10; height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)
+                                                    Text {
+                                                        id: verSubTxt; anchors.centerIn: parent
+                                                        text: "✓ РАБОЧИЙ"
+                                                        font.pixelSize: Config.fontSize - 2; font.bold: true
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
                                                     }
                                                 }
 
@@ -1371,10 +1388,14 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: (Waybar && Waybar.vpnBusy) ? ("󰑐 " + Waybar.vpnProgressPercent + "%") : "󰓅 Проверить серверы"
+                                        text: (Waybar && Waybar.vpnBusy) ? ("󰅖 Стоп (" + Waybar.vpnProgressPercent + "%)") : "󰓅 Проверка конфигов"
                                         implicitHeight: 26
-                                        enabled: !(Waybar && Waybar.vpnBusy)
-                                        onClicked: if (Waybar) Waybar.testWhitelistServers()
+                                        isActive: Waybar && Waybar.vpnBusy
+                                        onClicked: {
+                                            if (!Waybar) return
+                                            if (Waybar.vpnBusy) Waybar.stopVpnConfigAudit()
+                                            else Waybar.testWhitelistServers()
+                                        }
                                     }
                                 }
 
@@ -1850,6 +1871,19 @@ ScrollView {
                                                     Text {
                                                         id: pinBadgeTxt; anchors.centerIn: parent
                                                         text: "ЗАКРЕПЛЕН"
+                                                        font.pixelSize: Config.fontSize - 2; font.bold: true
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: !isFrz && modelData.verified === true
+                                                    width: verWlBadgeTxt.implicitWidth + 10; height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)
+                                                    Text {
+                                                        id: verWlBadgeTxt; anchors.centerIn: parent
+                                                        text: "✓ РАБОЧИЙ"
                                                         font.pixelSize: Config.fontSize - 2; font.bold: true
                                                         color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
                                                     }

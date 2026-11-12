@@ -354,6 +354,7 @@ def load_state():
         "wl_servers": [],
         "frozen_sigs": [],
         "pinned_sigs": [],
+        "verified_sigs": [],
         "pinned_wl_items": [],
         "last_updated": "",
         "custom_proxy_domains": [],
@@ -368,7 +369,7 @@ def load_state():
     for k in ("sub_cache", "wl_sub_cache", "ping_cache", "country_cache"):
         if not isinstance(st.get(k), dict):
             st[k] = {}
-    for k in ("frozen_sigs", "pinned_sigs", "pinned_wl_items"):
+    for k in ("frozen_sigs", "pinned_sigs", "verified_sigs", "pinned_wl_items"):
         if not isinstance(st.get(k), list):
             st[k] = []
     return st
@@ -475,7 +476,9 @@ def parse_uri(uri, strict_for_public=False):
         if sec == "reality":
             pbk = q.get("pbk", "").strip()
             sid = q.get("sid", "").strip()
-            if not pbk or not re.match(r"^[0-9a-fA-F]{0,16}$", sid):
+            if not pbk:
+                return None, None, ""
+            if strict_for_public and not re.match(r"^[0-9a-fA-F]{0,16}$", sid):
                 return None, None, ""
             if strict_for_public:
                 try:
@@ -934,7 +937,7 @@ def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm, "country": cc, "uri": uri, "sig": sig, "ping": p_str,
-                "frozen": is_frz, "pinned": is_pin,
+                "frozen": is_frz, "pinned": is_pin, "verified": bool(sig and sig in set(load_state().get("verified_sigs", []))) and not is_frz,
                 "global_index": len(all_srvs) - 1
             })
         bl_groups.append({
@@ -1004,7 +1007,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm, "country": cc, "uri": uri, "sig": sig, "ping": p_str,
-                "frozen": is_frz, "pinned": is_pin,
+                "frozen": is_frz, "pinned": is_pin, "verified": bool(sig and sig in set(load_state().get("verified_sigs", []))) and not is_frz,
                 "global_index": len(all_srvs) - 1
             })
         groups.append({
@@ -1026,11 +1029,15 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
 
     # 3. Формируем умный "Авто-выбор (Импорт в приоритете)" на позиции 0 для Обычного VPN
     if include_public_bl and not mark_wl_badges and all_srvs:
-        imported_alive = [s for s in all_srvs if not s.get("is_public_bl") and not s.get("frozen")]
+        imported_all = [s for s in all_srvs if not s.get("is_public_bl")]
+        imported_alive = [s for s in imported_all if not s.get("frozen")]
+        if not imported_alive and imported_all:
+            # Если единственный сервер личной подписки был случайно заморожен — размораживаем его для Авто-выбора
+            imported_all[0]["frozen"] = False
+            imported_alive = [imported_all[0]]
         public_alive = [s for s in all_srvs if s.get("is_public_bl") and not s.get("frozen")]
-        public_alive.sort(key=lambda x: (0 if int(x.get("ping_ms") or 0) > 3 else 1, int(x.get("ping_ms") or 9999)))
+        public_alive.sort(key=lambda x: (0 if x.get("verified") else 1, 0 if int(x.get("ping_ms") or 0) > 3 else 1, int(x.get("ping_ms") or 9999)))
 
-        # Если есть живые импортированные серверы — в пул автовыбора идут ТОЛЬКО они (чтобы публичные ключи не перебивали платный импорт)
         priority_pool_src = imported_alive if imported_alive else public_alive[:12]
         if priority_pool_src:
             best_first = priority_pool_src[0]
@@ -1134,6 +1141,7 @@ def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-вы�
 def load_whitelist_servers(st, wl_key="auto", limit=220, allow_network_probe=False):
     frozen_set = set(st.get("frozen_sigs", []))
     pinned_set = set(st.get("pinned_sigs", []))
+    verified_set = set(st.get("verified_sigs", []))
     pinned_items = st.get("pinned_wl_items", [])
     ping_cache = st.setdefault("ping_cache", {})
     country_cache = st.setdefault("country_cache", {})
@@ -1387,6 +1395,7 @@ def run_singbox_batch_audit(candidates, starts, merged, timeout=2.4):
 def test_and_sort_whitelist(st, max_candidates=60):
     frozen_set = set(st.get("frozen_sigs", []))
     pinned_set = set(st.get("pinned_sigs", []))
+    verified_set = set(st.get("verified_sigs", []))
     pinned_items = st.get("pinned_wl_items", [])
     ping_cache = st.setdefault("ping_cache", {})
     country_cache = st.setdefault("country_cache", {})
@@ -1437,6 +1446,187 @@ def test_and_sort_whitelist(st, max_candidates=60):
     st = sync_active_server_list(st, allow_network_probe=False)
     save_state(st)
     write_progress(100, "Готово")
+    return st
+
+
+STOP_AUDIT_FLAG = "/tmp/hysett_vpn_stop_audit"
+
+def test_single_outbound_via_singbox(ob, port=29250, timeout=2.5):
+    sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
+    if not os.path.exists(sb_bin) or not isinstance(ob, dict) or ob.get("type") == "urltest":
+        return None, "", 0
+    phys_if = detect_physical_interface()
+    ob_copy = {k: v for k, v in ob.items() if not k.startswith("_")}
+    ob_copy["tag"] = "test-out"
+    route_obj = {
+        "default_domain_resolver": "dns-direct",
+        "auto_detect_interface": True,
+        "rules": [{"inbound": ["test-in"], "outbound": "test-out"}],
+        "final": "test-out"
+    }
+    if phys_if:
+        route_obj["default_interface"] = phys_if
+    cfg = {
+        "log": {"level": "error"},
+        "dns": {
+            "servers": [{"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}],
+            "final": "dns-direct"
+        },
+        "inbounds": [{"type": "mixed", "tag": "test-in", "listen": "127.0.0.1", "listen_port": port}],
+        "outbounds": [ob_copy, {"type": "direct", "tag": "direct"}],
+        "route": route_obj
+    }
+    cfg_path = f"/tmp/singbox_single_test_{port}.json"
+    try:
+        with open(cfg_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f)
+        if subprocess.run([sb_bin, "check", "-c", cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+            return None, "", 0
+        proc = subprocess.Popen(
+            [sb_bin, "run", "-c", cfg_path],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            close_fds=True, start_new_session=True
+        )
+        try:
+            t_wait = time.time()
+            port_ok = False
+            while time.time() - t_wait < 0.9:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    if s.connect_ex(("127.0.0.1", port)) == 0:
+                        port_ok = True
+                        break
+                time.sleep(0.025)
+            if not port_ok:
+                return None, "", 0
+            proxy_url = f"http://127.0.0.1:{port}"
+            opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
+            t0 = time.monotonic()
+            for u in ("https://api.2ip.io/?lang=ru", "http://ip-api.com/json/?fields=status,query,country,countryCode,city&lang=ru"):
+                rem = timeout - (time.monotonic() - t0)
+                if rem <= 0.2:
+                    break
+                try:
+                    t_req = time.monotonic()
+                    req = urllib.request.Request(u, headers={"User-Agent": "curl/8.0", "Connection": "close"})
+                    with opener.open(req, timeout=min(1.8, rem)) as r:
+                        d = json.loads(r.read().decode("utf-8", errors="ignore"))
+                    ms = max(8, int((time.monotonic() - t_req) * 1000))
+                    if ms > 3000:
+                        return None, "", 0
+                    ip = (d.get("ip") or d.get("query") or "").strip()
+                    if ip:
+                        country = (d.get("country") or "").strip()
+                        city = (d.get("city") or "").strip()
+                        cc = (d.get("code") or d.get("countryCode") or "").strip().upper()
+                        loc = f"{country}, {city}" if (country and city and city != country) else (country or city or "ОК")
+                        return f"{ip} • {loc} [{cc}] • {ms} мс", cc, ms
+                except Exception:
+                    pass
+        finally:
+            proc.kill()
+            try:
+                proc.wait(timeout=0.3)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return None, "", 0
+
+def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
+    if os.path.exists(STOP_AUDIT_FLAG):
+        try:
+            os.remove(STOP_AUDIT_FLAG)
+        except Exception:
+            pass
+    st = sync_active_server_list(st, allow_network_probe=False)
+    frozen_sigs = list(st.get("frozen_sigs", []))
+    verified_sigs = list(st.get("verified_sigs", []))
+    ping_cache = st.setdefault("ping_cache", {})
+    country_cache = st.setdefault("country_cache", {})
+
+    if is_wl:
+        target_srvs = [s for s in st.get("wl_servers", []) if s.get("outbound", {}).get("type") != "urltest"]
+    else:
+        all_sub = [s for s in st.get("sub_servers", []) if s.get("outbound", {}).get("type") != "urltest"]
+        if sub_tab > 0:
+            urls = read_sub_urls()
+            _, groups = rebuild_sub_servers_from_cache(
+                urls, st.get("sub_cache", {}), set(frozen_sigs),
+                mark_wl_badges=False, pinned_set=set(st.get("pinned_sigs", [])),
+                ping_cache=ping_cache, country_cache=country_cache,
+                include_public_bl=True, allow_network_probe=False
+            )
+            if sub_tab <= len(groups):
+                g_indices = {gs.get("global_index") for gs in groups[sub_tab - 1].get("servers", [])}
+                target_srvs = [s for i, s in enumerate(st.get("sub_servers", [])) if i in g_indices and s.get("outbound", {}).get("type") != "urltest"]
+            else:
+                target_srvs = all_sub
+        else:
+            target_srvs = all_sub
+
+    total = len(target_srvs)
+    if total == 0:
+        write_progress(100, "Нет серверов для проверки")
+        write_ipcheck(3, "Нет серверов для проверки", reload_state=False)
+        return st
+
+    ok_count = 0
+    frz_count = 0
+    log_wl_msg(f"▶ Запуск последовательной проверки {total} конфигов (лимит 3 сек на сервер)...")
+
+    for i, srv in enumerate(target_srvs):
+        if os.path.exists(STOP_AUDIT_FLAG):
+            log_wl_msg("⏹ Проверка конфигов остановлена пользователем.")
+            break
+        ob = srv.get("outbound", {})
+        sig = srv.get("sig") or server_sig(ob)
+        nm = srv.get("name", f"Сервер #{i+1}")[:30]
+        pct = max(5, int(((i + 1) * 100) / total))
+        step_msg = f"[{i+1}/{total}] Проверка: {nm}..."
+        write_progress(pct, step_msg)
+        write_ipcheck(1, f"Проверка конфигов [{i+1}/{total}]: {nm}...", reload_state=False)
+
+        loc_str, cc, ms = test_single_outbound_via_singbox(ob, port=29250 + (i % 15), timeout=2.6)
+        if loc_str and ms > 0:
+            ok_count += 1
+            if sig:
+                if sig in frozen_sigs:
+                    frozen_sigs.remove(sig)
+                if sig not in verified_sigs:
+                    verified_sigs.append(sig)
+            hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+            ping_cache[hp] = ms
+            if cc and ob.get("server"):
+                country_cache[ob["server"]] = cc
+            srv["ping_ms"] = ms
+            srv["ping"] = f"{ms} мс"
+            if cc:
+                srv["country"] = cc
+            srv["frozen"] = False
+            srv["verified"] = True
+            log_wl_msg(f"✓ [{i+1}/{total}] РАБОЧИЙ ({ms} мс): {nm} -> {loc_str}")
+            write_ipcheck(2, f"✓ [{i+1}/{total}] {nm}: {loc_str}", reload_state=True)
+        else:
+            frz_count += 1
+            if sig:
+                if sig not in frozen_sigs:
+                    frozen_sigs.append(sig)
+                if sig in verified_sigs:
+                    verified_sigs.remove(sig)
+            srv["frozen"] = True
+            srv["verified"] = False
+            log_wl_msg(f"❄ [{i+1}/{total}] ЗАМОРОЖЕН (>3 сек): {nm}")
+            write_ipcheck(3, f"❄ [{i+1}/{total}] Заморожен (>3 сек): {nm}", reload_state=True)
+
+        st["frozen_sigs"] = frozen_sigs
+        st["verified_sigs"] = verified_sigs
+        st = sync_active_server_list(st, allow_network_probe=False)
+        save_state(st)
+
+    summary = f"Готово: {ok_count} рабочих ✓ • {frz_count} заморожено ❄"
+    write_progress(100, summary)
+    write_ipcheck(2 if ok_count > 0 else 3, summary, reload_state=True)
+    log_wl_msg(f"🏁 Проверка завершена: {summary}")
     return st
 
 def test_and_sort_normal_servers(st):
@@ -1581,17 +1771,22 @@ def build_config(outbound, st, use_tun=False):
 def sync_active_server_list(st, allow_network_probe=False):
     frozen_set = set(st.get("frozen_sigs", []))
     pinned_set = set(st.get("pinned_sigs", []))
+    verified_set = set(st.get("verified_sigs", []))
     pinned_items = st.get("pinned_wl_items", [])
     ping_cache = st.setdefault("ping_cache", {})
     country_cache = st.setdefault("country_cache", {})
 
     urls = read_sub_urls()
     sub_cache = st.get("sub_cache", {})
-    if urls and not sub_cache and st.get("sub_servers"):
-        real_old = [x for x in st["sub_servers"] if not x.get("is_public_bl") and x.get("outbound", {}).get("type") != "urltest"]
-        if real_old:
-            sub_cache[urls[0]] = {"title": short_sub_title(urls[0], 0), "servers": real_old}
-            st["sub_cache"] = sub_cache
+    if urls:
+        for idx_u, u in enumerate(urls):
+            entry_u = sub_cache.get(u, {})
+            srvs_u = entry_u if isinstance(entry_u, list) else entry_u.get("servers", [])
+            if not srvs_u:
+                t_u, parsed_u = fetch_single_url(u)
+                if parsed_u:
+                    sub_cache[u] = {"title": short_sub_title(u, idx_u, t_u), "servers": parsed_u}
+                    st["sub_cache"] = sub_cache
 
     sub_srvs, _ = rebuild_sub_servers_from_cache(
         urls, sub_cache, frozen_set,
@@ -1948,6 +2143,7 @@ def dump_status_json():
     save_state(st)
     frozen_set = set(st.get("frozen_sigs", []))
     pinned_set = set(st.get("pinned_sigs", []))
+    verified_set = set(st.get("verified_sigs", []))
     ping_cache = st.get("ping_cache", {})
     country_cache = st.get("country_cache", {})
     urls = read_sub_urls()
@@ -1977,10 +2173,11 @@ def dump_status_json():
         cc = s.get("country", "")
         frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
         pin = bool(s.get("pinned", False) or (sig and sig in pinned_set))
+        ver = bool(s.get("verified", False) or (sig and sig in verified_set)) and not frz
         sub_srv_names.append(nm)
         sub_srv_items.append({
             "name": nm, "country": cc, "uri": uri, "sig": sig,
-            "ping": p_str, "frozen": frz, "pinned": pin,
+            "ping": p_str, "frozen": frz, "pinned": pin, "verified": ver,
             "is_public_bl": bool(s.get("is_public_bl", False)),
             "global_index": i
         })
@@ -1996,10 +2193,11 @@ def dump_status_json():
         cc = s.get("country", "")
         frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
         pin = bool(s.get("pinned", False) or (sig and sig in pinned_set))
+        ver = bool(s.get("verified", False) or (sig and sig in verified_set)) and not frz
         wl_srv_names.append(nm)
         wl_srv_items.append({
             "name": nm, "country": cc, "uri": uri, "sig": sig,
-            "ping": p_str, "frozen": frz, "pinned": pin,
+            "ping": p_str, "frozen": frz, "pinned": pin, "verified": ver,
             "global_index": i
         })
 
@@ -2090,8 +2288,16 @@ if __name__ == "__main__":
         write_progress(100, "Подписки обновлены")
         dump_status_json()
     elif cmd == "test_normal":
+        sub_tab = int(sys.argv[2]) if len(sys.argv) > 2 else 0
         st = load_state()
-        st = test_and_sort_normal_servers(st)
+        st = run_sequential_config_audit(st, is_wl=False, sub_tab=sub_tab)
+        dump_status_json()
+    elif cmd == "stop_audit":
+        try:
+            with open(STOP_AUDIT_FLAG, "w") as f:
+                f.write("1")
+        except Exception:
+            pass
         dump_status_json()
     elif cmd == "set_whitelist_mode":
         st = load_state()
@@ -2135,7 +2341,7 @@ if __name__ == "__main__":
         dump_status_json()
     elif cmd == "test_whitelist":
         st = load_state()
-        st = test_and_sort_whitelist(st)
+        st = run_sequential_config_audit(st, is_wl=True, sub_tab=0)
         if st.get("active_is_wl", False):
             restart_if_running()
         dump_status_json()

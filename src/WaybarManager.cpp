@@ -1870,8 +1870,18 @@ void WaybarManager::updateVpnSubscription() {
     runVpnScriptCmd({"update_subs"});
 }
 
-void WaybarManager::testNormalVpnServers() {
-    runVpnScriptCmd({"test_normal"});
+void WaybarManager::testNormalVpnServers(int subTab) {
+    runVpnScriptCmd({"test_normal", QString::number(subTab)});
+}
+
+void WaybarManager::stopVpnConfigAudit() {
+    QFile sf("/tmp/hysett_vpn_stop_audit");
+    if (sf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        sf.write("1");
+        sf.close();
+    }
+    m_vpnBusy = false;
+    emit sysStatsChanged();
 }
 
 void WaybarManager::addVpnSubUrl(const QString &u) {
@@ -2039,11 +2049,7 @@ void WaybarManager::clearFrozenVpnServers() {
 void WaybarManager::checkVpn2ip() {
     m_vpnIpCheckState = 1;
     m_vpnIpCheckText = "Проверка IP и геолокации на 2ip.io...";
-    QFile icf("/tmp/hysett_vpn_ipcheck.json");
-    if (icf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        icf.write(R"({"state":1,"text":"Проверка..."})");
-        icf.close();
-    }
+    
     emit sysStatsChanged();
     runVpnScriptCmd({"check_2ip"});
 }

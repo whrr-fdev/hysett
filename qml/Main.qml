@@ -985,9 +985,9 @@ ApplicationWindow {
                                             Rectangle {
                                                 id: dotRect
                                                 anchors.centerIn: parent
-                                                width: parent.act ? 13 : 5
-                                                height: 5
-                                                radius: (Theme && Theme.isRounded) ? 2.5 : 1
+                                                width: parent.act ? wsModuleItem.actDotSz : wsModuleItem.dotSz
+                                                height: wsModuleItem.dotSz
+                                                radius: (Theme && Theme.isRounded) ? height / 2 : 1
                                                 color: parent.act
                                                        ? (Config ? Config.m3Primary : "#ffffff")
                                                        : (parent.hov
@@ -1892,9 +1892,9 @@ ApplicationWindow {
                                     Rectangle {
                                         id: vDotRect
                                         anchors.centerIn: parent
-                                        width: 5
-                                        height: parent.act ? 13 : 5
-                                        radius: (Theme && Theme.isRounded) ? 2.5 : 1
+                                        width: vWsBox.dotSz
+                                        height: parent.act ? vWsBox.actDotSz : vWsBox.dotSz
+                                        radius: (Theme && Theme.isRounded) ? width / 2 : 1
                                         color: parent.act
                                                ? (Config ? Config.m3Primary : "#ffffff")
                                                : (parent.hov

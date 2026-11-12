@@ -50,17 +50,60 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
-                implicitHeight: wsDotsRow.implicitHeight + 16
-                RowLayout {
-                    id: wsDotsRow
+                implicitHeight: wsDotsCol.implicitHeight + 20
+                Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+
+                ColumnLayout {
+                    id: wsDotsCol
                     anchors.fill: parent
                     anchors.margins: 10
-                    Text { text: "Отображение рабочих столов:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
-                    Item { Layout.fillWidth: true }
-                    SegmentedButton {
-                        options: ["Номера (1..5)", "Кнопочки (точки)"]
-                        selectedIndex: (Waybar && Waybar.workspaceDots) ? 1 : 0
-                        onSelected: (idx) => { if (Waybar) Waybar.workspaceDots = (idx === 1) }
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text { text: "Отображение рабочих столов:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        Item { Layout.fillWidth: true }
+                        SegmentedButton {
+                            options: ["Номера (1..5)", "Кнопочки (точки)"]
+                            selectedIndex: (Waybar && Waybar.workspaceDots) ? 1 : 0
+                            onSelected: (idx) => { if (Waybar) Waybar.workspaceDots = (idx === 1) }
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Waybar ? Waybar.workspaceDots : false
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: "Размер точек рабочих столов:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 220
+                        }
+                        StyledSlider {
+                            id: wsDotSizeSlider
+                            Layout.fillWidth: true
+                            from: 3; to: 12; stepSize: 1
+                            Binding on value {
+                                when: !wsDotSizeSlider.pressed
+                                value: Waybar ? Waybar.workspaceDotSize : 5
+                            }
+                            onMoved: if (Waybar) Waybar.workspaceDotSize = Math.round(value)
+                        }
+                        Text {
+                            readonly property int curSz: wsDotSizeSlider.pressed ? Math.round(wsDotSizeSlider.value) : (Waybar ? Waybar.workspaceDotSize : 5)
+                            text: curSz + "px"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 46
+                            horizontalAlignment: Text.AlignRight
+                        }
+                        StyledButton {
+                            text: "↺"
+                            implicitWidth: 22
+                            onClicked: if (Waybar) Waybar.workspaceDotSize = 5
+                        }
                     }
                 }
             }

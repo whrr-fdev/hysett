@@ -13,6 +13,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int barPosition READ barPosition WRITE setBarPosition NOTIFY stateChanged)
     Q_PROPERTY(bool centeredBar READ centeredBar WRITE setCenteredBar NOTIFY stateChanged)
     Q_PROPERTY(bool workspaceDots READ workspaceDots WRITE setWorkspaceDots NOTIFY stateChanged)
+    Q_PROPERTY(int workspaceDotSize READ workspaceDotSize WRITE setWorkspaceDotSize NOTIFY stateChanged)
     Q_PROPERTY(bool fixedTitleWidth READ fixedTitleWidth WRITE setFixedTitleWidth NOTIFY stateChanged)
     Q_PROPERTY(int fixedTitleSize READ fixedTitleSize WRITE setFixedTitleSize NOTIFY stateChanged)
     Q_PROPERTY(bool centerTitleOnBar READ centerTitleOnBar WRITE setCenterTitleOnBar NOTIFY stateChanged)
@@ -140,6 +141,8 @@ public:
     void setCenteredBar(bool v);
     bool workspaceDots() const { return m_workspaceDots; }
     void setWorkspaceDots(bool v);
+    int workspaceDotSize() const { return m_workspaceDotSize; }
+    void setWorkspaceDotSize(int v);
     bool fixedTitleWidth() const { return m_fixedTitleWidth; }
     void setFixedTitleWidth(bool v);
     int fixedTitleSize() const { return m_fixedTitleSize; }
@@ -358,6 +361,7 @@ private:
     QString m_hiddenBarModules;
     bool m_centeredBar = false;
     bool m_workspaceDots = false;
+    int m_workspaceDotSize = 5;
     bool m_fixedTitleWidth = false;
     int m_fixedTitleSize = 100;
     bool m_centerTitleOnBar = true;

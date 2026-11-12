@@ -359,18 +359,30 @@ void WaybarManager::pollHyprState() {
 }
 
 void WaybarManager::pollSysStats() {
-    if (m_vpnIpCheckState == 1) {
-        QFile icf("/tmp/hysett_vpn_ipcheck.json");
-        if (icf.open(QIODevice::ReadOnly)) {
-            QJsonObject ico = QJsonDocument::fromJson(icf.readAll()).object();
-            icf.close();
-            int stCode = ico["state"].toInt(1);
-            QString stTxt = ico["text"].toString();
-            if (stCode != 1 && !stTxt.isEmpty()) {
-                m_vpnIpCheckState = stCode;
-                m_vpnIpCheckText = stTxt;
-                emit sysStatsChanged();
+    {
+        static qint64 s_lastIpCheckMtime = 0;
+        static bool s_initial2ipTriggered = false;
+        QFileInfo icInfo("/tmp/hysett_vpn_ipcheck.json");
+        if (icInfo.exists()) {
+            qint64 mt = icInfo.lastModified().toMSecsSinceEpoch();
+            if (mt != s_lastIpCheckMtime) {
+                s_lastIpCheckMtime = mt;
+                QFile icf("/tmp/hysett_vpn_ipcheck.json");
+                if (icf.open(QIODevice::ReadOnly)) {
+                    QJsonObject ico = QJsonDocument::fromJson(icf.readAll()).object();
+                    icf.close();
+                    int stCode = ico["state"].toInt(m_vpnIpCheckState);
+                    QString stTxt = ico["text"].toString();
+                    if (!stTxt.isEmpty() && (stCode != m_vpnIpCheckState || stTxt != m_vpnIpCheckText)) {
+                        m_vpnIpCheckState = stCode;
+                        m_vpnIpCheckText = stTxt;
+                        emit sysStatsChanged();
+                    }
+                }
             }
+        } else if (m_vpnActive && m_vpnIpCheckState == 0 && !s_initial2ipTriggered) {
+            s_initial2ipTriggered = true;
+            QTimer::singleShot(800, this, &WaybarManager::checkVpn2ip);
         }
     }
     if (m_vpnBusy) {
@@ -1713,7 +1725,14 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnProgressPercent = 100;
     m_vpnProgressText.clear();
     QJsonDocument doc = QJsonDocument::fromJson(raw.trimmed());
-    if (!doc.isObject()) { emit sysStatsChanged(); return; }
+    if (!doc.isObject()) {     QFileInfo swLockCheck("/tmp/hysett_vpn_switching.lock");
+    bool isSwitchingNow = swLockCheck.exists() && swLockCheck.lastModified().msecsTo(QDateTime::currentDateTime()) < 5000;
+    if (!isSwitchingNow) {
+        if (o.contains("ip_check_state")) m_vpnIpCheckState = o["ip_check_state"].toInt(m_vpnIpCheckState);
+        if (o.contains("ip_check_text") && !o["ip_check_text"].toString().isEmpty())
+            m_vpnIpCheckText = o["ip_check_text"].toString();
+    }
+    emit sysStatsChanged(); return; }
     QJsonObject o = doc.object();
     m_vpnServerName = o["server_name"].toString(m_vpnServerName);
     m_vpnSubServerName = o["sub_server_name"].toString(m_vpnSubServerName);
@@ -1809,6 +1828,11 @@ void WaybarManager::setVpnWhitelistMode(bool v) {
 void WaybarManager::setVpnWhitelistFile(const QString &f) {
     if (m_vpnWhitelistFile != f && !f.isEmpty()) {
         m_vpnWhitelistFile = f;
+        if (m_vpnActive && m_vpnActiveIsWl) {
+            m_vpnIpCheckState = 1;
+            m_vpnIpCheckText = "Смена категории и проверка на 2ip.io...";
+            emit sysStatsChanged();
+        }
         runVpnScriptCmd({"set_whitelist_file", f});
     }
 }

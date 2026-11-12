@@ -1752,7 +1752,14 @@ def write_ipcheck(state_code, text):
     except Exception:
         pass
 
-def detect_live_location(timeout=2.8):
+def detect_live_location(timeout=2.6):
+    res, cc = _detect_live_location_once(timeout=timeout)
+    if res:
+        return res, cc
+    time.sleep(0.35)
+    return _detect_live_location_once(timeout=timeout)
+
+def _detect_live_location_once(timeout=2.6):
     proxy_handler = urllib.request.ProxyHandler({"http": "http://127.0.0.1:2080", "https": "http://127.0.0.1:2080"})
     opener = urllib.request.build_opener(proxy_handler)
 
@@ -2074,8 +2081,21 @@ if __name__ == "__main__":
             st["wl_servers"] = load_whitelist_servers(st, st["whitelist_file"], allow_network_probe=True)
             st = sync_active_server_list(st, allow_network_probe=False)
             save_state(st)
-            if st.get("active_is_wl", False):
-                restart_if_running()
+            if st.get("vpn_enabled", False) and st.get("active_is_wl", False):
+                st["ip_check_state"] = 1
+                st["ip_check_text"] = "Смена категории и проверка на 2ip.io..."
+                write_ipcheck(1, st["ip_check_text"])
+                save_state(st)
+                token = f"{time.monotonic():.6f}"
+                with open("/tmp/hysett_vpn_switch.token", "w") as tf:
+                    tf.write(token)
+                with open("/tmp/hysett_vpn_switching.lock", "w") as lf:
+                    lf.write(str(time.time()))
+                subprocess.Popen(
+                    [sys.executable, os.path.abspath(__file__), "apply_selected_bg", token],
+                    stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    close_fds=True, start_new_session=True
+                )
         dump_status_json()
     elif cmd == "test_whitelist":
         st = load_state()
@@ -2276,9 +2296,14 @@ if __name__ == "__main__":
             else:
                 st["sub_selected_index"] = idx
             st = sync_active_server_list(st, allow_network_probe=False)
+            will_switch = bool(st.get("vpn_enabled", False)) and (bool(st.get("active_is_wl", False)) == is_wl)
+            if will_switch:
+                st["ip_check_state"] = 1
+                st["ip_check_text"] = "Переключение сервера и проверка на 2ip.io..."
+                write_ipcheck(1, st["ip_check_text"])
             save_state(st)
             dump_status_json()
-            if st.get("vpn_enabled", False) and bool(st.get("active_is_wl", False)) == is_wl:
+            if will_switch:
                 token = f"{time.monotonic():.6f}"
                 try:
                     with open("/tmp/hysett_vpn_switch.token", "w") as tf:

@@ -212,7 +212,7 @@ ApplicationWindow {
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
-    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : ((isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.max(baseBarW, effDrawerW))
+    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, effDrawerW)
     readonly property real barW: isVertBar ? Math.max(38, barH + 6) : (baseBarW + (expandedBarW - baseBarW) * barExpandProgress)
 
     readonly property real maxAvailVertH: Math.max(400, root.height - 16)
@@ -232,21 +232,13 @@ ApplicationWindow {
         return (barPos === 1) ? (root.height - barH - barTop) : barTop
     }
 
-    readonly property bool notifOnRight: notifOpen && (!Mako || Mako.anchor.indexOf("right") !== -1)
-    readonly property bool notifOnLeft: notifOpen && (Mako && Mako.anchor.indexOf("left") !== -1)
-    readonly property int notifSideReserve: (notifOnRight || notifOnLeft) ? (notifW + 10) : 0
-
     readonly property int targetDrawerW: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 230
         if (drawerMode === "power") return isM3 ? 300 : 280
         if (drawerMode === "calendar") return isM3 ? 320 : 300
         if (drawerMode === "clipboard") return isM3 ? 500 : 460
-        var availW = maxAvailBarW - notifSideReserve
-        if (isWallpaperExpanded || isSettingsMaximized) {
-            return Math.max(680, availW)
-        }
-        return Math.min(isM3 ? 1040 : 860, Math.max(640, availW - 12))
+        return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
     }
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
@@ -273,25 +265,9 @@ ApplicationWindow {
 
     property real centerAnchorX: {
         if (drawerMode === "traymenu") return trayMenuTargetX
-        if (drawerMode === "settings") {
-            if (notifOnRight) {
-                var maxRight = root.width - fullBarRight - notifSideReserve
-                if (isWallpaperExpanded || isSettingsMaximized) {
-                    return fullBarLeft + targetDrawerW * 0.5
-                }
-                return Math.min(root.width * 0.5, maxRight - targetDrawerW * 0.5)
-            }
-            if (notifOnLeft) {
-                var minLeft = fullBarLeft + notifSideReserve
-                if (isWallpaperExpanded || isSettingsMaximized) {
-                    return root.width - fullBarRight - targetDrawerW * 0.5
-                }
-                return Math.max(root.width * 0.5, minLeft + targetDrawerW * 0.5)
-            }
-        }
         return root.width * 0.5
     }
-    Behavior on centerAnchorX { NumberAnimation { duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.12 } }
+    Behavior on centerAnchorX { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
     Behavior on animDrawerW { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
     Behavior on smoothTargetH { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
 
@@ -317,16 +293,13 @@ ApplicationWindow {
         if (anc.indexOf("center") !== -1) return Math.round((root.width - notifW) * 0.5)
         return (barPos === 3) ? (barLeft - notifW - 6) : (root.width - notifW - edgeGap)
     }
-    // В полноэкранном режиме (или когда базовая панель доходит до уведомлений) уведомления встают под панелью задач
     readonly property real closedBarLeft: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - baseBarW) * 0.5) : fullBarLeft
-    readonly property bool barOverlapsNotifX: !isVertBar && ((isWallpaperExpanded || isSettingsMaximized) ||
-                                              ((closedBarLeft + baseBarW > notifX - 2) && (closedBarLeft < notifX + notifW + 2)))
-    property real notifY: {
+    readonly property bool barOverlapsNotifX: !isVertBar && (closedBarLeft + baseBarW > notifX - 2) && (closedBarLeft < notifX + notifW + 2)
+    readonly property real notifY: {
         if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH) : (root.height - animNotifH - barTop)
         if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barRectY
         return barTop
     }
-    Behavior on notifY { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
 
     property bool modalOpen: false
     property bool barSavePromptOpen: false
@@ -2361,7 +2334,7 @@ ApplicationWindow {
 
             Item {
                 id: drawerInner
-                width: root.animDrawerW
+                width: root.targetDrawerW
                 height: root.targetDrawerH
                 x: root.barPos === 2
                    ? (-(1.0 - root.drawerProgress) * 68)

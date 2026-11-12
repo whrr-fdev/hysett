@@ -32,7 +32,8 @@ void RulesManager::reload() {
         QString raw = lines[i];
         QString trimmed = raw.trimmed();
 
-        if (trimmed.contains("hl.window_rule({")) {
+        // Берем только верхнеуровневые hl.window_rule (не вложенные внутрь функций биндов)
+        if (!insideRule && (raw.startsWith("hl.window_rule({") || raw.startsWith("--hl.window_rule({") || raw.startsWith("-- hl.window_rule({"))) {
             insideRule = true;
             current = RuleEntry();
             current.startLine = i;
@@ -41,19 +42,19 @@ void RulesManager::reload() {
         }
 
         if (insideRule) {
-            if (trimmed.contains("name =")) {
-                QRegularExpression re("name\\s*=\\s*\"([^\"]+)\"");
+            if (trimmed.contains("name")) {
+                QRegularExpression re("name\\s*=\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
                 auto match = re.match(trimmed);
                 if (match.hasMatch()) current.name = match.captured(1);
             }
-            if (trimmed.contains("class =")) {
-                QRegularExpression re("class\\s*=\\s*\"([^\"]+)\"");
+            if (trimmed.contains("class")) {
+                QRegularExpression re("class\\s*=\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
                 auto match = re.match(trimmed);
                 if (match.hasMatch()) current.className = match.captured(1);
             }
-            if (trimmed.contains("float = true")) current.isFloat = true;
-            if (trimmed.contains("center = true")) current.isCenter = true;
-            if (trimmed.contains("size =")) {
+            if (trimmed.contains("float") && trimmed.contains("true")) current.isFloat = true;
+            if (trimmed.contains("center") && trimmed.contains("true")) current.isCenter = true;
+            if (trimmed.contains("size")) {
                 QRegularExpression re("size\\s*=\\s*\\{\\s*(\\d+)\\s*,\\s*(\\d+)\\s*\\}");
                 auto match = re.match(trimmed);
                 if (match.hasMatch()) {
@@ -61,13 +62,13 @@ void RulesManager::reload() {
                     current.sizeH = match.captured(2);
                 }
             }
-            if (trimmed.contains("workspace =")) {
-                QRegularExpression re("workspace\\s*=\\s*\"([^\"]+)\"");
+            if (trimmed.contains("workspace")) {
+                QRegularExpression re("workspace\\s*=\\s*\"((?:\\\\.|[^\"\\\\])*)\"");
                 auto match = re.match(trimmed);
                 if (match.hasMatch()) current.workspace = match.captured(1);
             }
 
-            if (trimmed.startsWith("})") || trimmed.startsWith("--})")) {
+            if (trimmed == "})" || trimmed == "--})" || trimmed == "-- })") {
                 current.endLine = i;
                 insideRule = false;
 
@@ -106,18 +107,22 @@ void RulesManager::toggleRule(int index, bool enable) {
     for (int i = entry.startLine; i <= entry.endLine && i < lines.size(); ++i) {
         QString l = lines[i];
         if (enable) {
-            QString tr = l.trimmed();
-            while (tr.startsWith("-")) tr.remove(0, 1);
-            lines[i] = "    " + tr.trimmed();
+            int dashPos = l.indexOf("--");
+            if (dashPos >= 0 && l.left(dashPos).trimmed().isEmpty()) {
+                int removeLen = (dashPos + 2 < l.size() && l[dashPos + 2] == ' ') ? 3 : 2;
+                lines[i] = l.left(dashPos) + l.mid(dashPos + removeLen);
+            }
         } else {
-            QString tr = l.trimmed();
-            if (!tr.startsWith("--")) lines[i] = "    --" + tr;
+            if (!l.trimmed().startsWith("--")) {
+                lines[i] = "-- " + l;
+            }
         }
     }
 
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
         QTextStream out(&file);
         for (const auto &l : lines) out << l << "\n";
+        file.close();
     }
 
     QProcess::startDetached("hyprctl", {"reload"});
@@ -139,9 +144,10 @@ void RulesManager::deleteRule(int index) {
         lines.removeAt(i);
     }
 
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
         QTextStream out(&file);
         for (const auto &l : lines) out << l << "\n";
+        file.close();
     }
 
     QProcess::startDetached("hyprctl", {"reload"});

@@ -288,16 +288,17 @@ ApplicationWindow {
     readonly property real animNotifH: smoothNotifTargetH * notifProgress
     readonly property real notifX: {
         var anc = Mako ? Mako.anchor : "top-right"
-        var m = Mako ? Mako.margin : 10
-        if (anc.indexOf("left") !== -1) return (barPos === 2) ? (barLeft + barW + m) : m
+        var edgeGap = Math.max(4, fullBarRight)
+        if (anc.indexOf("left") !== -1) return (barPos === 2) ? (barLeft + barW + 6) : Math.max(4, fullBarLeft)
         if (anc.indexOf("center") !== -1) return Math.round((root.width - notifW) * 0.5)
-        return (barPos === 3) ? (barLeft - notifW - m) : (root.width - notifW - m)
+        return (barPos === 3) ? (barLeft - notifW - 6) : (root.width - notifW - edgeGap)
     }
-    readonly property bool barOverlapsNotifX: !isVertBar && (barLeft + barW > notifX - 12) && (barLeft < notifX + notifW + 12)
+    // Если уведомление помещается между правым/левым краем панели и краем экрана — ставим его на уровне панели (barTop), иначе под ней
+    readonly property bool barOverlapsNotifX: !isVertBar && (barLeft + barW > notifX - 2) && (barLeft < notifX + notifW + 2)
     readonly property real notifY: {
         if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH) : (root.height - animNotifH - barTop)
-        if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barTop
-        return Mako ? Mako.margin : 10
+        if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barRectY
+        return barTop
     }
 
     property bool modalOpen: false

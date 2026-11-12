@@ -524,11 +524,12 @@ Item {
                             onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
+                                id: vThumbBg
                                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
                                 color: Qt.rgba(0.04, 0.04, 0.04, 0.88)
-                                clip: true
 
                                 Image {
+                                    id: vThumbImg
                                     anchors.fill: parent
                                     source: "image://wallthumb" + modelData.path
                                     sourceSize.width: 240
@@ -538,6 +539,14 @@ Item {
                                     fillMode: Image.PreserveAspectCrop
                                     opacity: wallBtn.hovered ? 1.0 : 0.84
                                     Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                    layer.enabled: Theme && Theme.isRounded && vThumbBg.radius > 0
+                                    layer.smooth: true
+                                    layer.effect: ShaderEffect {
+                                        property var source: vThumbImg
+                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, vThumbImg.width), Math.max(1, vThumbImg.height))
+                                        property real u_blur: -vThumbBg.radius
+                                        fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                                    }
                                 }
 
                                 Rectangle {
@@ -684,11 +693,12 @@ Item {
                             onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
+                                id: hThumbBg
                                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
                                 color: Qt.rgba(0.04, 0.04, 0.04, 0.88)
-                                clip: true
 
                                 Image {
+                                    id: hThumbImg
                                     anchors.fill: parent
                                     source: "image://wallthumb" + modelData.path
                                     sourceSize.width: 240
@@ -698,6 +708,14 @@ Item {
                                     fillMode: Image.PreserveAspectCrop
                                     opacity: hWallBtn.hovered ? 1.0 : 0.84
                                     Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                    layer.enabled: Theme && Theme.isRounded && hThumbBg.radius > 0
+                                    layer.smooth: true
+                                    layer.effect: ShaderEffect {
+                                        property var source: hThumbImg
+                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, hThumbImg.width), Math.max(1, hThumbImg.height))
+                                        property real u_blur: -hThumbBg.radius
+                                        fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                                    }
                                 }
 
                                 Rectangle {

@@ -829,6 +829,8 @@ ApplicationWindow {
                                 visible: modKey === "workspaces"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
                                 readonly property bool isDots: Waybar ? Waybar.workspaceDots : false
+                                readonly property int dotSz: Waybar ? Waybar.workspaceDotSize : 5
+                                readonly property int actDotSz: Math.max(dotSz + 2, Math.round(dotSz * 1.8))
                                 property int hoveredWsIdx: -1
                                 property int lastHoverIdx: 0
                                 readonly property int wsGap: (Theme && Theme.isRounded) ? 3 : 2
@@ -1758,6 +1760,8 @@ ApplicationWindow {
                         id: vWsBox
                         visible: !Waybar || Waybar.isBarModuleVisible("workspaces")
                         readonly property bool isDots: Waybar ? Waybar.workspaceDots : false
+                                readonly property int dotSz: Waybar ? Waybar.workspaceDotSize : 5
+                                readonly property int actDotSz: Math.max(dotSz + 2, Math.round(dotSz * 1.8))
                         width: topBarContainer.pillHeight
                         height: isDots ? (vWsDotsCol.implicitHeight + 16) : vWsCol.implicitHeight
                         anchors.horizontalCenter: parent.horizontalCenter

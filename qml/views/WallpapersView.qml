@@ -439,9 +439,7 @@ Item {
                             height: 116
                             flat: true
                             hoverEnabled: true
-                            scale: wallBtn.pressed ? 0.96 : (wallBtn.hovered ? 1.045 : 1.0)
-                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
-                            onClicked: Wallpapers.applyWallpaper(modelData.path)
+                                                        onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
                                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
@@ -457,9 +455,7 @@ Item {
                                     cache: false
                                     fillMode: Image.PreserveAspectCrop
                                     opacity: wallBtn.hovered ? 1.0 : 0.82
-                                    scale: wallBtn.hovered ? 1.08 : 1.0
                                     Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                                    Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
                                 }
 
                                 Rectangle {
@@ -576,9 +572,7 @@ Item {
                             height: 116
                             flat: true
                             hoverEnabled: true
-                            scale: hWallBtn.pressed ? 0.96 : (hWallBtn.hovered ? 1.048 : 1.0)
-                            Behavior on scale { NumberAnimation { duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
-                            onClicked: Wallpapers.applyWallpaper(modelData.path)
+                                                        onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
                                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
@@ -594,9 +588,7 @@ Item {
                                     cache: false
                                     fillMode: Image.PreserveAspectCrop
                                     opacity: hWallBtn.hovered ? 1.0 : 0.82
-                                    scale: hWallBtn.hovered ? 1.08 : 1.0
                                     Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                                    Behavior on scale { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
                                 }
 
                                 Rectangle {

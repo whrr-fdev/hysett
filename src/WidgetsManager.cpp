@@ -23,6 +23,9 @@ WidgetsManager::WidgetsManager(QObject *parent) : QObject(parent) {
                 if (ln.trimmed().startsWith("widgets_m3_sync=")) {
                     QByteArray v = ln.trimmed().mid(16).trimmed();
                     m_widgetsM3Sync = (v == "1" || v == "true");
+                } else if (ln.trimmed().startsWith("clock_m3_sync=")) {
+                    QByteArray v = ln.trimmed().mid(14).trimmed();
+                    m_clockM3Sync = (v == "1" || v == "true");
                 }
             }
             ccf.close();
@@ -407,9 +410,9 @@ void WidgetsManager::setSysProcSort(const QString &v) { if (m_sysProcSort != v &
 
 void WidgetsManager::setSysProcCount(int v) { v = std::clamp(v, 1, 20); if (m_sysProcCount != v) { m_sysProcCount = v; saveSysConfig(); } }
 
-void WidgetsManager::setWidgetsM3Sync(bool v) {
-    if (m_widgetsM3Sync == v) return;
-    m_widgetsM3Sync = v;
+void WidgetsManager::setClockM3Sync(bool v) {
+    if (m_clockM3Sync == v) return;
+    m_clockM3Sync = v;
     QString ccPath = QDir::homePath() + "/.config/hypr/scripts/control_center.conf";
     QFile file(ccPath);
     QStringList lines;
@@ -420,18 +423,52 @@ void WidgetsManager::setWidgetsM3Sync(bool v) {
     }
     bool found = false;
     for (int i = 0; i < lines.size(); ++i) {
-        if (lines[i].trimmed().startsWith("widgets_m3_sync=")) {
-            lines[i] = QString("widgets_m3_sync=%1").arg(v ? "1" : "0");
+        if (lines[i].trimmed().startsWith("clock_m3_sync=")) {
+            lines[i] = QString("clock_m3_sync=%1").arg(v ? "1" : "0");
             found = true;
             break;
         }
     }
-    if (!found) lines.append(QString("widgets_m3_sync=%1").arg(v ? "1" : "0"));
+    if (!found) lines.append(QString("clock_m3_sync=%1").arg(v ? "1" : "0"));
     if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
         QTextStream out(&file);
         for (const auto &l : lines) out << l << "\n";
         file.close();
     }
+    emit clockChanged();
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
+}
+
+void WidgetsManager::setWidgetsM3Sync(bool v) {
+    if (m_widgetsM3Sync == v && m_clockM3Sync == v) return;
+    m_widgetsM3Sync = v;
+    m_clockM3Sync = v;
+    QString ccPath = QDir::homePath() + "/.config/hypr/scripts/control_center.conf";
+    QFile file(ccPath);
+    QStringList lines;
+    if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QTextStream in(&file);
+        while (!in.atEnd()) lines.append(in.readLine());
+        file.close();
+    }
+    bool foundW = false, foundC = false;
+    for (int i = 0; i < lines.size(); ++i) {
+        if (lines[i].trimmed().startsWith("widgets_m3_sync=")) {
+            lines[i] = QString("widgets_m3_sync=%1").arg(v ? "1" : "0");
+            foundW = true;
+        } else if (lines[i].trimmed().startsWith("clock_m3_sync=")) {
+            lines[i] = QString("clock_m3_sync=%1").arg(v ? "1" : "0");
+            foundC = true;
+        }
+    }
+    if (!foundW) lines.append(QString("widgets_m3_sync=%1").arg(v ? "1" : "0"));
+    if (!foundC) lines.append(QString("clock_m3_sync=%1").arg(v ? "1" : "0"));
+    if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        QTextStream out(&file);
+        for (const auto &l : lines) out << l << "\n";
+        file.close();
+    }
+    emit clockChanged();
     emit sysStateChanged();
     QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
     QTimer::singleShot(350, this, [this]() {

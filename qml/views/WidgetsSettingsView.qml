@@ -278,6 +278,14 @@ RowLayout {
                                 Text { text: Math.round(Widgets.clockOpacity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 40 }
                             }
                             RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: Config ? (Config.language, Config.trAuto("Цвета темы (палитра обоев):")) : "Цвета темы (палитра обоев):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                StyledSwitch {
+                                    checked: Widgets ? Widgets.clockM3Sync : true
+                                    onToggled: if (Widgets) Widgets.clockM3Sync = checked
+                                }
+                            }
+                            RowLayout {
                                 spacing: 8
                                 StyledButton { text: Config ? (Config.language, Config.trAuto("󰆓  Сохранить параметры")) : "󰆓  Сохранить параметры"; onClicked: Widgets.saveClock() }
                                 StyledButton { text: Config ? (Config.language, Config.trAuto("↺  Перезапустить часы")) : "↺  Перезапустить часы"; onClicked: Widgets.restartClockProcess() }

@@ -756,7 +756,7 @@ ApplicationWindow {
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
-                                if (modKey === "workspaces") return wsRow.implicitWidth + 4
+                                if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 16) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 24
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
@@ -823,7 +823,7 @@ ApplicationWindow {
                                 }
                             }
 
-                            // Контент: workspaces (колбаса с поддержкой цифр или овальных точек!)
+                            // Контент: workspaces (единая таблетка с обводкой + режим цифр или компактных кнопочек с анимацией!)
                             Item {
                                 id: wsModuleItem
                                 visible: modKey === "workspaces"
@@ -831,8 +831,8 @@ ApplicationWindow {
                                 readonly property bool isDots: Waybar ? Waybar.workspaceDots : false
                                 property int hoveredWsIdx: -1
                                 property int lastHoverIdx: 0
-                                readonly property int wsGap: isDots ? 4 : ((Theme && Theme.isRounded) ? 3 : 2)
-                                readonly property int wsBtnW: isDots ? 18 : 25
+                                readonly property int wsGap: (Theme && Theme.isRounded) ? 3 : 2
+                                readonly property int wsBtnW: 24
                                 readonly property int wsStep: wsBtnW + wsGap
                                 readonly property real outerR: topBarContainer.pillRadius
                                 readonly property real innerR: (Theme && Theme.isRounded) ? 5 : 0
@@ -844,10 +844,31 @@ ApplicationWindow {
                                     return 0
                                 }
 
+                                property real dotSwitchPulse: 1.0
+                                SequentialAnimation {
+                                    id: wsDotPulseAnim
+                                    NumberAnimation { target: wsModuleItem; property: "dotSwitchPulse"; from: 1.0; to: 1.28; duration: 110; easing.type: Easing.OutQuad }
+                                    NumberAnimation { target: wsModuleItem; property: "dotSwitchPulse"; to: 1.0; duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.6 }
+                                }
+                                onActiveWsIdxChanged: if (isDots) wsDotPulseAnim.restart()
+
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
 
+                                // Цельная таблетка и обводка вокруг всего блока рабочих столов
+                                Rectangle {
+                                    id: wsOuterPill
+                                    z: 0
+                                    anchors.fill: parent
+                                    radius: wsModuleItem.outerR
+                                    color: topBarContainer.pillColor
+                                    border.width: 1
+                                    border.color: (Theme && Theme.isRounded && Config)
+                                                  ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.42)
+                                                  : Qt.rgba(1, 1, 1, 0.26)
+                                }
+
                                 Row {
-                                    id: wsRow; z: 1; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
+                                    id: wsRow; z: 1; visible: !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
                                         id: wsRep
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
@@ -855,13 +876,13 @@ ApplicationWindow {
                                             readonly property bool isFirst: index === 0
                                             readonly property bool isLast: index === wsRep.count - 1
                                             width: wsModuleItem.wsBtnW
-                                            height: topBarContainer.pillHeight
+                                            height: topBarContainer.pillHeight - 2
                                             anchors.verticalCenter: parent.verticalCenter
-                                            topLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
-                                            bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
-                                            topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
-                                            bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
-                                            color: wsModuleItem.isDots ? "transparent" : topBarContainer.pillColor
+                                            topLeftRadius: isFirst ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                            bottomLeftRadius: isFirst ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                            topRightRadius: isLast ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                            bottomRightRadius: isLast ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                            color: Qt.rgba(1, 1, 1, 0.03)
                                         }
                                     }
                                 }
@@ -871,14 +892,14 @@ ApplicationWindow {
                                     z: 2
                                     visible: !wsModuleItem.isDots
                                     width: wsModuleItem.wsBtnW
-                                    height: topBarContainer.pillHeight
+                                    height: topBarContainer.pillHeight - 2
                                     anchors.verticalCenter: parent.verticalCenter
                                     readonly property bool isFirst: wsModuleItem.lastHoverIdx === 0
                                     readonly property bool isLast: wsModuleItem.lastHoverIdx === Math.max(0, wsRep.count - 1)
-                                    topLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
-                                    bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
-                                    topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
-                                    bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    topLeftRadius: isFirst ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                    bottomLeftRadius: isFirst ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                    topRightRadius: isLast ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                    bottomRightRadius: isLast ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
                                     color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.20)
                                     opacity: (wsModuleItem.hoveredWsIdx >= 0 && wsModuleItem.hoveredWsIdx !== wsModuleItem.activeWsIdx) ? 1.0 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 140 } }
@@ -891,33 +912,32 @@ ApplicationWindow {
                                     z: 3
                                     visible: !wsModuleItem.isDots
                                     width: wsModuleItem.wsBtnW
-                                    height: topBarContainer.pillHeight
+                                    height: topBarContainer.pillHeight - 2
                                     anchors.verticalCenter: parent.verticalCenter
                                     readonly property bool isFirst: wsModuleItem.activeWsIdx === 0
                                     readonly property bool isLast: wsModuleItem.activeWsIdx === Math.max(0, wsRep.count - 1)
-                                    topLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
-                                    bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
-                                    topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
-                                    bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    topLeftRadius: isFirst ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                    bottomLeftRadius: isFirst ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                    topRightRadius: isLast ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
+                                    bottomRightRadius: isLast ? Math.max(0, wsModuleItem.outerR - 1) : wsModuleItem.innerR
                                     color: Config ? Config.m3Primary : "#ffffff"
                                     x: wsRow.x + wsModuleItem.activeWsIdx * wsModuleItem.wsStep
-                                    Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                                    Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
                                 }
 
+                                // Режим 1: Номера (1..5)
                                 Row {
-                                    z: 4; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
+                                    z: 4; visible: !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
                                         delegate: Item {
                                             property bool act: modelData.active === true
                                             property bool occ: (modelData.windows || 0) > 0
-                                            property bool hov: wsMa.containsMouse
+                                            property bool hov: wsNumMa.containsMouse
                                             width: wsModuleItem.wsBtnW
                                             height: topBarContainer.pillHeight
 
-                                            // Режим 1: Обычные цифры
                                             Text {
-                                                visible: !wsModuleItem.isDots
                                                 anchors.centerIn: parent
                                                 text: modelData.id
                                                 font.pixelSize: 11
@@ -928,29 +948,10 @@ ApplicationWindow {
                                                 Behavior on color { ColorAnimation { duration: 150 } }
                                             }
 
-                                            // Режим 2: 5 растянутых овалов (точек)
-                                            Rectangle {
-                                                visible: wsModuleItem.isDots
-                                                anchors.centerIn: parent
-                                                width: parent.act ? 15 : (parent.hov ? 10 : (parent.occ ? 8 : 6))
-                                                height: parent.act ? 7 : 6
-                                                radius: height / 2
-                                                color: parent.act
-                                                       ? (Config ? Config.m3Primary : "#ffffff")
-                                                       : (parent.hov
-                                                          ? "#ffffff"
-                                                          : (parent.occ
-                                                             ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff")
-                                                             : Qt.rgba(1, 1, 1, 0.28)))
-                                                Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
-                                                Behavior on color { ColorAnimation { duration: 150 } }
-                                            }
-
                                             MouseArea {
-                                                id: wsMa
+                                                id: wsNumMa
                                                 enabled: !topBarContainer.editMode
                                                 anchors.fill: parent
-                                                anchors.margins: -4
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
@@ -959,6 +960,77 @@ ApplicationWindow {
                                             }
                                         }
                                     }
+                                }
+
+                                // Режим 2: Компактные кнопочки (точки) с плавно перелетающей капсулой
+                                Row {
+                                    id: wsDotsRow
+                                    z: 4
+                                    visible: wsModuleItem.isDots
+                                    anchors.centerIn: parent
+                                    spacing: 4
+
+                                    Repeater {
+                                        id: wsDotsRep
+                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                        delegate: Item {
+                                            id: dotSlot
+                                            property bool act: modelData.active === true
+                                            property bool occ: (modelData.windows || 0) > 0
+                                            property bool hov: wsDotMa.containsMouse
+                                            width: act ? 16 : (hov ? 10 : 7)
+                                            height: topBarContainer.pillHeight
+                                            Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: parent.width
+                                                height: parent.act ? 7 : (parent.hov ? 7 : (parent.occ ? 6 : 5))
+                                                radius: (Theme && Theme.isRounded) ? height / 2 : 1
+                                                color: parent.hov
+                                                       ? Qt.rgba(1, 1, 1, 0.85)
+                                                       : (parent.occ
+                                                          ? (Theme && Theme.isRounded && Config
+                                                             ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.72)
+                                                             : Qt.rgba(1, 1, 1, 0.68))
+                                                          : Qt.rgba(1, 1, 1, 0.24))
+                                                Behavior on height { NumberAnimation { duration: 200; easing.type: Easing.OutBack } }
+                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                            }
+
+                                            MouseArea {
+                                                id: wsDotMa
+                                                enabled: !topBarContainer.editMode
+                                                anchors.fill: parent
+                                                anchors.margins: -2
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
+                                                onExited: { if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1 }
+                                                onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Плавно скользящая и пружинящая активная капсула для режима кнопочек
+                                Rectangle {
+                                    id: wsDotsActiveRunner
+                                    z: 5
+                                    visible: wsModuleItem.isDots && wsDotsRep.count > 0
+                                    readonly property Item actDotItem: (wsDotsRep.count > wsModuleItem.activeWsIdx && wsModuleItem.activeWsIdx >= 0)
+                                                                       ? wsDotsRep.itemAt(wsModuleItem.activeWsIdx)
+                                                                       : null
+                                    x: wsDotsRow.x + (actDotItem ? actDotItem.x : 0)
+                                    width: actDotItem ? actDotItem.width : 16
+                                    height: 7 * wsModuleItem.dotSwitchPulse
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    radius: (Theme && Theme.isRounded) ? height / 2 : 1
+                                    color: Config ? Config.m3Primary : "#ffffff"
+
+                                    Behavior on x { NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.32 } }
+                                    Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                                    Behavior on color { ColorAnimation { duration: 150 } }
                                 }
                             }
 
@@ -1697,12 +1769,13 @@ ApplicationWindow {
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 16) }
                     }
 
-                    // 2. Рабочие столы (вертикальная колбаса с пробелами и плавным скольжением)
+                    // 2. Рабочие столы (вертикальная таблетка с обводкой + режим цифр или кнопочек)
                     Item {
                         id: vWsBox
                         visible: !Waybar || Waybar.isBarModuleVisible("workspaces")
+                        readonly property bool isDots: Waybar ? Waybar.workspaceDots : false
                         width: topBarContainer.pillHeight
-                        height: vWsCol.implicitHeight
+                        height: isDots ? (vWsDotsCol.implicitHeight + 16) : (vWsCol.implicitHeight + 4)
                         anchors.horizontalCenter: parent.horizontalCenter
                         property int hoveredIdx: -1
                         property int lastHoverIdx: 0
@@ -1718,58 +1791,71 @@ ApplicationWindow {
                         }
                         WheelHandler { onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
 
+                        Rectangle {
+                            z: 0
+                            anchors.fill: parent
+                            radius: vWsBox.outerR
+                            color: topBarContainer.pillColor
+                            border.width: 1
+                            border.color: (Theme && Theme.isRounded && Config)
+                                          ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.42)
+                                          : Qt.rgba(1, 1, 1, 0.26)
+                        }
+
                         Column {
-                            id: vWsCol; z: 1; anchors.centerIn: parent; spacing: vWsBox.gap
+                            id: vWsCol; z: 1; visible: !vWsBox.isDots; anchors.centerIn: parent; spacing: vWsBox.gap
                             Repeater {
                                 id: vWsRep
                                 model: Waybar ? Waybar.workspaces : []
                                 delegate: Rectangle {
                                     readonly property bool isFirst: index === 0
                                     readonly property bool isLast: index === vWsRep.count - 1
-                                    width: topBarContainer.pillHeight; height: vWsBox.btnH
-                                    topLeftRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
-                                    topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
-                                    bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
-                                    bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
-                                    color: topBarContainer.pillColor
+                                    width: topBarContainer.pillHeight - 2; height: vWsBox.btnH
+                                    topLeftRadius: isFirst ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                                    topRightRadius: isFirst ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                                    bottomLeftRadius: isLast ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                                    bottomRightRadius: isLast ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                                    color: Qt.rgba(1, 1, 1, 0.03)
                                 }
                             }
                         }
 
                         Rectangle {
                             id: vWsHoverPill; z: 2
-                            width: topBarContainer.pillHeight; height: vWsBox.btnH
+                            visible: !vWsBox.isDots
+                            width: topBarContainer.pillHeight - 2; height: vWsBox.btnH
                             anchors.horizontalCenter: parent.horizontalCenter
                             readonly property bool isFirst: vWsBox.lastHoverIdx === 0
                             readonly property bool isLast: vWsBox.lastHoverIdx === Math.max(0, vWsRep.count - 1)
-                            topLeftRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
-                            topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
-                            bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
-                            bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            topLeftRadius: isFirst ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                            topRightRadius: isFirst ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                            bottomLeftRadius: isLast ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                            bottomRightRadius: isLast ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
                             color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.20)
                             opacity: (vWsBox.hoveredIdx >= 0 && vWsBox.hoveredIdx !== vWsBox.activeIdx) ? 1.0 : 0.0
                             Behavior on opacity { NumberAnimation { duration: 140 } }
-                            y: vWsBox.lastHoverIdx * vWsBox.step
+                            y: vWsCol.y + vWsBox.lastHoverIdx * vWsBox.step
                             Behavior on y { enabled: vWsHoverPill.opacity > 0.05; NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
                         }
 
                         Rectangle {
                             id: vWsActivePill; z: 3
-                            width: topBarContainer.pillHeight; height: vWsBox.btnH
+                            visible: !vWsBox.isDots
+                            width: topBarContainer.pillHeight - 2; height: vWsBox.btnH
                             anchors.horizontalCenter: parent.horizontalCenter
                             readonly property bool isFirst: vWsBox.activeIdx === 0
                             readonly property bool isLast: vWsBox.activeIdx === Math.max(0, vWsRep.count - 1)
-                            topLeftRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
-                            topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
-                            bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
-                            bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            topLeftRadius: isFirst ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                            topRightRadius: isFirst ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                            bottomLeftRadius: isLast ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
+                            bottomRightRadius: isLast ? Math.max(0, vWsBox.outerR - 1) : vWsBox.innerR
                             color: Config ? Config.m3Primary : "#ffffff"
-                            y: vWsBox.activeIdx * vWsBox.step
-                            Behavior on y { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                            y: vWsCol.y + vWsBox.activeIdx * vWsBox.step
+                            Behavior on y { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
                         }
 
                         Column {
-                            z: 4; anchors.centerIn: parent; spacing: vWsBox.gap
+                            z: 4; visible: !vWsBox.isDots; anchors.centerIn: parent; spacing: vWsBox.gap
                             Repeater {
                                 model: Waybar ? Waybar.workspaces : []
                                 delegate: Item {
@@ -1789,6 +1875,63 @@ ApplicationWindow {
                                     }
                                 }
                             }
+                        }
+
+                        Column {
+                            id: vWsDotsCol
+                            z: 4
+                            visible: vWsBox.isDots
+                            anchors.centerIn: parent
+                            spacing: 4
+                            Repeater {
+                                id: vWsDotsRep
+                                model: Waybar ? Waybar.workspaces : []
+                                delegate: Item {
+                                    property bool act: modelData.active === true
+                                    property bool occ: (modelData.windows || 0) > 0
+                                    property bool hov: vWsDotMa.containsMouse
+                                    width: topBarContainer.pillHeight
+                                    height: act ? 16 : (hov ? 10 : 7)
+                                    Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+
+                                    Rectangle {
+                                        anchors.centerIn: parent
+                                        width: parent.act ? 7 : (parent.hov ? 7 : (parent.occ ? 6 : 5))
+                                        height: parent.height
+                                        radius: (Theme && Theme.isRounded) ? width / 2 : 1
+                                        color: parent.hov
+                                               ? Qt.rgba(1, 1, 1, 0.85)
+                                               : (parent.occ
+                                                  ? (Theme && Theme.isRounded && Config
+                                                     ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.72)
+                                                     : Qt.rgba(1, 1, 1, 0.68))
+                                                  : Qt.rgba(1, 1, 1, 0.24))
+                                    }
+
+                                    MouseArea {
+                                        id: vWsDotMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                        onEntered: { vWsBox.lastHoverIdx = index; vWsBox.hoveredIdx = index }
+                                        onExited: if (vWsBox.hoveredIdx === index) vWsBox.hoveredIdx = -1
+                                        onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                    }
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            z: 5
+                            visible: vWsBox.isDots && vWsDotsRep.count > 0
+                            readonly property Item actVItem: (vWsDotsRep.count > vWsBox.activeIdx && vWsBox.activeIdx >= 0)
+                                                             ? vWsDotsRep.itemAt(vWsBox.activeIdx)
+                                                             : null
+                            width: 7
+                            height: actVItem ? actVItem.height : 16
+                            y: vWsDotsCol.y + (actVItem ? actVItem.y : 0)
+                            anchors.horizontalCenter: parent.horizontalCenter
+                            radius: (Theme && Theme.isRounded) ? width / 2 : 1
+                            color: Config ? Config.m3Primary : "#ffffff"
+                            Behavior on y { NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.32 } }
+                            Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
                         }
                     }
 

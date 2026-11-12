@@ -800,14 +800,29 @@ def test_and_sort_whitelist(st):
     return st
 
 def detect_physical_interface():
+    routed_devs = []
+    try:
+        out = subprocess.check_output(["ip", "-4", "route", "show", "default"], text=True, stderr=subprocess.DEVNULL)
+        for line in out.splitlines():
+            parts = line.split()
+            if "dev" in parts:
+                dev = parts[parts.index("dev") + 1]
+                if not any(dev.startswith(p) for p in ("tun", "tap", "singbox", "throne", "lo", "virbr", "docker", "veth", "wg")):
+                    routed_devs.append(dev)
+    except Exception:
+        pass
     pref_path = os.path.expanduser("~/.config/hypr/scripts/preferred_net_iface.txt")
     if os.path.exists(pref_path):
         try:
             pref = open(pref_path, "r", encoding="utf-8").read().strip()
-            if pref and os.path.exists(f"/sys/class/net/{pref}"):
+            carrier_file = f"/sys/class/net/{pref}/carrier"
+            carrier_ok = os.path.exists(carrier_file) and open(carrier_file).read().strip() == "1"
+            if pref and carrier_ok and (not routed_devs or pref in routed_devs):
                 return pref
         except Exception:
             pass
+    if routed_devs:
+        return routed_devs[0]
     try:
         out = subprocess.check_output(["ip", "-4", "route", "show", "default"], text=True, stderr=subprocess.DEVNULL)
         for line in out.splitlines():

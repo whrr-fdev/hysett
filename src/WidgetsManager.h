@@ -21,6 +21,7 @@ class WidgetsManager : public QObject {
     Q_PROPERTY(bool clockShowWeekday READ clockShowWeekday WRITE setClockShowWeekday NOTIFY clockChanged)
     Q_PROPERTY(int clockSize READ clockSize WRITE setClockSize NOTIFY clockChanged)
     Q_PROPERTY(qreal clockOpacity READ clockOpacity WRITE setClockOpacity NOTIFY clockChanged)
+    Q_PROPERTY(bool clockM3Sync READ clockM3Sync WRITE setClockM3Sync NOTIFY clockChanged)
     Q_PROPERTY(bool clockRunning READ clockRunning NOTIFY clockChanged)
 
     Q_PROPERTY(bool widgetsM3Sync READ widgetsM3Sync WRITE setWidgetsM3Sync NOTIFY sysStateChanged)
@@ -87,6 +88,9 @@ public:
 
     qreal clockOpacity() const { return m_clockOpacity; }
     void setClockOpacity(qreal v);
+
+    bool clockM3Sync() const { return m_clockM3Sync; }
+    void setClockM3Sync(bool v);
 
     bool clockRunning() const { return m_clockRunning; }
 
@@ -170,6 +174,7 @@ private:
     bool m_clockShowWeekday = true;
     int m_clockSize = 64;
     qreal m_clockOpacity = 0.85;
+    bool m_clockM3Sync = true;
     void loadSysConfig();
     void saveSysConfig();
     QString findSysBinary() const;

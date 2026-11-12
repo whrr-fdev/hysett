@@ -58,7 +58,7 @@ ScrollView {
                     Text { text: "Отображение рабочих столов:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                     Item { Layout.fillWidth: true }
                     SegmentedButton {
-                        options: ["Номера (1..5)", "Овальные точки"]
+                        options: ["Номера (1..5)", "Кнопочки (точки)"]
                         selectedIndex: (Waybar && Waybar.workspaceDots) ? 1 : 0
                         onSelected: (idx) => { if (Waybar) Waybar.workspaceDots = (idx === 1) }
                     }

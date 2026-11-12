@@ -146,15 +146,16 @@ void NetworkManager::detectActiveConnection() {
 }
 
 void NetworkManager::selectInterface(const QString &iface) {
-    if (iface.trimmed().isEmpty()) return;
+    QString target = iface.trimmed();
+    if (target.isEmpty()) return;
     QDir().mkpath(QDir::homePath() + "/.config/hypr/scripts");
     QFile pf(QDir::homePath() + "/.config/hypr/scripts/preferred_net_iface.txt");
     if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        pf.write(iface.trimmed().toUtf8() + "\n");
+        pf.write(target.toUtf8() + "\n");
         pf.close();
     }
 
-    // Повышаем приоритет выбранного интерфейса в NetworkManager (metric 20 против 250 у остальных)
+    // Ставим метрику 15 выбранному интерфейсу и 25000 остальным (чтобы даже со штрафом +20000 от NM выбранный кабель/USB всегда был главным)
     QProcess pCon;
     pCon.start("nmcli", {"-t", "-f", "UUID,DEVICE", "con", "show", "--active"});
     pCon.waitForFinished(500);
@@ -164,11 +165,21 @@ void NetworkManager::selectInterface(const QString &iface) {
         if (p.size() >= 2) {
             QString uuid = p[0].trimmed();
             QString dev = p[1].trimmed();
-            if (dev == "lo" || dev.startsWith("tun") || dev.startsWith("singbox") || dev.startsWith("throne")) continue;
-            int metric = (dev == iface.trimmed()) ? 20 : 250;
+            if (dev == "lo" || dev.startsWith("tun") || dev.startsWith("singbox") || dev.startsWith("throne") || dev.startsWith("virbr")) continue;
+            int metric = (dev == target) ? 15 : 25000;
             QProcess::execute("nmcli", {"con", "modify", uuid, "ipv4.route-metric", QString::number(metric)});
-            QProcess::startDetached("nmcli", {"con", "up", uuid});
+            QProcess::execute("nmcli", {"dev", "reapply", dev});
         }
+    }
+
+    // Если запущен sing-box туннель — перезапускаем его, чтобы он перепривязался к новому физическому интерфейсу
+    QProcess pVpn;
+    pVpn.start("pgrep", {"-f", "sing-box.*singbox_vpn.json"});
+    pVpn.waitForFinished(250);
+    if (!pVpn.readAllStandardOutput().trimmed().isEmpty()) {
+        QString vpnScript = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
+        if (!QFile::exists(vpnScript)) vpnScript = QDir::homePath() + "/.config/hypr/scripts/hysett_vpn.py";
+        QProcess::startDetached("/usr/bin/python3", {vpnScript, "start"});
     }
 
     detectActiveConnection();

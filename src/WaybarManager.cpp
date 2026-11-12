@@ -285,6 +285,7 @@ void WaybarManager::connectHyprEventSocket() {
 }
 
 static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive);
+static qint64 s_ignoreWinEventsUntilMs = 0;
 
 void WaybarManager::onHyprEventReady() {
     char buf[4096];
@@ -301,10 +302,14 @@ void WaybarManager::onHyprEventReady() {
             }
         }
     }
+    const qint64 nowMs = QDateTime::currentMSecsSinceEpoch();
+    if (ev.contains("closewindow>>")) {
+        s_ignoreWinEventsUntilMs = std::max(s_ignoreWinEventsUntilMs, nowMs + 600);
+    }
     if (ev.contains("workspace>>") || ev.contains("openwindow>>")) {
         applyShellKbInteractivity(nullptr, false);
         emit closeDrawerRequested();
-    } else if (ev.contains("activewindow>>")) {
+    } else if (ev.contains("activewindow>>") && !ev.contains("closewindow>>") && nowMs >= s_ignoreWinEventsUntilMs) {
         for (const QString &l : ev.split('\n', Qt::SkipEmptyParts)) {
             if (l.startsWith("activewindow>>")) {
                 QString winfo = l.mid(14).trimmed();
@@ -727,6 +732,7 @@ void WaybarManager::refreshProcesses() {
 
 void WaybarManager::killProcess(int pid) {
     if (pid > 1) {
+        s_ignoreWinEventsUntilMs = QDateTime::currentMSecsSinceEpoch() + 1200;
         ::kill(pid, SIGTERM);
         QTimer::singleShot(250, this, &WaybarManager::refreshProcesses);
     }

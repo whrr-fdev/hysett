@@ -245,5 +245,24 @@
   - На остальных вкладках пружинят само окно (`drawerInner`), активная страница и боковая панель навигации (`Sidebar.qml`).
 - В `GlassPanel.qml` и `StyledButton.qml` шейдеры жидкого стекла обернуты в ленивый `Loader`, а в `Main.qml` отключены холостые 160-FPS таймеры при выключенных эффектах свечения.
 
+## Выполнено в Шаге 27 (Пружинящая сцена Приветствия, Кнопочки рабочих столов, Уведомления, Виджет часов и Авто-VPN)
+- Экран приветствия (`WelcomeView.qml` + `Main.qml`):
+  - Введена неподвижная координатная сцена `1640px` (`stageFixedW`) по центру экрана без встречного изменения ширины родительского контейнера: при разворачивании/сворачивании на весь экран все 27 карточек (включая 1-й ряд и 1-ю колонку) и элементы шапки/поиска перелетают по чистой траектории `Easing.OutBack`.
+  - Отключена преждевременная обрезка (`clip`) `WelcomeView` при выходе из полноэкранного режима.
+- Вкладка «Обои» (`WallpapersView.qml`):
+  - Исправлено обрезание названий категорий в полноэкранном режиме (обнулены внутренние `padding` у `Button` и добавлен замер жирного шрифта через `TextMetrics`).
+  - Добавлена плавно скользящая рамка-плашка наведения (`wallHoverPill`, `horizWallHoverPill`, `presetHoverPill`) для миниатюр обоев и списка пресетов (как в боковом меню и категориях) без разбегания соседних элементов.
+- Рабочие столы и уведомления (`Main.qml`, `WaybarManager.{h,cpp}`, `WaybarSettingsView.qml`, `MakoManager.cpp`, `merged_shell.frag`):
+  - Делегаты рабочих столов переведены на `model: Waybar.workspaces.length` (не пересоздаются при смене стола): в режиме «Кнопочки (точки)» точки плавно растягиваются на месте (`5px -> 9px`) внутри единой таблетки без рамки, добавлен ползунок размера точек (`workspaceDotSize`, `3..12px`).
+  - Исправлено мгновенное обновление числа видимых уведомлений на экране (`emit popupChanged()` в `setMaxVisible`), добавлена собственная подложка уведомлений (`z: 15`) поверх открытого окна настроек и исправлено перекрытие первого уведомления широкой панелью задач.
+- Ползунки и диалоговый блюр (`StyledSlider.qml`, `dialog_blur.frag`, `Main.qml`, `VpnView.qml`):
+  - Волна `StyledSlider.qml` переведена на сглаживание кривыми Безье `quadraticCurveTo` с гладкой Эрмитовой огибающей `u²(3-2u)` на краях без острых углов.
+  - Исправлено пропадание фона и артефакты «крестиков» при открытии модальных окон: добавлена явная привязка `property var source: scaledRoot` в `layer.effect` на полном разрешении 1:1 с 64-точечным диском Фогеля.
+- Виджеты, Монитор и VPN (`WidgetsManager.{h,cpp}`, `WidgetsSettingsView.qml`, `sync_m3_windows.py`, `NetworkManager.cpp`, `WaybarManager.cpp`, `hysett_vpn.py`, `update-bypass-lists.sh`):
+  - Добавлен отдельный переключатель цветов темы (`clockM3Sync`) для виджета часов рабочего стола (`clock_overlay`).
+  - Исправлено закрытие окна настроек при завершении процесса во вкладке «Монитор» (`s_ignoreWinEventsUntilMs`).
+  - Исправлено сохранение настроек журнала логов VPN в `waybar.conf`.
+  - Добавлена авто-пауза `sing-box` при пропаже интернета и автоматическое переподключение туннеля при новой раздаче по USB/кабелю (отслеживание `ifindex` и `carrier_changes`), быстрый UDP DNS без 2-минутных зависаний и 4 новых репозитория с ключами БС (`zieng2/wl`, `all_subs`, `VOID-Anonymity`, `goida-vpn-configs`).
+
 ## Команда быстрого восстановления главного бэкапа
 `cd ~/hysett && cp -rf ~/.cache/hysett_final_backup/src ~/.cache/hysett_final_backup/qml ~/.cache/hysett_final_backup/scripts ~/.cache/hysett_final_backup/CMakeLists.txt ~/.cache/hysett_final_backup/README.md ~/.cache/hysett_final_backup/CONTEXT_PROGRESS.md ~/hysett/ && cp -f ~/.cache/hysett_final_backup/hyprland.lua ~/.config/hypr/hyprland.lua && cp -f ~/.cache/hysett_final_backup/sync_m3_windows.py ~/.config/hypr/scripts/sync_m3_windows.py && cmake --build build -j$(nproc) && pkill -x hysett; nohup ./build/hysett --daemon >/dev/null 2>&1 &`

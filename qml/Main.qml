@@ -2619,10 +2619,9 @@ ApplicationWindow {
                     clip: pageController.inTransition || pageController.currentIndex !== 0
                     layer.enabled: root.anyModalActive && Config && Config.dialogBlur > 0.01
                     layer.smooth: true
-                    layer.textureSize: root.anyModalActive ? Qt.size(Math.max(1, Math.round(scaledRoot.width * 0.5)), Math.max(1, Math.round(scaledRoot.height * 0.5))) : Qt.size(0, 0)
                     layer.effect: ShaderEffect {
-                        property var source
-                        property vector2d u_resolution: Qt.vector2d(Math.max(1, scaledRoot.width * 0.5), Math.max(1, scaledRoot.height * 0.5))
+                        property var source: scaledRoot
+                        property vector2d u_resolution: Qt.vector2d(Math.max(1, scaledRoot.width), Math.max(1, scaledRoot.height))
                         property real u_blur: Config ? Config.dialogBlur : 0.65
                         fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
                     }
@@ -3022,7 +3021,7 @@ ApplicationWindow {
                             layer.enabled: pageController.inTransition && vortexProgress > 0.001
                             layer.smooth: true
                             layer.effect: ShaderEffect {
-                                property var source
+                                property var source: pageLoader
                                 property vector2d u_resolution: Qt.vector2d(pageLoader.width, pageLoader.height)
                                 property real u_progress: pageLoader.vortexProgress
                                 property real u_direction: pageLoader.vortexDir

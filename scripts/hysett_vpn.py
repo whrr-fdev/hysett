@@ -35,9 +35,27 @@ WHITELIST_SOURCES = [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt",
         "vpn-configs/white_sni_ru.txt",
-        "vpn-configs/whitelist_cidr1_ru.txt"
+        "vpn-configs/whitelist_cidr1_ru.txt",
+        "wl/vless_lite.txt",
+        "wl/hysett_wl.txt",
+        "all_subs/hysett_wl.txt",
+        "V.O.I.D-VPN_Bypass/hysett_wl.txt"
     ]),
     ("my_wl_subs", "󰌘 Мои подписки БС", []),
+    ("zieng2_wl", "󰄜 zieng2 Mobile БС", [
+        "wl/vless_lite.txt",
+        "wl/vless.txt",
+        "wl/hysett_wl.txt"
+    ]),
+    ("all_subs_wl", "󰒃 all_subs БС РФ", [
+        "all_subs/hysett_wl.txt"
+    ]),
+    ("void_wl", "󰞀 VOID Bypass БС", [
+        "V.O.I.D-VPN_Bypass/hysett_wl.txt"
+    ]),
+    ("goida_wl", "󰦝 Goida VLESS РФ", [
+        "goida-vpn-configs/hysett_wl.txt"
+    ]),
     ("igareck_mobile", "󰄜 igareck Mobile", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt"
     ]),
@@ -1141,10 +1159,16 @@ def start_vpn():
         subprocess.Popen([sb_bin, "run", "-c", SB_CONF], stdout=open("/tmp/singbox_vpn.log", "w"), stderr=subprocess.STDOUT)
         if wait_port(2080, 3.5):
             set_desktop_proxy(not use_tun)
-            if not st.get("whitelist_mode", False):
-                loc = detect_live_location()
-                if loc:
-                    st["server_name"] = loc
+            loc = detect_live_location()
+            if loc:
+                st["server_name"] = loc
+                if st.get("whitelist_mode", False):
+                    try:
+                        with open("/tmp/singbox_vpn.log", "a", encoding="utf-8") as lf:
+                            lf.write(f"[БС] ✓ Туннель активен, реальный выходной узел: {loc}\n")
+                    except Exception:
+                        pass
+                else:
                     st["sub_server_name"] = loc
                     idx = st.get("sub_selected_index", 0)
                     if 0 <= idx < len(st.get("sub_servers", [])):
@@ -1445,5 +1469,9 @@ if __name__ == "__main__":
     elif cmd == "start":
         start_vpn()
         dump_status_json()
+    elif cmd == "pause":
+        stop_vpn(save_disabled=False)
+    elif cmd == "pause":
+        stop_vpn(save_disabled=False)
     elif cmd == "stop":
         stop_vpn(save_disabled=True)

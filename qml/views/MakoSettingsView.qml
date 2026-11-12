@@ -372,7 +372,7 @@ Item {
                             property int unreadNewCount: 0
                             property real savedScrollY: 0
                             property bool preserveScrollNext: false
-                            readonly property bool isScrolledDown: (contentY - originY) > 18
+                            readonly property bool isScrolledDown: (contentY - originY) > 8
 
                             property Item hoveredCard: null
                             property Item lastHoveredCard: null
@@ -404,7 +404,7 @@ Item {
                             function syncFromMako(forceTop) {
                                 var src = Mako ? Mako.history : []
                                 if (src.length === 0) {
-                                    displayedHistory = []
+                                    if (displayedHistory.length > 0) displayedHistory = []
                                     unreadNewCount = 0
                                     lastTopId = -1
                                     lastHistCount = 0
@@ -413,7 +413,6 @@ Item {
                                 if (preserveScrollNext) {
                                     preserveScrollNext = false
                                     var keepY = savedScrollY
-                                    // Оставляем только те элементы, которые уже были показаны пользователю (без новых непрочитанных сверху)
                                     if (unreadNewCount > 0 && displayedHistory.length > 0) {
                                         var topShownId = displayedHistory[0].id
                                         var startIdx = 0
@@ -430,17 +429,22 @@ Item {
                                     })
                                     return
                                 }
+                                // Если список прокручен вниз — НИКОГДА не трогаем displayedHistory (даже когда newCnt == 0 при появлении попапа!), чтобы ListView не сбрасывал contentY
                                 if (!forceTop && histListView.isScrolledDown && displayedHistory.length > 0) {
                                     var curTopShownId = displayedHistory[0].id
                                     var newCnt = 0
                                     for (var i = 0; i < src.length; ++i) {
                                         if (src[i].id === curTopShownId) break
-                                        newCnt++
+                                        if (src[i].id > curTopShownId) newCnt++
                                     }
-                                    if (newCnt > 0) {
-                                        unreadNewCount = newCnt
-                                        return
-                                    }
+                                    unreadNewCount = newCnt
+                                    return
+                                }
+                                // Если мы наверху, но сама история Mako.history не изменилась (popupChanged сработал только на открытие попапа) — ничего не пересоздаем
+                                if (!forceTop && unreadNewCount === 0 && displayedHistory.length === src.length &&
+                                    displayedHistory.length > 0 && displayedHistory[0].id === src[0].id &&
+                                    displayedHistory[displayedHistory.length - 1].id === src[src.length - 1].id) {
+                                    return
                                 }
                                 unreadNewCount = 0
                                 displayedHistory = src.slice(0)

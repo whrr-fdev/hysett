@@ -730,8 +730,18 @@ ScrollView {
                                             model: Waybar ? Waybar.vpnSubGroups : []
                                             delegate: Item {
                                                 id: oneSubTabBtn
-                                                width: oneSubTabTxt.implicitWidth + 24; height: 28
+                                                width: oneSubContentRow.implicitWidth + 24; height: 28
                                                 property bool isSel: vpnScroll.activeSubTab === (index + 1)
+                                                readonly property var splitParts: {
+                                                    var st = (modelData.title || "").trim()
+                                                    if (!st) return { icon: "", label: "" }
+                                                    var cp = st.codePointAt(0)
+                                                    if (cp >= 0xE000) {
+                                                        var chLen = cp > 0xFFFF ? 2 : 1
+                                                        return { icon: st.slice(0, chLen), label: st.slice(chLen).trim() }
+                                                    }
+                                                    return { icon: "", label: st }
+                                                }
                                                 onIsSelChanged: if (isSel) subTabBar.activeItem = oneSubTabBtn
                                                 Component.onCompleted: if (isSel) subTabBar.activeItem = oneSubTabBtn
 
@@ -749,14 +759,33 @@ ScrollView {
                                                     Behavior on color { ColorAnimation { duration: 130 } }
                                                 }
 
-                                                Text {
-                                                    id: oneSubTabTxt; anchors.centerIn: parent
-                                                    text: modelData.title + " • " + modelData.count
-                                                    font.pixelSize: Config.fontSize - 1; font.bold: parent.isSel
-                                                    color: parent.isSel
-                                                           ? (Config ? Config.accentTextColor : "#000000")
-                                                           : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
-                                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                                Row {
+                                                    id: oneSubContentRow
+                                                    anchors.centerIn: parent
+                                                    spacing: oneSubTabBtn.splitParts.icon.length > 0 ? 7 : 0
+
+                                                    Item {
+                                                        visible: oneSubTabBtn.splitParts.icon.length > 0
+                                                        width: 15; height: 16
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: oneSubTabBtn.splitParts.icon
+                                                            font.pixelSize: Config.fontSize
+                                                            color: oneSubTabTxt.color
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        id: oneSubTabTxt
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        text: oneSubTabBtn.splitParts.label + " • " + modelData.count
+                                                        font.pixelSize: Config.fontSize - 1; font.bold: oneSubTabBtn.isSel
+                                                        color: oneSubTabBtn.isSel
+                                                               ? (Config ? Config.accentTextColor : "#000000")
+                                                               : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
+                                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                                    }
                                                 }
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -977,14 +1006,7 @@ ScrollView {
                                             if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
                                                 return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
                                             }
-                                            var own = [];
-                                            for (var i = 0; i < Waybar.vpnSubGroups.length; ++i) {
-                                                var g = Waybar.vpnSubGroups[i];
-                                                if (!g.is_public_bl && g.servers) {
-                                                    for (var j = 0; j < g.servers.length; ++j) own.push(g.servers[j]);
-                                                }
-                                            }
-                                            return own.length > 0 ? own : Waybar.vpnSubServerItems;
+                                            return Waybar.vpnSubServerItems;
                                         }
 
                                         delegate: Rectangle {

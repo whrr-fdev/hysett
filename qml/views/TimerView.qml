@@ -15,99 +15,68 @@ Item {
     onSubTabChanged: {
         if (winObj && winObj.timeSubTab !== subTab) winObj.timeSubTab = subTab
         if (subTab !== 2) kbEditActive = false
-        requestAllCanvases()
+        paintActiveCanvas()
     }
 
-    Connections {
-        target: winObj
-        function onTimeSubTabChanged() {
-            if (winObj && timeRoot.subTab !== winObj.timeSubTab)
-                timeRoot.subTab = winObj.timeSubTab
-        }
-        function onTimerRemainingMsChanged() { timerArcCanvas.requestPaint() }
-        function onTimerTotalMsChanged() {
-            if (!timeRoot.syncingTumblers && (!winObj || !winObj.timerActive)) {
-                timeRoot.loadTumblersFromMs(winObj ? winObj.timerTotalMs : 300000)
-            }
-            timerArcCanvas.requestPaint()
-        }
-        function onTimerRunningChanged() { timerArcCanvas.requestPaint() }
-        function onTimerActiveChanged() {
-            if (winObj && !winObj.timerActive) {
-                timeRoot.loadTumblersFromMs(winObj.timerTotalMs)
-            }
-            timerArcCanvas.requestPaint()
-        }
-        function onStopwatchElapsedMsChanged() { swArcCanvas.requestPaint() }
-        function onStopwatchRunningChanged() { swArcCanvas.requestPaint() }
-    }
+    // Легковесное состояние текущего времени (обновляется раз в секунду)
+    property int curHours: 0
+    property int curMinutes: 0
+    property int curSeconds: 0
+    property string curTimeText: "00:00:00"
+    property string curDateText: ""
+    property int todayDay: 1
+    property int todayMonth: 0
+    property int todayYear: 2026
 
-    Connections {
-        target: Config
-        function onM3PrimaryChanged() { timeRoot.requestAllCanvases() }
-        function onM3SecondaryContainerChanged() { timeRoot.requestAllCanvases() }
-        function onAccentColorChanged() { timeRoot.requestAllCanvases() }
-    }
-
-    Connections {
-        target: Theme
-        function onIsRoundedChanged() { timeRoot.requestAllCanvases() }
-    }
-
-    function requestAllCanvases() {
-        clockDialCanvas.requestPaint()
-        timerArcCanvas.requestPaint()
-        swArcCanvas.requestPaint()
-    }
-
-    // Состояние часов и календаря
-    property var nowDate: new Date()
     property bool clock24h: true
     property bool clockShowSec: true
     property int calYear: new Date().getFullYear()
     property int calMonth: new Date().getMonth()
     property int selectedCalDay: new Date().getDate()
 
-    Timer {
-        interval: 250
-        running: timeRoot.visible && (timeRoot.subTab === 0 || timeRoot.subTab === 1)
-        repeat: true
-        onTriggered: {
-            timeRoot.nowDate = new Date()
-            if (timeRoot.subTab === 0) clockDialCanvas.requestPaint()
-        }
-    }
-
-    // Состояние телефонного барабана и клавиатурного ввода таймера
-    property bool syncingTumblers: false
+    // Параметры барабана таймера (ЧЧ : ММ : СС) без тяжелого Tumbler
+    property int drumHours: 0
+    property int drumMins: 5
+    property int drumSecs: 0
     property bool kbEditActive: false
 
-    function loadTumblersFromMs(ms) {
-        syncingTumblers = true
-        var totSec = Math.max(0, Math.round(ms / 1000))
-        var h = Math.min(23, Math.floor(totSec / 3600))
-        var m = Math.floor((totSec % 3600) / 60)
-        var s = totSec % 60
-        if (hoursTumbler.currentIndex !== h) hoursTumbler.currentIndex = h
-        if (minsTumbler.currentIndex !== m) minsTumbler.currentIndex = m
-        if (secsTumbler.currentIndex !== s) secsTumbler.currentIndex = s
-        kbHoursInput.text = String(h).padStart(2, '0')
-        kbMinsInput.text = String(m).padStart(2, '0')
-        kbSecsInput.text = String(s).padStart(2, '0')
-        syncingTumblers = false
+    function updateClockState() {
+        var d = new Date()
+        curHours = d.getHours()
+        curMinutes = d.getMinutes()
+        curSeconds = d.getSeconds()
+        todayDay = d.getDate()
+        todayMonth = d.getMonth()
+        todayYear = d.getFullYear()
+        var fmt = clock24h
+                  ? (clockShowSec ? "HH:mm:ss" : "HH:mm")
+                  : (clockShowSec ? "hh:mm:ss AP" : "hh:mm AP")
+        curTimeText = Qt.formatDateTime(d, fmt)
+        curDateText = Qt.formatDateTime(d, "dddd, d MMMM yyyy")
+        if (timeRoot.visible && timeRoot.subTab === 0) clockDialCanvas.requestPaint()
     }
 
-    function applyTumblerToTimer() {
-        if (syncingTumblers || !winObj || winObj.timerActive) return
-        var h = hoursTumbler.currentIndex
-        var m = minsTumbler.currentIndex
-        var s = secsTumbler.currentIndex
-        var ms = (h * 3600 + m * 60 + s) * 1000
+    function syncDrumsFromMs(ms) {
+        var totSec = Math.max(0, Math.round(ms / 1000))
+        drumHours = Math.min(23, Math.floor(totSec / 3600))
+        drumMins = Math.floor((totSec % 3600) / 60)
+        drumSecs = totSec % 60
+        kbHoursInput.text = String(drumHours).padStart(2, '0')
+        kbMinsInput.text = String(drumMins).padStart(2, '0')
+        kbSecsInput.text = String(drumSecs).padStart(2, '0')
+    }
+
+    function commitDrumsToTimer() {
+        if (!winObj || winObj.timerActive) return
+        var ms = (drumHours * 3600 + drumMins * 60 + drumSecs) * 1000
         if (ms < 1000) {
-            secsTumbler.currentIndex = 5
+            drumSecs = 5
             ms = 5000
         }
         winObj.setTimerPreset(ms)
+        kbHoursInput.text = String(drumHours).padStart(2, '0')
+        kbMinsInput.text = String(drumMins).padStart(2, '0')
+        kbSecsInput.text = String(drumSecs).padStart(2, '0')
     }
 
     function applyKeyboardInputToTimer() {
@@ -117,18 +86,179 @@ Item {
         var s = Math.max(0, Math.min(59, parseInt(kbSecsInput.text) || 0))
         var ms = Math.max(1000, (h * 3600 + m * 60 + s) * 1000)
         winObj.setTimerPreset(ms)
-        loadTumblersFromMs(ms)
+        syncDrumsFromMs(ms)
         kbEditActive = false
     }
 
-    Component.onCompleted: {
-        loadTumblersFromMs(winObj ? winObj.timerTotalMs : 300000)
-        Qt.callLater(requestAllCanvases)
+    function paintActiveCanvas() {
+        if (!timeRoot.visible) return
+        if (subTab === 0) clockDialCanvas.requestPaint()
+        else if (subTab === 2) timerArcCanvas.requestPaint()
+        else if (subTab === 3) swArcCanvas.requestPaint()
     }
+
+    Connections {
+        target: winObj
+        function onTimeSubTabChanged() {
+            if (winObj && timeRoot.subTab !== winObj.timeSubTab)
+                timeRoot.subTab = winObj.timeSubTab
+        }
+        function onTimerRemainingMsChanged() {
+            if (timeRoot.visible && timeRoot.subTab === 2) timerArcCanvas.requestPaint()
+        }
+        function onTimerTotalMsChanged() {
+            if (!winObj || !winObj.timerActive) timeRoot.syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
+            if (timeRoot.visible && timeRoot.subTab === 2) timerArcCanvas.requestPaint()
+        }
+        function onTimerRunningChanged() {
+            if (timeRoot.visible && timeRoot.subTab === 2) timerArcCanvas.requestPaint()
+        }
+        function onTimerActiveChanged() {
+            if (winObj && !winObj.timerActive) timeRoot.syncDrumsFromMs(winObj.timerTotalMs)
+            if (timeRoot.visible && timeRoot.subTab === 2) timerArcCanvas.requestPaint()
+        }
+        function onStopwatchElapsedMsChanged() {
+            if (timeRoot.visible && timeRoot.subTab === 3) swArcCanvas.requestPaint()
+        }
+        function onStopwatchRunningChanged() {
+            if (timeRoot.visible && timeRoot.subTab === 3) swArcCanvas.requestPaint()
+        }
+    }
+
+    Connections {
+        target: Config
+        function onM3PrimaryChanged() { timeRoot.paintActiveCanvas() }
+        function onM3SecondaryContainerChanged() { timeRoot.paintActiveCanvas() }
+        function onAccentColorChanged() { timeRoot.paintActiveCanvas() }
+    }
+
+    Connections {
+        target: Theme
+        function onIsRoundedChanged() { timeRoot.paintActiveCanvas() }
+    }
+
+    Timer {
+        interval: 1000
+        running: timeRoot.visible && timeRoot.subTab === 0
+        repeat: true
+        onTriggered: timeRoot.updateClockState()
+    }
+
+    Component.onCompleted: {
+        updateClockState()
+        syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
+    }
+
     onVisibleChanged: if (visible) {
-        nowDate = new Date()
-        if (!winObj || !winObj.timerActive) loadTumblersFromMs(winObj ? winObj.timerTotalMs : 300000)
-        requestAllCanvases()
+        updateClockState()
+        if (!winObj || !winObj.timerActive) syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
+        paintActiveCanvas()
+    }
+
+    // =========================================================================
+    // ЛЕГКОВЕСНЫЙ КОМПОНЕНТ ТЕЛЕФОННОГО БАРАБАНА (КОЛЕСИКО + СВАЙП МЫШЬЮ)
+    // =========================================================================
+    component PhoneDrumWheel: Item {
+        id: drumCol
+        property int value: 0
+        property int maxVal: 60
+        property string suffix: "м"
+        property bool wheelEnabled: true
+        signal valueEdited(int newVal)
+
+        property real slideOffset: 0
+        NumberAnimation on slideOffset {
+            id: rollAnim
+            to: 0
+            duration: 130
+            easing.type: Easing.OutCubic
+        }
+
+        function stepBy(delta) {
+            if (!wheelEnabled) return
+            slideOffset = delta > 0 ? 14 : -14
+            rollAnim.restart()
+            value = (value + delta + maxVal * 10) % maxVal
+            valueEdited(value)
+        }
+
+        Column {
+            anchors.centerIn: parent
+            anchors.verticalCenterOffset: drumCol.slideOffset
+            spacing: 8
+
+            Text {
+                width: drumCol.width
+                horizontalAlignment: Text.AlignHCenter
+                text: String((drumCol.value + drumCol.maxVal - 1) % drumCol.maxVal).padStart(2, '0') + " " + drumCol.suffix
+                color: "#777777"
+                font.pixelSize: 14
+                font.family: "monospace"
+                opacity: 0.45
+            }
+
+            Text {
+                width: drumCol.width
+                horizontalAlignment: Text.AlignHCenter
+                text: String(drumCol.value).padStart(2, '0') + " " + drumCol.suffix
+                color: Config ? Config.m3Primary : "#ffffff"
+                font.pixelSize: 21
+                font.bold: true
+                font.family: "monospace"
+            }
+
+            Text {
+                width: drumCol.width
+                horizontalAlignment: Text.AlignHCenter
+                text: String((drumCol.value + 1) % drumCol.maxVal).padStart(2, '0') + " " + drumCol.suffix
+                color: "#777777"
+                font.pixelSize: 14
+                font.family: "monospace"
+                opacity: 0.45
+            }
+        }
+
+        WheelHandler {
+            enabled: drumCol.wheelEnabled
+            onWheel: (e) => {
+                if (e.angleDelta.y < 0) drumCol.stepBy(1)
+                else if (e.angleDelta.y > 0) drumCol.stepBy(-1)
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            enabled: drumCol.wheelEnabled
+            cursorShape: Qt.SizeVerCursor
+            property real startY: 0
+            property real accumY: 0
+            property bool dragged: false
+
+            onPressed: (mouse) => {
+                startY = mouse.y
+                accumY = mouse.y
+                dragged = false
+            }
+            onPositionChanged: (mouse) => {
+                var dy = mouse.y - accumY
+                if (Math.abs(dy) >= 18) {
+                    var steps = Math.trunc(dy / 18)
+                    drumCol.stepBy(-steps)
+                    accumY += steps * 18
+                    dragged = true
+                }
+            }
+            onClicked: (mouse) => {
+                if (dragged) return
+                if (mouse.y < height * 0.35) drumCol.stepBy(-1)
+                else if (mouse.y > height * 0.65) drumCol.stepBy(1)
+                else {
+                    timeRoot.kbEditActive = true
+                    kbMinsInput.forceActiveFocus()
+                    kbMinsInput.selectAll()
+                }
+            }
+        }
     }
 
     RowLayout {
@@ -136,7 +266,7 @@ Item {
         spacing: 0
 
         // =====================================================================
-        // ЛЕВАЯ БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ ВРЕМЕНИ (КАК В НАСТРОЙКАХ И ВИДЖЕТАХ)
+        // ЛЕВАЯ БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ ВРЕМЕНИ
         // =====================================================================
         Rectangle {
             id: subSidebar
@@ -197,7 +327,7 @@ Item {
                 spacing: 4
 
                 Text {
-                    text: Config ? (Config.language, Config.trAuto("󱑂  Время и Даты")) : "󱑂  Время и Даты"
+                    text: "󱑂  Время и Даты"
                     color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
                     font.pixelSize: Config.fontSize + 1
                     font.bold: true
@@ -216,168 +346,110 @@ Item {
                 }
 
                 Item {
-                    id: tCard0
-                    Layout.fillWidth: true
-                    implicitHeight: 32
+                    id: tCard0; Layout.fillWidth: true; implicitHeight: 32
                     MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onPressed: timeRoot.subTab = 0
                         onEntered: { subSidebar.lastHoveredCardObj = tCard0; subSidebar.hoveredCardObj = tCard0 }
                         onExited: if (subSidebar.hoveredCardObj === tCard0) subSidebar.hoveredCardObj = null
                     }
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 8
-                        spacing: 8
+                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
                         Text {
-                            text: "󱑂  " + (Config ? (Config.language, Config.trAuto("Часы")) : "Часы")
-                            color: timeRoot.subTab === 0
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : (subSidebar.hoveredCardObj === tCard0 ? "#ffffff" : "#bbbbbb")
-                            font.pixelSize: Config.fontSize
-                            font.bold: timeRoot.subTab === 0
-                            Layout.fillWidth: true
+                            text: "󱑂  Часы"
+                            color: timeRoot.subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard0 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 0; Layout.fillWidth: true
                         }
                     }
                 }
 
                 Item {
-                    id: tCard1
-                    Layout.fillWidth: true
-                    implicitHeight: 32
+                    id: tCard1; Layout.fillWidth: true; implicitHeight: 32
                     MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onPressed: timeRoot.subTab = 1
                         onEntered: { subSidebar.lastHoveredCardObj = tCard1; subSidebar.hoveredCardObj = tCard1 }
                         onExited: if (subSidebar.hoveredCardObj === tCard1) subSidebar.hoveredCardObj = null
                     }
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 8
-                        spacing: 8
+                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
                         Text {
-                            text: "  " + (Config ? (Config.language, Config.trAuto("Календарь")) : "Календарь")
-                            color: timeRoot.subTab === 1
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : (subSidebar.hoveredCardObj === tCard1 ? "#ffffff" : "#bbbbbb")
-                            font.pixelSize: Config.fontSize
-                            font.bold: timeRoot.subTab === 1
-                            Layout.fillWidth: true
+                            text: "  Календарь"
+                            color: timeRoot.subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard1 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 1; Layout.fillWidth: true
                         }
                     }
                 }
 
                 Item {
-                    id: tCard2
-                    Layout.fillWidth: true
-                    implicitHeight: 32
+                    id: tCard2; Layout.fillWidth: true; implicitHeight: 32
                     MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onPressed: timeRoot.subTab = 2
                         onEntered: { subSidebar.lastHoveredCardObj = tCard2; subSidebar.hoveredCardObj = tCard2 }
                         onExited: if (subSidebar.hoveredCardObj === tCard2) subSidebar.hoveredCardObj = null
                     }
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 8
-                        spacing: 6
+                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 6
                         Text {
-                            text: "󰔛  " + (Config ? (Config.language, Config.trAuto("Таймер")) : "Таймер")
-                            color: timeRoot.subTab === 2
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : (subSidebar.hoveredCardObj === tCard2 ? "#ffffff" : "#bbbbbb")
-                            font.pixelSize: Config.fontSize
-                            font.bold: timeRoot.subTab === 2
-                            Layout.fillWidth: true
+                            text: "󰔛  Таймер"
+                            color: timeRoot.subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard2 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 2; Layout.fillWidth: true
                         }
                         Rectangle {
                             visible: winObj && winObj.timerActive
                             width: 7; height: 7; radius: 3.5
-                            color: timeRoot.subTab === 2
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : ((winObj && winObj.timerRunning) ? "#69f0ae" : "#ffd54f")
+                            color: timeRoot.subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : ((winObj && winObj.timerRunning) ? "#69f0ae" : "#ffd54f")
                         }
                     }
                 }
 
                 Item {
-                    id: tCard3
-                    Layout.fillWidth: true
-                    implicitHeight: 32
+                    id: tCard3; Layout.fillWidth: true; implicitHeight: 32
                     MouseArea {
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
+                        anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                         onPressed: timeRoot.subTab = 3
                         onEntered: { subSidebar.lastHoveredCardObj = tCard3; subSidebar.hoveredCardObj = tCard3 }
                         onExited: if (subSidebar.hoveredCardObj === tCard3) subSidebar.hoveredCardObj = null
                     }
                     RowLayout {
-                        anchors.fill: parent
-                        anchors.leftMargin: 10
-                        anchors.rightMargin: 8
-                        spacing: 6
+                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 6
                         Text {
-                            text: "󱎫  " + (Config ? (Config.language, Config.trAuto("Секундомер")) : "Секундомер")
-                            color: timeRoot.subTab === 3
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : (subSidebar.hoveredCardObj === tCard3 ? "#ffffff" : "#bbbbbb")
-                            font.pixelSize: Config.fontSize
-                            font.bold: timeRoot.subTab === 3
-                            Layout.fillWidth: true
+                            text: "󱎫  Секундомер"
+                            color: timeRoot.subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard3 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 3; Layout.fillWidth: true
                         }
                         Rectangle {
                             visible: winObj && winObj.stopwatchActive
                             width: 7; height: 7; radius: 3.5
-                            color: timeRoot.subTab === 3
-                                   ? (Config ? Config.accentTextColor : "#000000")
-                                   : ((winObj && winObj.stopwatchRunning) ? "#69f0ae" : "#ffd54f")
+                            color: timeRoot.subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : ((winObj && winObj.stopwatchRunning) ? "#69f0ae" : "#ffd54f")
                         }
                     }
                 }
 
                 Item { Layout.fillHeight: true }
 
-                // Мини-сводка активного таймера/секундомера внизу панели
                 GlassPanel {
                     visible: winObj && (winObj.timerActive || winObj.stopwatchActive)
                     Layout.fillWidth: true
                     implicitHeight: miniStatusCol.implicitHeight + 16
                     ColumnLayout {
                         id: miniStatusCol
-                        anchors.fill: parent
-                        anchors.margins: 8
-                        spacing: 4
+                        anchors.fill: parent; anchors.margins: 8; spacing: 4
                         Text {
                             text: "󰄬 На панели задач"
                             color: Config ? Config.m3Primary : "#69f0ae"
-                            font.pixelSize: Config.fontSize - 2
-                            font.bold: true
+                            font.pixelSize: Config.fontSize - 2; font.bold: true
                         }
                         Text {
                             visible: winObj && winObj.timerActive
                             text: "󰔛 " + (winObj ? winObj.timerBarText : "00:00")
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize - 1
-                            font.family: "monospace"
-                            font.bold: true
+                            color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.family: "monospace"; font.bold: true
                         }
                         Text {
                             visible: winObj && winObj.stopwatchActive
                             text: "󱎫 " + (winObj ? winObj.stopwatchBarText : "00:00.0")
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize - 1
-                            font.family: "monospace"
-                            font.bold: true
+                            color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.family: "monospace"; font.bold: true
                         }
                     }
                 }
@@ -385,7 +457,7 @@ Item {
         }
 
         // =====================================================================
-        // ПРАВАЯ ОБЛАСТЬ СОДЕРЖИМОГО (4 ЭКРАНА)
+        // ПРАВАЯ ОБЛАСТЬ СОДЕРЖИМОГО (4 РАЗДЕЛА)
         // =====================================================================
         StackLayout {
             Layout.fillWidth: true
@@ -393,7 +465,7 @@ Item {
             currentIndex: timeRoot.subTab
 
             // -----------------------------------------------------------------
-            // ЭКРАН 0: ЧАСЫ (КРУГОВОЙ ЦИФЕРБЛАТ С ПРОГРЕССОМ + МИРОВОЕ ВРЕМЯ)
+            // ЭКРАН 0: ЧАСЫ
             // -----------------------------------------------------------------
             Item {
                 ColumnLayout {
@@ -415,7 +487,7 @@ Item {
                             Layout.preferredWidth: 170
                             options: ["24 часа", "12 часов"]
                             selectedIndex: timeRoot.clock24h ? 0 : 1
-                            onSelected: (idx) => { timeRoot.clock24h = (idx === 0); clockDialCanvas.requestPaint() }
+                            onSelected: (idx) => { timeRoot.clock24h = (idx === 0); timeRoot.updateClockState() }
                         }
                     }
 
@@ -424,7 +496,6 @@ Item {
                         Layout.fillHeight: true
                         spacing: 14
 
-                        // Левая карточка: Круговой циферблат с прогрессом секунд и минут
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -443,10 +514,9 @@ Item {
                                     Canvas {
                                         id: clockDialCanvas
                                         anchors.centerIn: parent
-                                        width: Math.min(parent.width, parent.height, 260)
+                                        width: Math.min(parent.width, parent.height, 250)
                                         height: width
-                                        onWidthChanged: requestPaint()
-                                        onHeightChanged: requestPaint()
+                                        onWidthChanged: if (timeRoot.subTab === 0) requestPaint()
 
                                         onPaint: {
                                             var ctx = getContext("2d")
@@ -456,28 +526,22 @@ Item {
                                             var rOuter = Math.max(20, Math.min(cx, cy) - 12)
                                             var rInner = rOuter - 12
 
-                                            var d = timeRoot.nowDate
-                                            var sec = d.getSeconds() + d.getMilliseconds() / 1000.0
-                                            var min = d.getMinutes() + sec / 60.0
-                                            var secProg = sec / 60.0
-                                            var minProg = min / 60.0
+                                            var secProg = timeRoot.curSeconds / 60.0
+                                            var minProg = (timeRoot.curMinutes + secProg) / 60.0
 
-                                            var primCol = (Config ? Config.m3Primary : Qt.rgba(0.66, 0.78, 0.98, 1))
-                                            var secCol = (Config ? Config.m3SecondaryContainer : Qt.rgba(0.3, 0.35, 0.45, 1))
+                                            var primCol = Config ? Config.m3Primary : Qt.rgba(0.66, 0.78, 0.98, 1)
+                                            var secCol = Config ? Config.m3SecondaryContainer : Qt.rgba(0.3, 0.35, 0.45, 1)
 
-                                            // Деления циферблата (60 засечек)
-                                            for (var i = 0; i < 60; ++i) {
-                                                var ang = (i / 60.0) * Math.PI * 2 - Math.PI * 0.5
-                                                var isMajor = (i % 5 === 0)
-                                                var r1 = rOuter + 4
-                                                var r2 = rOuter + (isMajor ? 9 : 6)
-                                                ctx.beginPath()
-                                                ctx.moveTo(cx + Math.cos(ang) * r1, cy + Math.sin(ang) * r1)
-                                                ctx.lineTo(cx + Math.cos(ang) * r2, cy + Math.sin(ang) * r2)
-                                                ctx.lineWidth = isMajor ? 2.0 : 1.0
-                                                ctx.strokeStyle = isMajor ? Qt.rgba(primCol.r, primCol.g, primCol.b, 0.55) : "rgba(255,255,255,0.14)"
-                                                ctx.stroke()
+                                            // 12 часовых засечек в один батч-путь
+                                            ctx.beginPath()
+                                            for (var i = 0; i < 12; ++i) {
+                                                var ang = (i / 12.0) * Math.PI * 2 - Math.PI * 0.5
+                                                ctx.moveTo(cx + Math.cos(ang) * (rOuter + 4), cy + Math.sin(ang) * (rOuter + 4))
+                                                ctx.lineTo(cx + Math.cos(ang) * (rOuter + 9), cy + Math.sin(ang) * (rOuter + 9))
                                             }
+                                            ctx.lineWidth = 2.0
+                                            ctx.strokeStyle = Qt.rgba(primCol.r, primCol.g, primCol.b, 0.55)
+                                            ctx.stroke()
 
                                             // Фоновое кольцо секунд
                                             ctx.beginPath()
@@ -486,9 +550,9 @@ Item {
                                             ctx.strokeStyle = Qt.rgba(secCol.r, secCol.g, secCol.b, 0.42)
                                             ctx.stroke()
 
-                                            // Активная дуга секунд + бегущая точка
+                                            // Активная дуга секунд + кружок-индикатор
                                             var startA = -Math.PI * 0.5
-                                            var endSecA = startA + Math.PI * 2 * secProg
+                                            var endSecA = startA + Math.PI * 2 * (secProg > 0.001 ? secProg : 0.005)
                                             ctx.beginPath()
                                             ctx.arc(cx, cy, rOuter - 4, startA, endSecA, false)
                                             ctx.lineWidth = 7
@@ -525,22 +589,16 @@ Item {
 
                                         Text {
                                             Layout.alignment: Qt.AlignHCenter
-                                            text: {
-                                                var d = timeRoot.nowDate
-                                                var fmt = timeRoot.clock24h
-                                                          ? (timeRoot.clockShowSec ? "HH:mm:ss" : "HH:mm")
-                                                          : (timeRoot.clockShowSec ? "hh:mm:ss AP" : "hh:mm AP")
-                                                return Qt.formatDateTime(d, fmt)
-                                            }
+                                            text: timeRoot.curTimeText
                                             color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                            font.pixelSize: 34
+                                            font.pixelSize: 32
                                             font.bold: true
                                             font.family: "monospace"
                                         }
 
                                         Text {
                                             Layout.alignment: Qt.AlignHCenter
-                                            text: Qt.formatDateTime(timeRoot.nowDate, "dddd, d MMMM yyyy")
+                                            text: timeRoot.curDateText
                                             color: timeRoot.isM3 && Config
                                                    ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.78)
                                                    : "#aaaaaa"
@@ -552,20 +610,19 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "Показывать секунды на циферблате:"
+                                        text: "Показывать секунды:"
                                         color: "#cccccc"
                                         font.pixelSize: Config.fontSize
                                         Layout.fillWidth: true
                                     }
                                     StyledSwitch {
                                         checked: timeRoot.clockShowSec
-                                        onToggled: timeRoot.clockShowSec = checked
+                                        onToggled: { timeRoot.clockShowSec = checked; timeRoot.updateClockState() }
                                     }
                                 }
                             }
                         }
 
-                        // Правая карточка: Часовые пояса и информация о дне
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -578,13 +635,12 @@ Item {
                                 spacing: 10
 
                                 Text {
-                                    text: "🌍  Мировое время и сводка дня"
+                                    text: "🌍  Мировое время и прогресс суток"
                                     color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                     font.pixelSize: Config.fontSize + 1
                                     font.bold: true
                                 }
 
-                                // Прогресс текущих суток
                                 Rectangle {
                                     Layout.fillWidth: true
                                     implicitHeight: 58
@@ -598,34 +654,23 @@ Item {
                                                   : Qt.rgba(1, 1, 1, 0.10)
 
                                     ColumnLayout {
-                                        anchors.fill: parent
-                                        anchors.margins: 10
-                                        spacing: 6
+                                        anchors.fill: parent; anchors.margins: 10; spacing: 6
                                         RowLayout {
                                             Layout.fillWidth: true
+                                            Text { text: "Прошло времени за сегодня"; color: "#cccccc"; font.pixelSize: Config.fontSize - 1; Layout.fillWidth: true }
                                             Text {
-                                                text: "Прогресс текущих суток"
-                                                color: "#cccccc"
-                                                font.pixelSize: Config.fontSize - 1
-                                                Layout.fillWidth: true
-                                            }
-                                            Text {
-                                                readonly property real pct: ((timeRoot.nowDate.getHours() * 3600 + timeRoot.nowDate.getMinutes() * 60 + timeRoot.nowDate.getSeconds()) / 86400.0) * 100.0
+                                                readonly property real pct: ((timeRoot.curHours * 3600 + timeRoot.curMinutes * 60 + timeRoot.curSeconds) / 86400.0) * 100.0
                                                 text: pct.toFixed(1) + "%"
                                                 color: Config ? Config.m3Primary : "#ffffff"
-                                                font.pixelSize: Config.fontSize - 1
-                                                font.bold: true
+                                                font.pixelSize: Config.fontSize - 1; font.bold: true
                                             }
                                         }
                                         Rectangle {
-                                            Layout.fillWidth: true
-                                            height: 6
-                                            radius: timeRoot.isM3 ? 3 : 0
+                                            Layout.fillWidth: true; height: 6; radius: timeRoot.isM3 ? 3 : 0
                                             color: Qt.rgba(1, 1, 1, 0.10)
                                             Rectangle {
-                                                width: parent.width * Math.min(1.0, (timeRoot.nowDate.getHours() * 3600 + timeRoot.nowDate.getMinutes() * 60 + timeRoot.nowDate.getSeconds()) / 86400.0)
-                                                height: parent.height
-                                                radius: parent.radius
+                                                width: parent.width * Math.min(1.0, (timeRoot.curHours * 3600 + timeRoot.curMinutes * 60 + timeRoot.curSeconds) / 86400.0)
+                                                height: parent.height; radius: parent.radius
                                                 color: Config ? Config.m3Primary : "#a8c7fa"
                                             }
                                         }
@@ -641,8 +686,7 @@ Item {
                                         { city: "Дубай (GST)", offset: 4 }
                                     ]
                                     delegate: Rectangle {
-                                        Layout.fillWidth: true
-                                        height: 36
+                                        Layout.fillWidth: true; height: 36
                                         radius: timeRoot.isM3 ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
                                         color: timeRoot.isM3 && Config
                                                ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.55)
@@ -653,32 +697,14 @@ Item {
                                                       : Qt.rgba(1, 1, 1, 0.08)
 
                                         RowLayout {
-                                            anchors.fill: parent
-                                            anchors.leftMargin: 12
-                                            anchors.rightMargin: 12
+                                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                                            Text { text: modelData.city; color: "#dddddd"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                            Text { text: (modelData.offset >= 0 ? "UTC+" : "UTC") + modelData.offset; color: "#888888"; font.pixelSize: Config.fontSize - 2; Layout.rightMargin: 8 }
                                             Text {
-                                                text: modelData.city
-                                                color: "#dddddd"
-                                                font.pixelSize: Config.fontSize
-                                                Layout.fillWidth: true
-                                            }
-                                            Text {
-                                                text: (modelData.offset >= 0 ? "UTC+" : "UTC") + modelData.offset
-                                                color: "#888888"
-                                                font.pixelSize: Config.fontSize - 2
-                                                Layout.rightMargin: 8
-                                            }
-                                            Text {
-                                                text: {
-                                                    var d = timeRoot.nowDate
-                                                    var utcMs = d.getTime() + (d.getTimezoneOffset() * 60000)
-                                                    var cityDate = new Date(utcMs + modelData.offset * 3600000)
-                                                    return Qt.formatDateTime(cityDate, timeRoot.clock24h ? "HH:mm:ss" : "hh:mm AP")
-                                                }
+                                                readonly property int utcH: (timeRoot.curHours + (new Date().getTimezoneOffset() / 60) + modelData.offset + 48) % 24
+                                                text: String(Math.floor(utcH)).padStart(2, '0') + ":" + String(timeRoot.curMinutes).padStart(2, '0') + (timeRoot.clockShowSec ? (":" + String(timeRoot.curSeconds).padStart(2, '0')) : "")
                                                 color: Config ? Config.m3Primary : "#ffffff"
-                                                font.pixelSize: Config.fontSize
-                                                font.family: "monospace"
-                                                font.bold: true
+                                                font.pixelSize: Config.fontSize; font.family: "monospace"; font.bold: true
                                             }
                                         }
                                     }
@@ -692,9 +718,12 @@ Item {
             }
 
             // -----------------------------------------------------------------
-            // ЭКРАН 1: КАЛЕНДАРЬ С ВЫБОРОМ ДАТЫ И ПОДДЕРЖКОЙ ТЕМЫ
+            // ЭКРАН 1: КАЛЕНДАРЬ (БЕЗ ПЕРЕСЧЕТА ПО ТАЙМЕРУ)
             // -----------------------------------------------------------------
             Item {
+                readonly property int firstWeekdayOffset: (new Date(timeRoot.calYear, timeRoot.calMonth, 1).getDay() + 6) % 7
+                readonly property int daysInCurrentMonth: new Date(timeRoot.calYear, timeRoot.calMonth + 1, 0).getDate()
+
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 18
@@ -714,10 +743,9 @@ Item {
                             text: "󰃭  Сегодня"
                             implicitHeight: 28
                             onClicked: {
-                                var now = new Date()
-                                timeRoot.calYear = now.getFullYear()
-                                timeRoot.calMonth = now.getMonth()
-                                timeRoot.selectedCalDay = now.getDate()
+                                timeRoot.calYear = timeRoot.todayYear
+                                timeRoot.calMonth = timeRoot.todayMonth
+                                timeRoot.selectedCalDay = timeRoot.todayDay
                             }
                         }
                     }
@@ -733,12 +761,8 @@ Item {
                             spacing: 12
 
                             RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-                                StyledButton {
-                                    text: "«"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28
-                                    onClicked: timeRoot.calYear--
-                                }
+                                Layout.fillWidth: true; spacing: 8
+                                StyledButton { text: "«"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28; onClicked: timeRoot.calYear-- }
                                 StyledButton {
                                     text: "‹"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28
                                     onClicked: {
@@ -747,12 +771,10 @@ Item {
                                     }
                                 }
                                 Text {
-                                    Layout.fillWidth: true
-                                    horizontalAlignment: Text.AlignHCenter
+                                    Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
                                     text: ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][timeRoot.calMonth] + " " + timeRoot.calYear
                                     color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                    font.pixelSize: Config.fontSize + 3
-                                    font.bold: true
+                                    font.pixelSize: Config.fontSize + 3; font.bold: true
                                 }
                                 StyledButton {
                                     text: "›"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28
@@ -761,10 +783,7 @@ Item {
                                         else timeRoot.calMonth++
                                     }
                                 }
-                                StyledButton {
-                                    text: "»"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28
-                                    onClicked: timeRoot.calYear++
-                                }
+                                StyledButton { text: "»"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28; onClicked: timeRoot.calYear++ }
                             }
 
                             GridLayout {
@@ -777,14 +796,10 @@ Item {
                                 Repeater {
                                     model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
                                     delegate: Text {
-                                        Layout.fillWidth: true
-                                        horizontalAlignment: Text.AlignHCenter
+                                        Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
                                         text: modelData
-                                        color: index >= 5
-                                               ? (Config ? Config.m3Primary : "#a8c7fa")
-                                               : "#888888"
-                                        font.pixelSize: Config.fontSize
-                                        font.bold: true
+                                        color: index >= 5 ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
+                                        font.pixelSize: Config.fontSize; font.bold: true
                                     }
                                 }
 
@@ -795,31 +810,25 @@ Item {
                                         Layout.fillWidth: true
                                         Layout.fillHeight: true
                                         Layout.minimumHeight: 32
-                                        property var cellInfo: {
-                                            var firstDay = (new Date(timeRoot.calYear, timeRoot.calMonth, 1).getDay() + 6) % 7
-                                            var daysInM = new Date(timeRoot.calYear, timeRoot.calMonth + 1, 0).getDate()
-                                            var dNum = index - firstDay + 1
-                                            var valid = (dNum >= 1 && dNum <= daysInM)
-                                            var now = timeRoot.nowDate
-                                            var isToday = valid && (dNum === now.getDate() && timeRoot.calMonth === now.getMonth() && timeRoot.calYear === now.getFullYear())
-                                            var isSel = valid && (dNum === timeRoot.selectedCalDay)
-                                            return { day: valid ? dNum : "", valid: valid, today: isToday, selected: isSel }
-                                        }
+                                        readonly property int dNum: index - parent.parent.parent.parent.firstWeekdayOffset + 1
+                                        readonly property bool isValid: dNum >= 1 && dNum <= parent.parent.parent.parent.daysInCurrentMonth
+                                        readonly property bool isToday: isValid && dNum === timeRoot.todayDay && timeRoot.calMonth === timeRoot.todayMonth && timeRoot.calYear === timeRoot.todayYear
+                                        readonly property bool isSel: isValid && dNum === timeRoot.selectedCalDay
 
                                         radius: timeRoot.isM3 ? (Config ? Math.min(12, Config.m3ControlRadius) : 10) : 0
                                         color: {
-                                            if (!cellInfo.valid) return "transparent"
-                                            if (cellInfo.today) return Config ? Config.m3Primary : "#ffffff"
-                                            if (cellInfo.selected) return Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.16)
+                                            if (!isValid) return "transparent"
+                                            if (isToday) return Config ? Config.m3Primary : "#ffffff"
+                                            if (isSel) return Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.16)
                                             if (dayMa.containsMouse) return Qt.rgba(1, 1, 1, 0.08)
                                             return timeRoot.isM3 && Config
                                                    ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.38)
                                                    : Qt.rgba(1, 1, 1, 0.03)
                                         }
-                                        border.width: cellInfo.valid ? 1 : 0
+                                        border.width: isValid ? 1 : 0
                                         border.color: {
-                                            if (!cellInfo.valid || cellInfo.today) return "transparent"
-                                            if (cellInfo.selected) return Config ? Config.m3Primary : "#ffffff"
+                                            if (!isValid || isToday) return "transparent"
+                                            if (isSel) return Config ? Config.m3Primary : "#ffffff"
                                             return timeRoot.isM3 && Config
                                                    ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.22)
                                                    : Qt.rgba(1, 1, 1, 0.08)
@@ -827,23 +836,23 @@ Item {
 
                                         Text {
                                             anchors.centerIn: parent
-                                            text: dayCell.cellInfo.day
+                                            text: dayCell.isValid ? dayCell.dNum : ""
                                             color: {
-                                                if (dayCell.cellInfo.today) return Config ? Config.accentTextColor : "#000000"
-                                                if (dayCell.cellInfo.selected) return Config ? Config.m3Primary : "#ffffff"
+                                                if (dayCell.isToday) return Config ? Config.accentTextColor : "#000000"
+                                                if (dayCell.isSel) return Config ? Config.m3Primary : "#ffffff"
                                                 return "#ffffff"
                                             }
                                             font.pixelSize: Config.fontSize + 1
-                                            font.bold: dayCell.cellInfo.today || dayCell.cellInfo.selected
+                                            font.bold: dayCell.isToday || dayCell.isSel
                                         }
 
                                         MouseArea {
                                             id: dayMa
                                             anchors.fill: parent
-                                            enabled: dayCell.cellInfo.valid
+                                            enabled: dayCell.isValid
                                             hoverEnabled: true
-                                            cursorShape: dayCell.cellInfo.valid ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                            onClicked: timeRoot.selectedCalDay = dayCell.cellInfo.day
+                                            cursorShape: dayCell.isValid ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onClicked: timeRoot.selectedCalDay = dayCell.dNum
                                         }
                                     }
                                 }
@@ -854,7 +863,7 @@ Item {
             }
 
             // -----------------------------------------------------------------
-            // ЭКРАН 2: ТАЙМЕР (КРУГ ПРОГРЕССА + БАРАБАН КАК НА ТЕЛЕФОНЕ + ВВОД С КЛАВИАТУРЫ)
+            // ЭКРАН 2: ТАЙМЕР (КРУГ ПРОГРЕССА + ТЕЛЕФОННЫЙ БАРАБАН + КЛАВИАТУРА)
             // -----------------------------------------------------------------
             Item {
                 ColumnLayout {
@@ -876,11 +885,8 @@ Item {
                             text: (winObj && winObj.timerRunning)
                                   ? "● Идёт отсчёт"
                                   : ((winObj && winObj.timerActive) ? "⏸ На паузе" : "Готов к запуску")
-                            color: (winObj && winObj.timerRunning)
-                                   ? (Config ? Config.m3Primary : "#69f0ae")
-                                   : "#888888"
-                            font.pixelSize: Config.fontSize
-                            font.bold: true
+                            color: (winObj && winObj.timerRunning) ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                            font.pixelSize: Config.fontSize; font.bold: true
                         }
                     }
 
@@ -889,7 +895,7 @@ Item {
                         Layout.fillHeight: true
                         spacing: 14
 
-                        // Левая карточка: Большой круг прогресса с бегущей точкой и вводом с клавиатуры
+                        // Левая карточка: Круг с бегущим кружком прогресса и прямым вводом
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -909,10 +915,9 @@ Item {
                                     Canvas {
                                         id: timerArcCanvas
                                         anchors.centerIn: parent
-                                        width: Math.min(parent.width, parent.height, 240)
+                                        width: Math.min(parent.width, parent.height, 236)
                                         height: width
-                                        onWidthChanged: requestPaint()
-                                        onHeightChanged: requestPaint()
+                                        onWidthChanged: if (timeRoot.subTab === 2) requestPaint()
 
                                         onPaint: {
                                             var ctx = getContext("2d")
@@ -927,26 +932,25 @@ Item {
                                             var primCol = Config ? Config.m3Primary : Qt.rgba(0.66, 0.78, 0.98, 1)
                                             var secCol = Config ? Config.m3SecondaryContainer : Qt.rgba(0.3, 0.35, 0.45, 1)
 
-                                            // Засечки по кругу
-                                            for (var i = 0; i < 60; ++i) {
-                                                var ang = (i / 60.0) * Math.PI * 2 - Math.PI * 0.5
-                                                var isMaj = (i % 5 === 0)
-                                                ctx.beginPath()
+                                            // 12 засечек в один батч-путь
+                                            ctx.beginPath()
+                                            for (var i = 0; i < 12; ++i) {
+                                                var ang = (i / 12.0) * Math.PI * 2 - Math.PI * 0.5
                                                 ctx.moveTo(cx + Math.cos(ang) * (r + 5), cy + Math.sin(ang) * (r + 5))
-                                                ctx.lineTo(cx + Math.cos(ang) * (r + (isMaj ? 10 : 7)), cy + Math.sin(ang) * (r + (isMaj ? 10 : 7)))
-                                                ctx.lineWidth = isMaj ? 1.8 : 1.0
-                                                ctx.strokeStyle = isMaj ? Qt.rgba(primCol.r, primCol.g, primCol.b, 0.45) : "rgba(255,255,255,0.12)"
-                                                ctx.stroke()
+                                                ctx.lineTo(cx + Math.cos(ang) * (r + 10), cy + Math.sin(ang) * (r + 10))
                                             }
+                                            ctx.lineWidth = 2.0
+                                            ctx.strokeStyle = Qt.rgba(primCol.r, primCol.g, primCol.b, 0.45)
+                                            ctx.stroke()
 
-                                            // Подложка трека
+                                            // Подложка круга
                                             ctx.beginPath()
                                             ctx.arc(cx, cy, r - 3, 0, Math.PI * 2)
                                             ctx.lineWidth = 8
                                             ctx.strokeStyle = Qt.rgba(secCol.r, secCol.g, secCol.b, 0.45)
                                             ctx.stroke()
 
-                                            // Дуга прогресса + светящийся маркер-кружок на конце
+                                            // Дуга прогресса + кружок на конце
                                             if (prog > 0.002) {
                                                 var startA = -Math.PI * 0.5
                                                 var endA = startA + Math.PI * 2 * prog
@@ -967,12 +971,10 @@ Item {
                                         }
                                     }
 
-                                    // Отображение времени ИЛИ прямой ввод с клавиатуры внутри круга
                                     ColumnLayout {
                                         anchors.centerIn: parent
                                         spacing: 4
 
-                                        // Режим обычного показа цифр (клик включает ввод с клавиатуры)
                                         Item {
                                             visible: !timeRoot.kbEditActive
                                             Layout.alignment: Qt.AlignHCenter
@@ -994,7 +996,7 @@ Item {
                                                 cursorShape: Qt.IBeamCursor
                                                 onClicked: {
                                                     if (winObj && winObj.timerRunning) winObj.toggleTimerPause()
-                                                    timeRoot.loadTumblersFromMs(winObj ? winObj.timerRemainingMs : 300000)
+                                                    timeRoot.syncDrumsFromMs(winObj ? winObj.timerRemainingMs : 300000)
                                                     timeRoot.kbEditActive = true
                                                     kbMinsInput.forceActiveFocus()
                                                     kbMinsInput.selectAll()
@@ -1002,7 +1004,6 @@ Item {
                                             }
                                         }
 
-                                        // Режим ввода с клавиатуры (ЧЧ : ММ : СС)
                                         RowLayout {
                                             visible: timeRoot.kbEditActive
                                             Layout.alignment: Qt.AlignHCenter
@@ -1010,13 +1011,9 @@ Item {
 
                                             TextField {
                                                 id: kbHoursInput
-                                                Layout.preferredWidth: 44
-                                                implicitHeight: 36
+                                                Layout.preferredWidth: 44; implicitHeight: 36
                                                 horizontalAlignment: Text.AlignHCenter
-                                                color: "#ffffff"
-                                                font.pixelSize: 20
-                                                font.bold: true
-                                                font.family: "monospace"
+                                                color: "#ffffff"; font.pixelSize: 20; font.bold: true; font.family: "monospace"
                                                 selectByMouse: true
                                                 validator: IntValidator { bottom: 0; top: 23 }
                                                 KeyNavigation.tab: kbMinsInput
@@ -1031,13 +1028,9 @@ Item {
                                             Text { text: ":"; color: "#ffffff"; font.pixelSize: 20; font.bold: true }
                                             TextField {
                                                 id: kbMinsInput
-                                                Layout.preferredWidth: 44
-                                                implicitHeight: 36
+                                                Layout.preferredWidth: 44; implicitHeight: 36
                                                 horizontalAlignment: Text.AlignHCenter
-                                                color: "#ffffff"
-                                                font.pixelSize: 20
-                                                font.bold: true
-                                                font.family: "monospace"
+                                                color: "#ffffff"; font.pixelSize: 20; font.bold: true; font.family: "monospace"
                                                 selectByMouse: true
                                                 validator: IntValidator { bottom: 0; top: 59 }
                                                 KeyNavigation.tab: kbSecsInput
@@ -1052,13 +1045,9 @@ Item {
                                             Text { text: ":"; color: "#ffffff"; font.pixelSize: 20; font.bold: true }
                                             TextField {
                                                 id: kbSecsInput
-                                                Layout.preferredWidth: 44
-                                                implicitHeight: 36
+                                                Layout.preferredWidth: 44; implicitHeight: 36
                                                 horizontalAlignment: Text.AlignHCenter
-                                                color: "#ffffff"
-                                                font.pixelSize: 20
-                                                font.bold: true
-                                                font.family: "monospace"
+                                                color: "#ffffff"; font.pixelSize: 20; font.bold: true; font.family: "monospace"
                                                 selectByMouse: true
                                                 validator: IntValidator { bottom: 0; top: 59 }
                                                 KeyNavigation.tab: kbHoursInput
@@ -1074,16 +1063,13 @@ Item {
 
                                         Text {
                                             Layout.alignment: Qt.AlignHCenter
-                                            text: timeRoot.kbEditActive
-                                                  ? "Нажмите Enter для сохранения"
-                                                  : "󰌌 Нажмите на цифры для ввода с клавиатуры"
+                                            text: timeRoot.kbEditActive ? "Enter — сохранить" : "󰌌 Клик по цифрам — ввод с клавиатуры"
                                             color: timeRoot.kbEditActive ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
                                             font.pixelSize: Config.fontSize - 2
                                         }
                                     }
                                 }
 
-                                // Кнопки быстрой подстройки на лету
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 6
@@ -1095,29 +1081,24 @@ Item {
                                             { label: "+5 мин", delta: 300000 }
                                         ]
                                         StyledButton {
-                                            Layout.fillWidth: true
-                                            allowFullWidth: true
-                                            implicitHeight: 28
+                                            Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 28
                                             text: modelData.label
                                             onClicked: {
                                                 if (winObj) {
                                                     winObj.addTimerMs(modelData.delta)
-                                                    if (!winObj.timerActive) timeRoot.loadTumblersFromMs(winObj.timerTotalMs)
+                                                    if (!winObj.timerActive) timeRoot.syncDrumsFromMs(winObj.timerTotalMs)
                                                 }
                                             }
                                         }
                                     }
                                 }
 
-                                // Запуск / Пауза / Сброс
                                 RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 8
 
                                     StyledButton {
-                                        Layout.fillWidth: true
-                                        allowFullWidth: true
-                                        implicitHeight: 36
+                                        Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 36
                                         isActive: winObj ? winObj.timerRunning : false
                                         text: timeRoot.kbEditActive
                                               ? "󰄬  Применить и запустить"
@@ -1131,14 +1112,13 @@ Item {
                                     }
 
                                     StyledButton {
-                                        implicitWidth: 110
-                                        implicitHeight: 36
+                                        implicitWidth: 110; implicitHeight: 36
                                         enabled: winObj ? (winObj.timerActive || winObj.timerRemainingMs !== winObj.timerTotalMs) : false
                                         text: "󰑐   Сброс"
                                         onClicked: {
                                             if (winObj) {
                                                 winObj.resetTimer()
-                                                timeRoot.loadTumblersFromMs(winObj.timerTotalMs)
+                                                timeRoot.syncDrumsFromMs(winObj.timerTotalMs)
                                             }
                                         }
                                     }
@@ -1146,7 +1126,7 @@ Item {
                             }
                         }
 
-                        // Правая карточка: Телефонный барабан прокрутки времени (ЧЧ : ММ : СС) + Ввод + Пресеты
+                        // Правая карточка: Телефонный барабан (колесико / свайп мышью) + пресеты
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -1161,14 +1141,14 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "󰓦  Выбор времени (прокрутка / ввод)"
+                                        text: "󰓦  Барабан времени (крутите или тяните)"
                                         color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                         font.pixelSize: Config.fontSize + 1
                                         font.bold: true
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: timeRoot.kbEditActive ? "󰄬 Готово" : "󰌌 Ввести"
+                                        text: timeRoot.kbEditActive ? "󰄬 Готово" : "󰌌 С клавиатуры"
                                         implicitHeight: 26
                                         isActive: timeRoot.kbEditActive
                                         onClicked: {
@@ -1176,7 +1156,7 @@ Item {
                                                 timeRoot.applyKeyboardInputToTimer()
                                             } else {
                                                 if (winObj && winObj.timerRunning) winObj.toggleTimerPause()
-                                                timeRoot.loadTumblersFromMs(winObj ? winObj.timerRemainingMs : 300000)
+                                                timeRoot.syncDrumsFromMs(winObj ? winObj.timerRemainingMs : 300000)
                                                 timeRoot.kbEditActive = true
                                                 kbMinsInput.forceActiveFocus()
                                                 kbMinsInput.selectAll()
@@ -1185,11 +1165,10 @@ Item {
                                     }
                                 }
 
-                                // ТЕЛЕФОННЫЙ БАРАБАН ПРОКРУТКИ (ЧЧ : ММ : СС) С КОЛЕСИКОМ И СВАЙПОМ
                                 Rectangle {
                                     Layout.fillWidth: true
                                     Layout.fillHeight: true
-                                    Layout.minimumHeight: 138
+                                    Layout.minimumHeight: 130
                                     radius: timeRoot.isM3 ? (Config ? Math.min(16, Config.m3CardRadius) : 14) : 0
                                     color: timeRoot.isM3 && Config
                                            ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.45)
@@ -1200,13 +1179,10 @@ Item {
                                                   : Qt.rgba(1, 1, 1, 0.10)
                                     clip: true
 
-                                    // Центральная полоса выделения активной строки барабана
                                     Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.leftMargin: 10
-                                        anchors.rightMargin: 10
+                                        anchors.left: parent.left; anchors.right: parent.right
+                                        anchors.leftMargin: 10; anchors.rightMargin: 10
                                         height: 36
                                         radius: timeRoot.isM3 ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
                                         color: timeRoot.isM3 && Config
@@ -1220,117 +1196,35 @@ Item {
 
                                     RowLayout {
                                         anchors.fill: parent
-                                        anchors.leftMargin: 14
-                                        anchors.rightMargin: 14
+                                        anchors.leftMargin: 14; anchors.rightMargin: 14
                                         spacing: 4
 
-                                        // Барабан ЧАСЫ (0..23)
-                                        Item {
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
-                                            Tumbler {
-                                                id: hoursTumbler
-                                                anchors.fill: parent
-                                                model: 24
-                                                visibleItemCount: 3
-                                                wrap: true
-                                                enabled: !winObj || !winObj.timerActive
-                                                onCurrentIndexChanged: timeRoot.applyTumblerToTimer()
-                                                background: Item {}
-                                                delegate: Text {
-                                                    text: String(modelData).padStart(2, '0') + " ч"
-                                                    color: Tumbler.displacement === 0
-                                                           ? (Config ? Config.m3Primary : "#ffffff")
-                                                           : "#888888"
-                                                    font.pixelSize: Math.abs(Tumbler.displacement) < 0.35 ? 20 : 14
-                                                    font.bold: Math.abs(Tumbler.displacement) < 0.35
-                                                    font.family: "monospace"
-                                                    horizontalAlignment: Text.AlignHCenter
-                                                    verticalAlignment: Text.AlignVCenter
-                                                    opacity: Math.max(0.25, 1.0 - Math.abs(Tumbler.displacement) * 0.55)
-                                                }
-                                            }
-                                            WheelHandler {
-                                                enabled: !winObj || !winObj.timerActive
-                                                onWheel: (e) => {
-                                                    if (e.angleDelta.y < 0) hoursTumbler.currentIndex = (hoursTumbler.currentIndex + 1) % 24
-                                                    else if (e.angleDelta.y > 0) hoursTumbler.currentIndex = (hoursTumbler.currentIndex + 23) % 24
-                                                }
-                                            }
+                                        PhoneDrumWheel {
+                                            Layout.fillWidth: true; Layout.fillHeight: true
+                                            maxVal: 24; suffix: "ч"
+                                            value: timeRoot.drumHours
+                                            wheelEnabled: !winObj || !winObj.timerActive
+                                            onValueEdited: (v) => { timeRoot.drumHours = v; timeRoot.commitDrumsToTimer() }
                                         }
 
                                         Text { text: ":"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: 20; font.bold: true }
 
-                                        // Барабан МИНУТЫ (0..59)
-                                        Item {
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
-                                            Tumbler {
-                                                id: minsTumbler
-                                                anchors.fill: parent
-                                                model: 60
-                                                visibleItemCount: 3
-                                                wrap: true
-                                                enabled: !winObj || !winObj.timerActive
-                                                onCurrentIndexChanged: timeRoot.applyTumblerToTimer()
-                                                background: Item {}
-                                                delegate: Text {
-                                                    text: String(modelData).padStart(2, '0') + " м"
-                                                    color: Tumbler.displacement === 0
-                                                           ? (Config ? Config.m3Primary : "#ffffff")
-                                                           : "#888888"
-                                                    font.pixelSize: Math.abs(Tumbler.displacement) < 0.35 ? 20 : 14
-                                                    font.bold: Math.abs(Tumbler.displacement) < 0.35
-                                                    font.family: "monospace"
-                                                    horizontalAlignment: Text.AlignHCenter
-                                                    verticalAlignment: Text.AlignVCenter
-                                                    opacity: Math.max(0.25, 1.0 - Math.abs(Tumbler.displacement) * 0.55)
-                                                }
-                                            }
-                                            WheelHandler {
-                                                enabled: !winObj || !winObj.timerActive
-                                                onWheel: (e) => {
-                                                    if (e.angleDelta.y < 0) minsTumbler.currentIndex = (minsTumbler.currentIndex + 1) % 60
-                                                    else if (e.angleDelta.y > 0) minsTumbler.currentIndex = (minsTumbler.currentIndex + 59) % 60
-                                                }
-                                            }
+                                        PhoneDrumWheel {
+                                            Layout.fillWidth: true; Layout.fillHeight: true
+                                            maxVal: 60; suffix: "м"
+                                            value: timeRoot.drumMins
+                                            wheelEnabled: !winObj || !winObj.timerActive
+                                            onValueEdited: (v) => { timeRoot.drumMins = v; timeRoot.commitDrumsToTimer() }
                                         }
 
                                         Text { text: ":"; color: Config ? Config.m3Primary : "#ffffff"; font.pixelSize: 20; font.bold: true }
 
-                                        // Барабан СЕКУНДЫ (0..59)
-                                        Item {
-                                            Layout.fillWidth: true
-                                            Layout.fillHeight: true
-                                            Tumbler {
-                                                id: secsTumbler
-                                                anchors.fill: parent
-                                                model: 60
-                                                visibleItemCount: 3
-                                                wrap: true
-                                                enabled: !winObj || !winObj.timerActive
-                                                onCurrentIndexChanged: timeRoot.applyTumblerToTimer()
-                                                background: Item {}
-                                                delegate: Text {
-                                                    text: String(modelData).padStart(2, '0') + " с"
-                                                    color: Tumbler.displacement === 0
-                                                           ? (Config ? Config.m3Primary : "#ffffff")
-                                                           : "#888888"
-                                                    font.pixelSize: Math.abs(Tumbler.displacement) < 0.35 ? 20 : 14
-                                                    font.bold: Math.abs(Tumbler.displacement) < 0.35
-                                                    font.family: "monospace"
-                                                    horizontalAlignment: Text.AlignHCenter
-                                                    verticalAlignment: Text.AlignVCenter
-                                                    opacity: Math.max(0.25, 1.0 - Math.abs(Tumbler.displacement) * 0.55)
-                                                }
-                                            }
-                                            WheelHandler {
-                                                enabled: !winObj || !winObj.timerActive
-                                                onWheel: (e) => {
-                                                    if (e.angleDelta.y < 0) secsTumbler.currentIndex = (secsTumbler.currentIndex + 1) % 60
-                                                    else if (e.angleDelta.y > 0) secsTumbler.currentIndex = (secsTumbler.currentIndex + 59) % 60
-                                                }
-                                            }
+                                        PhoneDrumWheel {
+                                            Layout.fillWidth: true; Layout.fillHeight: true
+                                            maxVal: 60; suffix: "с"
+                                            value: timeRoot.drumSecs
+                                            wheelEnabled: !winObj || !winObj.timerActive
+                                            onValueEdited: (v) => { timeRoot.drumSecs = v; timeRoot.commitDrumsToTimer() }
                                         }
                                     }
                                 }
@@ -1341,7 +1235,6 @@ Item {
                                     font.pixelSize: Config.fontSize - 1
                                 }
 
-                                // Сетка быстрых пресетов
                                 GridLayout {
                                     Layout.fillWidth: true
                                     columns: 4
@@ -1360,15 +1253,13 @@ Item {
                                             { label: "60 мин", ms: 3600000 }
                                         ]
                                         StyledButton {
-                                            Layout.fillWidth: true
-                                            allowFullWidth: true
-                                            implicitHeight: 28
+                                            Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 28
                                             isActive: winObj && !winObj.timerActive && winObj.timerTotalMs === modelData.ms
                                             text: modelData.label
                                             onClicked: {
                                                 if (winObj) {
                                                     winObj.setTimerPreset(modelData.ms)
-                                                    timeRoot.loadTumblersFromMs(modelData.ms)
+                                                    timeRoot.syncDrumsFromMs(modelData.ms)
                                                 }
                                             }
                                         }
@@ -1381,7 +1272,7 @@ Item {
             }
 
             // -----------------------------------------------------------------
-            // ЭКРАН 3: СЕКУНДОМЕР С КРУГОВЫМ ПРОГРЕССОМ И ТАБЛИЦЕЙ КРУГОВ
+            // ЭКРАН 3: СЕКУНДОМЕР С КРУГОВЫМ ПРОГРЕССОМ И КРУГАМИ
             // -----------------------------------------------------------------
             Item {
                 ColumnLayout {
@@ -1403,11 +1294,8 @@ Item {
                             text: (winObj && winObj.stopwatchRunning)
                                   ? "● Идёт замер"
                                   : ((winObj && winObj.stopwatchActive) ? "⏸ На паузе" : "Готов")
-                            color: (winObj && winObj.stopwatchRunning)
-                                   ? (Config ? Config.m3Primary : "#69f0ae")
-                                   : "#888888"
-                            font.pixelSize: Config.fontSize
-                            font.bold: true
+                            color: (winObj && winObj.stopwatchRunning) ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                            font.pixelSize: Config.fontSize; font.bold: true
                         }
                     }
 
@@ -1416,7 +1304,6 @@ Item {
                         Layout.fillHeight: true
                         spacing: 14
 
-                        // Левая карточка: Круговой прогресс 60-секундного оборота и текущего круга
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -1436,10 +1323,9 @@ Item {
                                     Canvas {
                                         id: swArcCanvas
                                         anchors.centerIn: parent
-                                        width: Math.min(parent.width, parent.height, 240)
+                                        width: Math.min(parent.width, parent.height, 236)
                                         height: width
-                                        onWidthChanged: requestPaint()
-                                        onHeightChanged: requestPaint()
+                                        onWidthChanged: if (timeRoot.subTab === 3) requestPaint()
 
                                         onPaint: {
                                             var ctx = getContext("2d")
@@ -1457,26 +1343,25 @@ Item {
                                             var primCol = Config ? Config.m3Primary : Qt.rgba(0.66, 0.78, 0.98, 1)
                                             var secCol = Config ? Config.m3SecondaryContainer : Qt.rgba(0.3, 0.35, 0.45, 1)
 
-                                            // Засечки секундомера
-                                            for (var i = 0; i < 60; ++i) {
-                                                var ang = (i / 60.0) * Math.PI * 2 - Math.PI * 0.5
-                                                var isMaj = (i % 5 === 0)
-                                                ctx.beginPath()
+                                            // 12 засечек в один батч-путь
+                                            ctx.beginPath()
+                                            for (var i = 0; i < 12; ++i) {
+                                                var ang = (i / 12.0) * Math.PI * 2 - Math.PI * 0.5
                                                 ctx.moveTo(cx + Math.cos(ang) * (rOuter + 5), cy + Math.sin(ang) * (rOuter + 5))
-                                                ctx.lineTo(cx + Math.cos(ang) * (rOuter + (isMaj ? 10 : 7)), cy + Math.sin(ang) * (rOuter + (isMaj ? 10 : 7)))
-                                                ctx.lineWidth = isMaj ? 1.8 : 1.0
-                                                ctx.strokeStyle = isMaj ? Qt.rgba(primCol.r, primCol.g, primCol.b, 0.45) : "rgba(255,255,255,0.12)"
-                                                ctx.stroke()
+                                                ctx.lineTo(cx + Math.cos(ang) * (rOuter + 10), cy + Math.sin(ang) * (rOuter + 10))
                                             }
+                                            ctx.lineWidth = 2.0
+                                            ctx.strokeStyle = Qt.rgba(primCol.r, primCol.g, primCol.b, 0.45)
+                                            ctx.stroke()
 
-                                            // Подложка внешнего круга
+                                            // Подложка круга
                                             ctx.beginPath()
                                             ctx.arc(cx, cy, rOuter - 3, 0, Math.PI * 2)
                                             ctx.lineWidth = 8
                                             ctx.strokeStyle = Qt.rgba(secCol.r, secCol.g, secCol.b, 0.45)
                                             ctx.stroke()
 
-                                            // Активная дуга оборота минуты + бегущая точка
+                                            // Активная дуга оборота минуты + кружок на конце
                                             var startA = -Math.PI * 0.5
                                             if (elapsed > 0) {
                                                 var endA = startA + Math.PI * 2 * (mainProg > 0.001 ? mainProg : 1.0)
@@ -1531,7 +1416,7 @@ Item {
                                             Layout.alignment: Qt.AlignHCenter
                                             text: {
                                                 var curLap = winObj ? Math.max(0, winObj.stopwatchElapsedMs - winObj.stopwatchLastLapMs) : 0
-                                                return "Текущий круг: " + (winObj ? winObj.formatClockMs(curLap, false, true) : "00:00.00")
+                                                return "Круг: " + (winObj ? winObj.formatClockMs(curLap, false, true) : "00:00.00")
                                             }
                                             color: "#69f0ae"
                                             font.pixelSize: Config.fontSize - 1
@@ -1545,9 +1430,7 @@ Item {
                                     spacing: 8
 
                                     StyledButton {
-                                        Layout.fillWidth: true
-                                        allowFullWidth: true
-                                        implicitHeight: 36
+                                        Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 36
                                         isActive: winObj ? winObj.stopwatchRunning : false
                                         text: (winObj && winObj.stopwatchRunning)
                                               ? "󰏤   Пауза"
@@ -1556,16 +1439,14 @@ Item {
                                     }
 
                                     StyledButton {
-                                        implicitWidth: 105
-                                        implicitHeight: 36
+                                        implicitWidth: 105; implicitHeight: 36
                                         enabled: winObj ? winObj.stopwatchRunning : false
                                         text: "󰈻   Круг"
                                         onClicked: if (winObj) winObj.lapStopwatch()
                                     }
 
                                     StyledButton {
-                                        implicitWidth: 105
-                                        implicitHeight: 36
+                                        implicitWidth: 105; implicitHeight: 36
                                         enabled: winObj ? winObj.stopwatchActive : false
                                         text: "󰑐   Сброс"
                                         onClicked: if (winObj) { winObj.resetStopwatch(); swArcCanvas.requestPaint() }
@@ -1574,7 +1455,6 @@ Item {
                             }
                         }
 
-                        // Правая карточка: Таблица записанных кругов (Laps)
                         GlassPanel {
                             objectName: "atmoObstacle"
                             Layout.fillWidth: true
@@ -1641,8 +1521,7 @@ Item {
 
                                             RowLayout {
                                                 anchors.fill: parent
-                                                anchors.leftMargin: 12
-                                                anchors.rightMargin: 12
+                                                anchors.leftMargin: 12; anchors.rightMargin: 12
                                                 spacing: 10
 
                                                 Text {

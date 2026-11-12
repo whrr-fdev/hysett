@@ -369,6 +369,7 @@ Item {
                             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                             property var displayedHistory: []
+                            property var shownIdMap: ({})
                             property int unreadNewCount: 0
                             property real savedScrollY: 0
                             property bool preserveScrollNext: false
@@ -380,6 +381,26 @@ Item {
                             property int lastTopId: -1
                             property int lastHistCount: 0
                             property int activeSpringId: -1
+
+                            function cloneHistoryItems(srcList, onlyIdsMap) {
+                                var arr = []
+                                var nextMap = {}
+                                for (var i = 0; i < srcList.length; ++i) {
+                                    var it = srcList[i]
+                                    if (onlyIdsMap && !onlyIdsMap[it.id]) continue
+                                    arr.push({
+                                        id: it.id,
+                                        app: it.app || "",
+                                        summary: it.summary || "",
+                                        body: it.body || "",
+                                        icon: it.icon || "",
+                                        critical: it.critical === true,
+                                        time: it.time || ""
+                                    })
+                                    nextMap[it.id] = true
+                                }
+                                return { list: arr, map: nextMap }
+                            }
 
                             NumberAnimation {
                                 id: scrollToTopAnim
@@ -403,8 +424,9 @@ Item {
 
                             function syncFromMako(forceTop) {
                                 var src = Mako ? Mako.history : []
-                                if (src.length === 0) {
+                                if (!src || src.length === 0) {
                                     if (displayedHistory.length > 0) displayedHistory = []
+                                    shownIdMap = ({})
                                     unreadNewCount = 0
                                     lastTopId = -1
                                     lastHistCount = 0
@@ -413,41 +435,34 @@ Item {
                                 if (preserveScrollNext) {
                                     preserveScrollNext = false
                                     var keepY = savedScrollY
-                                    if (unreadNewCount > 0 && displayedHistory.length > 0) {
-                                        var topShownId = displayedHistory[0].id
-                                        var startIdx = 0
-                                        for (var k = 0; k < src.length; ++k) {
-                                            if (src[k].id === topShownId) { startIdx = k; break }
-                                        }
-                                        displayedHistory = src.slice(startIdx)
-                                    } else {
-                                        displayedHistory = src.slice(0)
-                                    }
+                                    var res = cloneHistoryItems(src, unreadNewCount > 0 ? shownIdMap : null)
+                                    shownIdMap = res.map
+                                    displayedHistory = res.list
                                     Qt.callLater(function() {
                                         var maxY = Math.max(histListView.originY, histListView.originY + histListView.contentHeight - histListView.height)
                                         histListView.contentY = Math.min(keepY, maxY)
                                     })
                                     return
                                 }
-                                // Если список прокручен вниз — НИКОГДА не трогаем displayedHistory (даже когда newCnt == 0 при появлении попапа!), чтобы ListView не сбрасывал contentY
+                                // Когда список прокручен вниз — считаем все новые элементы в Mako.history, которых нет в shownIdMap
                                 if (!forceTop && histListView.isScrolledDown && displayedHistory.length > 0) {
-                                    var curTopShownId = displayedHistory[0].id
                                     var newCnt = 0
                                     for (var i = 0; i < src.length; ++i) {
-                                        if (src[i].id === curTopShownId) break
-                                        if (src[i].id > curTopShownId) newCnt++
+                                        if (!shownIdMap[src[i].id]) newCnt++
                                     }
                                     unreadNewCount = newCnt
                                     return
                                 }
-                                // Если мы наверху, но сама история Mako.history не изменилась (popupChanged сработал только на открытие попапа) — ничего не пересоздаем
+                                // Если мы наверху и состав истории не изменился — не пересоздаем модель
                                 if (!forceTop && unreadNewCount === 0 && displayedHistory.length === src.length &&
                                     displayedHistory.length > 0 && displayedHistory[0].id === src[0].id &&
                                     displayedHistory[displayedHistory.length - 1].id === src[src.length - 1].id) {
                                     return
                                 }
+                                var full = cloneHistoryItems(src, null)
+                                shownIdMap = full.map
                                 unreadNewCount = 0
-                                displayedHistory = src.slice(0)
+                                displayedHistory = full.list
                             }
 
                             onIsScrolledDownChanged: {

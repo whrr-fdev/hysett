@@ -217,6 +217,9 @@ def load_state():
         "wl_sub_cache": {},
         "wl_servers": [],
         "frozen_sigs": [],
+        "pinned_sigs": [],
+        "pinned_wl_items": [],
+        "last_updated": "",
         "custom_proxy_domains": [],
         "custom_direct_domains": []
     }
@@ -232,6 +235,10 @@ def load_state():
         st["wl_sub_cache"] = {}
     if not isinstance(st.get("frozen_sigs"), list):
         st["frozen_sigs"] = []
+    if not isinstance(st.get("pinned_sigs"), list):
+        st["pinned_sigs"] = []
+    if not isinstance(st.get("pinned_wl_items"), list):
+        st["pinned_wl_items"] = []
     return st
 
 def save_state(st):
@@ -558,7 +565,9 @@ def fetch_single_url(u):
             print(f"Fetch error ({u}): {e}", file=sys.stderr)
     return "", []
 
-def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False):
+def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False, pinned_set=None):
+    if pinned_set is None:
+        pinned_set = set()
     starts, merged = (load_ru_whitelist_ip_intervals() if mark_wl_badges else ([], []))
     all_srvs = []
     groups = []
@@ -578,16 +587,18 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
             sig = server_sig(ob)
             is_frz = (sig in frozen_set) if sig else False
+            is_pin = (sig in pinned_set) if sig else False
             if mark_wl_badges and ob:
                 badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
                 nm = f"{badge} • {nm}"
-            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "frozen": is_frz, "sub_index": idx}
+            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "frozen": is_frz, "pinned": is_pin, "sub_index": idx}
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm,
                 "uri": uri,
                 "sig": sig,
                 "frozen": is_frz,
+                "pinned": is_pin,
                 "global_index": len(all_srvs) - 1
             })
         groups.append({
@@ -600,29 +611,55 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
         })
     return all_srvs, groups
 
-def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера"):
+def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера", pinned_set=None, pinned_items=None):
+    if pinned_set is None:
+        pinned_set = set()
+    if pinned_items is None:
+        pinned_items = []
+
     real = [s for s in raw_servers if s.get("outbound", {}).get("type") != "urltest"]
-    active_list = []
-    frozen_list = []
+    pinned_list = []
+    normal_list = []
+    seen_sigs = set()
+
+    # Сначала добавляем закрепленные серверы (чтобы они всегда были сверху в любой категории)
+    for ps in pinned_items:
+        ob = ps.get("outbound", {})
+        sig = ps.get("sig") or server_sig(ob)
+        if not sig or sig not in pinned_set or sig in seen_sigs:
+            continue
+        seen_sigs.add(sig)
+        uri = ps.get("uri") or rebuild_uri_from_outbound(ob, ps.get("name", "Server"))
+        is_frz = sig in frozen_set
+        pinned_list.append(dict(ps, sig=sig, uri=uri, frozen=is_frz, pinned=True))
+
     for s in real:
         ob = s.get("outbound", {})
         sig = s.get("sig") or server_sig(ob)
         uri = s.get("uri") or rebuild_uri_from_outbound(ob, s.get("name", "Server"))
         is_frz = sig in frozen_set if sig else False
-        item = dict(s, sig=sig, uri=uri, frozen=is_frz)
-        if is_frz:
-            frozen_list.append(item)
+        is_pin = sig in pinned_set if sig else False
+        if sig and sig in seen_sigs:
+            continue
+        if sig:
+            seen_sigs.add(sig)
+        item = dict(s, sig=sig, uri=uri, frozen=is_frz, pinned=is_pin)
+        if is_pin:
+            pinned_list.append(item)
         else:
-            active_list.append(item)
+            # Замороженные серверы остаются на своих местах в списке (с красной плашкой ЗАМОРОЖЕН), но исключаются из пула Авто-выбора
+            normal_list.append(item)
 
-    ordered = active_list + frozen_list
-    if len(active_list) >= 1:
-        pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(active_list[:25])]
+    ordered = pinned_list + normal_list
+    alive_for_pool = [s for s in ordered if not s.get("frozen")]
+    if len(alive_for_pool) >= 1:
+        pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(alive_for_pool[:25])]
         ordered.insert(0, {
             "name": auto_title,
             "uri": "",
             "sig": "",
             "frozen": False,
+            "pinned": False,
             "outbound": {
                 "type": "urltest",
                 "tag": "proxy",
@@ -637,10 +674,12 @@ def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-вы�
 
 def load_whitelist_servers(st, wl_key="auto", limit=120):
     frozen_set = set(st.get("frozen_sigs", []))
+    pinned_set = set(st.get("pinned_sigs", []))
+    pinned_items = st.get("pinned_wl_items", [])
     if wl_key == "my_wl_subs":
         wl_urls = read_wl_sub_urls()
-        srvs, _ = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True)
-        return apply_freeze_and_urltest(srvs, frozen_set)
+        srvs, _ = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True, pinned_set=pinned_set)
+        return apply_freeze_and_urltest(srvs, frozen_set, pinned_set=pinned_set, pinned_items=pinned_items)
 
     rel_files = []
     for k, _, files in WHITELIST_SOURCES:
@@ -690,7 +729,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=120):
         if len(servers) >= limit:
             break
 
-    return apply_freeze_and_urltest(servers, frozen_set)
+    return apply_freeze_and_urltest(servers, frozen_set, pinned_set=pinned_set, pinned_items=pinned_items)
 
 def tcp_quick_filter(item, timeout=0.9):
     ob = item.get("outbound", {})
@@ -977,17 +1016,24 @@ def build_config(outbound, st, use_tun=False):
 
 def sync_active_server_list(st):
     frozen_set = set(st.get("frozen_sigs", []))
+    pinned_set = set(st.get("pinned_sigs", []))
+    pinned_items = st.get("pinned_wl_items", [])
     urls = read_sub_urls()
     sub_cache = st.get("sub_cache", {})
     if urls and not sub_cache and st.get("sub_servers"):
         sub_cache[urls[0]] = {"title": short_sub_title(urls[0], 0), "servers": st["sub_servers"]}
         st["sub_cache"] = sub_cache
 
-    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, frozen_set, mark_wl_badges=False)
+    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, frozen_set, mark_wl_badges=False, pinned_set=pinned_set)
     st["sub_servers"] = sub_srvs
 
     if sub_srvs:
         s_idx = min(max(0, st.get("sub_selected_index", 0)), len(sub_srvs) - 1)
+        if sub_srvs[s_idx].get("frozen"):
+            for alt_i, alt_s in enumerate(sub_srvs):
+                if not alt_s.get("frozen"):
+                    s_idx = alt_i
+                    break
         st["sub_selected_index"] = s_idx
         st["sub_server_name"] = sub_srvs[s_idx]["name"]
     else:
@@ -998,7 +1044,7 @@ def sync_active_server_list(st):
     if not st.get("wl_servers") or wl_file == "my_wl_subs":
         st["wl_servers"] = load_whitelist_servers(st, wl_file)
     else:
-        st["wl_servers"] = apply_freeze_and_urltest(st["wl_servers"], frozen_set)
+        st["wl_servers"] = apply_freeze_and_urltest(st["wl_servers"], frozen_set, pinned_set=pinned_set, pinned_items=pinned_items)
 
     wl_srvs = st.get("wl_servers", [])
     if wl_srvs:
@@ -1184,10 +1230,11 @@ def dump_status_json():
     st = sync_active_server_list(st)
     save_state(st)
     frozen_set = set(st.get("frozen_sigs", []))
+    pinned_set = set(st.get("pinned_sigs", []))
     urls = read_sub_urls()
     wl_urls = read_wl_sub_urls()
-    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), frozen_set, mark_wl_badges=False)
-    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True)
+    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), frozen_set, mark_wl_badges=False, pinned_set=pinned_set)
+    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True, pinned_set=pinned_set)
 
     sub_srv_names = []
     sub_srv_items = []
@@ -1197,8 +1244,9 @@ def dump_status_json():
         uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
         sig = s.get("sig", "") or server_sig(ob)
         frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
+        pin = bool(s.get("pinned", False) or (sig and sig in pinned_set))
         sub_srv_names.append(nm)
-        sub_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "global_index": i})
+        sub_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "pinned": pin, "global_index": i})
 
     wl_srv_names = []
     wl_srv_items = []
@@ -1208,14 +1256,24 @@ def dump_status_json():
         uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
         sig = s.get("sig", "") or server_sig(ob)
         frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
+        pin = bool(s.get("pinned", False) or (sig and sig in pinned_set))
         wl_srv_names.append(nm)
-        wl_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "global_index": i})
+        wl_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "pinned": pin, "global_index": i})
 
     srv_names = wl_srv_names if st.get("whitelist_mode", False) else sub_srv_names
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]
     blocked_d, ru_d, _, _ = load_bypass_routing_sets(st)
     hint = f"Маршруты: {len(blocked_d)} в обход • {len(ru_d)} РФ напрямую"
+    last_upd = st.get("last_updated", "")
+    if not last_upd:
+        upd_log = os.path.join(HYSETT_DIR, "bypass-lists/update.log")
+        if os.path.exists(upd_log):
+            try:
+                last_upd = time.strftime("%d.%m в %H:%M", time.localtime(os.path.getmtime(upd_log)))
+            except Exception:
+                pass
     out = {
+        "last_updated": last_upd,
         "server_name": st.get("server_name", "VPN"),
         "sub_server_name": st.get("sub_server_name", "VPN"),
         "wl_server_name": st.get("wl_server_name", "Авто-выбор лучшего сервера"),
@@ -1260,14 +1318,13 @@ if __name__ == "__main__":
         if st.get("vpn_enabled", False) and not is_running:
             start_vpn()
         dump_status_json()
-    elif cmd == "update":
-        fetch_subscriptions(is_wl=False)
-        fetch_subscriptions(is_wl=True)
-        dump_status_json()
-    elif cmd == "update_lists":
+    elif cmd in ("update", "update_lists"):
         if os.path.exists(UPDATE_SCRIPT):
             subprocess.run(["/usr/bin/bash", UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        fetch_subscriptions(is_wl=False)
+        fetch_subscriptions(is_wl=True)
         st = load_state()
+        st["last_updated"] = time.strftime("%d.%m в %H:%M")
         st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"))
         st = sync_active_server_list(st)
         save_state(st)
@@ -1316,14 +1373,56 @@ if __name__ == "__main__":
                 sig = target_list[idx].get("sig") or server_sig(ob)
                 if sig:
                     frz = st.get("frozen_sigs", [])
-                    if sig in frz:
+                    was_frozen = sig in frz
+                    if was_frozen:
                         frz.remove(sig)
                     else:
                         frz.append(sig)
                     st["frozen_sigs"] = frz
-                    if is_wl:
+                    if is_wl and not was_frozen and st.get("wl_selected_index") == idx:
                         st["wl_selected_index"] = 0
                     st = sync_active_server_list(st)
+                    save_state(st)
+                    restart_if_running()
+        dump_status_json()
+    elif cmd == "toggle_pin":
+        if len(sys.argv) > 3:
+            idx = int(sys.argv[2])
+            is_wl = (sys.argv[3] == "1")
+            st = load_state()
+            st = sync_active_server_list(st)
+            target_list = st.get("wl_servers", []) if is_wl else st.get("sub_servers", [])
+            if 0 <= idx < len(target_list):
+                srv = target_list[idx]
+                ob = srv.get("outbound", {})
+                sig = srv.get("sig") or server_sig(ob)
+                if sig:
+                    pins = st.get("pinned_sigs", [])
+                    pin_items = [x for x in st.get("pinned_wl_items", []) if (x.get("sig") or server_sig(x.get("outbound", {}))) != sig]
+                    if sig in pins:
+                        pins.remove(sig)
+                    else:
+                        pins.insert(0, sig)
+                        frz = st.get("frozen_sigs", [])
+                        if sig in frz:
+                            frz.remove(sig)
+                            st["frozen_sigs"] = frz
+                        if is_wl:
+                            pin_items.insert(0, {
+                                "name": srv.get("name", "Сервер"),
+                                "outbound": ob,
+                                "uri": srv.get("uri", "") or rebuild_uri_from_outbound(ob, srv.get("name", "Server")),
+                                "sig": sig
+                            })
+                    st["pinned_sigs"] = pins
+                    st["pinned_wl_items"] = pin_items
+                    st = sync_active_server_list(st)
+                    if is_wl and sig in pins:
+                        for new_i, item in enumerate(st.get("wl_servers", [])):
+                            if item.get("sig") == sig:
+                                st["wl_selected_index"] = new_i
+                                break
+                        st = sync_active_server_list(st)
                     save_state(st)
                     restart_if_running()
         dump_status_json()

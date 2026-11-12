@@ -1678,6 +1678,7 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnSubSelectedServer = o["sub_selected_index"].toInt(0);
     m_vpnWlSelectedServer = o["wl_selected_index"].toInt(0);
     m_vpnStatusHint = o["status_hint"].toString(m_vpnStatusHint);
+    m_vpnLastUpdated = o["last_updated"].toString(m_vpnLastUpdated);
 
     QVariantList wlFiles;
     for (const auto &v : o["whitelist_files"].toArray()) {
@@ -1841,6 +1842,10 @@ void WaybarManager::removeVpnWlSubUrl(int idx) {
 
 void WaybarManager::toggleFreezeVpnServer(int idx, bool isWl) {
     runVpnScriptCmd({"toggle_freeze", QString::number(idx), isWl ? "1" : "0"});
+}
+
+void WaybarManager::togglePinVpnServer(int idx, bool isWl) {
+    runVpnScriptCmd({"toggle_pin", QString::number(idx), isWl ? "1" : "0"});
 }
 
 void WaybarManager::clearFrozenVpnServers() {

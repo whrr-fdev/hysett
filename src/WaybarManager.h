@@ -120,6 +120,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QStringList vpnCustomDirectDomains READ vpnCustomDirectDomains NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnBusy READ vpnBusy NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnStatusHint READ vpnStatusHint NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnLastUpdated READ vpnLastUpdated NOTIFY sysStatsChanged)
 
     // Погода Gismeteo (Сейчас, Завтра, Неделя, Месяц)
     Q_PROPERTY(QString weatherText READ weatherText NOTIFY weatherChanged)
@@ -261,6 +262,7 @@ public:
     QVariantList vpnWlServerItems() const { return m_vpnWlServerItems; }
     int vpnFrozenCount() const { return m_vpnFrozenCount; }
     Q_INVOKABLE void toggleFreezeVpnServer(int idx, bool isWl);
+    Q_INVOKABLE void togglePinVpnServer(int idx, bool isWl);
     Q_INVOKABLE void clearFrozenVpnServers();
     QStringList vpnLogs() const { return m_vpnLogs; }
     QString vpnLogHtml() const { return m_vpnLogHtml; }
@@ -295,6 +297,7 @@ public:
     QStringList vpnCustomDirectDomains() const { return m_vpnCustomDirectDomains; }
     bool vpnBusy() const { return m_vpnBusy; }
     QString vpnStatusHint() const { return m_vpnStatusHint; }
+    QString vpnLastUpdated() const { return m_vpnLastUpdated; }
     Q_INVOKABLE void updateBypassLists();
     Q_INVOKABLE void testWhitelistServers();
     Q_INVOKABLE void addVpnCustomDomain(const QString &domain, bool isDirect);
@@ -493,4 +496,5 @@ private:
     QVariantList m_weatherTomorrow;
     QVariantList m_weatherWeek;
     QVariantList m_weatherMonth;
+    QString m_vpnLastUpdated;
 };

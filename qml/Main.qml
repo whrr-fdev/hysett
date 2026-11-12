@@ -293,13 +293,16 @@ ApplicationWindow {
         if (anc.indexOf("center") !== -1) return Math.round((root.width - notifW) * 0.5)
         return (barPos === 3) ? (barLeft - notifW - 6) : (root.width - notifW - edgeGap)
     }
-    // Если уведомление помещается между правым/левым краем панели и краем экрана — ставим его на уровне панели (barTop), иначе под ней
-    readonly property bool barOverlapsNotifX: !isVertBar && (barLeft + barW > notifX - 2) && (barLeft < notifX + notifW + 2)
-    readonly property real notifY: {
+    readonly property real maxPossibleBarRight: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width + Math.max(baseBarW, targetDrawerW)) * 0.5) : (fullBarLeft + maxAvailBarW)
+    readonly property real minPossibleBarLeft: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - Math.max(baseBarW, targetDrawerW)) * 0.5) : fullBarLeft
+    readonly property bool barOverlapsNotifX: !isVertBar && ((barLeft + barW > notifX - 2 && barLeft < notifX + notifW + 2) ||
+                                              (drawerActive && maxPossibleBarRight > notifX - 2 && minPossibleBarLeft < notifX + notifW + 2))
+    property real notifY: {
         if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH) : (root.height - animNotifH - barTop)
         if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barRectY
         return barTop
     }
+    Behavior on notifY { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
 
     property bool modalOpen: false
     property bool barSavePromptOpen: false
@@ -604,14 +607,14 @@ ApplicationWindow {
                                           : (Config ? Config.opacity : 0.85)
             Behavior on currentOpacity { enabled: pageController.currentIndex === 14; NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
             property color surfCol: Config ? Config.m3Surface : "#0e1015"
-            property color notifBgCol: (root.drawerActive || (Theme && Theme.isRounded && Config)) ? surfCol : (Mako ? Mako.bgColor : surfCol)
-            property real notifAlpha: root.drawerActive ? currentOpacity : (Mako ? Mako.bgOpacity : 0.90)
-            property color outCol: (root.notifActive && Mako && Mako.popupCritical) ? Mako.criticalBorderColor : (Config ? Config.m3Outline : "#444854")
+            property color notifBgCol: (Theme && Theme.isRounded && Config) ? surfCol : (Mako ? Mako.bgColor : surfCol)
+            property real notifAlpha: root.drawerActive ? currentOpacity : (Waybar ? Waybar.barOpacity : 0.88)
+            property color outCol: Config ? Config.m3Outline : "#444854"
 
             property vector2d u_resolution: Qt.vector2d(width, height)
             property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.actualBarH)
             property vector4d u_drawer_rect: Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
-            property vector4d u_notif_rect: Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
+            property vector4d u_notif_rect: notifClipBox.overlapsOpenDrawer ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
             property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
@@ -2207,20 +2210,24 @@ ApplicationWindow {
                 acceptedButtons: Qt.AllButtons
             }
 
+            readonly property bool overlapsOpenDrawer: root.drawerActive &&
+                                                       (root.notifX < root.drawerX + root.effDrawerW) &&
+                                                       (root.notifX + root.notifW > root.drawerX) &&
+                                                       (root.notifY < root.drawerY + root.animDrawerH) &&
+                                                       (root.notifY + root.animNotifH > root.drawerY)
+
             Rectangle {
                 anchors.fill: parent
-                visible: root.drawerActive
-                color: (Theme && Theme.isRounded && Config) ? Config.m3Surface : (Mako ? Mako.bgColor : "#0e1015")
-                opacity: Mako ? Math.max(0.95, Mako.bgOpacity) : 0.96
+                visible: notifClipBox.overlapsOpenDrawer
+                color: mergedShellBg.surfCol
+                opacity: mergedShellBg.currentOpacity
                 readonly property real rNotif: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.8) : 16) : 0
                 topLeftRadius: (root.barPos === 0 && root.barOverlapsNotifX) ? 0 : rNotif
                 topRightRadius: (root.barPos === 0 && root.barOverlapsNotifX) ? 0 : rNotif
                 bottomLeftRadius: (root.barPos === 1 && root.barOverlapsNotifX) ? 0 : rNotif
                 bottomRightRadius: (root.barPos === 1 && root.barOverlapsNotifX) ? 0 : rNotif
                 border.width: 1
-                border.color: (Mako && Mako.popupCritical)
-                              ? Mako.criticalBorderColor
-                              : (Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.20))
+                border.color: Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.32) : Qt.rgba(1, 1, 1, 0.20)
             }
 
             Column {
@@ -2236,6 +2243,20 @@ ApplicationWindow {
                     delegate: Item {
                         width: root.notifW
                         height: Math.max(44, notifTextCol.implicitHeight + (Mako ? Mako.padding : 12))
+
+                        // Красная обводка только внутри самого важного (critical) уведомления
+                        Rectangle {
+                            visible: modelData.critical === true
+                            anchors.fill: parent
+                            anchors.leftMargin: 6
+                            anchors.rightMargin: 6
+                            anchors.topMargin: 3
+                            anchors.bottomMargin: 3
+                            radius: (Theme && Theme.isRounded) ? (Config ? Math.min(10, Math.round(Config.m3CardRadius * 0.55)) : 8) : 0
+                            color: Qt.rgba(1.0, 0.25, 0.25, 0.08)
+                            border.width: Math.max(1, Mako ? Mako.borderSize : 1)
+                            border.color: Mako ? Mako.criticalBorderColor : "#ff6b6b"
+                        }
 
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.topMargin: 6; anchors.bottomMargin: 6; spacing: 10

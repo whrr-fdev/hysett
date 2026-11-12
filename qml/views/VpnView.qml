@@ -427,17 +427,17 @@ ScrollView {
                     color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true
                     Layout.fillWidth: true
                 }
+                Text {
+                    visible: Waybar && Waybar.vpnLastUpdated.length > 0
+                    text: "Обновлено: " + (Waybar ? Waybar.vpnLastUpdated : "")
+                    color: "#999999"
+                    font.pixelSize: Config.fontSize - 1
+                }
                 StyledButton {
-                    text: (Waybar && Waybar.vpnBusy) ? "󰑐 Синхронизация..." : "󰊢 Обновить списки"
+                    text: (Waybar && Waybar.vpnBusy) ? "󰑐 Обновление..." : "󰑐 Обновить всё"
                     implicitHeight: 26
                     enabled: !(Waybar && Waybar.vpnBusy)
                     onClicked: if (Waybar) Waybar.updateBypassLists()
-                }
-                StyledButton {
-                    text: "󰑐 Обновить подписки"
-                    implicitHeight: 26
-                    enabled: !(Waybar && Waybar.vpnBusy)
-                    onClicked: if (Waybar) Waybar.updateVpnSubscription()
                 }
             }
 
@@ -912,16 +912,25 @@ ScrollView {
                                             property int realIdx: modelData.global_index !== undefined ? modelData.global_index : index
                                             property bool isSel: Waybar && Waybar.vpnSubSelectedServer === realIdx
                                             property bool isFrz: modelData.frozen === true
+                                            property bool isPin: modelData.pinned === true
                                             property string srvUri: modelData.uri || ""
                                             property string srvSig: modelData.sig || ("sub_" + realIdx)
                                             property var parsed: vpnScroll.parseServerItem(modelData.name !== undefined ? modelData.name : modelData, false)
                                             radius: vpnScroll.isM3 ? 8 : 0
-                                            opacity: isFrz ? 0.55 : 1.0
+                                            opacity: isFrz ? 0.42 : 1.0
                                             color: isSel
                                                    ? (Config ? Config.m3Primary : "#ffffff")
-                                                   : (vpnScroll.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.45) : Qt.rgba(1, 1, 1, 0.04))
-                                            border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
-                                            border.width: vpnScroll.isM3 ? 0 : 1
+                                                   : (isFrz
+                                                      ? Qt.rgba(0, 0, 0, 0.42)
+                                                      : (isPin
+                                                         ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.22) : Qt.rgba(1, 1, 1, 0.14))
+                                                         : (vpnScroll.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.45) : Qt.rgba(1, 1, 1, 0.04))))
+                                            border.color: isSel
+                                                          ? "transparent"
+                                                          : (isPin
+                                                             ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.55) : Qt.rgba(1, 1, 1, 0.45))
+                                                             : Qt.rgba(1, 1, 1, 0.14))
+                                            border.width: (isPin && !isSel) ? 1 : (vpnScroll.isM3 ? 0 : 1)
                                             Behavior on color { ColorAnimation { duration: 140 } }
 
                                             MouseArea {
@@ -932,7 +941,7 @@ ScrollView {
                                                     normalSrvListWrap.isHovering = true
                                                 }
                                                 onExited: normalSrvHoverHold.restart()
-                                                onPressed: if (Waybar) Waybar.selectVpnServer(parent.realIdx)
+                                                onClicked: if (Waybar) Waybar.selectVpnServer(parent.realIdx)
                                             }
 
                                             RowLayout {
@@ -1447,16 +1456,25 @@ ScrollView {
                                             width: wlSrvList.width; height: 30
                                             property bool isSel: Waybar && Waybar.vpnWlSelectedServer === index
                                             property bool isFrz: modelData.frozen === true
+                                            property bool isPin: modelData.pinned === true
                                             property string srvUri: modelData.uri || ""
                                             property string srvSig: modelData.sig || ("wl_" + index)
                                             property var parsed: vpnScroll.parseServerItem(modelData.name || "", true)
                                             radius: vpnScroll.isM3 ? 8 : 0
-                                            opacity: isFrz ? 0.55 : 1.0
+                                            opacity: isFrz ? 0.42 : 1.0
                                             color: isSel
                                                    ? (Config ? Config.m3Primary : "#ffffff")
-                                                   : (vpnScroll.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.45) : Qt.rgba(1, 1, 1, 0.04))
-                                            border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
-                                            border.width: vpnScroll.isM3 ? 0 : 1
+                                                   : (isFrz
+                                                      ? Qt.rgba(0, 0, 0, 0.42)
+                                                      : (isPin
+                                                         ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.22) : Qt.rgba(1, 1, 1, 0.14))
+                                                         : (vpnScroll.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.45) : Qt.rgba(1, 1, 1, 0.04))))
+                                            border.color: isSel
+                                                          ? "transparent"
+                                                          : (isPin
+                                                             ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.55) : Qt.rgba(1, 1, 1, 0.45))
+                                                             : Qt.rgba(1, 1, 1, 0.14))
+                                            border.width: (isPin && !isSel) ? 1 : (vpnScroll.isM3 ? 0 : 1)
                                             Behavior on color { ColorAnimation { duration: 140 } }
 
                                             MouseArea {
@@ -1467,19 +1485,33 @@ ScrollView {
                                                     wlSrvListWrap.isHovering = true
                                                 }
                                                 onExited: wlSrvHoverHold.restart()
-                                                onPressed: if (Waybar) Waybar.selectVpnServer(index)
+                                                onClicked: if (Waybar) Waybar.selectVpnServer(index)
                                             }
 
                                             RowLayout {
+                                                z: 5
                                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 8
 
                                                 Item {
                                                     width: 16; height: 16
                                                     Text {
                                                         anchors.centerIn: parent
-                                                        text: isFrz ? "󰜺" : parsed.icon
-                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : (isFrz ? "#ff8a80" : (Config ? Config.m3Primary : "#ffffff"))
+                                                        text: isFrz ? "󰜺" : (isPin ? "󰐃" : parsed.icon)
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : (isFrz ? "#ff8a80" : (isPin ? "#69f0ae" : (Config ? Config.m3Primary : "#ffffff")))
                                                         font.pixelSize: Config.fontSize + 1
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: isPin && !isFrz
+                                                    width: pinBadgeTxt.implicitWidth + 10; height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)
+                                                    Text {
+                                                        id: pinBadgeTxt; anchors.centerIn: parent
+                                                        text: "ЗАКРЕПЛЕН"
+                                                        font.pixelSize: Config.fontSize - 2; font.bold: true
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
                                                     }
                                                 }
 
@@ -1557,6 +1589,14 @@ ScrollView {
                                                             copyResetTimer.restart();
                                                         }
                                                     }
+                                                }
+
+                                                StyledButton {
+                                                    visible: index > 0
+                                                    text: "󰐃"
+                                                    implicitWidth: 24; implicitHeight: 22
+                                                    isActive: isPin
+                                                    onClicked: if (Waybar) Waybar.togglePinVpnServer(index, true)
                                                 }
 
                                                 StyledButton {

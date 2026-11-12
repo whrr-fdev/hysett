@@ -61,7 +61,7 @@ for repo_url in "${GIT_REPOS[@]}"; do
     fi
 done
 
-write_prog 68 "Фильтрация ключей БС и ЧС..."
+write_prog 68 "Распаковка всех ключей БС и ЧС..."
 
 nice -n 15 python3 - << 'PYEOF'
 import os, base64, re
@@ -84,16 +84,16 @@ for rname in target_repos:
                 continue
             fpath = os.path.join(root, fn)
             try:
-                if os.path.getsize(fpath) > 4 * 1024 * 1024:
+                if os.path.getsize(fpath) > 10 * 1024 * 1024:
                     continue
                 with open(fpath, "r", encoding="utf-8", errors="ignore") as rf:
-                    raw = rf.read(393216).strip()
+                    raw = rf.read(2 * 1024 * 1024).strip()
             except Exception:
                 continue
             if not raw:
                 continue
             chunks = [raw]
-            if "://" not in raw[:200] and 32 < len(raw) < 262144:
+            if "://" not in raw[:200] and 32 < len(raw) < 1048576:
                 try:
                     b64_clean = "".join(raw.split())
                     pad = len(b64_clean) % 4
@@ -110,9 +110,9 @@ for rname in target_repos:
                     if u not in seen:
                         seen.add(u)
                         found.append(u)
-                        if len(found) >= 350:
+                        if len(found) >= 2500:
                             break
-            if len(found) >= 350:
+            if len(found) >= 2500:
                 break
     if found:
         out_file = os.path.join(rpath, "hysett_wl.txt")

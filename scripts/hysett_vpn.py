@@ -851,7 +851,7 @@ def ensure_sub_cache_metadata(cache_dict, ping_cache, country_cache):
         populate_server_pings(all_s, ping_cache, max_new_probes=32, timeout=0.55)
         resolve_countries_batch(all_s, country_cache)
 
-def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=200, allow_network_probe=False, verified_set=None):
+def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=1000, allow_network_probe=False, verified_set=None):
     if verified_set is None:
         verified_set = set()
     bl_groups = []
@@ -1018,7 +1018,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
 
     # 2. После импортированных серверов добавляем публичные серверы обхода Чёрных списков
     if include_public_bl and not mark_wl_badges:
-        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=200, allow_network_probe=allow_network_probe, verified_set=verified_set)
+        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=1000, allow_network_probe=allow_network_probe, verified_set=verified_set)
         groups.extend(bl_groups)
 
     # 3. Формируем умный "Авто-выбор (Импорт в приоритете)" на позиции 0 для Обычного VPN
@@ -1061,25 +1061,73 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
                 "is_public_bl": False,
                 "outbound": auto_ob
             })
-            # Сдвигаем global_index на +1 во всех группах
-            for g in groups:
-                g["start_index"] += 1
-                for gs in g["servers"]:
-                    gs["global_index"] += 1
+    # Глобально сортируем all_srvs (кроме позиции 0 Авто-выбор):
+    # 1) Личные подписки (not is_public_bl и not frozen)
+    # 2) Закрепленные (pinned и not frozen)
+    # 3) Проверенные рабочие (verified и not frozen)
+    # 4) Обычные непроверенные (not frozen)
+    # 5) Замороженные (frozen) — в самом низу
+    if len(all_srvs) > 1:
+        auto_head = [all_srvs[0]] if all_srvs[0].get("outbound", {}).get("type") == "urltest" or all_srvs[0].get("name", "").startswith("Авто-выбор") else []
+        rest_srvs = all_srvs[1:] if auto_head else all_srvs[:]
+        for s in rest_srvs:
+            sig_s = s.get("sig", "")
+            frz_s = bool(s.get("frozen", False) or (sig_s and sig_s in frozen_set))
+            ver_s = bool(s.get("verified", False) or (sig_s and sig_s in verified_set)) and not frz_s
+            s["frozen"] = frz_s
+            s["verified"] = ver_s
+        rest_srvs.sort(key=lambda x: (
+            0 if (not x.get("is_public_bl") and not x.get("frozen")) else (
+                1 if (x.get("pinned") and not x.get("frozen")) else (
+                    2 if (x.get("verified") and not x.get("frozen")) else (
+                        4 if x.get("frozen") else 3
+                    )
+                )
+            ),
+            0 if int(x.get("ping_ms") or 0) > 3 else 1,
+            int(x.get("ping_ms") or 9999)
+        ))
+        all_srvs = auto_head + rest_srvs
+
+        sig_to_global = {}
+        for g_idx, s in enumerate(all_srvs):
+            s["global_index"] = g_idx
+            if s.get("sig") and s["sig"] not in sig_to_global:
+                sig_to_global[s["sig"]] = g_idx
+
+        for g in groups:
+            for gs in g["servers"]:
+                gs_sig = gs.get("sig", "")
+                gs_frz = bool(gs.get("frozen", False) or (gs_sig and gs_sig in frozen_set))
+                gs_ver = bool(gs.get("verified", False) or (gs_sig and gs_sig in verified_set)) and not gs_frz
+                gs["frozen"] = gs_frz
+                gs["verified"] = gs_ver
+                if gs_sig in sig_to_global:
+                    gs["global_index"] = sig_to_global[gs_sig]
+            g["servers"].sort(key=lambda x: (
+                0 if (x.get("pinned") and not x.get("frozen")) else (
+                    1 if (x.get("verified") and not x.get("frozen")) else (
+                        3 if x.get("frozen") else 2
+                    )
+                ),
+                0 if x.get("ping") else 1
+            ))
 
     return all_srvs, groups
 
 def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера", pinned_set=None, pinned_items=None, verified_set=None):
     if pinned_set is None:
         pinned_set = set()
-    if verified_set is None:
-        verified_set = set()
     if pinned_items is None:
         pinned_items = []
+    if verified_set is None:
+        verified_set = set()
 
     real = [s for s in raw_servers if s.get("outbound", {}).get("type") != "urltest"]
     pinned_list = []
+    verified_list = []
     normal_list = []
+    frozen_list = []
     seen_sigs = set()
 
     for ps in pinned_items:
@@ -1090,34 +1138,48 @@ def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-вы�
         seen_sigs.add(sig)
         uri = ps.get("uri") or rebuild_uri_from_outbound(ob, ps.get("name", "Server"))
         is_frz = sig in frozen_set
-        pinned_list.append(dict(ps, sig=sig, uri=uri, frozen=is_frz, pinned=True))
+        is_ver = (sig in verified_set or bool(ps.get("verified", False))) and not is_frz
+        item = dict(ps, sig=sig, uri=uri, frozen=is_frz, pinned=True, verified=is_ver)
+        if is_frz:
+            frozen_list.append(item)
+        else:
+            pinned_list.append(item)
 
     for s in real:
         ob = s.get("outbound", {})
         sig = s.get("sig") or server_sig(ob)
         uri = s.get("uri") or rebuild_uri_from_outbound(ob, s.get("name", "Server"))
-        is_frz = sig in frozen_set if sig else False
-        is_pin = sig in pinned_set if sig else False
+        is_frz = (sig in frozen_set) if sig else bool(s.get("frozen", False))
+        is_pin = (sig in pinned_set) if sig else bool(s.get("pinned", False))
+        is_ver = ((sig in verified_set) if sig else False) or bool(s.get("verified", False))
+        if is_frz:
+            is_ver = False
         if sig and sig in seen_sigs:
             continue
         if sig:
             seen_sigs.add(sig)
-        item = dict(s, sig=sig, uri=uri, frozen=is_frz, pinned=is_pin)
-        is_ver = (sig in verified_set) if (sig and verified_set) else bool(s.get("verified", False))
-        item["verified"] = is_ver and not is_frz
-        if is_pin:
+        item = dict(s, sig=sig, uri=uri, frozen=is_frz, pinned=is_pin, verified=is_ver)
+        if is_frz:
+            frozen_list.append(item)
+        elif is_pin:
             pinned_list.append(item)
+        elif is_ver:
+            verified_list.append(item)
         else:
             normal_list.append(item)
 
-    normal_list.sort(key=lambda x: (0 if x.get("verified") else (2 if x.get("frozen") else 1), 0 if int(x.get("ping_ms") or 0) > 3 else 1, int(x.get("ping_ms") or 9999)))
-    ordered = pinned_list + normal_list
-    alive_for_pool = [s for s in ordered if not s.get("frozen")]
+    sort_ping = lambda x: (0 if int(x.get("ping_ms") or 0) > 3 else 1, int(x.get("ping_ms") or 9999))
+    verified_list.sort(key=sort_ping)
+    normal_list.sort(key=sort_ping)
+
+    ordered = pinned_list + verified_list + normal_list + frozen_list
+    alive_for_pool = pinned_list + verified_list + normal_list
     if len(alive_for_pool) >= 1:
         pool = [dict(s["outbound"], tag=f"wl-{i}") for i, s in enumerate(alive_for_pool[:20])]
         best_s = alive_for_pool[0]
+        auto_lbl = f"Авто-выбор • {len(verified_list)} рабочих ✓" if verified_list else auto_title
         ordered.insert(0, {
-            "name": auto_title,
+            "name": auto_lbl,
             "country": best_s.get("country", ""),
             "ping": best_s.get("ping", ""),
             "ping_ms": best_s.get("ping_ms", 0),
@@ -1125,11 +1187,12 @@ def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-вы�
             "sig": "",
             "frozen": False,
             "pinned": False,
+            "verified": bool(verified_list),
             "outbound": {
                 "type": "urltest",
                 "tag": "proxy",
                 "outbounds": [p["tag"] for p in pool],
-                "url": "https://www.gstatic.com/generate_204",
+                "url": "http://cp.cloudflare.com/generate_204",
                 "interval": "20s",
                 "tolerance": 45,
                 "_pool": pool
@@ -1137,7 +1200,7 @@ def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-вы�
         })
     return ordered
 
-def load_whitelist_servers(st, wl_key="auto", limit=1200, allow_network_probe=False):
+def load_whitelist_servers(st, wl_key="auto", limit=5000, allow_network_probe=False):
     frozen_set = set(st.get("frozen_sigs", []))
     pinned_set = set(st.get("pinned_sigs", []))
     verified_set = set(st.get("verified_sigs", []))
@@ -1161,7 +1224,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=1200, allow_network_probe=Fa
     starts, merged = load_ru_whitelist_ip_intervals()
     servers = []
     seen = set()
-    per_file_max = max(220, int(limit // max(1, len(rel_files)))) if len(rel_files) > 1 else limit
+    per_file_max = max(800, int(limit // max(1, len(rel_files)))) if len(rel_files) > 1 else limit
     for rel in rel_files:
         file_added = 0
         full = os.path.join(BYPASS_REPOS, rel)
@@ -1403,7 +1466,7 @@ def test_and_sort_whitelist(st, max_candidates=60):
     country_cache = st.setdefault("country_cache", {})
 
     write_progress(12, "Загрузка кандидатов БС...")
-    wl = load_whitelist_servers(st, st.get("whitelist_file", "auto"), limit=200, allow_network_probe=False)
+    wl = load_whitelist_servers(st, st.get("whitelist_file", "auto"), limit=5000, allow_network_probe=False)
     real_srvs = [s for s in wl if s.get("outbound", {}).get("type") != "urltest" and not s.get("frozen")]
     if not real_srvs:
         write_progress(100, "Готово")

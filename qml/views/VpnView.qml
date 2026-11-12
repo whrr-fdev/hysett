@@ -12,7 +12,36 @@ ScrollView {
     property string copiedSrvSig: ""
     property bool copiedLogs: false
     property int activeSubTab: 0
+    property int srvFilterMode: 0 // 0=Все, 1=Рабочие, 2=Без замороженных, 3=Закрепленные, 4=Замороженные
+    property string srvSearchQuery: ""
     readonly property bool isM3: Theme && Theme.isRounded
+
+    function filterServers(rawList, filterMode, searchStr) {
+        if (!rawList) return []
+        var q = (searchStr || "").trim().toLowerCase()
+        if (filterMode === 0 && q.length === 0) return rawList
+        var out = []
+        for (var i = 0; i < rawList.length; ++i) {
+            var item = rawList[i]
+            var nm = (item.name !== undefined ? item.name : String(item)).toLowerCase()
+            var cc = (item.country || "").toLowerCase()
+            var isAuto = nm.indexOf("авто-выбор") === 0
+            if (isAuto && q.length === 0 && filterMode !== 4) {
+                out.push(item)
+                continue
+            }
+            var frz = item.frozen === true
+            var ver = item.verified === true && !frz
+            var pin = item.pinned === true && !frz
+            if (filterMode === 1 && !ver) continue
+            if (filterMode === 2 && frz) continue
+            if (filterMode === 3 && !pin) continue
+            if (filterMode === 4 && !frz) continue
+            if (q.length > 0 && nm.indexOf(q) === -1 && cc.indexOf(q) === -1) continue
+            out.push(item)
+        }
+        return out
+    }
 
     property bool viewWlMode: Waybar ? Waybar.vpnWhitelistMode : false
     readonly property bool isWlMode: viewWlMode
@@ -65,6 +94,58 @@ ScrollView {
             return { icon: ic1, badge: b1, ping: "", title: parts.slice(1).join(" • ") }
         }
         return { icon: isWl ? "󰒃" : "󰈀", badge: "", ping: "", title: s }
+    }
+
+    component SrvFilterBar: ColumnLayout {
+        Layout.fillWidth: true
+        spacing: 6
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            SegmentedButton {
+                Layout.fillWidth: true
+                implicitHeight: 26
+                options: [
+                    "Все",
+                    "✓ Рабочие",
+                    "Без ❄",
+                    "󰐃 Закреп.",
+                    "❄ Заморож."
+                ]
+                selectedIndex: vpnScroll.srvFilterMode
+                onSelected: (idx) => { vpnScroll.srvFilterMode = idx }
+            }
+
+            TextField {
+                id: srvSearchBox
+                Layout.preferredWidth: 190
+                implicitHeight: 26
+                leftPadding: 10; rightPadding: 24
+                color: "#ffffff"; font.pixelSize: 11
+                placeholderText: "󰍉 Поиск (страна, IP, SNI)..."
+                placeholderTextColor: "#777777"
+                text: vpnScroll.srvSearchQuery
+                onTextEdited: vpnScroll.srvSearchQuery = text
+                background: Rectangle {
+                    radius: vpnScroll.isM3 ? 8 : 0
+                    color: vpnScroll.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1,1,1,0.06)
+                    border.color: Qt.rgba(1,1,1,0.16)
+                    border.width: vpnScroll.isM3 ? 0 : 1
+                }
+                Text {
+                    visible: srvSearchBox.text.length > 0
+                    anchors.right: parent.right; anchors.rightMargin: 7
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "󰅖"; color: "#aaaaaa"; font.pixelSize: 11
+                    MouseArea {
+                        anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: { srvSearchBox.text = ""; vpnScroll.srvSearchQuery = "" }
+                    }
+                }
+            }
+        }
     }
 
     component VpnLogsCard: GlassPanel {
@@ -1097,6 +1178,8 @@ ScrollView {
                                     }
                                 }
 
+                                SrvFilterBar {}
+
                                 Text {
                                     visible: !Waybar || Waybar.vpnSubServers.length === 0
                                     text: "Нет добавленных серверов. Вставьте ссылку на подписку или ключ выше."
@@ -1107,7 +1190,7 @@ ScrollView {
                                     id: normalSrvListWrap
                                     visible: Waybar && Waybar.vpnSubServers.length > 0
                                     Layout.fillWidth: true
-                                    implicitHeight: Math.min(normalSrvList.contentHeight, 238)
+                                    implicitHeight: Math.min(normalSrvList.contentHeight, 300)
                                     clip: true
                                     property bool isHovering: false
                                     property int lastHoveredRow: 0
@@ -1141,10 +1224,10 @@ ScrollView {
 
                                         model: {
                                             if (!Waybar || !vpnScroll.normalScreenVis) return [];
-                                            if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
-                                                return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
-                                            }
-                                            return Waybar.vpnSubServerItems;
+                                            var raw = (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length)
+                                                      ? Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers
+                                                      : Waybar.vpnSubServerItems;
+                                            return vpnScroll.filterServers(raw, vpnScroll.srvFilterMode, vpnScroll.srvSearchQuery);
                                         }
                                         onModelChanged: {
                                             if (lastTabIdx !== vpnScroll.activeSubTab) {
@@ -1792,6 +1875,8 @@ ScrollView {
                                     }
                                 }
 
+                                SrvFilterBar {}
+
                                 Text {
                                     visible: !Waybar || Waybar.vpnWlServerItems.length === 0
                                     text: "Нет серверов в выбранной категории. Нажмите «Обновить списки» или добавьте свою подписку."
@@ -1802,7 +1887,7 @@ ScrollView {
                                     id: wlSrvListWrap
                                     visible: Waybar && Waybar.vpnWlServerItems.length > 0
                                     Layout.fillWidth: true
-                                    implicitHeight: Math.min(wlSrvList.contentHeight, 238)
+                                    implicitHeight: Math.min(wlSrvList.contentHeight, 300)
                                     clip: true
                                     property bool isHovering: false
                                     property int lastHoveredRow: 0
@@ -1833,7 +1918,7 @@ ScrollView {
                                         property real savedContentY: 0
                                         property string lastWlKey: Waybar ? Waybar.vpnWhitelistFile : ""
                                         onContentYChanged: if (!moving && contentY >= 0) savedContentY = contentY
-                                        model: (Waybar && vpnScroll.wlScreenVis) ? Waybar.vpnWlServerItems : []
+                                        model: (Waybar && vpnScroll.wlScreenVis) ? vpnScroll.filterServers(Waybar.vpnWlServerItems, vpnScroll.srvFilterMode, vpnScroll.srvSearchQuery) : []
                                         onModelChanged: {
                                             var curKey = Waybar ? Waybar.vpnWhitelistFile : ""
                                             if (lastWlKey !== curKey) {

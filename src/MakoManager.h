@@ -82,6 +82,7 @@ public:
     Q_INVOKABLE void dismissPopup(int id);
     Q_INVOKABLE void dismissAll();
     Q_INVOKABLE void clearHistory();
+    Q_INVOKABLE void dismissHistoryItem(int id);
     Q_INVOKABLE void resetDefaults();
     Q_INVOKABLE void showInternalNotification(const QString &appName, const QString &summary, const QString &body, const QString &icon, bool critical, int timeoutMs = -1);
 

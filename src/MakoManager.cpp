@@ -97,7 +97,7 @@ void MakoManager::showInternalNotification(const QString &appName, const QString
     while (m_activePopups.size() > 50) m_activePopups.removeLast();
 
     m_history.prepend(item);
-    while (m_history.size() > 30) m_history.removeLast();
+    while (m_history.size() > 50) m_history.removeLast();
 
     if (!m_tickTimer->isActive()) m_tickTimer->start();
     emit popupChanged();
@@ -122,6 +122,16 @@ void MakoManager::dismissAll() {
 void MakoManager::clearHistory() {
     m_history.clear();
     emit popupChanged();
+}
+
+void MakoManager::dismissHistoryItem(int id) {
+    for (int i = 0; i < m_history.size(); ++i) {
+        if (m_history[i].toMap()["id"].toInt() == id) {
+            m_history.removeAt(i);
+            emit popupChanged();
+            return;
+        }
+    }
 }
 
 QString MakoManager::configPath() const { return QDir::homePath() + "/.config/mako/config"; }

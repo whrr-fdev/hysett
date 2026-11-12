@@ -1524,6 +1524,30 @@ def test_single_outbound_via_singbox(ob, port=29250, timeout=2.5):
         pass
     return None, "", 0
 
+def _probe_port_fast(port, srv, timeout=2.5):
+    if os.path.exists(STOP_AUDIT_FLAG):
+        return False, "", "", 0
+    proxy_url = f"http://127.0.0.1:{port}"
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
+    t0 = time.monotonic()
+    for u in ("http://www.gstatic.com/generate_204", "http://cp.cloudflare.com/generate_204", "https://www.gstatic.com/generate_204"):
+        if os.path.exists(STOP_AUDIT_FLAG):
+            return False, "", "", 0
+        rem = timeout - (time.monotonic() - t0)
+        if rem <= 0.2:
+            break
+        try:
+            t_req = time.monotonic()
+            req = urllib.request.Request(u, headers={"User-Agent": "curl/8.0", "Connection": "close"})
+            with opener.open(req, timeout=min(1.6, rem)) as r:
+                if r.status in (200, 204):
+                    ms = max(8, int((time.monotonic() - t_req) * 1000))
+                    cc = srv.get("country", "")
+                    return True, f"ОК • {ms} мс", cc, ms
+        except Exception:
+            pass
+    return False, "", "", 0
+
 def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
     if os.path.exists(STOP_AUDIT_FLAG):
         try:
@@ -1562,64 +1586,112 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
         write_ipcheck(3, "Нет серверов для проверки", reload_state=False)
         return st
 
+    sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
+    base_port = 29300
+    inbounds = []
+    outbounds = [{"type": "direct", "tag": "direct"}]
+    rules = []
+    valid_entries = []
+
+    for idx, srv in enumerate(target_srvs):
+        ob = srv.get("outbound", {})
+        if not isinstance(ob, dict) or ob.get("type") == "urltest":
+            continue
+        p = base_port + len(valid_entries)
+        in_tag = f"in-{len(valid_entries)}"
+        out_tag = f"out-{len(valid_entries)}"
+        ob_copy = {k: v for k, v in ob.items() if not k.startswith("_")}
+        ob_copy["tag"] = out_tag
+        inbounds.append({"type": "mixed", "tag": in_tag, "listen": "127.0.0.1", "listen_port": p})
+        outbounds.append(ob_copy)
+        rules.append({"inbound": [in_tag], "outbound": out_tag})
+        valid_entries.append((p, srv))
+
+    if not valid_entries:
+        write_progress(100, "Готово")
+        return st
+
+    cfg = {
+        "log": {"level": "error"},
+        "dns": {"servers": [{"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}], "final": "dns-direct"},
+        "inbounds": inbounds,
+        "outbounds": outbounds,
+        "route": {"default_domain_resolver": "dns-direct", "auto_detect_interface": True, "rules": rules, "final": "direct"}
+    }
+    cfg_path = "/tmp/singbox_multi_audit.json"
+    with open(cfg_path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f)
+
     ok_count = 0
     frz_count = 0
-    log_wl_msg(f"▶ Запуск последовательной проверки {total} конфигов (лимит 3 сек на сервер)...")
+    proc = subprocess.Popen(
+        [sb_bin, "run", "-c", cfg_path],
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        close_fds=True, start_new_session=True
+    )
+    try:
+        wait_port(base_port, 1.5)
+        batch_size = 6
+        for b_start in range(0, len(valid_entries), batch_size):
+            if os.path.exists(STOP_AUDIT_FLAG):
+                break
+            chunk = valid_entries[b_start:b_start + batch_size]
+            first_srv = chunk[0][1]
+            first_sig = first_srv.get("sig") or server_sig(first_srv.get("outbound", {}))
+            first_nm = first_srv.get("name", "Сервер")[:28]
+            pct = max(5, int(((b_start + len(chunk)) * 100) / len(valid_entries)))
+            write_progress(pct, f"[{min(len(valid_entries), b_start + len(chunk))}/{len(valid_entries)}] Проверка: {first_nm}...")
+            write_ipcheck(1, f"Проверка [{min(len(valid_entries), b_start + len(chunk))}/{len(valid_entries))}]: {first_nm}...", reload_state=False, auditing_sig=first_sig)
 
-    for i, srv in enumerate(target_srvs):
-        if os.path.exists(STOP_AUDIT_FLAG):
-            log_wl_msg("⏹ Проверка конфигов остановлена пользователем.")
-            break
-        ob = srv.get("outbound", {})
-        sig = srv.get("sig") or server_sig(ob)
-        nm = srv.get("name", f"Сервер #{i+1}")[:30]
-        pct = max(5, int(((i + 1) * 100) / total))
-        step_msg = f"[{i+1}/{total}] Проверка: {nm}..."
-        write_progress(pct, step_msg)
-        write_ipcheck(1, f"Проверка [{i+1}/{total}]: {nm}...", reload_state=False, auditing_sig=sig)
+            with ThreadPoolExecutor(max_workers=batch_size) as ex:
+                futs = {ex.submit(_probe_port_fast, p, s, 2.2): s for p, s in chunk}
+                for fut in as_completed(futs):
+                    srv = futs[fut]
+                    ob = srv.get("outbound", {})
+                    sig = srv.get("sig") or server_sig(ob)
+                    nm = srv.get("name", "Сервер")[:28]
+                    is_ok, info_str, cc, ms = fut.result()
+                    if is_ok and ms > 0:
+                        ok_count += 1
+                        if sig:
+                            if sig in frozen_sigs:
+                                frozen_sigs.remove(sig)
+                            if sig not in verified_sigs:
+                                verified_sigs.append(sig)
+                        hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+                        ping_cache[hp] = ms
+                        srv["ping_ms"] = ms
+                        srv["ping"] = f"{ms} мс"
+                        srv["frozen"] = False
+                        srv["verified"] = True
+                        log_wl_msg(f"✓ РАБОЧИЙ ({ms} мс): {nm}")
+                    else:
+                        if not is_wl and not srv.get("is_public_bl", True):
+                            continue
+                        frz_count += 1
+                        if sig:
+                            if sig not in frozen_sigs:
+                                frozen_sigs.append(sig)
+                            if sig in verified_sigs:
+                                verified_sigs.remove(sig)
+                        srv["frozen"] = True
+                        srv["verified"] = False
 
-        loc_str, cc, ms = test_single_outbound_via_singbox(ob, port=29250 + (i % 15), timeout=2.6)
-        if loc_str and ms > 0:
-            ok_count += 1
-            if sig:
-                if sig in frozen_sigs:
-                    frozen_sigs.remove(sig)
-                if sig not in verified_sigs:
-                    verified_sigs.append(sig)
-            hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
-            ping_cache[hp] = ms
-            if cc and ob.get("server"):
-                country_cache[ob["server"]] = cc
-            srv["ping_ms"] = ms
-            srv["ping"] = f"{ms} мс"
-            if cc:
-                srv["country"] = cc
-            srv["frozen"] = False
-            srv["verified"] = True
-            log_wl_msg(f"✓ [{i+1}/{total}] РАБОЧИЙ ({ms} мс): {nm} -> {loc_str}")
-            write_ipcheck(2, f"✓ [{i+1}/{total}] РАБОЧИЙ: {nm} ({loc_str})", reload_state=True, auditing_sig="")
-        else:
-            if not is_wl and not srv.get("is_public_bl", True):
-                continue
-            frz_count += 1
-            if sig:
-                if sig not in frozen_sigs:
-                    frozen_sigs.append(sig)
-                if sig in verified_sigs:
-                    verified_sigs.remove(sig)
-            srv["frozen"] = True
-            srv["verified"] = False
-            log_wl_msg(f"❄ [{i+1}/{total}] ЗАМОРОЖЕН (>3 сек): {nm}")
-            write_ipcheck(3, f"❄ [{i+1}/{total}] ЗАМОРОЖЕН (>3 сек): {nm}", reload_state=True, auditing_sig="")
-
-        st["frozen_sigs"] = frozen_sigs
-        st["verified_sigs"] = verified_sigs
-        st = sync_active_server_list(st, allow_network_probe=False)
-        save_state(st)
+            st["frozen_sigs"] = frozen_sigs
+            st["verified_sigs"] = verified_sigs
+            st = sync_active_server_list(st, allow_network_probe=False)
+            save_state(st)
+            write_ipcheck(1, f"Проверено {min(len(valid_entries), b_start + len(chunk))}/{len(valid_entries)} • Рабочих: {ok_count} ✓", reload_state=True, auditing_sig="")
+    finally:
+        proc.kill()
+        try:
+            proc.wait(timeout=0.5)
+        except Exception:
+            pass
 
     summary = f"Готово: {ok_count} рабочих ✓ • {frz_count} заморожено ❄"
     write_progress(100, summary)
-    write_ipcheck(2 if ok_count > 0 else 3, summary, reload_state=True)
+    write_ipcheck(2 if ok_count > 0 else 3, summary, reload_state=True, auditing_sig="")
     log_wl_msg(f"🏁 Проверка завершена: {summary}")
     return st
 
@@ -1904,7 +1976,7 @@ def set_desktop_proxy(enable):
     else:
         subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "none"], stderr=subprocess.DEVNULL)
 
-def cleanup_stale_throne_rules():
+def pass:
     try:
         out = subprocess.check_output(["ip", "-4", "rule", "show"], text=True, stderr=subprocess.DEVNULL)
         for ln in out.splitlines():
@@ -1922,9 +1994,9 @@ def stop_vpn(save_disabled=True):
         save_state(st)
         write_ipcheck(0, "Туннель отключен")
     set_desktop_proxy(False)
-    cleanup_stale_throne_rules()
+    pass
     subprocess.run(["pkill", "-9", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
-    subprocess.run(["killall", "-9", "-q", "Throne", "throne", "ThroneCore", "hiddify", "HiddifyCli"], stderr=subprocess.DEVNULL)
+    pass
 
 IPCHECK_FILE = "/tmp/hysett_vpn_ipcheck.json"
 
@@ -2308,7 +2380,10 @@ if __name__ == "__main__":
         dump_status_json()
     elif cmd == "set_whitelist_mode":
         st = load_state()
-        st["whitelist_mode"] = (sys.argv[2] == "1") if len(sys.argv) > 2 else False
+        is_wl_m = (sys.argv[2] == "1") if len(sys.argv) > 2 else False
+        st["whitelist_mode"] = is_wl_m
+        if not st.get("vpn_enabled", False):
+            st["active_is_wl"] = is_wl_m
         st = sync_active_server_list(st, allow_network_probe=False)
         save_state(st)
         dump_status_json()
@@ -2545,6 +2620,7 @@ if __name__ == "__main__":
             st = load_state()
             is_wl = (sys.argv[3] == "1") if len(sys.argv) > 3 else bool(st.get("whitelist_mode", False))
             st["whitelist_mode"] = is_wl
+            st["active_is_wl"] = is_wl
             if is_wl:
                 st["wl_selected_index"] = idx
             else:

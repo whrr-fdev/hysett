@@ -1884,6 +1884,7 @@ void WaybarManager::stopVpnConfigAudit() {
     }
     QProcess::execute("pkill", {"-9", "-f", "hysett_vpn.py test_"});
     QProcess::execute("pkill", {"-9", "-f", "singbox_single_test"});
+    QProcess::execute("pkill", {"-9", "-f", "singbox_multi_audit"});
     QProcess::execute("pkill", {"-9", "-f", "singbox_wl_audit"});
     QFile::remove("/tmp/hysett_vpn_progress.json");
     m_vpnBusy = false;

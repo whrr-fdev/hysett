@@ -157,11 +157,13 @@ Item {
     }
 
     Component.onCompleted: {
+        if (visible) Qt.callLater(() => subSidebar.playStaircase())
         updateClockState()
         syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
     }
 
     onVisibleChanged: if (visible) {
+        subSidebar.playStaircase()
         updateClockState()
         if (!winObj || !winObj.timerActive) syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
         paintActiveCanvas()
@@ -305,6 +307,58 @@ Item {
     // =========================================================================
     Rectangle {
         id: subSidebar
+        signal playStaircase()
+
+        component SubCascadeAttach: Item {
+            id: att
+            property int stepIdx: 0
+            property real dY: 0.0
+            property real dX: 0.0
+            property real sc: 1.0
+
+            Connections {
+                target: subSidebar
+                function onPlayStaircase() {
+                    attAnim.restart()
+                }
+            }
+
+            Component.onCompleted: {
+                if (att.parent) {
+                    att.parent.transform = [attTrans, attScale]
+                }
+            }
+
+            Translate { id: attTrans; x: att.dX; y: att.dY }
+            Scale {
+                id: attScale
+                origin.x: att.parent ? att.parent.width * 0.35 : 40
+                origin.y: att.parent ? att.parent.height * 0.5 : 15
+                xScale: att.sc
+                yScale: att.sc
+            }
+
+            SequentialAnimation {
+                id: attAnim
+                PropertyAction { target: att.parent; property: "opacity"; value: 0.0 }
+                PropertyAction { target: att; property: "dY"; value: -20.0 }
+                PropertyAction { target: att; property: "dX"; value: -22.0 }
+                PropertyAction { target: att; property: "sc"; value: 0.72 }
+                PauseAnimation { duration: 25 + att.stepIdx * 38 }
+                ParallelAnimation {
+                    NumberAnimation { target: att.parent; property: "opacity"; from: 0.0; to: 1.0; duration: 210; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: att; property: "dY"; from: -20.0; to: 0.0; duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+                    NumberAnimation { target: att; property: "dX"; from: -22.0; to: 0.0; duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.45 }
+                    NumberAnimation { target: att; property: "sc"; from: 0.72; to: 1.0; duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+                }
+                onStopped: {
+                    if (att.parent) att.parent.opacity = 1.0
+                    att.dY = 0.0
+                    att.dX = 0.0
+                    att.sc = 1.0
+                }
+            }
+        }
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
@@ -347,6 +401,7 @@ Item {
 
         Rectangle {
             id: timeActivePill
+            SubCascadeAttach { stepIdx: timeRoot.subTab + 1 }
             x: 6
             width: subSidebar.width - 12
             height: 32
@@ -379,6 +434,7 @@ Item {
                         font.pixelSize: Config.fontSize + 2
                     }
                 }
+                SubCascadeAttach { stepIdx: 0 }
                 Text {
                     text: "Время и Даты"
                     color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
@@ -400,6 +456,7 @@ Item {
 
             Item {
                 id: tCard0; Layout.fillWidth: true; implicitHeight: 32
+                SubCascadeAttach { stepIdx: 1 }
                 MouseArea {
                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onPressed: timeRoot.subTab = 0
@@ -426,6 +483,7 @@ Item {
 
             Item {
                 id: tCard1; Layout.fillWidth: true; implicitHeight: 32
+                SubCascadeAttach { stepIdx: 2 }
                 MouseArea {
                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onPressed: timeRoot.subTab = 1
@@ -452,6 +510,7 @@ Item {
 
             Item {
                 id: tCard2; Layout.fillWidth: true; implicitHeight: 32
+                SubCascadeAttach { stepIdx: 3 }
                 MouseArea {
                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onPressed: timeRoot.subTab = 2
@@ -483,6 +542,7 @@ Item {
 
             Item {
                 id: tCard3; Layout.fillWidth: true; implicitHeight: 32
+                SubCascadeAttach { stepIdx: 4 }
                 MouseArea {
                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onPressed: timeRoot.subTab = 3

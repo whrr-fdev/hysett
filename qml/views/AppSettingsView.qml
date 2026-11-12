@@ -9,6 +9,8 @@ RowLayout {
     spacing: 0
 
     property int subTab: 0
+    onVisibleChanged: if (visible) subSidebar.playStaircase()
+    Component.onCompleted: if (visible) Qt.callLater(() => subSidebar.playStaircase())
     readonly property bool isM3: Theme && Theme.isRounded
 
     ColorPickerModal {
@@ -28,6 +30,58 @@ RowLayout {
     // Левое подменю разделов настроек
     Rectangle {
         id: subSidebar
+        signal playStaircase()
+
+        component SubCascadeAttach: Item {
+            id: att
+            property int stepIdx: 0
+            property real dY: 0.0
+            property real dX: 0.0
+            property real sc: 1.0
+
+            Connections {
+                target: subSidebar
+                function onPlayStaircase() {
+                    attAnim.restart()
+                }
+            }
+
+            Component.onCompleted: {
+                if (att.parent) {
+                    att.parent.transform = [attTrans, attScale]
+                }
+            }
+
+            Translate { id: attTrans; x: att.dX; y: att.dY }
+            Scale {
+                id: attScale
+                origin.x: att.parent ? att.parent.width * 0.35 : 40
+                origin.y: att.parent ? att.parent.height * 0.5 : 15
+                xScale: att.sc
+                yScale: att.sc
+            }
+
+            SequentialAnimation {
+                id: attAnim
+                PropertyAction { target: att.parent; property: "opacity"; value: 0.0 }
+                PropertyAction { target: att; property: "dY"; value: -20.0 }
+                PropertyAction { target: att; property: "dX"; value: -22.0 }
+                PropertyAction { target: att; property: "sc"; value: 0.72 }
+                PauseAnimation { duration: 25 + att.stepIdx * 38 }
+                ParallelAnimation {
+                    NumberAnimation { target: att.parent; property: "opacity"; from: 0.0; to: 1.0; duration: 210; easing.type: Easing.OutCubic }
+                    NumberAnimation { target: att; property: "dY"; from: -20.0; to: 0.0; duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+                    NumberAnimation { target: att; property: "dX"; from: -22.0; to: 0.0; duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.45 }
+                    NumberAnimation { target: att; property: "sc"; from: 0.72; to: 1.0; duration: 340; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+                }
+                onStopped: {
+                    if (att.parent) att.parent.opacity = 1.0
+                    att.dY = 0.0
+                    att.dX = 0.0
+                    att.sc = 1.0
+                }
+            }
+        }
         Layout.fillHeight: true
         Layout.preferredWidth: 195
         color: Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.35)
@@ -54,6 +108,7 @@ RowLayout {
 
         Rectangle {
             id: setActivePill
+            SubCascadeAttach { stepIdx: appSetRoot.subTab + 1 }
             x: 4; width: subSidebar.width - 8; height: 30
             radius: (Theme && Theme.isRounded) ? 6 : 0
             color: Config ? Config.m3Primary : "#ffffff"
@@ -69,6 +124,7 @@ RowLayout {
             spacing: 3
 
             Text {
+                SubCascadeAttach { stepIdx: 0 }
                 text: Config ? (Config.language, Config.trAuto("Настройки центра")) : "Настройки центра"
                 color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                 Layout.topMargin: 4; Layout.bottomMargin: 6; Layout.leftMargin: 4
@@ -83,6 +139,7 @@ RowLayout {
 
             Item {
                 id: sCard0; Layout.fillWidth: true; implicitHeight: 30
+                SubCascadeAttach { stepIdx: 1 }
                 MouseArea {
                     id: sMouse0; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onContainsMouseChanged: {
@@ -100,6 +157,7 @@ RowLayout {
 
             Item {
                 id: sCard1; Layout.fillWidth: true; implicitHeight: 30
+                SubCascadeAttach { stepIdx: 2 }
                 MouseArea {
                     id: sMouse1; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onContainsMouseChanged: {
@@ -117,6 +175,7 @@ RowLayout {
 
             Item {
                 id: sCard2; Layout.fillWidth: true; implicitHeight: 30
+                SubCascadeAttach { stepIdx: 3 }
                 MouseArea {
                     id: sMouse2; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onContainsMouseChanged: {
@@ -134,6 +193,7 @@ RowLayout {
 
             Item {
                 id: sCard3; Layout.fillWidth: true; implicitHeight: 30
+                SubCascadeAttach { stepIdx: 4 }
                 MouseArea {
                     id: sMouse3; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onContainsMouseChanged: {
@@ -151,6 +211,7 @@ RowLayout {
 
             Item {
                 id: sCard4; Layout.fillWidth: true; implicitHeight: 30
+                SubCascadeAttach { stepIdx: 5 }
                 MouseArea {
                     id: sMouse4; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                     onContainsMouseChanged: {
@@ -169,6 +230,7 @@ RowLayout {
             Item { Layout.fillHeight: true }
 
             StyledButton {
+                SubCascadeAttach { stepIdx: 6 }
                 Layout.fillWidth: true
                 allowFullWidth: true
                 text: "↺ Сбросить всё"

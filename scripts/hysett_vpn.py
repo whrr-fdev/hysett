@@ -200,13 +200,22 @@ def read_wl_sub_urls():
 def write_wl_sub_urls(urls):
     write_url_list(WL_SUB_FILE, urls)
 
-def clean_server_title(text):
-    s = re.sub(r"[\U0001F1E0-\U0001F1FF\U0001F300-\U0001FAFF\u2600-\u27BF\uE000-\uF8FF\U000F0000-\U000FFFFD]+", "", text or "")
-    s = re.sub(r"\(\s*[^)]*\)", "", s)
-    s = re.sub(r"\[\s*\*?[A-Za-zА-Яа-я0-9_+|-]+\s*\]", "", s)
-    s = re.sub(r"[✨⚡⭐🛡️🎭🌐🇷🇺🇪🇺•|._*˚+‧-]+", " ", s)
-    s = re.sub(r"\s+", " ", s).strip()
-    return s or "Сервер"
+def clean_server_title(text, fallback_host=""):
+    raw = text or ""
+    # Убираем ссылки и телеграм-теги каналов
+    s = re.sub(r"(?:https?://|t\.me/)\S+", " ", raw, flags=re.IGNORECASE)
+    s = re.sub(r"@[A-Za-z0-9_]{3,}", " ", s)
+    # Пробуем убрать скобки, но если без них не остается букв — оставляем содержимое скобок
+    no_br = re.sub(r"\([^)]*\)|\[[^\]]*\]", " ", s)
+    if len(re.findall(r"[A-Za-zА-Яа-яЁё]", no_br)) >= 2:
+        s = no_br
+    # Оставляем только буквы, цифры и базовые разделители (вырезая ✦･｡ﾟ и прочий декор)
+    s = re.sub(r"[^A-Za-zА-Яа-яЁё0-9\s:#/.-]+", " ", s)
+    s = re.sub(r"(?:^|\s)[._:/#-]+(?:\s|$)", " ", s)
+    s = re.sub(r"\s+", " ", s).strip(" .-:/#")
+    if len(re.findall(r"[A-Za-zА-Яа-яЁё]", s)) < 2:
+        return fallback_host if fallback_host else "Сервер"
+    return s[:48]
 
 def short_sub_title(url, idx, custom_title=""):
     if custom_title:
@@ -291,9 +300,11 @@ def parse_uri(uri):
         q = dict(urllib.parse.parse_qsl(u.query))
         host = (u.hostname or "").strip()
         port = int(u.port or 443)
-        name = clean_server_title(raw_name)
+        name = clean_server_title(raw_name, f"{host}:{port}")
         if not name or name == "Сервер":
             name = f"{host}:{port}"
+        elif host and host not in name and len(name) <= 18:
+            name = f"{name} • {host}"
     except Exception:
         return None, None
 
@@ -607,15 +618,43 @@ def fetch_single_url(u):
             print(f"Fetch error ({u}): {e}", file=sys.stderr)
     return "", []
 
-def quick_host_ping_ms(host, port=443, timeout=0.55):
+def quick_host_ping_ms(host, port=443, timeout=0.65):
     if not host:
         return None
+    phys_if = detect_physical_interface()
+    # Сначала пробуем быстрый системный ICMP ping напрямую через физический интерфейс (в обход singbox_tun0)
+    try:
+        cmd = ["ping", "-c", "1", "-W", "1", "-q"]
+        if phys_if:
+            cmd.extend(["-I", phys_if])
+        cmd.append(host)
+        out = subprocess.check_output(cmd, text=True, stderr=subprocess.DEVNULL, timeout=0.85)
+        m = re.search(r"min/avg/max.*=\s*[0-9.]+/([0-9.]+)/", out)
+        if m:
+            icmp_ms = int(round(float(m.group(1))))
+            if icmp_ms >= 2:
+                return icmp_ms
+    except Exception:
+        pass
+
     t0 = time.monotonic()
     try:
-        with socket.create_connection((host, int(port or 443)), timeout=timeout):
-            return max(1, int((time.monotonic() - t0) * 1000))
+        with socket.create_connection((host, int(port or 443)), timeout=timeout) as sock:
+            tcp_ms = int((time.monotonic() - t0) * 1000)
+            if tcp_ms >= 4:
+                return tcp_ms
+            # Если tcp_ms < 4 мс — соединение перехватил локальный gVisor (singbox_tun0); отправляем байты для реального сетевого ответа
+            sock.settimeout(timeout)
+            t1 = time.monotonic()
+            sock.sendall(b"HEAD / HTTP/1.0\r\nHost: " + host.encode("ascii", errors="ignore") + b"\r\n\r\n")
+            data = sock.recv(1)
+            if data:
+                real_ms = int((time.monotonic() - t1) * 1000)
+                if real_ms >= 4:
+                    return real_ms
     except Exception:
-        return None
+        pass
+    return None
 
 def ensure_sub_cache_pings(cache_dict):
     changed = False
@@ -671,7 +710,7 @@ def populate_server_pings(srv_list, ping_cache, max_new_probes=60, timeout=0.50)
                 pass
             continue
         hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
-        if hp in ping_cache:
+        if hp in ping_cache and int(ping_cache.get(hp) or 0) > 3:
             ms_c = int(ping_cache[hp] or 0)
             s["ping_ms"] = ms_c
             s["ping"] = f"{ms_c} мс" if ms_c > 0 else ""
@@ -1221,9 +1260,14 @@ def detect_physical_interface():
         pass
     return ""
 
-def collect_outbound_exclude_cidrs(outbound):
+def collect_outbound_exclude_cidrs(outbound, st=None):
     cidrs = ["127.0.0.0/8"]
-    obs = outbound.get("_pool", [outbound]) if outbound.get("type") == "urltest" else [outbound]
+    obs = list(outbound.get("_pool", [outbound])) if outbound.get("type") == "urltest" else [outbound]
+    if isinstance(st, dict):
+        for s_item in (st.get("sub_servers", [])[:60] + st.get("wl_servers", [])[:60]):
+            ob_i = s_item.get("outbound", {})
+            if isinstance(ob_i, dict) and ob_i.get("type") != "urltest":
+                obs.append(ob_i)
     for ob in obs:
         host = (ob.get("server") or "").strip()
         if IPV4_RE.match(host):
@@ -1279,7 +1323,7 @@ def build_config(outbound, st, use_tun=False):
             "mtu": 1320,
             "auto_route": True,
             "strict_route": False,
-            "route_exclude_address": collect_outbound_exclude_cidrs(outbound),
+            "route_exclude_address": collect_outbound_exclude_cidrs(outbound, st),
             "stack": "gvisor"
         })
 

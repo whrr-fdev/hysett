@@ -1882,9 +1882,16 @@ void WaybarManager::stopVpnConfigAudit() {
         sf.write("1");
         sf.close();
     }
+    QProcess::execute("pkill", {"-9", "-f", "hysett_vpn.py test_"});
+    QProcess::execute("pkill", {"-9", "-f", "singbox_single_test"});
+    QProcess::execute("pkill", {"-9", "-f", "singbox_wl_audit"});
+    QFile::remove("/tmp/hysett_vpn_progress.json");
     m_vpnBusy = false;
     m_vpnAuditingSig.clear();
+    m_vpnIpCheckState = 0;
+    m_vpnIpCheckText = "Проверка остановлена";
     emit sysStatsChanged();
+    runVpnScriptCmd({"status"});
 }
 
 void WaybarManager::addVpnSubUrl(const QString &u) {

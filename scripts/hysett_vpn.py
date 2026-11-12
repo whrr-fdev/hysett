@@ -1501,7 +1501,7 @@ def test_single_outbound_via_singbox(ob, port=29250, timeout=2.5):
             proxy_url = f"http://127.0.0.1:{port}"
             opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
             t0 = time.monotonic()
-            for u in ("https://api.2ip.io/?lang=ru", "http://ip-api.com/json/?fields=status,query,country,countryCode,city&lang=ru"):
+            for u in ("http://www.gstatic.com/generate_204", "http://cp.cloudflare.com/generate_204", "https://www.gstatic.com/generate_204"):
                 rem = timeout - (time.monotonic() - t0)
                 if rem <= 0.2:
                     break
@@ -1509,17 +1509,9 @@ def test_single_outbound_via_singbox(ob, port=29250, timeout=2.5):
                     t_req = time.monotonic()
                     req = urllib.request.Request(u, headers={"User-Agent": "curl/8.0", "Connection": "close"})
                     with opener.open(req, timeout=min(1.8, rem)) as r:
-                        d = json.loads(r.read().decode("utf-8", errors="ignore"))
-                    ms = max(8, int((time.monotonic() - t_req) * 1000))
-                    if ms > 3000:
-                        return None, "", 0
-                    ip = (d.get("ip") or d.get("query") or "").strip()
-                    if ip:
-                        country = (d.get("country") or "").strip()
-                        city = (d.get("city") or "").strip()
-                        cc = (d.get("code") or d.get("countryCode") or "").strip().upper()
-                        loc = f"{country}, {city}" if (country and city and city != country) else (country or city or "ОК")
-                        return f"{ip} • {loc} [{cc}] • {ms} мс", cc, ms
+                        if r.status in (200, 204):
+                            ms = max(8, int((time.monotonic() - t_req) * 1000))
+                            return f"ОК • {ms} мс", "", ms
                 except Exception:
                     pass
         finally:
@@ -1607,6 +1599,8 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
             log_wl_msg(f"✓ [{i+1}/{total}] РАБОЧИЙ ({ms} мс): {nm} -> {loc_str}")
             write_ipcheck(2, f"✓ [{i+1}/{total}] РАБОЧИЙ: {nm} ({loc_str})", reload_state=True, auditing_sig="")
         else:
+            if not is_wl and not srv.get("is_public_bl", True):
+                continue
             frz_count += 1
             if sig:
                 if sig not in frozen_sigs:
@@ -2119,22 +2113,34 @@ def start_vpn(fast_switch=False):
         save_state(st)
         write_ipcheck(3, msg, reload_state=frozen_now)
 
-    if wait_port(2080, 1.4):
+    if wait_port(2080, 2.5):
         set_desktop_proxy(not use_tun)
-        write_ipcheck(1, "Проверка отклика и локации на 2ip.io (лимит 3 сек)...")
-        loc, cc = detect_live_location(timeout=2.5)
+        write_ipcheck(1, "Проверка локации (2ip.io)...")
+        loc, cc = detect_live_location(timeout=2.6)
         if loc:
             st["ip_check_state"] = 2
             st["ip_check_text"] = loc
             save_state(st)
             write_ipcheck(2, loc, reload_state=False)
-            log_wl_msg(f"✓ 2ip.io: {loc}")
-            return True
+            log_wl_msg(f"✓ Туннель активен: {loc}")
+        elif verify_active_tunnel_port(2080, timeout=2.0):
+            msg = f"Туннель работает ✓ ({st.get('server_name', 'VPN')})"
+            st["ip_check_state"] = 2
+            st["ip_check_text"] = msg
+            save_state(st)
+            write_ipcheck(2, msg, reload_state=False)
         else:
-            _auto_freeze_current_server("Таймаут > 3 сек")
-            return False
+            msg = "Нет ответа от сервера (> 3 сек)"
+            st["ip_check_state"] = 3
+            st["ip_check_text"] = msg
+            save_state(st)
+            write_ipcheck(3, msg, reload_state=False)
+        return True
     else:
-        _auto_freeze_current_server("Ошибка запуска узла")
+        st["ip_check_state"] = 3
+        st["ip_check_text"] = "Ошибка запуска sing-box"
+        save_state(st)
+        write_ipcheck(3, st["ip_check_text"], reload_state=False)
         stop_vpn(save_disabled=False)
     return False
 
@@ -2361,24 +2367,14 @@ if __name__ == "__main__":
                 st["ip_check_text"] = loc
                 write_ipcheck(2, loc, reload_state=False)
             else:
-                is_wl_act = bool(st.get("active_is_wl", False))
-                t_key = "wl_servers" if is_wl_act else "sub_servers"
-                i_key = "wl_selected_index" if is_wl_act else "sub_selected_index"
-                s_list = st.get(t_key, [])
-                s_idx = int(st.get(i_key, 0))
-                frz_done = False
-                if 0 < s_idx < len(s_list):
-                    sig = s_list[s_idx].get("sig") or server_sig(s_list[s_idx].get("outbound", {}))
-                    if sig:
-                        frz = st.get("frozen_sigs", [])
-                        if sig not in frz:
-                            frz.append(sig)
-                            st["frozen_sigs"] = frz
-                        frz_done = True
-                        st = sync_active_server_list(st, allow_network_probe=False)
-                st["ip_check_state"] = 3
-                st["ip_check_text"] = "Таймаут > 3 сек • Сервер заморожен" if frz_done else "Таймаут > 3 сек (нет ответа от 2ip.io)"
-                write_ipcheck(3, st["ip_check_text"], reload_state=frz_done)
+                if verify_active_tunnel_port(2080, timeout=2.0):
+                    st["ip_check_state"] = 2
+                    st["ip_check_text"] = f"Туннель работает ✓ ({st.get('server_name', 'VPN')})"
+                    write_ipcheck(2, st["ip_check_text"], reload_state=False)
+                else:
+                    st["ip_check_state"] = 3
+                    st["ip_check_text"] = "Нет ответа через туннель (> 3 сек)"
+                    write_ipcheck(3, st["ip_check_text"], reload_state=False)
         save_state(st)
         dump_status_json()
     elif cmd == "toggle_freeze":

@@ -1976,7 +1976,7 @@ def set_desktop_proxy(enable):
     else:
         subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "none"], stderr=subprocess.DEVNULL)
 
-def pass:
+def cleanup_stale_throne_rules():
     try:
         out = subprocess.check_output(["ip", "-4", "rule", "show"], text=True, stderr=subprocess.DEVNULL)
         for ln in out.splitlines():

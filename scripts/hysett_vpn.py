@@ -939,7 +939,7 @@ def build_config(outbound, st, use_tun=False):
         "log": {"level": st.get("log_level", "info")},
         "dns": {
             "servers": [
-                {"type": "tls", "tag": "dns-remote", "server": "1.1.1.1", "detour": "proxy"},
+                {"type": "udp", "tag": "dns-remote", "server": "1.1.1.1"},
                 {"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}
             ],
             "rules": dns_rules,

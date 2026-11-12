@@ -304,6 +304,7 @@ public:
     QString vpnLastUpdated() const { return m_vpnLastUpdated; }
     Q_INVOKABLE void updateBypassLists();
     Q_INVOKABLE void testWhitelistServers();
+    Q_INVOKABLE void testNormalVpnServers();
     Q_INVOKABLE void addVpnCustomDomain(const QString &domain, bool isDirect);
     Q_INVOKABLE void removeVpnCustomDomain(int idx, bool isDirect);
 

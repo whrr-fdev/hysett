@@ -1763,7 +1763,7 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
 
 void WaybarManager::runVpnScriptCmd(const QStringList &args) {
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
-    bool isHeavy = (!args.isEmpty() && (args[0] == "update_lists" || args[0] == "update" || args[0] == "test_whitelist"));
+    bool isHeavy = (!args.isEmpty() && (args[0] == "update_lists" || args[0] == "update" || args[0] == "update_subs" || args[0] == "test_whitelist" || args[0] == "test_normal"));
     if (isHeavy) {
         m_vpnBusy = true;
         m_vpnProgressPercent = 5;
@@ -1825,13 +1825,11 @@ void WaybarManager::removeVpnCustomDomain(int idx, bool isDirect) {
 }
 
 void WaybarManager::updateVpnSubscription() {
-    QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
-    QProcess *p = new QProcess(this);
-    connect(p, &QProcess::finished, this, [this, p]() {
-        syncVpnStateFromScript(p->readAllStandardOutput());
-        p->deleteLater();
-    });
-    p->start("/usr/bin/python3", {script, "update"});
+    runVpnScriptCmd({"update_subs"});
+}
+
+void WaybarManager::testNormalVpnServers() {
+    runVpnScriptCmd({"test_normal"});
 }
 
 void WaybarManager::addVpnSubUrl(const QString &u) {

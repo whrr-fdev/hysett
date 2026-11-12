@@ -599,7 +599,14 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        visible: Waybar && Waybar.vpnSubGroups.length > 0
+                                        visible: Waybar && Waybar.vpnSubUrls.length > 0
+                                        text: "󰑐 Обновить подписки"
+                                        implicitHeight: 24
+                                        enabled: !(Waybar && Waybar.vpnBusy)
+                                        onClicked: if (Waybar) Waybar.updateVpnSubscription()
+                                    }
+                                    StyledButton {
+                                        visible: Waybar && Waybar.vpnSubUrls.length > 0
                                         text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
@@ -880,6 +887,22 @@ ScrollView {
                                                     }
 
                                                     Rectangle {
+                                                        visible: (modelData.country || "").length > 0
+                                                        width: subCountryTxt.implicitWidth + 12
+                                                        height: 22
+                                                        radius: vpnScroll.isM3 ? 6 : 0
+                                                        color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.10)
+                                                        Text {
+                                                            id: subCountryTxt
+                                                            anchors.centerIn: parent
+                                                            text: modelData.country || ""
+                                                            font.pixelSize: Config.fontSize - 2
+                                                            font.bold: true
+                                                            color: vpnScroll.isM3 && Config ? Config.m3Primary : "#ffffff"
+                                                        }
+                                                    }
+
+                                                    Rectangle {
                                                         visible: (modelData.ping || "").length > 0
                                                         width: subPingBadgeTxt.implicitWidth + 12
                                                         height: 22
@@ -954,6 +977,12 @@ ScrollView {
                                         }
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                         Layout.fillWidth: true
+                                    }
+                                    StyledButton {
+                                        text: (Waybar && Waybar.vpnBusy) ? ("󰑐 " + Waybar.vpnProgressPercent + "%") : "󰓅 Проверить доступные"
+                                        implicitHeight: 24
+                                        enabled: !(Waybar && Waybar.vpnBusy)
+                                        onClicked: if (Waybar) Waybar.testNormalVpnServers()
                                     }
                                     StyledButton {
                                         visible: Waybar && Waybar.vpnFrozenCount > 0
@@ -1080,6 +1109,23 @@ ScrollView {
                                                     font.pixelSize: Config.fontSize
                                                     font.bold: isSel
                                                     Layout.fillWidth: true; elide: Text.ElideRight
+                                                }
+
+                                                Rectangle {
+                                                    readonly property string ccLbl: modelData.country || ""
+                                                    visible: !isFrz && ccLbl.length > 0
+                                                    width: normSrvCcTxt.implicitWidth + 10
+                                                    height: 20
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.18) : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.10))
+                                                    Text {
+                                                        id: normSrvCcTxt
+                                                        anchors.centerIn: parent
+                                                        text: parent.ccLbl
+                                                        font.pixelSize: Config.fontSize - 2
+                                                        font.bold: true
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : (vpnScroll.isM3 && Config ? Config.m3Primary : "#dddddd")
+                                                    }
                                                 }
 
                                                 Rectangle {
@@ -1385,6 +1431,13 @@ ScrollView {
                                     }
                                     StyledButton {
                                         visible: Waybar && Waybar.vpnWlSubGroups.length > 0
+                                        text: "󰑐 Обновить подписки"
+                                        implicitHeight: 24
+                                        enabled: !(Waybar && Waybar.vpnBusy)
+                                        onClicked: if (Waybar) Waybar.updateVpnSubscription()
+                                    }
+                                    StyledButton {
+                                        visible: Waybar && Waybar.vpnWlSubGroups.length > 0
                                         text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
                                         isActive: vpnScroll.hideSubLinks
@@ -1493,6 +1546,22 @@ ScrollView {
                                                             text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
                                                             color: "#ffffff"; font.pixelSize: 10; font.bold: true
                                                             elide: Text.ElideMiddle
+                                                        }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: (modelData.country || "").length > 0
+                                                        width: wlSubCountryTxt.implicitWidth + 12
+                                                        height: 22
+                                                        radius: vpnScroll.isM3 ? 6 : 0
+                                                        color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.10)
+                                                        Text {
+                                                            id: wlSubCountryTxt
+                                                            anchors.centerIn: parent
+                                                            text: modelData.country || ""
+                                                            font.pixelSize: Config.fontSize - 2
+                                                            font.bold: true
+                                                            color: vpnScroll.isM3 && Config ? Config.m3Primary : "#ffffff"
                                                         }
                                                     }
 
@@ -1712,6 +1781,23 @@ ScrollView {
                                                     font.pixelSize: Config.fontSize
                                                     font.bold: isSel
                                                     Layout.fillWidth: true; elide: Text.ElideRight
+                                                }
+
+                                                Rectangle {
+                                                    readonly property string ccLbl: modelData.country || ""
+                                                    visible: !isFrz && ccLbl.length > 0
+                                                    width: wlSrvCcTxt.implicitWidth + 10
+                                                    height: 20
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.18) : (vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.10))
+                                                    Text {
+                                                        id: wlSrvCcTxt
+                                                        anchors.centerIn: parent
+                                                        text: parent.ccLbl
+                                                        font.pixelSize: Config.fontSize - 2
+                                                        font.bold: true
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : (vpnScroll.isM3 && Config ? Config.m3Primary : "#dddddd")
+                                                    }
                                                 }
 
                                                 Rectangle {

@@ -24,14 +24,28 @@ AppConfig::AppConfig(QObject *parent) : QObject(parent) {
     });
 
     m_wallWatcher = new QFileSystemWatcher(this);
-    QString cacheDir = QDir::homePath() + "/.cache";
-    if (QDir(cacheDir).exists()) m_wallWatcher->addPath(cacheDir);
-    connect(m_wallWatcher, &QFileSystemWatcher::directoryChanged, this, [this]() {
+    QString home = QDir::homePath();
+    for (const QString &p : {
+        home + "/.cache",
+        home + "/.cache/wallpaper-current",
+        home + "/.cache/last_wallpaper.txt",
+        home + "/.config/hypr/scripts/last_wallpaper.conf"
+    }) {
+        if (QFileInfo::exists(p)) m_wallWatcher->addPath(p);
+    }
+    auto triggerWallExtract = [this, home]() {
+        for (const QString &p : {
+            home + "/.cache/wallpaper-current",
+            home + "/.cache/last_wallpaper.txt",
+            home + "/.config/hypr/scripts/last_wallpaper.conf"
+        }) {
+            if (QFileInfo::exists(p) && !m_wallWatcher->files().contains(p))
+                m_wallWatcher->addPath(p);
+        }
         if (m_m3DynamicWallpaperColors && m_wallExtractTimer) m_wallExtractTimer->start();
-    });
-    connect(m_wallWatcher, &QFileSystemWatcher::fileChanged, this, [this]() {
-        if (m_m3DynamicWallpaperColors && m_wallExtractTimer) m_wallExtractTimer->start();
-    });
+    };
+    connect(m_wallWatcher, &QFileSystemWatcher::directoryChanged, this, triggerWallExtract);
+    connect(m_wallWatcher, &QFileSystemWatcher::fileChanged, this, triggerWallExtract);
 
     if (m_m3DynamicWallpaperColors) {
         extractPaletteFromWallpaper();
@@ -497,7 +511,7 @@ void AppConfig::save() {
     if (!s_cfgSaveTimer) {
         s_cfgSaveTimer = new QTimer(this);
         s_cfgSaveTimer->setSingleShot(true);
-        s_cfgSaveTimer->setInterval(200);
+        s_cfgSaveTimer->setInterval(150);
         connect(s_cfgSaveTimer, &QTimer::timeout, this, [this]() {
             QMap<QString, QString> extra;
             QFile rfile(configFilePath());
@@ -548,13 +562,16 @@ void AppConfig::save() {
             extra["card_bg_color"] = m_cardBgColor.name(QColor::HexRgb);
             extra["window_open_anim_type"] = m_windowOpenAnimType;
             extra["m3_dynamic_wallpaper"] = m_m3DynamicWallpaperColors ? "1" : "0";
+            extra["m3_dynamic_wallpaper_colors"] = m_m3DynamicWallpaperColors ? "1" : "0";
+            extra["m3_preset"] = QString::number(m_m3Preset);
             extra["m3_window_radius"] = QString::number(m_m3WindowRadius);
             extra["m3_card_radius"] = QString::number(m_m3CardRadius);
             extra["m3_control_radius"] = QString::number(m_m3ControlRadius);
             extra["m3_surface_tint"] = QString::number(m_m3SurfaceTintStrength, 'f', 2);
+            extra["m3_contrast"] = QString::number(m_m3ContrastLevel, 'f', 2);
             extra["m3_contrast_level"] = QString::number(m_m3ContrastLevel, 'f', 2);
             extra["m3_elevation_style"] = QString::number(m_m3ElevationStyle);
-            extra["m3_outline_width"] = QString::number(m_m3OutlineWidth);
+            extra["m3_outline_width"] = QString::number(m_m3OutlineWidth, 'f', 1);
             extra["m3_outline_opacity"] = QString::number(m_m3OutlineOpacity, 'f', 2);
             extra["m3_secondary_color"] = m_m3SecondaryColor.name(QColor::HexRgb);
             extra["m3_tertiary_color"] = m_m3TertiaryColor.name(QColor::HexRgb);
@@ -569,84 +586,10 @@ void AppConfig::save() {
                 for (auto it = extra.begin(); it != extra.end(); ++it) out << it.key() << "=" << it.value() << "\n";
                 wfile.close();
             }
+            QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
         });
     }
     s_cfgSaveTimer->start();
-    return;
-
-    QMap<QString, QString> extra;
-    QFile rfile(configFilePath());
-    if (rfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
-        QTextStream in(&rfile);
-        while (!in.atEnd()) {
-            QString line = in.readLine().trimmed();
-            int eq = line.indexOf('=');
-            if (eq != -1) extra[line.left(eq).trimmed()] = line.mid(eq + 1).trimmed();
-        }
-        rfile.close();
-    }
-
-    extra["font_size"] = QString::number(m_fontSize);
-    extra["ui_scale"] = QString::number(m_uiScale, 'f', 2);
-    extra["window_height"] = QString::number(m_windowHeight);
-    extra["align_center"] = m_alignCenter ? "1" : "0";
-    extra["welcome_align_mode"] = QString::number(m_welcomeAlignMode);
-    extra["sidebar_width"] = QString::number(m_sidebarWidth);
-    extra["opacity"] = QString::number(m_opacity, 'f', 2);
-    extra["sidebar_opacity"] = QString::number(m_sidebarOpacity, 'f', 2);
-    extra["card_opacity"] = QString::number(m_cardOpacity, 'f', 2);
-    extra["wallpapers_opacity"] = QString::number(m_wallpapersOpacity, 'f', 2);
-    extra["wallpapers_blur"] = QString::number(m_wallpapersBlur, 'f', 2);
-    extra["dialog_opacity"] = QString::number(m_dialogOpacity, 'f', 2);
-    extra["dialog_blur"] = QString::number(m_dialogBlur, 'f', 2);
-    extra["auto_glass"] = m_autoGlass ? "1" : "0";
-    extra["anim_type"] = m_animType;
-    extra["welcome_anim_type"] = m_welcomeAnimType;
-    extra["anim_duration"] = QString::number(m_animDuration);
-    extra["remember_last_tab"] = m_rememberLastTab ? "1" : "0";
-    extra["hidden_sidebar_tabs"] = m_hiddenSidebarTabs;
-    extra["language"] = m_language;
-    extra["border_glow_enabled"] = m_borderGlowEnabled ? "1" : "0";
-    extra["border_glow_all_pages"] = m_borderGlowAllPages ? "1" : "0";
-    extra["border_glow_intensity"] = QString::number(m_borderGlowIntensity, 'f', 2);
-    extra["border_glow_spread"] = QString::number(m_borderGlowSpread, 'f', 2);
-    extra["border_glow_speed"] = QString::number(m_borderGlowSpeed, 'f', 2);
-    extra["border_glow_color_mode"] = QString::number(m_borderGlowColorMode);
-    extra["border_glow_direction"] = QString::number(m_borderGlowDirection);
-    extra["cursor_glow_intensity"] = QString::number(m_cursorGlowIntensity, 'f', 2);
-    extra["click_flash_intensity"] = QString::number(m_clickFlashIntensity, 'f', 2);
-    extra["click_flash_shape"] = QString::number(m_clickFlashShape);
-    extra["sync_colors_with_accent"] = m_syncColorsWithAccent ? "1" : "0";
-    extra["accent_color"] = m_accentColor.name(QColor::HexRgb);
-    extra["border_glow_custom_color"] = m_borderGlowCustomColor.name(QColor::HexRgb);
-    extra["cursor_custom_color"] = m_cursorCustomColor.name(QColor::HexRgb);
-    extra["window_bg_color"] = m_windowBgColor.name(QColor::HexRgb);
-    extra["card_bg_color"] = m_cardBgColor.name(QColor::HexRgb);
-    extra["m3_dynamic_wallpaper_colors"] = m_m3DynamicWallpaperColors ? "1" : "0";
-    extra["m3_secondary_color"] = m_m3SecondaryColor.name(QColor::HexRgb);
-    extra["m3_tertiary_color"] = m_m3TertiaryColor.name(QColor::HexRgb);
-    extra["m3_preset"] = QString::number(m_m3Preset);
-    extra["m3_elevation_style"] = QString::number(m_m3ElevationStyle);
-    extra["m3_surface_tint"] = QString::number(m_m3SurfaceTintStrength, 'f', 2);
-    extra["m3_contrast"] = QString::number(m_m3ContrastLevel, 'f', 2);
-    extra["m3_window_radius"] = QString::number(m_m3WindowRadius);
-    extra["m3_card_radius"] = QString::number(m_m3CardRadius);
-    extra["m3_control_radius"] = QString::number(m_m3ControlRadius);
-    extra["m3_outline_width"] = QString::number(m_m3OutlineWidth, 'f', 1);
-    extra["m3_outline_opacity"] = QString::number(m_m3OutlineOpacity, 'f', 2);
-    extra["slider_wave_speed"] = QString::number(m_sliderWaveSpeed, 'f', 2);
-    extra["slider_wave_amp"] = QString::number(m_sliderWaveAmplitude, 'f', 2);
-    extra["slider_wave_len"] = QString::number(m_sliderWaveLength, 'f', 1);
-    extra["slider_thickness"] = QString::number(m_sliderThickness, 'f', 1);
-
-    QFile file(configFilePath());
-    if (file.open(QIODevice::WriteOnly | QIODevice::Text)) {
-        QTextStream out(&file);
-        for (auto it = extra.begin(); it != extra.end(); ++it) {
-            out << it.key() << "=" << it.value() << "\n";
-        }
-    }
-    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
 }
 
 QColor AppConfig::accentTextColor() const {

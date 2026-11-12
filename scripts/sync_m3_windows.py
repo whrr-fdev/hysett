@@ -113,31 +113,82 @@ with open(sysinfo_conf_path, "w") as f:
     for k, v in sysinfo_kv.items():
         f.write(f"{k}={v}\n")
 
-# 3. Терминал Kitty
+# 3. Терминал Kitty и монитор Btop
 kitty_dir = os.path.join(home, ".config/kitty")
 os.makedirs(kitty_dir, exist_ok=True)
-with open(os.path.join(kitty_dir, "hysett-m3.conf"), "w") as f:
+kitty_conf_file = os.path.join(kitty_dir, "hysett-m3.conf")
+with open(kitty_conf_file, "w") as f:
     f.write(f"""background {surf_hex}
 foreground #e6e8ee
 cursor {pri_hex}
+cursor_text_color {surf_hex}
+url_color {pri_hex}
 selection_background {cont_hex}
 selection_foreground {pri_hex}
 active_border_color {pri_hex}
 inactive_border_color {high_hex}
+bell_border_color {pri_hex}
 active_tab_background {pri_hex}
 active_tab_foreground #0b0d12
 inactive_tab_background {cont_hex}
 inactive_tab_foreground #b8bece
+tab_bar_background {surf_hex}
 color0 {surf_hex}
 color8 {high_hex}
+color2 {pri_hex}
+color10 {pri_hex}
+color3 {sec_hex}
+color11 {sec_hex}
 color4 {pri_hex}
 color12 {pri_hex}
-color6 {sec_hex}
-color14 {sec_hex}
 color5 {ter_hex}
 color13 {ter_hex}
+color6 {sec_hex}
+color14 {sec_hex}
 """)
-subprocess.run("kill -SIGUSR1 $(pgrep -x kitty) 2>/dev/null || true", shell=True)
+subprocess.run("kill -USR1 $(pgrep -x kitty) 2>/dev/null || true", shell=True)
+
+btop_themes_dir = os.path.join(home, ".config/btop/themes")
+os.makedirs(btop_themes_dir, exist_ok=True)
+with open(os.path.join(btop_themes_dir, "hysett-m3.theme"), "w") as f:
+    f.write(f"""theme[main_bg]="{surf_hex}"
+theme[main_fg]="#e6e8ee"
+theme[title]="#ffffff"
+theme[hi_fg]="{pri_hex}"
+theme[selected_bg]="{cont_hex}"
+theme[selected_fg]="{pri_hex}"
+theme[inactive_fg]="#6c7280"
+theme[proc_misc]="{sec_hex}"
+theme[cpu_box]="{high_hex}"
+theme[mem_box]="{high_hex}"
+theme[net_box]="{high_hex}"
+theme[proc_box]="{high_hex}"
+theme[div_line]="{high_hex}"
+theme[temp_start]="{sec_hex}"
+theme[temp_mid]="{pri_hex}"
+theme[temp_end]="{ter_hex}"
+theme[cpu_start]="{sec_hex}"
+theme[cpu_mid]="{pri_hex}"
+theme[cpu_end]="{ter_hex}"
+theme[free_start]="{sec_hex}"
+theme[free_mid]="{pri_hex}"
+theme[free_end]="{ter_hex}"
+theme[cached_start]="{sec_hex}"
+theme[cached_mid]="{pri_hex}"
+theme[cached_end]="{ter_hex}"
+theme[available_start]="{sec_hex}"
+theme[available_mid]="{pri_hex}"
+theme[available_end]="{ter_hex}"
+theme[used_start]="{pri_hex}"
+theme[used_mid]="{ter_hex}"
+theme[used_end]="{pri_hex}"
+theme[download_start]="{sec_hex}"
+theme[download_mid]="{pri_hex}"
+theme[download_end]="{ter_hex}"
+theme[upload_start]="{sec_hex}"
+theme[upload_mid]="{pri_hex}"
+theme[upload_end]="{ter_hex}"
+""")
 
 # 4. GTK 3 / GTK 4
 gtk_css = f"""@define-color accent_color {pri_hex};

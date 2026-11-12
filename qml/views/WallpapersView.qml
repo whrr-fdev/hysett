@@ -304,61 +304,112 @@ Item {
                                 }
                             }
 
-                            Repeater {
-                                model: Wallpapers.presets
+                            Item {
+                                id: presetsHoverStage
+                                Layout.fillWidth: true
+                                implicitHeight: presetsInnerCol.implicitHeight
 
-                                RowLayout {
-                                    spacing: 4
-                                    Layout.fillWidth: true
-                                    property bool isPresetActive: Wallpapers.activePresetIndex === index
+                                property Item hoveredPresetBtn: null
+                                property Item lastHoveredPresetBtn: null
+                                property int hoveredRowIdx: -1
+                                property int lastHoveredRowIdx: 0
 
-                                    Button {
-                                        id: pBtn
-                                        Layout.fillWidth: true
-                                        implicitHeight: 22
-                                        flat: true
-                                        onClicked: Wallpapers.applyPreset(index)
+                                // Плавно скользящий блок наведения для пресетов (как в боковом меню и категориях)
+                                Rectangle {
+                                    id: presetHoverPill
+                                    z: 2
+                                    x: 0
+                                    y: presetsHoverStage.lastHoveredRowIdx * 23
+                                    width: presetsHoverStage.lastHoveredPresetBtn ? presetsHoverStage.lastHoveredPresetBtn.width : presetsHoverStage.width
+                                    height: 20
+                                    radius: (Theme && Theme.isRounded) ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
+                                    color: (Theme && Theme.isRounded && Config)
+                                           ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.24)
+                                           : Qt.rgba(1, 1, 1, 0.16)
+                                    border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : Qt.rgba(1, 1, 1, 0.65)
+                                    border.width: 1
+                                    opacity: (presetsHoverStage.hoveredRowIdx >= 0 && presetsHoverStage.hoveredRowIdx !== Wallpapers.activePresetIndex) ? 1.0 : 0.0
 
-                                        contentItem: Text {
-                                            text: modelData.name
-                                            color: isPresetActive
-                                                   ? (Config ? Config.accentTextColor : "#000000")
-                                                   : (pBtn.hovered ? "#ffffff" : (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#e0e0e0"))
-                                            font.pixelSize: Config.fontSize
-                                            font.bold: isPresetActive
-                                            horizontalAlignment: Text.AlignHCenter
-                                            verticalAlignment: Text.AlignVCenter
+                                    Behavior on y { NumberAnimation { duration: 160; easing.type: Easing.OutQuint } }
+                                    Behavior on width { NumberAnimation { duration: 160; easing.type: Easing.OutQuint } }
+                                    Behavior on opacity { NumberAnimation { duration: 100 } }
+                                }
+
+                                ColumnLayout {
+                                    id: presetsInnerCol
+                                    width: parent.width
+                                    spacing: 3
+
+                                    Repeater {
+                                        model: Wallpapers.presets
+
+                                        RowLayout {
+                                            spacing: 4
+                                            Layout.fillWidth: true
+                                            property bool isPresetActive: Wallpapers.activePresetIndex === index
+
+                                            Button {
+                                                id: pBtn
+                                                Layout.fillWidth: true
+                                                implicitHeight: 20
+                                                flat: true
+                                                hoverEnabled: true
+                                                onHoveredChanged: {
+                                                    if (hovered) {
+                                                        presetsHoverStage.lastHoveredRowIdx = index
+                                                        presetsHoverStage.hoveredRowIdx = index
+                                                        presetsHoverStage.lastHoveredPresetBtn = pBtn
+                                                        presetsHoverStage.hoveredPresetBtn = pBtn
+                                                    } else if (presetsHoverStage.hoveredRowIdx === index) {
+                                                        presetsHoverStage.hoveredRowIdx = -1
+                                                        presetsHoverStage.hoveredPresetBtn = null
+                                                    }
+                                                }
+                                                onClicked: Wallpapers.applyPreset(index)
+
+                                                contentItem: Text {
+                                                    text: modelData.name
+                                                    color: isPresetActive
+                                                           ? (Config ? Config.accentTextColor : "#000000")
+                                                           : (pBtn.hovered ? "#ffffff" : (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#e0e0e0"))
+                                                    font.pixelSize: Config.fontSize
+                                                    font.bold: isPresetActive
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    verticalAlignment: Text.AlignVCenter
+                                                    Behavior on color { ColorAnimation { duration: 120 } }
+                                                }
+
+                                                background: Rectangle {
+                                                    radius: (Theme && Theme.isRounded) ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
+                                                    color: isPresetActive
+                                                           ? (Config ? Config.m3Primary : "#ffffff")
+                                                           : (Theme && Theme.isRounded && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06))
+                                                    border.color: isPresetActive
+                                                                  ? (Config ? Config.m3Primary : "#ffffff")
+                                                                  : (Theme && Theme.isRounded && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.32) : Qt.rgba(1, 1, 1, 0.16))
+                                                    border.width: 1
+                                                    Behavior on color { ColorAnimation { duration: 140 } }
+                                                }
+                                            }
+
+                                            StyledButton {
+                                                text: "✏"
+                                                implicitWidth: 20
+                                                implicitHeight: 20
+                                                onClicked: {
+                                                    presetModal.editIdx = index
+                                                    presetModal.openModal(modelData.name, modelData.wall, modelData.active_opacity, modelData.inactive_opacity, modelData.blur_enabled, modelData.blur_size)
+                                                }
+                                            }
+
+                                            StyledButton {
+                                                visible: modelData.canDelete === true
+                                                text: "✕"
+                                                implicitWidth: 20
+                                                implicitHeight: 20
+                                                onClicked: Wallpapers.deletePreset(index)
+                                            }
                                         }
-
-                                        background: Rectangle {
-                                            radius: (Theme && Theme.isRounded) ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
-                                            color: isPresetActive
-                                                   ? (Config ? Config.m3Primary : "#ffffff")
-                                                   : (pBtn.hovered
-                                                      ? (Theme && Theme.isRounded && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.16))
-                                                      : (Theme && Theme.isRounded && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)))
-                                            border.color: isPresetActive
-                                                          ? (Config ? Config.m3Primary : "#ffffff")
-                                                          : (Theme && Theme.isRounded && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.18))
-                                            border.width: 1
-                                            Behavior on color { ColorAnimation { duration: 120 } }
-                                        }
-                                    }
-
-                                    StyledButton {
-                                        text: "✏"
-                                        implicitWidth: 22
-                                        onClicked: {
-                                            presetModal.editIdx = index
-                                            presetModal.openModal(modelData.name, modelData.wall, modelData.active_opacity, modelData.inactive_opacity, modelData.blur_enabled, modelData.blur_size)
-                                        }
-                                    }
-
-                                    StyledButton {
-                                        visible: modelData.canDelete === true
-                                        text: "✕"
-                                        implicitWidth: 22
-                                        onClicked: Wallpapers.deletePreset(index)
                                     }
                                 }
                             }
@@ -368,7 +419,7 @@ Item {
             }
         }
 
-        // 2. ТРАНСФОРМИРУЕМЫЙ КОНТЕЙНЕР ГАЛЕРЕИ ОБОЕВ (С ПЛАВНЫМ ХОВЕРОМ И ЗУМОМ МИНИАТЮР)
+        // 2. ТРАНСФОРМИРУЕМЫЙ КОНТЕЙНЕР ГАЛЕРЕИ ОБОЕВ (С ПЛАВНО СКОЛЬЗЯЩИМ БЛОКОМ НАВЕДЕНИЯ КАК У МЕНЮ)
         Item {
             id: morphGalleryBox
             x: wallRoot.isExpanded ? sceneContainer.rightAreaX : (sceneContainer.leftPanelX + 250 + 24 + wallRoot.maxVertCatW + 24)
@@ -398,6 +449,30 @@ Item {
                     cacheBuffer: 120
                     reuseItems: true
                     pixelAligned: true
+
+                    property int hoveredIdx: -1
+                    property int lastHoveredIdx: 0
+
+                    // Скользящий блок наведения для вертикального списка миниатюр обоев
+                    Rectangle {
+                        id: wallHoverPill
+                        parent: wallListView.contentItem
+                        z: 20
+                        x: Math.round((wallListView.width - 210) * 0.5)
+                        y: wallListView.lastHoveredIdx * 130 + 2
+                        width: 210
+                        height: 116
+                        radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
+                        color: (Theme && Theme.isRounded && Config)
+                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16)
+                               : Qt.rgba(1, 1, 1, 0.12)
+                        border.width: 2
+                        border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                        opacity: wallListView.hoveredIdx >= 0 ? 1.0 : 0.0
+
+                        Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 110 } }
+                    }
 
                     onContentYChanged: {
                         if (wallRoot.isExpanded || wallRoot.isProgrammaticScroll || Wallpapers.wallpapers.length === 0) return
@@ -429,7 +504,6 @@ Item {
                     delegate: Item {
                         width: wallListView.width
                         height: 120
-                        z: wallBtn.hovered ? 10 : 1
 
                         Button {
                             id: wallBtn
@@ -439,7 +513,15 @@ Item {
                             height: 116
                             flat: true
                             hoverEnabled: true
-                                                        onClicked: Wallpapers.applyWallpaper(modelData.path)
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    wallListView.lastHoveredIdx = index
+                                    wallListView.hoveredIdx = index
+                                } else if (wallListView.hoveredIdx === index) {
+                                    wallListView.hoveredIdx = -1
+                                }
+                            }
+                            onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
                                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
@@ -454,20 +536,16 @@ Item {
                                     asynchronous: true
                                     cache: false
                                     fillMode: Image.PreserveAspectCrop
-                                    opacity: wallBtn.hovered ? 1.0 : 0.82
-                                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                    opacity: wallBtn.hovered ? 1.0 : 0.84
+                                    Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                 }
 
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: parent.radius
-                                    color: Qt.rgba(1, 1, 1, wallBtn.hovered ? 0.06 : 0.0)
-                                    border.color: wallBtn.hovered
-                                                  ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : Qt.rgba(1, 1, 1, 0.92))
-                                                  : Qt.rgba(1, 1, 1, 0.16)
-                                    border.width: wallBtn.hovered ? 2 : 1
-                                    Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                                    Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                    color: "transparent"
+                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: 1
                                 }
 
                                 Rectangle {
@@ -531,6 +609,30 @@ Item {
                     reuseItems: true
                     pixelAligned: true
 
+                    property int hoveredIdx: -1
+                    property int lastHoveredIdx: 0
+
+                    // Скользящий блок наведения для горизонтального списка миниатюр обоев
+                    Rectangle {
+                        id: horizWallHoverPill
+                        parent: horizWallListView.contentItem
+                        z: 20
+                        x: horizWallListView.lastHoveredIdx * 222 + 3
+                        y: 5
+                        width: 204
+                        height: 116
+                        radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
+                        color: (Theme && Theme.isRounded && Config)
+                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16)
+                               : Qt.rgba(1, 1, 1, 0.12)
+                        border.width: 2
+                        border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                        opacity: horizWallListView.hoveredIdx >= 0 ? 1.0 : 0.0
+
+                        Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 110 } }
+                    }
+
                     onContentXChanged: {
                         if (!wallRoot.isExpanded || wallRoot.isProgrammaticScroll || Wallpapers.wallpapers.length === 0) return
                         var idx = Math.floor((contentX + width * 0.25) / 222)
@@ -562,7 +664,6 @@ Item {
                     delegate: Item {
                         width: 210
                         height: 126
-                        z: hWallBtn.hovered ? 10 : 1
 
                         Button {
                             id: hWallBtn
@@ -572,7 +673,15 @@ Item {
                             height: 116
                             flat: true
                             hoverEnabled: true
-                                                        onClicked: Wallpapers.applyWallpaper(modelData.path)
+                            onHoveredChanged: {
+                                if (hovered) {
+                                    horizWallListView.lastHoveredIdx = index
+                                    horizWallListView.hoveredIdx = index
+                                } else if (horizWallListView.hoveredIdx === index) {
+                                    horizWallListView.hoveredIdx = -1
+                                }
+                            }
+                            onClicked: Wallpapers.applyWallpaper(modelData.path)
 
                             background: Rectangle {
                                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Math.round(Config.m3CardRadius * 0.65)) : 8) : 0
@@ -587,20 +696,16 @@ Item {
                                     asynchronous: true
                                     cache: false
                                     fillMode: Image.PreserveAspectCrop
-                                    opacity: hWallBtn.hovered ? 1.0 : 0.82
-                                    Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                    opacity: hWallBtn.hovered ? 1.0 : 0.84
+                                    Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                 }
 
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: parent.radius
-                                    color: Qt.rgba(1, 1, 1, hWallBtn.hovered ? 0.06 : 0.0)
-                                    border.color: hWallBtn.hovered
-                                                  ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : Qt.rgba(1, 1, 1, 0.92))
-                                                  : Qt.rgba(1, 1, 1, 0.16)
-                                    border.width: hWallBtn.hovered ? 2 : 1
-                                    Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                                    Behavior on border.color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
+                                    color: "transparent"
+                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: 1
                                 }
 
                                 Rectangle {
@@ -665,7 +770,6 @@ Item {
             readonly property real vertStartY: Math.round(Math.max(16, (wallRoot.height - vertTotalH) / 2))
             readonly property real horizY: Math.round(wallRoot.height - 38)
 
-            // Слой 1 (z: 1): Фоновые сегменты колбаски (ПОД плашками выделения!)
             Repeater {
                 model: morphCatRepeater.count
                 Rectangle {
@@ -692,7 +796,6 @@ Item {
                 }
             }
 
-            // Слой 2 (z: 2): Плавно скользящая плашка наведения (ПОВЕРХ фона!)
             Rectangle {
                 id: morphHoverPill
                 z: 2
@@ -724,7 +827,6 @@ Item {
                 Behavior on opacity { NumberAnimation { duration: 90 } }
             }
 
-            // Слой 3 (z: 3): Яркая плавно скользящая плашка выбранной категории (ПОВЕРХ фона и ховера!)
             Rectangle {
                 id: morphActivePill
                 z: 3
@@ -753,7 +855,6 @@ Item {
                 Behavior on color { ColorAnimation { duration: 150 } }
             }
 
-            // Слой 4 (z: 4): Текст и обработка кликов (с обнуленными padding и замером жирного шрифта!)
             Repeater {
                 id: morphCatRepeater
                 model: Wallpapers.categories
@@ -830,7 +931,7 @@ Item {
         }
     }
 
-    // МОДАЛЬНОЕ ОКНО ПРЕСЕТОВ (с динамической светящейся обводкой границ!)
+    // МОДАЛЬНОЕ ОКНО ПРЕСЕТОВ
     Item {
         id: presetModal
         parent: Overlay.overlay

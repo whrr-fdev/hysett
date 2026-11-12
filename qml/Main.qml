@@ -756,7 +756,7 @@ ApplicationWindow {
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
-                                if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 16) : (wsRow.implicitWidth + 4))
+                                if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
                                 if (modKey === "media") return mediaInnerRow.implicitWidth + 24
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
@@ -958,13 +958,13 @@ ApplicationWindow {
                                     }
                                 }
 
-                                // Режим 2: Компактные кнопочки (точки) — делегаты живые, плавно растягиваются и меняют цвет
+                                // Режим 2: Компактные кнопочки (точки) — чуть меньше (5px -> 13px), делегаты живые
                                 Row {
                                     id: wsDotsRow
                                     z: 4
                                     visible: wsModuleItem.isDots
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: 3
 
                                     Repeater {
                                         id: wsDotsRep
@@ -983,9 +983,9 @@ ApplicationWindow {
                                             Rectangle {
                                                 id: dotRect
                                                 anchors.centerIn: parent
-                                                width: parent.act ? 18 : 6
-                                                height: 6
-                                                radius: (Theme && Theme.isRounded) ? 3 : 1
+                                                width: parent.act ? 13 : 5
+                                                height: 5
+                                                radius: (Theme && Theme.isRounded) ? 2.5 : 1
                                                 color: parent.act
                                                        ? (Config ? Config.m3Primary : "#ffffff")
                                                        : (parent.hov
@@ -1871,7 +1871,7 @@ ApplicationWindow {
                             z: 4
                             visible: vWsBox.isDots
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: 3
                             Repeater {
                                 id: vWsDotsRep
                                 model: Waybar ? Waybar.workspaces.length : 0
@@ -1888,9 +1888,9 @@ ApplicationWindow {
                                     Rectangle {
                                         id: vDotRect
                                         anchors.centerIn: parent
-                                        width: 6
-                                        height: parent.act ? 18 : 6
-                                        radius: (Theme && Theme.isRounded) ? 3 : 1
+                                        width: 5
+                                        height: parent.act ? 13 : 5
+                                        radius: (Theme && Theme.isRounded) ? 2.5 : 1
                                         color: parent.act
                                                ? (Config ? Config.m3Primary : "#ffffff")
                                                : (parent.hov
@@ -2588,8 +2588,10 @@ ApplicationWindow {
                     clip: pageController.inTransition || pageController.currentIndex !== 0
                     layer.enabled: root.anyModalActive && Config && Config.dialogBlur > 0.01
                     layer.smooth: true
+                    layer.textureSize: root.anyModalActive ? Qt.size(Math.max(1, Math.round(scaledRoot.width * 0.5)), Math.max(1, Math.round(scaledRoot.height * 0.5))) : Qt.size(0, 0)
                     layer.effect: ShaderEffect {
-                        property vector2d u_resolution: Qt.vector2d(scaledRoot.width, scaledRoot.height)
+                        property var source
+                        property vector2d u_resolution: Qt.vector2d(Math.max(1, scaledRoot.width * 0.5), Math.max(1, scaledRoot.height * 0.5))
                         property real u_blur: Config ? Config.dialogBlur : 0.65
                         fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
                     }
@@ -2989,6 +2991,7 @@ ApplicationWindow {
                             layer.enabled: pageController.inTransition && vortexProgress > 0.001
                             layer.smooth: true
                             layer.effect: ShaderEffect {
+                                property var source
                                 property vector2d u_resolution: Qt.vector2d(pageLoader.width, pageLoader.height)
                                 property real u_progress: pageLoader.vortexProgress
                                 property real u_direction: pageLoader.vortexDir

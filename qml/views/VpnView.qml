@@ -746,7 +746,8 @@ ScrollView {
                                     layer.smooth: true
                                     layer.textureSize: vpnScroll.hideSubLinks ? Qt.size(Math.max(1, Math.round(width * 0.28)), Math.max(1, Math.round(height * 0.28))) : Qt.size(0, 0)
                                     layer.effect: ShaderEffect {
-                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, urlsBlurBox.width), Math.max(1, urlsBlurBox.height))
+                                        property var source
+                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, urlsBlurBox.width * 0.28), Math.max(1, urlsBlurBox.height * 0.28))
                                         property real u_blur: 0.92
                                         fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
                                     }
@@ -1302,7 +1303,8 @@ ScrollView {
                                     layer.smooth: true
                                     layer.textureSize: vpnScroll.hideSubLinks ? Qt.size(Math.max(1, Math.round(width * 0.28)), Math.max(1, Math.round(height * 0.28))) : Qt.size(0, 0)
                                     layer.effect: ShaderEffect {
-                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, wlSubsBlurBox.width), Math.max(1, wlSubsBlurBox.height))
+                                        property var source
+                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, wlSubsBlurBox.width * 0.28), Math.max(1, wlSubsBlurBox.height * 0.28))
                                         property real u_blur: 0.92
                                         fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
                                     }

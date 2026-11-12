@@ -19,26 +19,50 @@ void main() {
     }
 
     vec2 texel = 1.0 / max(u_resolution, vec2(1.0));
-    // Шаг между соседними сэмплами <= 1.45 текселя (с учетом билинейной фильтрации GPU),
-    // поэтому выборки полностью перекрываются и никогда не распадаются на крестики или сетку
-    float stepScale = mix(0.35, 1.45, b);
+    float rad = mix(0.4, 1.35, b);
 
-    const float w[5] = float[](0.227027, 0.1945946, 0.1216216, 0.054054, 0.016216);
+    // Изотропное круговое размытие (3 концентрических кольца с перекрытием билинейных выборок без крестообразных лучей)
+    vec4 acc = texture(source, qt_TexCoord0) * 0.16;
+    float wSum = 0.16;
 
-    vec4 acc = vec4(0.0);
-    float weightSum = 0.0;
-
-    for (int y = -4; y <= 4; ++y) {
-        float wy = w[abs(y)];
-        for (int x = -4; x <= 4; ++x) {
-            float wx = w[abs(x)];
-            float weight = wx * wy;
-            vec2 uv = clamp(qt_TexCoord0 + vec2(float(x), float(y)) * stepScale * texel, vec2(0.001), vec2(0.999));
-            acc += texture(source, uv) * weight;
-            weightSum += weight;
-        }
+    // Кольцо 1 (8 точек, r = 1.0 * rad)
+    const vec2 ring1[8] = vec2[](
+        vec2( 1.0000,  0.0000), vec2( 0.7071,  0.7071),
+        vec2( 0.0000,  1.0000), vec2(-0.7071,  0.7071),
+        vec2(-1.0000,  0.0000), vec2(-0.7071, -0.7071),
+        vec2( 0.0000, -1.0000), vec2( 0.7071, -0.7071)
+    );
+    for (int i = 0; i < 8; ++i) {
+        vec2 uv = clamp(qt_TexCoord0 + ring1[i] * (1.0 * rad) * texel, vec2(0.001), vec2(0.999));
+        acc += texture(source, uv) * 0.11;
+        wSum += 0.11;
     }
 
-    vec4 blurred = acc / max(weightSum, 0.0001);
-    fragColor = blurred * qt_Opacity;
+    // Кольцо 2 (12 точек, r = 2.15 * rad)
+    const vec2 ring2[12] = vec2[](
+        vec2( 0.9659,  0.2588), vec2( 0.7071,  0.7071), vec2( 0.2588,  0.9659),
+        vec2(-0.2588,  0.9659), vec2(-0.7071,  0.7071), vec2(-0.9659,  0.2588),
+        vec2(-0.9659, -0.2588), vec2(-0.7071, -0.7071), vec2(-0.2588, -0.9659),
+        vec2( 0.2588, -0.9659), vec2( 0.7071, -0.7071), vec2( 0.9659, -0.2588)
+    );
+    for (int i = 0; i < 12; ++i) {
+        vec2 uv = clamp(qt_TexCoord0 + ring2[i] * (2.15 * rad) * texel, vec2(0.001), vec2(0.999));
+        acc += texture(source, uv) * 0.065;
+        wSum += 0.065;
+    }
+
+    // Кольцо 3 (16 точек, r = 3.35 * rad)
+    const vec2 ring3[16] = vec2[](
+        vec2( 1.0000,  0.0000), vec2( 0.9239,  0.3827), vec2( 0.7071,  0.7071), vec2( 0.3827,  0.9239),
+        vec2( 0.0000,  1.0000), vec2(-0.3827,  0.9239), vec2(-0.7071,  0.7071), vec2(-0.9239,  0.3827),
+        vec2(-1.0000,  0.0000), vec2(-0.9239, -0.3827), vec2(-0.7071, -0.7071), vec2(-0.3827, -0.9239),
+        vec2( 0.0000, -1.0000), vec2( 0.3827, -0.9239), vec2( 0.7071, -0.7071), vec2( 0.9239, -0.3827)
+    );
+    for (int i = 0; i < 16; ++i) {
+        vec2 uv = clamp(qt_TexCoord0 + ring3[i] * (3.35 * rad) * texel, vec2(0.001), vec2(0.999));
+        acc += texture(source, uv) * 0.032;
+        wSum += 0.032;
+    }
+
+    fragColor = (acc / wSum) * qt_Opacity;
 }

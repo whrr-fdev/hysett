@@ -11,13 +11,21 @@ Button {
     readonly property bool isM3: Theme && Theme.isRounded
     readonly property bool useGlassShader: Theme && (Theme.controlsLiquidGlass || Theme.glassRefraction > 0.05)
 
+    padding: 0
+    leftPadding: 0
+    rightPadding: 0
+    topPadding: 0
+    bottomPadding: 0
+
     readonly property string fullTxt: Config ? (Config.language, Config.trAuto(btn.text)) : btn.text
     readonly property var splitParts: {
         var s = fullTxt.trim()
         if (!s) return { icon: "", label: "" }
         var cp = s.codePointAt(0)
-        if (cp >= 0xE000 || (cp >= 0x2190 && cp <= 0x2BFF) || cp === 0x002B) {
-            var chLen = cp > 0xFFFF ? 2 : 1
+        var chLen = cp > 0xFFFF ? 2 : 1
+        var nextCh = s.length > chLen ? s.charAt(chLen) : ""
+        // '+' или '-' отделяем как иконку только если после них идет пробел ("+ Добавить"), а не цифра ("+15 сек")
+        if (cp >= 0xE000 || (cp >= 0x2190 && cp <= 0x2BFF) || ((cp === 0x002B || cp === 0x002D) && nextCh === " ")) {
             var rest = s.slice(chLen).trim()
             if (rest.length > 0) {
                 return { icon: s.slice(0, chLen), label: rest }
@@ -27,8 +35,8 @@ Button {
     }
 
     implicitHeight: 26
-    implicitWidth: isIconOnly ? 26 : contentRow.implicitWidth + 24
-    Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 30 : 340)
+    implicitWidth: isIconOnly ? 28 : Math.ceil(contentRow.implicitWidth + 30)
+    Layout.maximumWidth: allowFullWidth ? 9999 : (isIconOnly ? 32 : 360)
     flat: true
 
     scale: btn.down ? 0.96 : 1.0
@@ -45,8 +53,8 @@ Button {
 
             Item {
                 visible: btn.splitParts.icon.length > 0
-                width: 15
-                height: 16
+                width: 18
+                height: 18
                 anchors.verticalCenter: parent.verticalCenter
 
                 Text {

@@ -167,6 +167,38 @@ Item {
         paintActiveCanvas()
     }
 
+    // Компонент строки заголовка с отдельным слотом под иконку (чтобы глиф никогда не наезжал на текст)
+    component IconHeader: RowLayout {
+        property string iconGlyph: "󱑂"
+        property string titleText: ""
+        property int extraFont: 3
+        property color iconColor: Config ? Config.m3Primary : "#ffffff"
+        property color textColor: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
+        spacing: 10
+
+        Item {
+            Layout.preferredWidth: 22
+            Layout.preferredHeight: 22
+            Layout.alignment: Qt.AlignVCenter
+            Text {
+                anchors.centerIn: parent
+                text: parent.parent.iconGlyph
+                color: parent.parent.iconColor
+                font.pixelSize: Config.fontSize + parent.parent.extraFont + 1
+            }
+        }
+
+        Text {
+            text: parent.titleText
+            color: parent.textColor
+            font.pixelSize: Config.fontSize + parent.extraFont
+            font.bold: true
+            elide: Text.ElideRight
+            Layout.fillWidth: true
+            Layout.alignment: Qt.AlignVCenter
+        }
+    }
+
     // Телефонный барабан (колесико мыши + перетаскивание вверх/вниз + клик)
     component PhoneDrumWheel: Item {
         id: drumCol
@@ -276,7 +308,7 @@ Item {
         anchors.left: parent.left
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        width: timeRoot.isM3 ? 174 : 154
+        width: timeRoot.isM3 ? 178 : 158
         color: "transparent"
 
         property Item activeCardObj: {
@@ -331,14 +363,30 @@ Item {
             anchors.margins: 8
             spacing: 4
 
-            Text {
-                text: "󱑂  Время и Даты"
-                color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
-                font.pixelSize: Config.fontSize + 1
-                font.bold: true
+            RowLayout {
+                Layout.fillWidth: true
                 Layout.topMargin: 4
                 Layout.bottomMargin: 6
                 Layout.leftMargin: 6
+                spacing: 8
+                Item {
+                    Layout.preferredWidth: 18
+                    Layout.preferredHeight: 18
+                    Text {
+                        anchors.centerIn: parent
+                        text: "󱑂"
+                        color: Config ? Config.m3Primary : "#ffffff"
+                        font.pixelSize: Config.fontSize + 2
+                    }
+                }
+                Text {
+                    text: "Время и Даты"
+                    color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
+                    font.pixelSize: Config.fontSize + 1
+                    font.bold: true
+                    elide: Text.ElideRight
+                    Layout.fillWidth: true
+                }
             }
 
             Rectangle {
@@ -359,9 +407,17 @@ Item {
                     onExited: if (subSidebar.hoveredCardObj === tCard0) subSidebar.hoveredCardObj = null
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 10
+                    Item {
+                        Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                        Text {
+                            anchors.centerIn: parent; text: "󱑂"
+                            color: timeRoot.subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard0 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize + 1
+                        }
+                    }
                     Text {
-                        text: "󱑂  Часы"
+                        text: "Часы"
                         color: timeRoot.subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard0 ? "#ffffff" : "#bbbbbb")
                         font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 0; Layout.fillWidth: true
                     }
@@ -377,9 +433,17 @@ Item {
                     onExited: if (subSidebar.hoveredCardObj === tCard1) subSidebar.hoveredCardObj = null
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 10
+                    Item {
+                        Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                        Text {
+                            anchors.centerIn: parent; text: ""
+                            color: timeRoot.subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard1 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize
+                        }
+                    }
                     Text {
-                        text: "  Календарь"
+                        text: "Календарь"
                         color: timeRoot.subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard1 ? "#ffffff" : "#bbbbbb")
                         font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 1; Layout.fillWidth: true
                     }
@@ -395,9 +459,17 @@ Item {
                     onExited: if (subSidebar.hoveredCardObj === tCard2) subSidebar.hoveredCardObj = null
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 6
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 10
+                    Item {
+                        Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                        Text {
+                            anchors.centerIn: parent; text: "󰔛"
+                            color: timeRoot.subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard2 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize + 1
+                        }
+                    }
                     Text {
-                        text: "󰔛  Таймер"
+                        text: "Таймер"
                         color: timeRoot.subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard2 ? "#ffffff" : "#bbbbbb")
                         font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 2; Layout.fillWidth: true
                     }
@@ -418,9 +490,17 @@ Item {
                     onExited: if (subSidebar.hoveredCardObj === tCard3) subSidebar.hoveredCardObj = null
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 6
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 10
+                    Item {
+                        Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                        Text {
+                            anchors.centerIn: parent; text: "󱎫"
+                            color: timeRoot.subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard3 ? "#ffffff" : "#bbbbbb")
+                            font.pixelSize: Config.fontSize + 1
+                        }
+                    }
                     Text {
-                        text: "󱎫  Секундомер"
+                        text: "Секундомер"
                         color: timeRoot.subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (subSidebar.hoveredCardObj === tCard3 ? "#ffffff" : "#bbbbbb")
                         font.pixelSize: Config.fontSize; font.bold: timeRoot.subTab === 3; Layout.fillWidth: true
                     }
@@ -441,22 +521,43 @@ Item {
                 ColumnLayout {
                     id: miniStatusCol
                     anchors.fill: parent; anchors.margins: 8; spacing: 4
-                    Text {
-                        text: "󰄬 На панели задач"
-                        color: Config ? Config.m3Primary : "#69f0ae"
-                        font.pixelSize: Config.fontSize - 2; font.bold: true
+                    RowLayout {
+                        spacing: 6
+                        Item {
+                            Layout.preferredWidth: 14; Layout.preferredHeight: 14
+                            Text { anchors.centerIn: parent; text: "󰄬"; color: Config ? Config.m3Primary : "#69f0ae"; font.pixelSize: Config.fontSize - 1 }
+                        }
+                        Text {
+                            text: "На панели задач"
+                            color: Config ? Config.m3Primary : "#69f0ae"
+                            font.pixelSize: Config.fontSize - 2; font.bold: true
+                        }
                     }
-                    Text {
+                    RowLayout {
                         visible: winObj && winObj.timerActive
-                        text: "󰔛 " + (winObj ? winObj.timerBarText : "00:00")
-                        color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.bold: true
-                        font.features: { "tnum": 1 }
+                        spacing: 6
+                        Item {
+                            Layout.preferredWidth: 14; Layout.preferredHeight: 14
+                            Text { anchors.centerIn: parent; text: "󰔛"; color: "#ffffff"; font.pixelSize: Config.fontSize - 1 }
+                        }
+                        Text {
+                            text: winObj ? winObj.timerBarText : "00:00"
+                            color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.bold: true
+                            font.features: { "tnum": 1 }
+                        }
                     }
-                    Text {
+                    RowLayout {
                         visible: winObj && winObj.stopwatchActive
-                        text: "󱎫 " + (winObj ? winObj.stopwatchBarText : "00:00.0")
-                        color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.bold: true
-                        font.features: { "tnum": 1 }
+                        spacing: 6
+                        Item {
+                            Layout.preferredWidth: 14; Layout.preferredHeight: 14
+                            Text { anchors.centerIn: parent; text: "󱎫"; color: "#ffffff"; font.pixelSize: Config.fontSize - 1 }
+                        }
+                        Text {
+                            text: winObj ? winObj.stopwatchBarText : "00:00.0"
+                            color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.bold: true
+                            font.features: { "tnum": 1 }
+                        }
                     }
                 }
             }
@@ -464,7 +565,7 @@ Item {
     }
 
     // =========================================================================
-    // ПРАВАЯ ОБЛАСТЬ СОДЕРЖИМОГО (СГРУППИРОВАНА ПО ЦЕНТРУ С ЕДИНЫМИ ОТСТУПАМИ)
+    // ПРАВАЯ ОБЛАСТЬ СОДЕРЖИМОГО
     // =========================================================================
     Item {
         id: contentArea
@@ -489,12 +590,10 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
-                    Text {
-                        text: "󱑂  Системные часы и мировое время"
-                        color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
-                        font.pixelSize: Config.fontSize + 3
-                        font.bold: true
+                    IconHeader {
                         Layout.fillWidth: true
+                        iconGlyph: "󱑂"
+                        titleText: "Системные часы и мировое время"
                     }
                     SegmentedButton {
                         Layout.preferredWidth: 170
@@ -643,11 +742,12 @@ Item {
                             anchors.margins: 16
                             spacing: 10
 
-                            Text {
-                                text: "󰇧  Мировое время и прогресс суток"
-                                color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                font.pixelSize: Config.fontSize + 1
-                                font.bold: true
+                            IconHeader {
+                                Layout.fillWidth: true
+                                iconGlyph: "󰇧"
+                                titleText: "Мировое время и прогресс суток"
+                                extraFont: 1
+                                textColor: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                             }
 
                             Rectangle {
@@ -745,15 +845,13 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
-                    Text {
-                        text: "  Календарь"
-                        color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
-                        font.pixelSize: Config.fontSize + 3
-                        font.bold: true
+                    IconHeader {
                         Layout.fillWidth: true
+                        iconGlyph: ""
+                        titleText: "Календарь"
                     }
                     StyledButton {
-                        text: "󰃭  Сегодня"
+                        text: "󰃭 Сегодня"
                         implicitHeight: 28
                         onClicked: {
                             timeRoot.calYear = timeRoot.todayYear
@@ -890,19 +988,26 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
-                    Text {
-                        text: "󰔛  Таймер обратного отсчёта"
-                        color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
-                        font.pixelSize: Config.fontSize + 3
-                        font.bold: true
+                    IconHeader {
                         Layout.fillWidth: true
+                        iconGlyph: "󰔛"
+                        titleText: "Таймер обратного отсчёта"
                     }
-                    Text {
-                        text: (winObj && winObj.timerRunning)
-                              ? "󰐊 Идёт отсчёт"
-                              : ((winObj && winObj.timerActive) ? "󰏤 На паузе" : "Готов к запуску")
-                        color: (winObj && winObj.timerRunning) ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
-                        font.pixelSize: Config.fontSize; font.bold: true
+                    RowLayout {
+                        spacing: 6
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: (winObj && winObj.timerRunning)
+                                   ? (Config ? Config.m3Primary : "#69f0ae")
+                                   : ((winObj && winObj.timerActive) ? "#ffd54f" : "#666666")
+                        }
+                        Text {
+                            text: (winObj && winObj.timerRunning)
+                                  ? "Идёт отсчёт"
+                                  : ((winObj && winObj.timerActive) ? "На паузе" : "Готов к запуску")
+                            color: (winObj && winObj.timerRunning) ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                            font.pixelSize: Config.fontSize; font.bold: true
+                        }
                     }
                 }
 
@@ -1072,11 +1177,25 @@ Item {
                                         }
                                     }
 
-                                    Text {
+                                    Row {
                                         anchors.horizontalCenter: parent.horizontalCenter
-                                        text: timeRoot.kbEditActive ? "Enter — сохранить" : "󰌌 Клик по цифрам — с клавиатуры"
-                                        color: timeRoot.kbEditActive ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
-                                        font.pixelSize: Config.fontSize - 2
+                                        spacing: 6
+                                        Item {
+                                            width: 15; height: 15
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: timeRoot.kbEditActive ? "󰄬" : "󰌌"
+                                                color: timeRoot.kbEditActive ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                                                font.pixelSize: Config.fontSize - 1
+                                            }
+                                        }
+                                        Text {
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            text: timeRoot.kbEditActive ? "Enter — сохранить" : "Нажмите для ввода"
+                                            color: timeRoot.kbEditActive ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                                            font.pixelSize: Config.fontSize - 2
+                                        }
                                     }
                                 }
                             }
@@ -1112,10 +1231,10 @@ Item {
                                     Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 36
                                     isActive: winObj ? winObj.timerRunning : false
                                     text: timeRoot.kbEditActive
-                                          ? "󰄬  Применить и запустить"
+                                          ? "󰄬 Применить"
                                           : ((winObj && winObj.timerRunning)
-                                             ? "󰏤   Пауза"
-                                             : ((winObj && winObj.timerActive) ? "󰐊   Продолжить" : "󰐊   Запустить таймер"))
+                                             ? "󰏤 Пауза"
+                                             : ((winObj && winObj.timerActive) ? "󰐊 Продолжить" : "󰐊 Запустить таймер"))
                                     onClicked: {
                                         if (timeRoot.kbEditActive) timeRoot.applyKeyboardInputToTimer()
                                         if (winObj) winObj.toggleTimerPause()
@@ -1123,9 +1242,9 @@ Item {
                                 }
 
                                 StyledButton {
-                                    implicitWidth: 110; implicitHeight: 36
+                                    implicitWidth: 112; implicitHeight: 36
                                     enabled: winObj ? (winObj.timerActive || winObj.timerRemainingMs !== winObj.timerTotalMs) : false
-                                    text: "󰑐   Сброс"
+                                    text: "󰑐 Сброс"
                                     onClicked: {
                                         if (winObj) {
                                             winObj.resetTimer()
@@ -1150,16 +1269,17 @@ Item {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text {
-                                    text: "󰓦  Барабан времени (колесико / тяните)"
-                                    color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                    font.pixelSize: Config.fontSize + 1
-                                    font.bold: true
+                                spacing: 8
+                                IconHeader {
                                     Layout.fillWidth: true
+                                    iconGlyph: "󰓦"
+                                    titleText: "Барабан времени"
+                                    extraFont: 1
+                                    textColor: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                 }
                                 StyledButton {
                                     text: timeRoot.kbEditActive ? "󰄬 Готово" : "󰌌 С клавиатуры"
-                                    implicitHeight: 26
+                                    implicitHeight: 28
                                     isActive: timeRoot.kbEditActive
                                     onClicked: {
                                         if (timeRoot.kbEditActive) {
@@ -1278,7 +1398,7 @@ Item {
         }
 
         // ---------------------------------------------------------------------
-        // ЭКРАН 3: СЕКУНДОМЕР (С ОТДЕЛЬНОЙ КНОПКОЙ СБРОСА ФЛАГОВ)
+        // ЭКРАН 3: СЕКУНДОМЕР
         // ---------------------------------------------------------------------
         Item {
             anchors.fill: parent
@@ -1293,19 +1413,26 @@ Item {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 10
-                    Text {
-                        text: "󱎫  Секундомер и замер кругов"
-                        color: timeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
-                        font.pixelSize: Config.fontSize + 3
-                        font.bold: true
+                    IconHeader {
                         Layout.fillWidth: true
+                        iconGlyph: "󱎫"
+                        titleText: "Секундомер и замер кругов"
                     }
-                    Text {
-                        text: (winObj && winObj.stopwatchRunning)
-                              ? "󰐊 Идёт замер"
-                              : ((winObj && winObj.stopwatchActive) ? "󰏤 На паузе" : "Готов")
-                        color: (winObj && winObj.stopwatchRunning) ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
-                        font.pixelSize: Config.fontSize; font.bold: true
+                    RowLayout {
+                        spacing: 6
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: (winObj && winObj.stopwatchRunning)
+                                   ? (Config ? Config.m3Primary : "#69f0ae")
+                                   : ((winObj && winObj.stopwatchActive) ? "#ffd54f" : "#666666")
+                        }
+                        Text {
+                            text: (winObj && winObj.stopwatchRunning)
+                                  ? "Идёт замер"
+                                  : ((winObj && winObj.stopwatchActive) ? "На паузе" : "Готов")
+                            color: (winObj && winObj.stopwatchRunning) ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                            font.pixelSize: Config.fontSize; font.bold: true
+                        }
                     }
                 }
 
@@ -1438,22 +1565,22 @@ Item {
                                     Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 36
                                     isActive: winObj ? winObj.stopwatchRunning : false
                                     text: (winObj && winObj.stopwatchRunning)
-                                          ? "󰏤   Пауза"
-                                          : ((winObj && winObj.stopwatchActive) ? "󰐊   Продолжить" : "󰐊   Старт")
+                                          ? "󰏤 Пауза"
+                                          : ((winObj && winObj.stopwatchActive) ? "󰐊 Далее" : "󰐊 Старт")
                                     onClicked: if (winObj) winObj.toggleStopwatch()
                                 }
 
                                 StyledButton {
-                                    implicitWidth: 96; implicitHeight: 36
+                                    Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 36
                                     enabled: winObj ? winObj.stopwatchRunning : false
-                                    text: "󰈻   Круг"
+                                    text: "󰈻 Круг"
                                     onClicked: if (winObj) winObj.lapStopwatch()
                                 }
 
                                 StyledButton {
-                                    implicitWidth: 96; implicitHeight: 36
+                                    Layout.fillWidth: true; allowFullWidth: true; implicitHeight: 36
                                     enabled: winObj ? winObj.stopwatchActive : false
-                                    text: "󰑐   Сброс"
+                                    text: "󰑐 Сброс"
                                     onClicked: if (winObj) { winObj.resetStopwatch(); swArcCanvas.requestPaint() }
                                 }
                             }
@@ -1474,16 +1601,16 @@ Item {
                             RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 8
-                                Text {
-                                    text: "󰈻  Записанные круги" + (winObj && winObj.stopwatchLaps.length > 0 ? (" (" + winObj.stopwatchLaps.length + ")") : "")
-                                    color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                    font.pixelSize: Config.fontSize + 1
-                                    font.bold: true
+                                IconHeader {
                                     Layout.fillWidth: true
+                                    iconGlyph: "󰈻"
+                                    titleText: "Записанные круги" + (winObj && winObj.stopwatchLaps.length > 0 ? (" (" + winObj.stopwatchLaps.length + ")") : "")
+                                    extraFont: 1
+                                    textColor: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                 }
                                 StyledButton {
-                                    text: "󰎟  Сбросить флаги"
-                                    implicitHeight: 26
+                                    text: "󰎟 Сбросить флаги"
+                                    implicitHeight: 28
                                     enabled: winObj ? (winObj.stopwatchLaps.length > 0) : false
                                     onClicked: if (winObj) { winObj.clearStopwatchLaps(); swArcCanvas.requestPaint() }
                                 }

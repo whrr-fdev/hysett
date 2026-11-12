@@ -67,7 +67,7 @@ Item {
     }
 
     function commitDrumsToTimer() {
-        if (!winObj || winObj.timerActive) return
+        if (!winObj) return
         var ms = (drumHours * 3600 + drumMins * 60 + drumSecs) * 1000
         if (ms < 1000) {
             drumSecs = 5
@@ -131,6 +131,10 @@ Item {
             if (timeRoot.visible && timeRoot.subTab === 3 && swArcCanvas.available)
                 swArcCanvas.requestPaint()
         }
+        function onStopwatchLapsChanged() {
+            if (timeRoot.visible && timeRoot.subTab === 3 && swArcCanvas.available)
+                swArcCanvas.requestPaint()
+        }
     }
 
     Connections {
@@ -163,13 +167,12 @@ Item {
         paintActiveCanvas()
     }
 
-    // Компонент телефонного барабана прокрутки (колесико мыши + перетаскивание вверх/вниз)
+    // Телефонный барабан (колесико мыши + перетаскивание вверх/вниз + клик)
     component PhoneDrumWheel: Item {
         id: drumCol
         property int value: 0
         property int maxVal: 60
         property string suffix: "м"
-        property bool wheelEnabled: true
         signal valueEdited(int newVal)
 
         property real slideOffset: 0
@@ -181,7 +184,9 @@ Item {
         }
 
         function stepBy(delta) {
-            if (!wheelEnabled) return
+            if (timeRoot.winObj && timeRoot.winObj.timerRunning) {
+                timeRoot.winObj.toggleTimerPause()
+            }
             slideOffset = delta > 0 ? 12 : -12
             rollAnim.restart()
             value = (value + delta + maxVal * 10) % maxVal
@@ -224,20 +229,18 @@ Item {
             }
         }
 
-        WheelHandler {
-            enabled: drumCol.wheelEnabled
-            onWheel: (e) => {
-                if (e.angleDelta.y < 0) drumCol.stepBy(1)
-                else if (e.angleDelta.y > 0) drumCol.stepBy(-1)
-            }
-        }
-
         MouseArea {
             anchors.fill: parent
-            enabled: drumCol.wheelEnabled
             cursorShape: Qt.SizeVerCursor
             property real accumY: 0
             property bool dragged: false
+
+            onWheel: (wheel) => {
+                var dy = wheel.angleDelta.y !== 0 ? wheel.angleDelta.y : wheel.pixelDelta.y
+                if (dy < 0) drumCol.stepBy(1)
+                else if (dy > 0) drumCol.stepBy(-1)
+                wheel.accepted = true
+            }
 
             onPressed: (mouse) => {
                 accumY = mouse.y
@@ -266,7 +269,7 @@ Item {
     }
 
     // =========================================================================
-    // ЛЕВАЯ БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ ВРЕМЕНИ (БЕЗ ВЛОЖЕННОГО ROWLAYOUT)
+    // ЛЕВАЯ БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ ВРЕМЕНИ
     // =========================================================================
     Rectangle {
         id: subSidebar
@@ -461,7 +464,7 @@ Item {
     }
 
     // =========================================================================
-    // ПРАВАЯ ОБЛАСТЬ СОДЕРЖИМОГО (ПРЯМЫЕ ANCHORS БЕЗ STACKLAYOUT-ЦИКЛОВ)
+    // ПРАВАЯ ОБЛАСТЬ СОДЕРЖИМОГО (СГРУППИРОВАНА ПО ЦЕНТРУ С ЕДИНЫМИ ОТСТУПАМИ)
     // =========================================================================
     Item {
         id: contentArea
@@ -478,8 +481,9 @@ Item {
             visible: timeRoot.subTab === 0
 
             ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 18
+                width: Math.min(parent.width - 48, 880)
+                height: Math.min(parent.height - 40, 560)
+                anchors.centerIn: parent
                 spacing: 14
 
                 RowLayout {
@@ -541,7 +545,6 @@ Item {
                                         var primHex = Config ? Config.m3Primary.toString() : "#a8c7fa"
                                         var secCol = Config ? Config.m3SecondaryContainer : Qt.rgba(0.3, 0.35, 0.45, 1)
 
-                                        // 12 засечек циферблата
                                         ctx.beginPath()
                                         for (var i = 0; i < 12; ++i) {
                                             var ang = (i / 12.0) * Math.PI * 2 - Math.PI * 0.5
@@ -552,14 +555,12 @@ Item {
                                         ctx.strokeStyle = "rgba(255, 255, 255, 0.25)"
                                         ctx.stroke()
 
-                                        // Фоновое кольцо секунд
                                         ctx.beginPath()
                                         ctx.arc(cx, cy, rOuter, 0, Math.PI * 2)
                                         ctx.lineWidth = 7
                                         ctx.strokeStyle = Qt.rgba(secCol.r, secCol.g, secCol.b, 0.45)
                                         ctx.stroke()
 
-                                        // Активная дуга секунд + кружок прогресса
                                         var startA = -Math.PI * 0.5
                                         var endSecA = startA + Math.PI * 2 * (secProg > 0.002 ? secProg : 0.008)
                                         ctx.beginPath()
@@ -576,7 +577,6 @@ Item {
                                         ctx.fillStyle = "#ffffff"
                                         ctx.fill()
 
-                                        // Внутреннее кольцо минут
                                         ctx.beginPath()
                                         ctx.arc(cx, cy, rInner, 0, Math.PI * 2)
                                         ctx.lineWidth = 4
@@ -728,7 +728,7 @@ Item {
         }
 
         // ---------------------------------------------------------------------
-        // ЭКРАН 1: КАЛЕНДАРЬ
+        // ЭКРАН 1: КАЛЕНДАРЬ (КОМПАКТНЫЙ И СГРУППИРОВАННЫЙ ПО ЦЕНТРУ)
         // ---------------------------------------------------------------------
         Item {
             id: calPage
@@ -738,9 +738,9 @@ Item {
             readonly property int daysInCurrentMonth: new Date(timeRoot.calYear, timeRoot.calMonth + 1, 0).getDate()
 
             ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 18
-                spacing: 14
+                width: Math.min(parent.width - 48, 520)
+                anchors.centerIn: parent
+                spacing: 12
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -766,18 +766,19 @@ Item {
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    implicitHeight: calCardInnerCol.implicitHeight + 32
 
                     ColumnLayout {
+                        id: calCardInnerCol
                         anchors.fill: parent
                         anchors.margins: 16
                         spacing: 12
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
-                            StyledButton { text: "«"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28; onClicked: timeRoot.calYear-- }
+                            StyledButton { text: "«"; isIconOnly: true; implicitWidth: 30; implicitHeight: 26; onClicked: timeRoot.calYear-- }
                             StyledButton {
-                                text: "‹"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28
+                                text: "‹"; isIconOnly: true; implicitWidth: 30; implicitHeight: 26
                                 onClicked: {
                                     if (timeRoot.calMonth === 0) { timeRoot.calMonth = 11; timeRoot.calYear-- }
                                     else timeRoot.calMonth--
@@ -787,24 +788,23 @@ Item {
                                 Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
                                 text: ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"][timeRoot.calMonth] + " " + timeRoot.calYear
                                 color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
-                                font.pixelSize: Config.fontSize + 3; font.bold: true
+                                font.pixelSize: Config.fontSize + 2; font.bold: true
                             }
                             StyledButton {
-                                text: "›"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28
+                                text: "›"; isIconOnly: true; implicitWidth: 30; implicitHeight: 26
                                 onClicked: {
                                     if (timeRoot.calMonth === 11) { timeRoot.calMonth = 0; timeRoot.calYear++ }
                                     else timeRoot.calMonth++
                                 }
                             }
-                            StyledButton { text: "»"; isIconOnly: true; implicitWidth: 32; implicitHeight: 28; onClicked: timeRoot.calYear++ }
+                            StyledButton { text: "»"; isIconOnly: true; implicitWidth: 30; implicitHeight: 26; onClicked: timeRoot.calYear++ }
                         }
 
                         GridLayout {
                             Layout.fillWidth: true
-                            Layout.fillHeight: true
                             columns: 7
-                            columnSpacing: 8
-                            rowSpacing: 8
+                            columnSpacing: 6
+                            rowSpacing: 6
 
                             Repeater {
                                 model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
@@ -812,7 +812,7 @@ Item {
                                     Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
                                     text: modelData
                                     color: index >= 5 ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
-                                    font.pixelSize: Config.fontSize; font.bold: true
+                                    font.pixelSize: Config.fontSize - 1; font.bold: true
                                 }
                             }
 
@@ -821,14 +821,13 @@ Item {
                                 delegate: Rectangle {
                                     id: dayCell
                                     Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    Layout.minimumHeight: 32
+                                    Layout.preferredHeight: 36
                                     readonly property int dNum: index - calPage.firstWeekdayOffset + 1
                                     readonly property bool isValid: dNum >= 1 && dNum <= calPage.daysInCurrentMonth
                                     readonly property bool isToday: isValid && dNum === timeRoot.todayDay && timeRoot.calMonth === timeRoot.todayMonth && timeRoot.calYear === timeRoot.todayYear
                                     readonly property bool isSel: isValid && dNum === timeRoot.selectedCalDay
 
-                                    radius: timeRoot.isM3 ? (Config ? Math.min(12, Config.m3ControlRadius) : 10) : 0
+                                    radius: timeRoot.isM3 ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
                                     color: {
                                         if (!isValid) return "transparent"
                                         if (isToday) return Config ? Config.m3Primary : "#ffffff"
@@ -855,7 +854,7 @@ Item {
                                             if (dayCell.isSel) return Config ? Config.m3Primary : "#ffffff"
                                             return "#ffffff"
                                         }
-                                        font.pixelSize: Config.fontSize + 1
+                                        font.pixelSize: Config.fontSize
                                         font.bold: dayCell.isToday || dayCell.isSel
                                     }
 
@@ -883,8 +882,9 @@ Item {
             visible: timeRoot.subTab === 2
 
             ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 18
+                width: Math.min(parent.width - 48, 880)
+                height: Math.min(parent.height - 40, 560)
+                anchors.centerIn: parent
                 spacing: 14
 
                 RowLayout {
@@ -1151,7 +1151,7 @@ Item {
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {
-                                    text: "󰓦  Барабан времени (крутите или тяните)"
+                                    text: "󰓦  Барабан времени (колесико / тяните)"
                                     color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                     font.pixelSize: Config.fontSize + 1
                                     font.bold: true
@@ -1212,7 +1212,6 @@ Item {
                                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1
                                         maxVal: 24; suffix: "ч"
                                         value: timeRoot.drumHours
-                                        wheelEnabled: !winObj || !winObj.timerActive
                                         onValueEdited: (v) => { timeRoot.drumHours = v; timeRoot.commitDrumsToTimer() }
                                     }
 
@@ -1222,7 +1221,6 @@ Item {
                                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1
                                         maxVal: 60; suffix: "м"
                                         value: timeRoot.drumMins
-                                        wheelEnabled: !winObj || !winObj.timerActive
                                         onValueEdited: (v) => { timeRoot.drumMins = v; timeRoot.commitDrumsToTimer() }
                                     }
 
@@ -1232,7 +1230,6 @@ Item {
                                         Layout.fillWidth: true; Layout.fillHeight: true; Layout.preferredWidth: 1
                                         maxVal: 60; suffix: "с"
                                         value: timeRoot.drumSecs
-                                        wheelEnabled: !winObj || !winObj.timerActive
                                         onValueEdited: (v) => { timeRoot.drumSecs = v; timeRoot.commitDrumsToTimer() }
                                     }
                                 }
@@ -1281,15 +1278,16 @@ Item {
         }
 
         // ---------------------------------------------------------------------
-        // ЭКРАН 3: СЕКУНДОМЕР
+        // ЭКРАН 3: СЕКУНДОМЕР (С ОТДЕЛЬНОЙ КНОПКОЙ СБРОСА ФЛАГОВ)
         // ---------------------------------------------------------------------
         Item {
             anchors.fill: parent
             visible: timeRoot.subTab === 3
 
             ColumnLayout {
-                anchors.fill: parent
-                anchors.margins: 18
+                width: Math.min(parent.width - 48, 880)
+                height: Math.min(parent.height - 40, 560)
+                anchors.centerIn: parent
                 spacing: 14
 
                 RowLayout {
@@ -1446,14 +1444,14 @@ Item {
                                 }
 
                                 StyledButton {
-                                    implicitWidth: 105; implicitHeight: 36
+                                    implicitWidth: 96; implicitHeight: 36
                                     enabled: winObj ? winObj.stopwatchRunning : false
                                     text: "󰈻   Круг"
                                     onClicked: if (winObj) winObj.lapStopwatch()
                                 }
 
                                 StyledButton {
-                                    implicitWidth: 105; implicitHeight: 36
+                                    implicitWidth: 96; implicitHeight: 36
                                     enabled: winObj ? winObj.stopwatchActive : false
                                     text: "󰑐   Сброс"
                                     onClicked: if (winObj) { winObj.resetStopwatch(); swArcCanvas.requestPaint() }
@@ -1475,18 +1473,19 @@ Item {
 
                             RowLayout {
                                 Layout.fillWidth: true
+                                spacing: 8
                                 Text {
-                                    text: "󰈻  Записанные круги"
+                                    text: "󰈻  Записанные круги" + (winObj && winObj.stopwatchLaps.length > 0 ? (" (" + winObj.stopwatchLaps.length + ")") : "")
                                     color: timeRoot.isM3 && Config ? Config.m3Primary : "#ffffff"
                                     font.pixelSize: Config.fontSize + 1
                                     font.bold: true
                                     Layout.fillWidth: true
                                 }
-                                Text {
-                                    visible: winObj && winObj.stopwatchLaps.length > 0
-                                    text: "Всего: " + (winObj ? winObj.stopwatchLaps.length : 0)
-                                    color: "#888888"
-                                    font.pixelSize: Config.fontSize - 1
+                                StyledButton {
+                                    text: "󰎟  Сбросить флаги"
+                                    implicitHeight: 26
+                                    enabled: winObj ? (winObj.stopwatchLaps.length > 0) : false
+                                    onClicked: if (winObj) { winObj.clearStopwatchLaps(); swArcCanvas.requestPaint() }
                                 }
                             }
 

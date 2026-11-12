@@ -117,8 +117,12 @@ Item {
     }
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.margins: 16
+        width: Math.min(parent.width - 48, 960)
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 20
+        anchors.bottomMargin: 20
         spacing: 8
 
         RowLayout {

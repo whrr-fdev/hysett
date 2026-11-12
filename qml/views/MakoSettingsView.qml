@@ -19,11 +19,12 @@ Item {
     }
 
     ColumnLayout {
-        anchors.fill: parent
-        anchors.leftMargin: 20
-        anchors.rightMargin: 20
-        anchors.topMargin: 16
-        anchors.bottomMargin: 16
+        width: Math.min(parent.width - 48, 1020)
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.topMargin: 20
+        anchors.bottomMargin: 20
         spacing: 12
 
         // Верхняя шапка вкладки

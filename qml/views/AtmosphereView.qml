@@ -71,7 +71,7 @@ ScrollView {
 
         ColumnLayout {
             id: mainCol
-            width: Math.min(parent.width - 36, 860)
+            width: Math.min(parent.width - 48, 860)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: 18
@@ -125,7 +125,7 @@ ScrollView {
                     SegmentedButton {
                         visible: mainCol.anyAtmoActive
                         Layout.fillWidth: true
-                        options: ["🌧  Дождь", "❄  Снег", "🎃  Хэллоуин", "🎄  Новый год"]
+                        options: ["󰖗  Дождь", "󰼶  Снег", "󰮣  Хэллоуин", "󰐅  Новый год"]
                         selectedIndex: Atmosphere.presetProfile < 4 ? Atmosphere.presetProfile : 0
                         onSelected: (idx) => Atmosphere.applySeasonalProfile(idx)
                     }

@@ -191,7 +191,7 @@ RowLayout {
                 width: scrTheme.availableWidth; implicitHeight: colThemeMain.implicitHeight + 44
                 ColumnLayout {
                     id: colThemeMain
-                    width: Math.min(parent.width - 36, 860)
+                    width: Math.min(parent.width - 48, 860)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: appSetRoot.isM3 ? 14 : 10
@@ -383,7 +383,7 @@ RowLayout {
                 width: scrInt.availableWidth; implicitHeight: colIntMain.implicitHeight + 44
                 ColumnLayout {
                     id: colIntMain
-                    width: Math.min(parent.width - 36, 860)
+                    width: Math.min(parent.width - 48, 860)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14
@@ -470,7 +470,7 @@ RowLayout {
                 width: scrAnim.availableWidth; implicitHeight: colAnimMain.implicitHeight + 44
                 ColumnLayout {
                     id: colAnimMain
-                    width: Math.min(parent.width - 36, 860)
+                    width: Math.min(parent.width - 48, 860)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14
@@ -562,7 +562,7 @@ RowLayout {
                 width: scrGlass.availableWidth; implicitHeight: colGlassMain.implicitHeight + 44
                 ColumnLayout {
                     id: colGlassMain
-                    width: Math.min(parent.width - 36, 860)
+                    width: Math.min(parent.width - 48, 860)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14
@@ -644,7 +644,7 @@ RowLayout {
                 width: scrGlow.availableWidth; implicitHeight: colGlowMain.implicitHeight + 44
                 ColumnLayout {
                     id: colGlowMain
-                    width: Math.min(parent.width - 36, 860)
+                    width: Math.min(parent.width - 48, 860)
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14

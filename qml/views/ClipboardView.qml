@@ -10,7 +10,7 @@ Item {
     onVisibleChanged: if (visible && Waybar) Waybar.refreshClipboard()
 
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 20; spacing: 10
+        width: Math.min(parent.width - 48, 880); anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.bottom: parent.bottom; anchors.topMargin: 20; anchors.bottomMargin: 20; spacing: 10
         RowLayout {
             Layout.fillWidth: true
             Text { text: "󰅌  История буфера обмена (Cliphist)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true; Layout.fillWidth: true }

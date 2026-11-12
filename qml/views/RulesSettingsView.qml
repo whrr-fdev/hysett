@@ -45,7 +45,7 @@ ScrollView {
 
                         RowLayout {
                             Text {
-                                text: "🗔  " + (modelData.className || modelData.name)
+                                text: "󰖲  " + (modelData.className || modelData.name)
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize
                                 font.bold: true

@@ -18,7 +18,7 @@ ScrollView {
 
         ColumnLayout {
             id: wCol
-            width: Math.min(parent.width - 36, 820)
+            width: Math.min(parent.width - 48, 820)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: 16
@@ -34,7 +34,7 @@ ScrollView {
                     Layout.fillWidth: true
                 }
                 StyledButton {
-                    text: "🌐  Gismeteo"
+                    text: "󰇧  Gismeteo"
                     implicitHeight: 24
                     onClicked: if (Waybar) Waybar.runCommand("xdg-open https://www.gismeteo.ru/")
                 }

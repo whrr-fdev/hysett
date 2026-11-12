@@ -72,12 +72,12 @@ ApplicationWindow {
     function setTimerPreset(ms) {
         timerRunning = false
         timerActive = false
-        timerTotalMs = Math.max(5000, ms)
+        timerTotalMs = Math.max(1000, ms)
         timerRemainingMs = timerTotalMs
     }
 
     function addTimerMs(deltaMs) {
-        var nextRem = Math.max(5000, timerRemainingMs + deltaMs)
+        var nextRem = Math.max(1000, timerRemainingMs + deltaMs)
         timerRemainingMs = nextRem
         if (!timerActive || nextRem > timerTotalMs) timerTotalMs = nextRem
     }
@@ -121,6 +121,11 @@ ApplicationWindow {
         }]
         for (var i = 0; i < stopwatchLaps.length && i < 49; ++i) nextLaps.push(stopwatchLaps[i])
         stopwatchLaps = nextLaps
+    }
+
+    function clearStopwatchLaps() {
+        stopwatchLastLapMs = stopwatchElapsedMs
+        stopwatchLaps = []
     }
 
     function resetStopwatch() {

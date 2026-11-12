@@ -31,11 +31,11 @@ ScrollView {
                     Layout.fillWidth: true
                 }
                 StyledButton {
-                    text: Bluetooth.scanning ? "⏳ Поиск..." : "🔍 Поиск устройств"
+                    text: Bluetooth.scanning ? "󰑐 Поиск..." : "󰍉 Поиск устройств"
                     onClicked: Bluetooth.scanDevices()
                 }
                 StyledButton {
-                    text: "⚙  Blueman Manager"
+                    text: "󰒓  Blueman Manager"
                     onClicked: Bluetooth.openBlueman()
                 }
             }

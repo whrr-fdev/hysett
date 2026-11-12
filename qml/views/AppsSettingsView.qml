@@ -266,7 +266,7 @@ ScrollView {
             Repeater {
                 model: [
                     {
-                        icon: "🚀",
+                        icon: "󰐊",
                         label: appScroll.isEn() ? "Launch application" : "Запустить",
                         action: "launch",
                         danger: false
@@ -642,7 +642,7 @@ ScrollView {
 
         ColumnLayout {
             id: appCol
-            width: Math.min(parent.width - 48, 960)
+            width: Math.min(parent.width - 48, 920)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: 20

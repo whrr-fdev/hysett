@@ -23,55 +23,86 @@ Rectangle {
     readonly property bool winMax: winObj ? (winObj.isSettingsMaximized || winObj.isWallpaperExpanded) : false
     property real sidebarSpringScale: 1.0
 
-    property real headerCascade: 1.0
-    property real closeCascade: 1.0
+    property real headerAlpha: 1.0
+    property real headerDropY: 0.0
+    property real headerStepX: 0.0
+    property real headerPopScale: 1.0
+
+    property real closeAlpha: 1.0
+    property real closeDropY: 0.0
+    property real closeStepX: 0.0
+    property real closePopScale: 1.0
+
     property real pillCascade: 1.0
 
     SequentialAnimation {
         id: headerCascadeAnim
-        PropertyAction { target: bar; property: "headerCascade"; value: 0.0 }
-        NumberAnimation { target: bar; property: "headerCascade"; from: 0.0; to: 1.0; duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.35 }
+        PropertyAction { target: bar; property: "headerAlpha"; value: 0.0 }
+        PropertyAction { target: bar; property: "headerDropY"; value: -20.0 }
+        PropertyAction { target: bar; property: "headerStepX"; value: -22.0 }
+        PropertyAction { target: bar; property: "headerPopScale"; value: 0.25 }
+        PauseAnimation { duration: 20 }
+        ParallelAnimation {
+            NumberAnimation { target: bar; property: "headerAlpha"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { target: bar; property: "headerDropY"; from: -20.0; to: 0.0; duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+            NumberAnimation { target: bar; property: "headerStepX"; from: -22.0; to: 0.0; duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.45 }
+            NumberAnimation { target: bar; property: "headerPopScale"; from: 0.25; to: 1.0; duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.75 }
+        }
     }
 
     SequentialAnimation {
         id: closeCascadeAnim
-        PropertyAction { target: bar; property: "closeCascade"; value: 0.0 }
-        PauseAnimation { id: closeCascadeDelay; duration: 240 }
-        NumberAnimation { target: bar; property: "closeCascade"; from: 0.0; to: 1.0; duration: 230; easing.type: Easing.OutBack; easing.overshoot: 1.35 }
+        PropertyAction { target: bar; property: "closeAlpha"; value: 0.0 }
+        PropertyAction { target: bar; property: "closeDropY"; value: -20.0 }
+        PropertyAction { target: bar; property: "closeStepX"; value: -22.0 }
+        PropertyAction { target: bar; property: "closePopScale"; value: 0.25 }
+        PauseAnimation { id: closeCascadeDelay; duration: 350 }
+        ParallelAnimation {
+            NumberAnimation { target: bar; property: "closeAlpha"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+            NumberAnimation { target: bar; property: "closeDropY"; from: -20.0; to: 0.0; duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.65 }
+            NumberAnimation { target: bar; property: "closeStepX"; from: -22.0; to: 0.0; duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.45 }
+            NumberAnimation { target: bar; property: "closePopScale"; from: 0.25; to: 1.0; duration: 320; easing.type: Easing.OutBack; easing.overshoot: 1.75 }
+        }
     }
 
     SequentialAnimation {
         id: pillCascadeAnim
         PropertyAction { target: bar; property: "pillCascade"; value: 0.0 }
-        PauseAnimation { id: pillCascadeDelay; duration: 80 }
-        NumberAnimation { target: bar; property: "pillCascade"; from: 0.0; to: 1.0; duration: 220; easing.type: Easing.OutCubic }
+        PauseAnimation { id: pillCascadeDelay; duration: 90 }
+        NumberAnimation { target: bar; property: "pillCascade"; from: 0.0; to: 1.0; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.35 }
     }
 
     function triggerStaircaseCascade() {
         headerCascadeAnim.restart()
         var step = 0
-        var activeDelay = 60
+        var activeDelay = 80
         for (var i = 0; i < navRepeater.count; ++i) {
             var it = navRepeater.itemAt(i)
             if (it && it.isShown) {
                 step++
-                var d = Math.min(step * 15, 280)
+                var d = 20 + step * 26
                 if (it.tabIdx === bar.currentIndex) activeDelay = d
                 it.playCascade(d)
             }
         }
         step++
-        var setDelay = Math.min(step * 15, 300)
+        var setDelay = 20 + step * 26
         if (bar.currentIndex === 17) activeDelay = setDelay
         setBtn.playCascade(setDelay)
-        closeCascadeDelay.duration = Math.min((step + 1) * 15, 320)
+        closeCascadeDelay.duration = 20 + (step + 1) * 26
         closeCascadeAnim.restart()
         pillCascadeDelay.duration = activeDelay
         pillCascadeAnim.restart()
     }
 
+    onVisibleChanged: {
+        if (visible && bar.currentIndex > 0) {
+            triggerStaircaseCascade()
+        }
+    }
+
     onCurrentIndexChanged: {
-        if (bar.prevIndex === 0 && bar.currentIndex > 0) {
+        if (bar.prevIndex === 0 && bar.currentIndex > 0 && bar.visible) {
             triggerStaircaseCascade()
         }
         bar.prevIndex = bar.currentIndex
@@ -159,6 +190,7 @@ Rectangle {
         color: bar.isM3 && Config ? Config.m3SecondaryContainer : (Config ? Config.accentColor : "#ffffff")
         visible: bar.currentIndex === 17
         opacity: bar.pillCascade
+        scale: 0.7 + 0.3 * bar.pillCascade
         y: mainColLayout.y + setBtn.y + (setBtn.height - height) * 0.5
     }
 
@@ -192,6 +224,7 @@ Rectangle {
             color: bar.isM3 && Config ? Config.m3SecondaryContainer : (Config ? Config.accentColor : "#ffffff")
             visible: bar.currentIndex > 0 && bar.currentIndex !== 17 && bar.activeBtnObj !== null && bar.activeBtnObj.opacity > 0.5
             opacity: bar.pillCascade
+            scale: 0.7 + 0.3 * bar.pillCascade
             y: (bar.activeBtnObj && bar.activeBtnObj !== setBtn) ? (bar.activeBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - height) * 0.5) : 0
             Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             Behavior on radius { NumberAnimation { duration: 150 } }
@@ -212,12 +245,8 @@ Rectangle {
             Layout.minimumHeight: bar.isM3 ? 34 : 24
             implicitHeight: bar.isM3 ? 34 : 24
             flat: true
-            clip: true
-            opacity: Math.min(1.0, bar.headerCascade * 1.25)
-            transform: Translate {
-                x: -12 * (1.0 - bar.headerCascade)
-                y: -12 * (1.0 - bar.headerCascade)
-            }
+            clip: false
+            opacity: bar.headerAlpha
             background: Item {}
             contentItem: Item {
                 anchors.fill: parent
@@ -228,16 +257,19 @@ Rectangle {
                     smooth: true
                     opacity: archHeaderItem.hovered ? 1.0 : 0.9
                     anchors.verticalCenter: parent.verticalCenter
-                    x: bar.collapsed
-                       ? Math.round((parent.width - width) * 0.5)
-                       : Math.round((parent.width - (width + 8 + headerTitleTxt.implicitWidth)) * 0.5)
-                    Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                    anchors.verticalCenterOffset: bar.headerDropY
+                    scale: bar.headerPopScale
+                    x: (bar.collapsed
+                        ? Math.round((parent.width - width) * 0.5)
+                        : Math.round((parent.width - (width + 8 + headerTitleTxt.implicitWidth)) * 0.5)) + bar.headerStepX
+                    Behavior on x { enabled: !headerCascadeAnim.running; NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                     source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
                 }
                 Text {
                     id: headerTitleTxt
                     x: headerLogo.x + headerLogo.width + 8
                     anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: bar.headerDropY
                     text: "HYPRLAND"
                     opacity: bar.collapsed ? 0.0 : 1.0
                     visible: opacity > 0.01
@@ -334,7 +366,7 @@ Rectangle {
                         opacity: isShown ? 1.0 : 0.0
                         visible: Layout.preferredHeight > 0.5 || opacity > 0.01
                         enabled: isShown
-                        clip: true
+                        clip: !isShown
 
                         Behavior on Layout.preferredHeight { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                         Behavior on opacity { NumberAnimation { duration: 150 } }
@@ -391,15 +423,11 @@ Rectangle {
             Layout.preferredHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
             Layout.maximumHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
             implicitHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
-            opacity: isCloseShown ? Math.min(1.0, bar.closeCascade * 1.25) : 0.0
+            opacity: isCloseShown ? bar.closeAlpha : 0.0
             visible: Layout.preferredHeight > 0.5 || opacity > 0.01
             enabled: isCloseShown
-            clip: true
+            clip: !isCloseShown
             flat: true
-            transform: Translate {
-                x: -12 * (1.0 - bar.closeCascade)
-                y: -12 * (1.0 - bar.closeCascade)
-            }
             onClicked: if (ApplicationWindow.window) ApplicationWindow.window.requestCloseDrawer()
 
             contentItem: Item {
@@ -410,17 +438,20 @@ Rectangle {
                     color: closeBtn.hovered ? "#ff6b6b" : "#888888"
                     font.pixelSize: 11
                     anchors.verticalCenter: parent.verticalCenter
-                    x: bar.collapsed
-                       ? Math.round((parent.width - width) * 0.5)
-                       : ((Config && Config.alignCenter)
-                          ? Math.round((parent.width - (width + (bar.isM3 ? 10 : 7) + closeLblTxt.implicitWidth)) * 0.5)
-                          : (bar.isM3 ? 14 : 10))
-                    Behavior on x { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                    anchors.verticalCenterOffset: bar.closeDropY
+                    scale: bar.closePopScale
+                    x: (bar.collapsed
+                        ? Math.round((parent.width - width) * 0.5)
+                        : ((Config && Config.alignCenter)
+                           ? Math.round((parent.width - (width + (bar.isM3 ? 10 : 7) + closeLblTxt.implicitWidth)) * 0.5)
+                           : (bar.isM3 ? 14 : 10))) + bar.closeStepX
+                    Behavior on x { enabled: !closeCascadeAnim.running; NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                 }
                 Text {
                     id: closeLblTxt
                     x: closeIconTxt.x + closeIconTxt.width + (bar.isM3 ? 10 : 7)
                     anchors.verticalCenter: parent.verticalCenter
+                    anchors.verticalCenterOffset: bar.closeDropY
                     text: Config ? (Config.language, Config.trAuto("Закрыть")) : "Закрыть"
                     opacity: bar.collapsed ? 0.0 : 1.0
                     visible: opacity > 0.01

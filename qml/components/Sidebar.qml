@@ -234,6 +234,7 @@ Rectangle {
                         { title: "Музыка", icon: "󰎆", idx: 27 },
                         { title: "Монитор", icon: "", idx: 21 },
                         { title: "Календарь", icon: "", idx: 22 },
+                        { title: "Таймер", icon: "󱎫", idx: 28 },
                         { title: "Буфер", icon: "󰅌", idx: 23 },
                         { title: "Язык", icon: "󰌌", idx: 25 },
                         { title: "Питание", icon: "⏻", idx: 24 },

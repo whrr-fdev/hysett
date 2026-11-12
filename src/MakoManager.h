@@ -78,6 +78,7 @@ public:
     Q_INVOKABLE void load();
     Q_INVOKABLE void save();
     Q_INVOKABLE void sendTestNotification();
+    Q_INVOKABLE void send50TestNotifications();
     Q_INVOKABLE void sendCriticalNotification();
     Q_INVOKABLE void dismissPopup(int id);
     Q_INVOKABLE void dismissAll();

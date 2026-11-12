@@ -210,6 +210,11 @@ void MakoManager::setTextColor(const QColor &v) { if (v.isValid() && m_textColor
 void MakoManager::setBorderColor(const QColor &v) { if (v.isValid() && m_borderColor != v) { m_borderColor = v; emit changed(); save(); } }
 void MakoManager::setCriticalBorderColor(const QColor &v) { if (v.isValid() && m_criticalBorderColor != v) { m_criticalBorderColor = v; emit changed(); save(); } }
 void MakoManager::sendTestNotification() { showInternalNotification("HySett", "Тестовое уведомление", "Компактное уведомление у правого края панели!", "com.whrr.HyprSettings", false); }
+void MakoManager::send50TestNotifications() {
+    for (int i = 1; i <= 50; ++i) {
+        showInternalNotification("HySett", QString("Тестовое уведомление #%1").arg(i), QString("Пакетная проверка стека и истории уведомлений (%1 из 50)").arg(i), "com.whrr.HyprSettings", false);
+    }
+}
 void MakoManager::sendCriticalNotification() { showInternalNotification("Система", "Важное уведомление!", "Проверка критического уведомления [urgency=critical]", "dialog-warning", true); }
 void MakoManager::resetDefaults() { m_anchor = "top-right"; m_width = 320; m_height = 64; m_margin = 10; m_padding = 10; m_defaultTimeout = 4500; m_maxVisible = 4; emit changed(); save(); }
 

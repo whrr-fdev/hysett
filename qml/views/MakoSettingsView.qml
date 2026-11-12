@@ -43,6 +43,10 @@ Item {
                 onClicked: Mako.sendTestNotification()
             }
             StyledButton {
+                text: "󰂞  Тест ×50"
+                onClicked: Mako.send50TestNotifications()
+            }
+            StyledButton {
                 text: "󰀨  Тест важного"
                 onClicked: Mako.sendCriticalNotification()
             }

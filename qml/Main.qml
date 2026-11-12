@@ -31,6 +31,136 @@ ApplicationWindow {
     property int calYear: new Date().getFullYear()
     property int calMonth: new Date().getMonth()
 
+    // Таймер и Секундомер (живут в фоне и отображаются в таблетках на панели задач)
+    property int timerTotalMs: 5 * 60 * 1000
+    property int timerRemainingMs: 5 * 60 * 1000
+    property bool timerRunning: false
+    property bool timerActive: false
+    property double timerLastTickMs: 0
+
+    property int stopwatchElapsedMs: 0
+    property bool stopwatchRunning: false
+    property bool stopwatchActive: false
+    property double stopwatchLastTickMs: 0
+    property int stopwatchLastLapMs: 0
+    property var stopwatchLaps: []
+
+    function formatClockMs(ms, showTenths, showHundredths) {
+        var totalSec = Math.floor(Math.max(0, ms) / 1000)
+        var hrs = Math.floor(totalSec / 3600)
+        var mins = Math.floor((totalSec % 3600) / 60)
+        var secs = totalSec % 60
+        var base = (hrs > 0 ? (String(hrs).padStart(2, '0') + ":") : "") +
+                   String(mins).padStart(2, '0') + ":" +
+                   String(secs).padStart(2, '0')
+        if (showHundredths) {
+            var cs = Math.floor((Math.max(0, ms) % 1000) / 10)
+            return base + "." + String(cs).padStart(2, '0')
+        }
+        if (showTenths) {
+            var ds = Math.floor((Math.max(0, ms) % 1000) / 100)
+            return base + "." + String(ds)
+        }
+        return base
+    }
+
+    readonly property string timerBarText: formatClockMs(timerRemainingMs + 999, false, false)
+    readonly property string stopwatchBarText: formatClockMs(stopwatchElapsedMs, true, false)
+    readonly property string stopwatchFullText: formatClockMs(stopwatchElapsedMs, false, true)
+
+    function setTimerPreset(ms) {
+        timerRunning = false
+        timerActive = false
+        timerTotalMs = Math.max(5000, ms)
+        timerRemainingMs = timerTotalMs
+    }
+
+    function addTimerMs(deltaMs) {
+        var nextRem = Math.max(5000, timerRemainingMs + deltaMs)
+        timerRemainingMs = nextRem
+        if (!timerActive || nextRem > timerTotalMs) timerTotalMs = nextRem
+    }
+
+    function toggleTimerPause() {
+        if (timerRunning) {
+            timerRunning = false
+        } else {
+            if (timerRemainingMs <= 0) timerRemainingMs = timerTotalMs
+            timerLastTickMs = Date.now()
+            timerActive = true
+            timerRunning = true
+        }
+    }
+
+    function resetTimer() {
+        timerRunning = false
+        timerActive = false
+        timerRemainingMs = timerTotalMs
+    }
+
+    function toggleStopwatch() {
+        if (stopwatchRunning) {
+            stopwatchRunning = false
+        } else {
+            stopwatchLastTickMs = Date.now()
+            stopwatchActive = true
+            stopwatchRunning = true
+        }
+    }
+
+    function lapStopwatch() {
+        if (!stopwatchActive) return
+        var cur = stopwatchElapsedMs
+        var diff = cur - stopwatchLastLapMs
+        stopwatchLastLapMs = cur
+        var nextLaps = [{
+            num: stopwatchLaps.length + 1,
+            lapTime: formatClockMs(diff, false, true),
+            totalTime: formatClockMs(cur, false, true)
+        }]
+        for (var i = 0; i < stopwatchLaps.length && i < 49; ++i) nextLaps.push(stopwatchLaps[i])
+        stopwatchLaps = nextLaps
+    }
+
+    function resetStopwatch() {
+        stopwatchRunning = false
+        stopwatchActive = false
+        stopwatchElapsedMs = 0
+        stopwatchLastLapMs = 0
+        stopwatchLaps = []
+    }
+
+    Timer {
+        interval: 45
+        repeat: true
+        running: root.timerRunning || root.stopwatchRunning
+        onTriggered: {
+            var now = Date.now()
+            if (root.timerRunning) {
+                var dt = Math.max(0, now - root.timerLastTickMs)
+                root.timerLastTickMs = now
+                if (root.timerRemainingMs > dt) {
+                    root.timerRemainingMs -= dt
+                } else {
+                    root.timerRemainingMs = 0
+                    root.timerRunning = false
+                    root.timerActive = false
+                    if (Mako) {
+                        Mako.showInternalNotification("Таймер HySett", "⏰ Время таймера вышло!", "Обратный отсчёт успешно завершён.", "preferences-system-time", true, 8000)
+                    }
+                    if (Waybar) {
+                        Waybar.runCommand("paplay /usr/share/sounds/freedesktop/stereo/complete.oga 2>/dev/null || canberra-gtk-play -i complete 2>/dev/null || true")
+                    }
+                }
+            }
+            if (root.stopwatchRunning) {
+                var ds = Math.max(0, now - root.stopwatchLastTickMs)
+                root.stopwatchLastTickMs = now
+                root.stopwatchElapsedMs += ds
+            }
+        }
+    }
+
     property string trayMenuClass: ""
     property string trayMenuName: ""
     property string trayMenuSni: ""
@@ -1221,29 +1351,137 @@ ApplicationWindow {
                 anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 8 : 4; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
-                // Индикатор записи экрана
-                Rectangle {
-                    property bool isRec: Waybar ? Waybar.recording : false
-                    visible: width > 0.5
-                    opacity: isRec ? 1.0 : 0.0
-                    clip: true
-                    height: topBarContainer.pillHeight
-                    width: isRec ? (recRow.implicitWidth + 16) : 0
-                    Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                    Behavior on opacity { NumberAnimation { duration: 180 } }
+                // Таблетка записи экрана
+                Row {
                     anchors.verticalCenter: parent.verticalCenter
-                    radius: topBarContainer.pillRadius
-                    color: topBarContainer.pillColor
-
-                    Row {
-                        id: recRow
+                    spacing: 0
+                    visible: recPillBox.width > 0.5
+                    Rectangle {
+                        id: recPillBox
+                        property bool isRec: Waybar ? Waybar.recording : false
+                        opacity: isRec ? 1.0 : 0.0
+                        clip: true
                         height: topBarContainer.pillHeight
-                        anchors.centerIn: parent
-                        spacing: 5
-                        Rectangle { width: 8; height: 8; radius: 4; color: "#ff4d4d"; anchors.verticalCenter: parent.verticalCenter }
-                        Text { text: Waybar ? Waybar.recordingTimeText : "00:00"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        width: isRec ? (recRow.implicitWidth + 18) : 0
+                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 180 } }
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: topBarContainer.pillRadius
+                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 0.25, 0.25, 0.16)
+                        border.width: 1
+                        border.color: Qt.rgba(1, 0.30, 0.30, 0.55)
+
+                        Row {
+                            id: recRow
+                            height: topBarContainer.pillHeight
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Rectangle { width: 8; height: 8; radius: 4; color: "#ff4d4d"; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: Waybar ? Waybar.recordingTimeText : "00:00"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") }
                     }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") }
+                    Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
+                }
+
+                // Таблетка Таймера (слева от системной инфы)
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
+                    visible: timerPillBox.width > 0.5
+                    Rectangle {
+                        id: timerPillBox
+                        opacity: root.timerActive ? 1.0 : 0.0
+                        clip: true
+                        height: topBarContainer.pillHeight
+                        width: root.timerActive ? (timerBarInnerRow.implicitWidth + 18) : 0
+                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 180 } }
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: topBarContainer.pillRadius
+                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+
+                        Row {
+                            id: timerBarInnerRow
+                            height: topBarContainer.pillHeight
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Text {
+                                text: root.timerRunning ? "󰔛" : "󰏤"
+                                color: root.timerRunning ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae") : "#ffd54f"
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: root.timerBarText
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.family: "monospace"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton) root.toggleTimerPause()
+                                else root.openDrawerWithMode("settings", 28)
+                            }
+                        }
+                    }
+                    Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
+                }
+
+                // Таблетка Секундомера (слева от системной инфы)
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
+                    visible: stopwatchPillBox.width > 0.5
+                    Rectangle {
+                        id: stopwatchPillBox
+                        opacity: root.stopwatchActive ? 1.0 : 0.0
+                        clip: true
+                        height: topBarContainer.pillHeight
+                        width: root.stopwatchActive ? (swBarInnerRow.implicitWidth + 18) : 0
+                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 180 } }
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: topBarContainer.pillRadius
+                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+
+                        Row {
+                            id: swBarInnerRow
+                            height: topBarContainer.pillHeight
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Text {
+                                text: root.stopwatchRunning ? "󱎫" : "󰏤"
+                                color: root.stopwatchRunning ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae") : "#ffd54f"
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: root.stopwatchBarText
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.family: "monospace"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton) root.toggleStopwatch()
+                                else root.openDrawerWithMode("settings", 28)
+                            }
+                        }
+                    }
+                    Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
                 }
 
                 Repeater {
@@ -3009,7 +3247,8 @@ ApplicationWindow {
                             "views/PowerView.qml",
                             "views/LanguageView.qml",
                             "views/VpnView.qml",
-                            "views/MusicView.qml"
+                            "views/MusicView.qml",
+                            "views/TimerView.qml"
                         ]
 
                         Loader {

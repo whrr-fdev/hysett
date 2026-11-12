@@ -411,7 +411,7 @@ ScrollView {
 
         ColumnLayout {
             id: topHeaderCol
-            width: Math.min(parent.width - 48, 780)
+            width: Math.min(parent.width - 40, 1180)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top; anchors.topMargin: 18
             spacing: 12
@@ -479,7 +479,7 @@ ScrollView {
 
                     ColumnLayout {
                         id: normalFullCol
-                        width: Math.min(parent.width - 48, 780)
+                        width: Math.min(parent.width - 40, 1180)
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 12
 
@@ -1023,7 +1023,7 @@ ScrollView {
 
                     ColumnLayout {
                         id: wlFullCol
-                        width: Math.min(parent.width - 48, 780)
+                        width: Math.min(parent.width - 40, 1180)
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 12
 

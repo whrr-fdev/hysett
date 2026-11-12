@@ -124,6 +124,7 @@ qt_add_qml_module(hysett
         qml/views/LanguageView.qml
         qml/views/VpnView.qml
         qml/views/MusicView.qml
+        qml/views/TimerView.qml
 )
 
 target_link_libraries(hysett PRIVATE

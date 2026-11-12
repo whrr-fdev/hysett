@@ -1490,6 +1490,77 @@ ApplicationWindow {
                     Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
                 }
 
+                // Таблетка хода проверки конфигов VPN (слева от системной инфы)
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
+                    visible: vpnAuditPillBox.width > 0.5
+                    Rectangle {
+                        id: vpnAuditPillBox
+                        readonly property bool auditActive: Waybar ? Waybar.vpnBusy : false
+                        opacity: auditActive ? 1.0 : 0.0
+                        clip: true
+                        height: topBarContainer.pillHeight
+                        width: auditActive ? (vpnAuditBarRow.implicitWidth + 18) : 0
+                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 180 } }
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: topBarContainer.pillRadius
+                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.bottom: parent.bottom
+                            height: 2
+                            width: parent.width * Math.max(0.05, Math.min(1.0, (Waybar ? Waybar.vpnProgressPercent : 0) / 100.0))
+                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae"
+                            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                        }
+
+                        Row {
+                            id: vpnAuditBarRow
+                            height: topBarContainer.pillHeight
+                            anchors.centerIn: parent
+                            spacing: 5
+                            Text {
+                                text: "󰓅"
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffd54f"
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: {
+                                    if (!Waybar) return "VPN"
+                                    var pct = Waybar.vpnProgressPercent + "%"
+                                    var pt = Waybar.vpnProgressText || ""
+                                    var m = pt.match(/(\d+)\s*✓/)
+                                    if (m) return pct + " • " + m[1] + "✓"
+                                    return "VPN " + pct
+                                }
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                font.pixelSize: 10
+                                font.bold: true
+                                font.family: "monospace"
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: (mouse) => {
+                                if (mouse.button === Qt.RightButton) {
+                                    if (Waybar) Waybar.stopVpnConfigAudit()
+                                } else {
+                                    root.openDrawerWithMode("settings", 26)
+                                }
+                            }
+                        }
+                    }
+                    Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
+                }
+
                 Repeater {
                     id: rightModRepeater
                     model: Waybar ? Waybar.rightBarOrder.length : 9

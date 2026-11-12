@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, json, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re, ipaddress, bisect, uuid as uuid_lib
+import sys, os, ssl, json, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re, ipaddress, bisect, uuid as uuid_lib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HYSETT_DIR = os.path.expanduser("~/hysett")
@@ -69,20 +69,36 @@ WHITELIST_SOURCES = [
     ("auto", "󰓅 Все проверенные БС", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt",
+        "vpn-configs-for-russia/WHITE-SNI-RU-all.txt",
         "vpn-configs/white_sni_ru.txt",
         "vpn-configs/whitelist_cidr1_ru.txt",
+        "vpn-configs/whitelist_cidr2_ru.txt",
+        "vpn-configs/whitelist_all.txt",
+        "wl/vless_universal.txt",
         "wl/vless_lite.txt",
-        "wl/vless.txt",
-        "V.O.I.D-VPN_Bypass/hysett_wl.txt"
+        "vpn-vless-configs-russia/githubmirror/ru-sni/vless_ru.txt",
+        "goida-vpn-configs/githubmirror/26.txt",
+        "V.O.I.D-VPN_Bypass/hysett_wl.txt",
+        "free-vpn-anti-rkn/hysett_wl.txt",
+        "vless-proxy-list/hysett_wl.txt"
     ]),
     ("my_wl_subs", "󰌘 Мои подписки БС", []),
+    ("kort_ru_sni", "󰒃 kort0881 RU SNI", [
+        "vpn-vless-configs-russia/githubmirror/ru-sni/vless_ru.txt",
+        "vpn-vless-configs-russia/hysett_wl.txt"
+    ]),
+    ("goida_26_wl", "󰦝 Goida #26 SNI/CIDR", [
+        "goida-vpn-configs/githubmirror/26.txt",
+        "goida-vpn-configs/hysett_wl.txt"
+    ]),
     ("zieng2_wl", "󰄜 zieng2 Mobile БС", [
+        "wl/vless_universal.txt",
         "wl/vless_lite.txt",
-        "wl/vless.txt",
-        "wl/vless_universal.txt"
+        "wl/hysett_wl.txt"
     ]),
     ("igareck_mobile", "󰄜 igareck Mobile БС", [
-        "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt"
+        "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
+        "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile-2.txt"
     ]),
     ("igareck_cidr_checked", "󰞀 igareck CIDR РФ", [
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt"
@@ -108,14 +124,13 @@ WHITELIST_SOURCES = [
     ("wl_all", "󰒃 wlunlocker Все БС", [
         "vpn-configs/whitelist_all.txt"
     ]),
-    ("void_wl", "󰞀 VOID Bypass БС", [
-        "V.O.I.D-VPN_Bypass/hysett_wl.txt"
+    ("void_wl", "󰞀 VOID + Anti-RKN БС", [
+        "V.O.I.D-VPN_Bypass/hysett_wl.txt",
+        "free-vpn-anti-rkn/hysett_wl.txt",
+        "vless-proxy-list/hysett_wl.txt"
     ]),
-    ("all_subs_wl", "󰒃 all_subs (только БС)", [
+    ("all_subs_wl", "󰒃 all_subs (БС)", [
         "all_subs/hysett_wl.txt"
-    ]),
-    ("goida_wl", "󰦝 Goida (только БС)", [
-        "goida-vpn-configs/hysett_wl.txt"
     ])
 ]
 
@@ -125,6 +140,10 @@ BLACKLIST_SOURCES = [
     ]),
     ("bl_igareck_mobile", "󰄜 ЧС: igareck Mobile", [
         "vpn-configs-for-russia/BLACK_VLESS_RUS_mobile.txt"
+    ]),
+    ("bl_kort_clean", "󰈀 ЧС: kort0881 Clean", [
+        "vpn-vless-configs-russia/githubmirror/clean/vless.txt",
+        "vpn-vless-configs-russia/hysett_wl.txt"
     ]),
     ("bl_wlunlocker_1", "󰈀 ЧС: wlunlocker #1", [
         "vpn-configs/blacklist_vpn1.txt"
@@ -138,8 +157,10 @@ BLACKLIST_SOURCES = [
     ("bl_all_subs", "󰒃 ЧС: all_subs", [
         "all_subs/hysett_wl.txt"
     ]),
-    ("bl_goida", "󰦝 ЧС: Goida VLESS", [
-        "goida-vpn-configs/hysett_wl.txt"
+    ("bl_goida", "󰦝 ЧС: Goida + AntiRKN", [
+        "goida-vpn-configs/hysett_wl.txt",
+        "free-vpn-anti-rkn/hysett_wl.txt",
+        "vless-proxy-list/hysett_wl.txt"
     ])
 ]
 
@@ -497,7 +518,23 @@ def parse_uri(uri, strict_for_public=False):
         ob["tls"] = tls
 
     if net_type == "ws":
-        ob["transport"] = {"type": "ws", "path": q.get("path", "/") or "/", "headers": {"Host": q.get("host", host) or host}}
+        ws_path = urllib.parse.unquote(q.get("path", "/") or "/")
+        ws_host = q.get("host", "") or (ob.get("tls", {}).get("server_name", "") if "tls" in ob else "") or host
+        ed_val = 0
+        if "ed=" in ws_path:
+            m_ed = re.search(r"[?&]ed=(\d+)", ws_path)
+            if m_ed:
+                ed_val = int(m_ed.group(1))
+            ws_path = re.sub(r"[?&]ed=\d+", "", ws_path)
+            if not ws_path:
+                ws_path = "/"
+        ws_tr = {"type": "ws", "path": ws_path, "headers": {"Host": ws_host}}
+        if ed_val > 0:
+            ws_tr["max_early_data"] = ed_val
+            ws_tr["early_data_header_name"] = "Sec-WebSocket-Protocol"
+        ob["transport"] = ws_tr
+        if "tls" in ob and not ob["tls"].get("reality"):
+            ob["tls"]["insecure"] = True
     elif net_type == "grpc":
         ob["transport"] = {"type": "grpc", "service_name": q.get("serviceName", "")}
     elif net_type in ("http", "h2"):
@@ -755,23 +792,32 @@ def detect_physical_interface():
             pass
     return routed_devs[0] if routed_devs else ""
 
-def quick_host_ping_ms(host, port=443, timeout=0.45):
+_SSL_NOVERIFY_CTX = ssl.create_default_context()
+_SSL_NOVERIFY_CTX.check_hostname = False
+_SSL_NOVERIFY_CTX.verify_mode = ssl.CERT_NONE
+
+def quick_host_ping_ms(host, port=443, timeout=0.60, sni=""):
     if not host:
         return None
+    p = int(port or 443)
     t0 = time.monotonic()
     try:
-        with socket.create_connection((host, int(port or 443)), timeout=timeout) as sock:
+        with socket.create_connection((host, p), timeout=timeout) as sock:
             tcp_ms = int((time.monotonic() - t0) * 1000)
             if tcp_ms >= 4:
                 return tcp_ms
+            # Если локальный TUN перехватил SYN за 0..3 мс — проверяем реальный отклик удаленного сервера через TLS ClientHello
             sock.settimeout(timeout)
             t1 = time.monotonic()
-            sock.sendall(b"HEAD / HTTP/1.0\r\nHost: " + host.encode("ascii", errors="ignore") + b"\r\n\r\n")
-            data = sock.recv(1)
-            if data:
-                real_ms = int((time.monotonic() - t1) * 1000)
-                if real_ms >= 4:
-                    return real_ms
+            try:
+                with _SSL_NOVERIFY_CTX.wrap_socket(sock, server_hostname=(sni or host), do_handshake_on_connect=True):
+                    tls_ms = max(5, int((time.monotonic() - t1) * 1000))
+                    return tls_ms
+            except ssl.SSLError:
+                # Даже если Reality вернул TLS alert (например, не совпал SNI) — сервер реально ответил по сети!
+                tls_ms = int((time.monotonic() - t1) * 1000)
+                if tls_ms >= 4:
+                    return tls_ms
     except Exception:
         pass
     return None
@@ -1701,7 +1747,8 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
         ob = s.get("outbound", {})
         host = ob.get("server", "")
         port = int(ob.get("server_port", 443))
-        ms = quick_host_ping_ms(host, port, timeout=0.55)
+        sni = ob.get("tls", {}).get("server_name", "")
+        ms = quick_host_ping_ms(host, port, timeout=0.65, sni=sni)
         return (ms is not None and ms > 1), (ms or 0), s
 
     with ThreadPoolExecutor(max_workers=20) as ex:

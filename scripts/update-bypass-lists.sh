@@ -7,6 +7,14 @@ REPOS_DIR="$BASE_DIR/repos"
 LOG_FILE="$BASE_DIR/update.log"
 PROG_FILE="/tmp/hysett_vpn_progress.json"
 
+# Если остался старый пустой клон AvenCores — удаляем его, чтобы клонировать живое зеркало aneek0
+if [[ -d "$REPOS_DIR/goida-vpn-configs/.git" ]]; then
+    remote_url=$(git -C "$REPOS_DIR/goida-vpn-configs" config --get remote.origin.url 2>/dev/null || true)
+    if [[ "$remote_url" == *"AvenCores"* ]]; then
+        rm -rf "$REPOS_DIR/goida-vpn-configs"
+    fi
+fi
+
 GIT_REPOS=(
     "https://github.com/bol-van/zapret.git"
     "https://github.com/ITDogInfo/allow-domains.git"
@@ -14,9 +22,12 @@ GIT_REPOS=(
     "https://github.com/igareck/vpn-configs-for-russia.git"
     "https://github.com/wlunlocker/vpn-configs.git"
     "https://github.com/zieng2/wl.git"
+    "https://github.com/kort0881/vpn-vless-configs-russia.git"
+    "https://github.com/aneek0/goida-vpn-configs.git"
+    "https://github.com/Hidashimora/free-vpn-anti-rkn.git"
+    "https://github.com/26info/vless-proxy-list.git"
     "https://github.com/solovyov-jenya2004/all_subs.git"
     "https://github.com/VOID-Anonymity/V.O.I.D-VPN_Bypass.git"
-    "https://github.com/AvenCores/goida-vpn-configs.git"
 )
 
 mkdir -p "$REPOS_DIR"
@@ -67,7 +78,10 @@ nice -n 15 python3 - << 'PYEOF'
 import os, base64, re
 
 repos_dir = os.path.expanduser("~/hysett/bypass-lists/repos")
-target_repos = ["wl", "all_subs", "V.O.I.D-VPN_Bypass", "goida-vpn-configs"]
+target_repos = [
+    "wl", "all_subs", "V.O.I.D-VPN_Bypass", "goida-vpn-configs",
+    "vpn-vless-configs-russia", "free-vpn-anti-rkn", "vless-proxy-list"
+]
 uri_re = re.compile(r"(?:vless|trojan|hy2|hysteria2)://[^\s\"'<>]+", re.IGNORECASE)
 
 for rname in target_repos:
@@ -110,9 +124,9 @@ for rname in target_repos:
                     if u not in seen:
                         seen.add(u)
                         found.append(u)
-                        if len(found) >= 2500:
+                        if len(found) >= 3000:
                             break
-            if len(found) >= 2500:
+            if len(found) >= 3000:
                 break
     if found:
         out_file = os.path.join(rpath, "hysett_wl.txt")

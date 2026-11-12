@@ -305,15 +305,19 @@ Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
+                        ListModel {
+                            id: histListModel
+                        }
+
                         Text {
-                            visible: histListView.displayedHistory.length === 0
+                            visible: histListModel.count === 0
                             anchors.centerIn: parent
                             text: "История уведомлений пуста"
                             color: "#777777"
                             font.pixelSize: Config.fontSize
                         }
 
-                        // Плавающая таблетка "↑ 1 новое / 2 новых" когда пользователь прокрутил историю вниз
+                        // Плавающая таблетка "↑ 1 новое / 2 новых" (уменьшается по мере прокрутки вверх)
                         Rectangle {
                             id: newHistBadge
                             z: 20
@@ -351,7 +355,7 @@ Item {
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: histListView.scrollToTopAndApplyNew()
+                                onClicked: histListView.scrollToTopAndMarkAllRead()
                             }
                         }
 
@@ -364,117 +368,160 @@ Item {
                             bottomMargin: 8
                             clip: true
                             spacing: 6
-                            visible: displayedHistory.length > 0
-                            model: displayedHistory
+                            visible: histListModel.count > 0
+                            model: histListModel
                             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
-                            property var displayedHistory: []
                             property var shownIdMap: ({})
                             property int unreadNewCount: 0
-                            property real savedScrollY: 0
-                            property bool preserveScrollNext: false
-                            readonly property bool isScrolledDown: (contentY - originY) > 8
+                            property bool suppressReadCheck: false
+                            readonly property bool isScrolledDown: (contentY - originY) > 12
 
                             property Item hoveredCard: null
                             property Item lastHoveredCard: null
                             property bool readyForAnims: false
-                            property int lastTopId: -1
-                            property int lastHistCount: 0
                             property int activeSpringId: -1
-
-                            function cloneHistoryItems(srcList, onlyIdsMap) {
-                                var arr = []
-                                var nextMap = {}
-                                for (var i = 0; i < srcList.length; ++i) {
-                                    var it = srcList[i]
-                                    if (onlyIdsMap && !onlyIdsMap[it.id]) continue
-                                    arr.push({
-                                        id: it.id,
-                                        app: it.app || "",
-                                        summary: it.summary || "",
-                                        body: it.body || "",
-                                        icon: it.icon || "",
-                                        critical: it.critical === true,
-                                        time: it.time || ""
-                                    })
-                                    nextMap[it.id] = true
-                                }
-                                return { list: arr, map: nextMap }
-                            }
 
                             NumberAnimation {
                                 id: scrollToTopAnim
                                 target: histListView
                                 property: "contentY"
-                                duration: 220
+                                duration: 240
                                 easing.type: Easing.OutQuint
-                                onFinished: histListView.syncFromMako(true)
+                                onFinished: histListView.markAllRead()
                             }
 
-                            function scrollToTopAndApplyNew() {
-                                if (histListView.isScrolledDown) {
-                                    scrollToTopAnim.stop()
-                                    scrollToTopAnim.from = histListView.contentY
-                                    scrollToTopAnim.to = histListView.originY
-                                    scrollToTopAnim.start()
-                                } else {
-                                    histListView.syncFromMako(true)
+                            function scrollToTopAndMarkAllRead() {
+                                scrollToTopAnim.stop()
+                                scrollToTopAnim.from = histListView.contentY
+                                scrollToTopAnim.to = histListView.originY - histListView.topMargin
+                                scrollToTopAnim.start()
+                            }
+
+                            function markAllRead() {
+                                for (var i = 0; i < histListModel.count; ++i) {
+                                    if (histListModel.get(i).unread) {
+                                        histListModel.setProperty(i, "unread", false)
+                                    }
                                 }
+                                unreadNewCount = 0
                             }
 
-                            function syncFromMako(forceTop) {
+                            function recalcUnreadCount() {
+                                var cnt = 0
+                                for (var i = 0; i < histListModel.count; ++i) {
+                                    if (histListModel.get(i).unread) cnt++
+                                }
+                                unreadNewCount = cnt
+                            }
+
+                            function checkVisibleUnreadItems() {
+                                if (suppressReadCheck || unreadNewCount <= 0) return
+                                if (!isScrolledDown) {
+                                    markAllRead()
+                                    return
+                                }
+                                var viewTop = histListView.contentY
+                                var ch = histListView.contentItem.children
+                                var changed = false
+                                for (var i = 0; i < ch.length; ++i) {
+                                    var d = ch[i]
+                                    if (d && d.isHistDelegate === true && d.itemUnread === true) {
+                                        // Как только хотя бы половина карточки вошла в видимую область сверху — считаем её прочитанной
+                                        if (d.y + d.height * 0.45 >= viewTop) {
+                                            if (d.itemIndex >= 0 && d.itemIndex < histListModel.count) {
+                                                histListModel.setProperty(d.itemIndex, "unread", false)
+                                                changed = true
+                                            }
+                                        }
+                                    }
+                                }
+                                if (changed) recalcUnreadCount()
+                            }
+
+                            onContentYChanged: checkVisibleUnreadItems()
+
+                            function syncFromMako() {
                                 var src = Mako ? Mako.history : []
                                 if (!src || src.length === 0) {
-                                    if (displayedHistory.length > 0) displayedHistory = []
+                                    histListModel.clear()
                                     shownIdMap = ({})
                                     unreadNewCount = 0
-                                    lastTopId = -1
-                                    lastHistCount = 0
                                     return
                                 }
-                                if (preserveScrollNext) {
-                                    preserveScrollNext = false
-                                    var keepY = savedScrollY
-                                    var res = cloneHistoryItems(src, unreadNewCount > 0 ? shownIdMap : null)
-                                    shownIdMap = res.map
-                                    displayedHistory = res.list
-                                    Qt.callLater(function() {
-                                        var maxY = Math.max(histListView.originY, histListView.originY + histListView.contentHeight - histListView.height)
-                                        histListView.contentY = Math.min(keepY, maxY)
-                                    })
-                                    return
-                                }
-                                // Когда список прокручен вниз — считаем все новые элементы в Mako.history, которых нет в shownIdMap
-                                if (!forceTop && histListView.isScrolledDown && displayedHistory.length > 0) {
-                                    var newCnt = 0
-                                    for (var i = 0; i < src.length; ++i) {
-                                        if (!shownIdMap[src[i].id]) newCnt++
-                                    }
-                                    unreadNewCount = newCnt
-                                    return
-                                }
-                                // Если мы наверху и состав истории не изменился — не пересоздаем модель
-                                if (!forceTop && unreadNewCount === 0 && displayedHistory.length === src.length &&
-                                    displayedHistory.length > 0 && displayedHistory[0].id === src[0].id &&
-                                    displayedHistory[displayedHistory.length - 1].id === src[src.length - 1].id) {
-                                    return
-                                }
-                                var full = cloneHistoryItems(src, null)
-                                shownIdMap = full.map
-                                unreadNewCount = 0
-                                displayedHistory = full.list
-                            }
 
-                            onIsScrolledDownChanged: {
-                                if (!isScrolledDown && unreadNewCount > 0 && !scrollToTopAnim.running) {
-                                    syncFromMako(true)
+                                // 1. Проверяем, были ли удалены какие-то элементы (например, по крестику)
+                                var srcIdSet = {}
+                                for (var sIdx = 0; sIdx < src.length; ++sIdx) {
+                                    srcIdSet[src[sIdx].id] = true
+                                }
+                                for (var mIdx = histListModel.count - 1; mIdx >= 0; --mIdx) {
+                                    var oldId = histListModel.get(mIdx).notifId
+                                    if (!srcIdSet[oldId]) {
+                                        histListModel.remove(mIdx, 1)
+                                        delete shownIdMap[oldId]
+                                    }
+                                }
+
+                                // 2. Находим новые уведомления, которых ещё нет в histListModel
+                                var newItems = []
+                                for (var i = 0; i < src.length; ++i) {
+                                    var it = src[i]
+                                    if (!shownIdMap[it.id]) {
+                                        newItems.push({
+                                            notifId: it.id,
+                                            app: it.app || "",
+                                            summary: it.summary || "",
+                                            body: it.body || "",
+                                            icon: it.icon || "",
+                                            critical: it.critical === true,
+                                            time: it.time || ""
+                                        })
+                                    }
+                                }
+
+                                if (newItems.length === 0) {
+                                    recalcUnreadCount()
+                                    return
+                                }
+
+                                var scrolled = histListView.isScrolledDown && histListModel.count > 0
+                                var prevDistFromBottom = (histListView.originY + histListView.contentHeight) - histListView.contentY
+
+                                suppressReadCheck = true
+                                if (!scrolled && histListView.readyForAnims) {
+                                    activeSpringId = newItems[0].notifId
+                                } else {
+                                    activeSpringId = -1
+                                }
+
+                                // Вставляем новые элементы в начало в правильном порядке (от более старых из новых к самому свежему)
+                                for (var k = newItems.length - 1; k >= 0; --k) {
+                                    var nw = newItems[k]
+                                    shownIdMap[nw.notifId] = true
+                                    nw.unread = scrolled
+                                    histListModel.insert(0, nw)
+                                }
+
+                                if (scrolled) {
+                                    histListView.forceLayout()
+                                    histListView.contentY = (histListView.originY + histListView.contentHeight) - prevDistFromBottom
+                                    Qt.callLater(function() {
+                                        histListView.forceLayout()
+                                        histListView.contentY = (histListView.originY + histListView.contentHeight) - prevDistFromBottom
+                                        histListView.suppressReadCheck = false
+                                        histListView.recalcUnreadCount()
+                                    })
+                                } else {
+                                    suppressReadCheck = false
+                                    recalcUnreadCount()
                                 }
                             }
 
                             Connections {
                                 target: Mako
                                 function onPopupChanged() {
-                                    histListView.syncFromMako(false)
+                                    histListView.syncFromMako()
                                 }
                             }
 
@@ -485,11 +532,7 @@ Item {
                             }
 
                             Component.onCompleted: {
-                                syncFromMako(true)
-                                if (displayedHistory.length > 0) {
-                                    lastTopId = displayedHistory[0].id
-                                    lastHistCount = displayedHistory.length
-                                }
+                                syncFromMako()
                                 Qt.callLater(function() { histListView.readyForAnims = true })
                             }
 
@@ -518,6 +561,9 @@ Item {
 
                             delegate: Item {
                                 id: histDelegateWrap
+                                readonly property bool isHistDelegate: true
+                                readonly property int itemIndex: index
+                                readonly property bool itemUnread: model.unread === true
                                 z: index === 0 ? 3 : 1
                                 width: histListView.width
                                 height: histCard.height
@@ -566,128 +612,121 @@ Item {
                                     }
 
                                     Component.onCompleted: {
-                                        if (!histListView.readyForAnims) return
-                                        var curLen = histListView.displayedHistory.length
-                                        if (index === 0) {
-                                            if (modelData.id !== histListView.lastTopId && curLen >= histListView.lastHistCount) {
-                                                histListView.activeSpringId = modelData.id
-                                                newCardSpringAnim.restart()
-                                            } else {
-                                                histListView.activeSpringId = -1
-                                            }
-                                            histListView.lastTopId = modelData.id
-                                            histListView.lastHistCount = curLen
-                                        } else if (index > 0 && index <= 14 && curLen > 0 && histListView.activeSpringId === histListView.displayedHistory[0].id) {
+                                        if (!histListView.readyForAnims || histListView.activeSpringId <= 0) return
+                                        if (index === 0 && model.notifId === histListView.activeSpringId) {
+                                            newCardSpringAnim.restart()
+                                        } else if (index > 0 && index <= 14) {
                                             cascadePushSpringAnim.restart()
                                         }
                                     }
-                                color: modelData.critical
-                                       ? Qt.rgba(1.0, 0.25, 0.25, 0.08)
-                                       : (Theme && Theme.isRounded && Config
-                                          ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.38)
-                                          : Qt.rgba(1, 1, 1, 0.04))
-                                border.width: 1
-                                border.color: modelData.critical
-                                              ? (Mako ? Mako.criticalBorderColor : "#ff6b6b")
-                                              : Qt.rgba(1, 1, 1, 0.10)
 
-                                MouseArea {
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    acceptedButtons: Qt.NoButton
-                                    onEntered: {
-                                        histHoverHold.stop()
-                                        histListView.lastHoveredCard = histDelegateWrap
-                                        histListView.hoveredCard = histDelegateWrap
-                                    }
-                                    onExited: histHoverHold.restart()
-                                }
+                                    color: model.critical
+                                           ? Qt.rgba(1.0, 0.25, 0.25, 0.08)
+                                           : (model.unread
+                                              ? (Theme && Theme.isRounded && Config
+                                                 ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14)
+                                                 : Qt.rgba(1, 1, 1, 0.09))
+                                              : (Theme && Theme.isRounded && Config
+                                                 ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.38)
+                                                 : Qt.rgba(1, 1, 1, 0.04)))
+                                    border.width: 1
+                                    border.color: model.critical
+                                                  ? (Mako ? Mako.criticalBorderColor : "#ff6b6b")
+                                                  : (model.unread
+                                                     ? (Theme && Theme.isRounded && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.50) : Qt.rgba(1, 1, 1, 0.30))
+                                                     : Qt.rgba(1, 1, 1, 0.10))
+                                    Behavior on color { ColorAnimation { duration: 220 } }
+                                    Behavior on border.color { ColorAnimation { duration: 220 } }
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.margins: 8
-                                    spacing: 8
-
-                                    Image {
-                                        visible: Mako && Mako.icons && modelData.icon && modelData.icon.length > 0
-                                        source: visible ? ("image://appicon/" + modelData.icon) : ""
-                                        Layout.preferredWidth: 20
-                                        Layout.preferredHeight: 20
-                                        sourceSize: Qt.size(20, 20)
-                                        Layout.alignment: Qt.AlignTop
-                                        Layout.topMargin: 2
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        acceptedButtons: Qt.NoButton
+                                        onEntered: {
+                                            histHoverHold.stop()
+                                            histListView.lastHoveredCard = histDelegateWrap
+                                            histListView.hoveredCard = histDelegateWrap
+                                        }
+                                        onExited: histHoverHold.restart()
                                     }
 
-                                    ColumnLayout {
-                                        id: histItemCol
-                                        Layout.fillWidth: true
-                                        spacing: 2
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.margins: 8
+                                        spacing: 8
 
-                                        RowLayout {
+                                        Image {
+                                            visible: Mako && Mako.icons && model.icon && model.icon.length > 0
+                                            source: visible ? ("image://appicon/" + model.icon) : ""
+                                            Layout.preferredWidth: 20
+                                            Layout.preferredHeight: 20
+                                            sourceSize: Qt.size(20, 20)
+                                            Layout.alignment: Qt.AlignTop
+                                            Layout.topMargin: 2
+                                        }
+
+                                        ColumnLayout {
+                                            id: histItemCol
                                             Layout.fillWidth: true
-                                            spacing: 6
+                                            spacing: 2
+
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 6
+
+                                                Text {
+                                                    text: model.summary || model.app || "Уведомление"
+                                                    color: model.critical
+                                                           ? (Mako ? Mako.criticalBorderColor : "#ff6b6b")
+                                                           : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
+                                                    font.pixelSize: Config.fontSize
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                Text {
+                                                    text: model.time || ""
+                                                    color: "#888888"
+                                                    font.pixelSize: Config.fontSize - 2
+                                                }
+
+                                                Rectangle {
+                                                    width: 18; height: 18
+                                                    radius: (Theme && Theme.isRounded) ? 5 : 0
+                                                    color: delHistMa.containsMouse ? Qt.rgba(1, 0.35, 0.35, 0.25) : "transparent"
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: "✕"
+                                                        color: delHistMa.containsMouse ? "#ff8a80" : "#888888"
+                                                        font.pixelSize: 9
+                                                    }
+                                                    MouseArea {
+                                                        id: delHistMa
+                                                        anchors.fill: parent
+                                                        hoverEnabled: true
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onEntered: {
+                                                            histHoverHold.stop()
+                                                            histListView.lastHoveredCard = histDelegateWrap
+                                                            histListView.hoveredCard = histDelegateWrap
+                                                        }
+                                                        onExited: histHoverHold.restart()
+                                                        onClicked: if (Mako) Mako.dismissHistoryItem(model.notifId)
+                                                    }
+                                                }
+                                            }
 
                                             Text {
-                                                text: modelData.summary || modelData.app || "Уведомление"
-                                                color: modelData.critical
-                                                       ? (Mako ? Mako.criticalBorderColor : "#ff6b6b")
-                                                       : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
-                                                font.pixelSize: Config.fontSize
-                                                font.bold: true
-                                                elide: Text.ElideRight
+                                                visible: model.body && model.body.length > 0
+                                                text: model.body || ""
+                                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#cccccc"
+                                                font.pixelSize: Config.fontSize - 1
+                                                wrapMode: Text.Wrap
                                                 Layout.fillWidth: true
                                             }
-
-                                            Text {
-                                                text: modelData.time || ""
-                                                color: "#888888"
-                                                font.pixelSize: Config.fontSize - 2
-                                            }
-
-                                            Rectangle {
-                                                width: 18; height: 18
-                                                radius: (Theme && Theme.isRounded) ? 5 : 0
-                                                color: delHistMa.containsMouse ? Qt.rgba(1, 0.35, 0.35, 0.25) : "transparent"
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: "✕"
-                                                    color: delHistMa.containsMouse ? "#ff8a80" : "#888888"
-                                                    font.pixelSize: 9
-                                                }
-                                                MouseArea {
-                                                    id: delHistMa
-                                                    anchors.fill: parent
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onEntered: {
-                                                        histHoverHold.stop()
-                                                        histListView.lastHoveredCard = histDelegateWrap
-                                                        histListView.hoveredCard = histDelegateWrap
-                                                    }
-                                                    onExited: histHoverHold.restart()
-                                                    onClicked: {
-                                                        if (Mako) {
-                                                            if (histListView.isScrolledDown) {
-                                                                histListView.savedScrollY = histListView.contentY
-                                                                histListView.preserveScrollNext = true
-                                                            }
-                                                            Mako.dismissHistoryItem(modelData.id)
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-
-                                        Text {
-                                            visible: modelData.body && modelData.body.length > 0
-                                            text: modelData.body || ""
-                                            color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#cccccc"
-                                            font.pixelSize: Config.fontSize - 1
-                                            wrapMode: Text.Wrap
-                                            Layout.fillWidth: true
                                         }
                                     }
-                                }
                                 }
                             }
                         }

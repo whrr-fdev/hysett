@@ -1205,6 +1205,26 @@ void WaybarManager::pollFastState() {
             m_vpnActive = isVpnOn;
             emit sysStatsChanged();
         }
+        static int s_wlWatchdogTicks = 0;
+        static bool s_wlWatchdogRunning = false;
+        if (isVpnOn && m_vpnActiveIsWl && m_netConnected && !m_vpnBusy && !s_wlWatchdogRunning) {
+            if (++s_wlWatchdogTicks >= 20) {
+                s_wlWatchdogTicks = 0;
+                s_wlWatchdogRunning = true;
+                QProcess *wd = new QProcess(this);
+                connect(wd, &QProcess::finished, this, [this, wd]() {
+                    QByteArray wdOut = wd->readAllStandardOutput().trimmed();
+                    wd->deleteLater();
+                    s_wlWatchdogRunning = false;
+                    if (!wdOut.isEmpty()) {
+                        syncVpnStateFromScript(wdOut);
+                    }
+                });
+                wd->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "watchdog"});
+            }
+        } else {
+            s_wlWatchdogTicks = 0;
+        }
     });
     vp->start("pgrep", {"-f", "sing-box.*singbox_vpn.json"});
 }

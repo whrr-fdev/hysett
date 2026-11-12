@@ -333,6 +333,12 @@ Item {
                             property int lastHistCount: 0
                             property int activeSpringId: -1
 
+                            Timer {
+                                id: histHoverHold
+                                interval: 45
+                                onTriggered: histListView.hoveredCard = null
+                            }
+
                             Component.onCompleted: {
                                 if (Mako && Mako.history.length > 0) {
                                     lastTopId = Mako.history[0].id
@@ -344,19 +350,19 @@ Item {
                             Rectangle {
                                 id: histHoverPill
                                 parent: histListView.contentItem
-                                z: 0
+                                z: 5
                                 x: 6
                                 y: histListView.lastHoveredCard ? histListView.lastHoveredCard.y : 0
                                 width: histListView.width - 12
                                 height: histListView.lastHoveredCard ? histListView.lastHoveredCard.height : 58
                                 radius: (Theme && Theme.isRounded) ? 10 : 0
                                 color: (Theme && Theme.isRounded && Config)
-                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12)
-                                       : Qt.rgba(1, 1, 1, 0.08)
+                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.10)
+                                       : Qt.rgba(1, 1, 1, 0.07)
                                 border.width: 1
                                 border.color: (Theme && Theme.isRounded && Config)
-                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.45)
-                                              : Qt.rgba(1, 1, 1, 0.30)
+                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.55)
+                                              : Qt.rgba(1, 1, 1, 0.35)
                                 opacity: histListView.hoveredCard ? 1.0 : 0.0
 
                                 Behavior on y { NumberAnimation { duration: 160; easing.type: Easing.OutQuint } }
@@ -444,13 +450,11 @@ Item {
                                     hoverEnabled: true
                                     acceptedButtons: Qt.NoButton
                                     onEntered: {
-                                        histListView.lastHoveredCard = histCard
-                                        histListView.hoveredCard = histCard
+                                        histHoverHold.stop()
+                                        histListView.lastHoveredCard = histDelegateWrap
+                                        histListView.hoveredCard = histDelegateWrap
                                     }
-                                    onExited: {
-                                        if (histListView.hoveredCard === histCard)
-                                            histListView.hoveredCard = null
-                                    }
+                                    onExited: histHoverHold.restart()
                                 }
 
                                 RowLayout {
@@ -509,6 +513,12 @@ Item {
                                                     anchors.fill: parent
                                                     hoverEnabled: true
                                                     cursorShape: Qt.PointingHandCursor
+                                                    onEntered: {
+                                                        histHoverHold.stop()
+                                                        histListView.lastHoveredCard = histDelegateWrap
+                                                        histListView.hoveredCard = histDelegateWrap
+                                                    }
+                                                    onExited: histHoverHold.restart()
                                                     onClicked: if (Mako) Mako.dismissHistoryItem(modelData.id)
                                                 }
                                             }

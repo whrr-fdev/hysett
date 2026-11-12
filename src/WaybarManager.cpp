@@ -187,6 +187,11 @@ void WaybarManager::loadState() {
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
             else if (k == "uniform_bar_spacing") m_uniformBarSpacing = (v == "1" || v == "true");
+            else if (k == "vpn_log_height") m_vpnLogHeight = std::clamp(v.toInt(), 90, 420);
+            else if (k == "vpn_log_max_lines") m_vpnLogMaxLines = std::clamp(v.toInt(), 20, 1000);
+            else if (k == "vpn_log_auto_refresh") m_vpnLogAutoRefresh = (v == "1" || v == "true");
+            else if (k == "vpn_log_auto_scroll") m_vpnLogAutoScroll = (v == "1" || v == "true");
+            else if (k == "vpn_log_level" && !v.isEmpty()) m_vpnLogLevel = v;
             else if (k == "left_bar_order" && !v.isEmpty()) { m_leftBarOrder = v.split(',', Qt::SkipEmptyParts); m_leftBarOrder.removeAll("sep"); }
             else if (k == "right_bar_order" && !v.isEmpty()) { m_rightBarOrder = v.split(',', Qt::SkipEmptyParts); m_rightBarOrder.removeAll("sep"); }
             else {
@@ -228,6 +233,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "vpn_log_max_lines=" << m_vpnLogMaxLines << "\n";
         out << "vpn_log_auto_refresh=" << (m_vpnLogAutoRefresh ? "1" : "0") << "\n";
         out << "vpn_log_auto_scroll=" << (m_vpnLogAutoScroll ? "1" : "0") << "\n";
+        out << "vpn_log_level=" << m_vpnLogLevel << "\n";
         out << "left_bar_order=" << m_leftBarOrder.join(',') << "\n";
         out << "right_bar_order=" << m_rightBarOrder.join(',') << "\n";
         for (const auto &item : m_specs) {
@@ -1114,6 +1120,7 @@ void WaybarManager::pollFastState() {
         bool nextConn = false;
         QString nextType = "none";
         QString nextIcon = "󰖪";
+        QString chosenIface;
         QDir netDir("/sys/class/net");
         for (const QString &iface : netDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
             if (iface == "lo" || iface.startsWith("virbr") || iface.startsWith("docker") ||
@@ -1130,21 +1137,56 @@ void WaybarManager::pollFastState() {
             if (!prefIface.isEmpty() && iface == prefIface) {
                 nextType = isUsb ? "usb" : (isWifi ? "wifi" : "ethernet");
                 nextIcon = isUsb ? "󰄜" : (isWifi ? "󰤨" : "󰈀");
+                chosenIface = iface;
                 break;
             }
-            if (isUsb && nextType == "none") { nextType = "usb"; nextIcon = "󰄜"; }
-            else if (!isUsb && !isWifi && nextType == "none") { nextType = "ethernet"; nextIcon = "󰈀"; }
-            else if (isWifi && nextType == "none") { nextType = "wifi"; nextIcon = "󰤨"; }
+            if (isUsb && nextType == "none") { nextType = "usb"; nextIcon = "󰄜"; chosenIface = iface; }
+            else if (!isUsb && !isWifi && nextType == "none") { nextType = "ethernet"; nextIcon = "󰈀"; chosenIface = iface; }
+            else if (isWifi && nextType == "none") { nextType = "wifi"; nextIcon = "󰤨"; chosenIface = iface; }
         }
+
+        auto readSysFile = [](const QString &p) -> QString {
+            QFile f(p);
+            return f.open(QIODevice::ReadOnly) ? QString::fromUtf8(f.readAll()).trimmed() : QString();
+        };
+        QString nextIfaceToken;
+        if (nextConn && !chosenIface.isEmpty()) {
+            nextIfaceToken = chosenIface + ":" +
+                             readSysFile("/sys/class/net/" + chosenIface + "/ifindex") + ":" +
+                             readSysFile("/sys/class/net/" + chosenIface + "/carrier_changes");
+        }
+
+        static QString s_lastIfaceToken;
+        static int s_offlineTicks = 0;
+
         bool becameOnline = (!m_netConnected && nextConn);
+        bool ifaceReconnected = (nextConn && !s_lastIfaceToken.isEmpty() && s_lastIfaceToken != nextIfaceToken);
+
         if (m_netConnected != nextConn || m_netIcon != nextIcon || m_netType != nextType) {
             m_netConnected = nextConn;
             m_netIcon = nextIcon;
             m_netType = nextType;
             emit sysStatsChanged();
         }
-        if (becameOnline && m_vpnWantedEnabled && !m_vpnActive && !m_vpnBusy) {
-            runVpnScriptCmd({"boot"});
+
+        if (!nextConn) {
+            s_offlineTicks++;
+            // Если физический интернет пропал (>1 сек) — гасим sing-box, чтобы не висел мертвый туннель, сохраняя m_vpnWantedEnabled
+            if (s_offlineTicks >= 2 && m_vpnActive && !m_vpnBusy) {
+                m_vpnActive = false;
+                s_lastIfaceToken.clear();
+                QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "pause"});
+                QProcess::startDetached("pkill", {"-f", "sing-box.*singbox_vpn.json"});
+                emit sysStatsChanged();
+            }
+        } else {
+            s_offlineTicks = 0;
+            if ((becameOnline || ifaceReconnected) && m_vpnWantedEnabled && !m_vpnBusy) {
+                s_lastIfaceToken = nextIfaceToken;
+                runVpnScriptCmd({"start"});
+            } else {
+                s_lastIfaceToken = nextIfaceToken;
+            }
         }
     }
 
@@ -1837,6 +1879,8 @@ void WaybarManager::setVpnLogAutoScroll(bool v) {
 void WaybarManager::setVpnLogLevel(const QString &lvl) {
     if (m_vpnLogLevel != lvl && !lvl.isEmpty()) {
         m_vpnLogLevel = lvl;
+        saveState(false);
+        emit vpnLogsChanged();
         runVpnScriptCmd({"set_log_level", lvl});
     }
 }

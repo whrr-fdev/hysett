@@ -1641,7 +1641,7 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
             first_nm = first_srv.get("name", "Сервер")[:28]
             pct = max(5, int(((b_start + len(chunk)) * 100) / len(valid_entries)))
             write_progress(pct, f"[{min(len(valid_entries), b_start + len(chunk))}/{len(valid_entries)}] Проверка: {first_nm}...")
-            write_ipcheck(1, f"Проверка [{min(len(valid_entries), b_start + len(chunk))}/{len(valid_entries))}]: {first_nm}...", reload_state=False, auditing_sig=first_sig)
+            write_ipcheck(1, f"Проверка [{min(len(valid_entries), b_start + len(chunk))}/{len(valid_entries)}]: {first_nm}...", reload_state=False, auditing_sig=first_sig)
 
             with ThreadPoolExecutor(max_workers=batch_size) as ex:
                 futs = {ex.submit(_probe_port_fast, p, s, 2.2): s for p, s in chunk}

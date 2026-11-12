@@ -316,6 +316,10 @@ Item {
                         ListView {
                             id: histListView
                             anchors.fill: parent
+                            anchors.leftMargin: -6
+                            anchors.rightMargin: -6
+                            topMargin: 8
+                            bottomMargin: 8
                             clip: true
                             spacing: 6
                             visible: Mako && Mako.history.length > 0
@@ -325,12 +329,14 @@ Item {
                             property Item hoveredCard: null
                             property Item lastHoveredCard: null
                             property bool readyForAnims: false
-                            property int knownMaxId: 0
+                            property int lastTopId: -1
+                            property int lastHistCount: 0
                             property int activeSpringId: -1
 
                             Component.onCompleted: {
                                 if (Mako && Mako.history.length > 0) {
-                                    knownMaxId = Mako.history[0].id
+                                    lastTopId = Mako.history[0].id
+                                    lastHistCount = Mako.history.length
                                 }
                                 Qt.callLater(function() { histListView.readyForAnims = true })
                             }
@@ -339,9 +345,9 @@ Item {
                                 id: histHoverPill
                                 parent: histListView.contentItem
                                 z: 0
-                                x: 0
+                                x: 6
                                 y: histListView.lastHoveredCard ? histListView.lastHoveredCard.y : 0
-                                width: histListView.width
+                                width: histListView.width - 12
                                 height: histListView.lastHoveredCard ? histListView.lastHoveredCard.height : 58
                                 radius: (Theme && Theme.isRounded) ? 10 : 0
                                 color: (Theme && Theme.isRounded && Config)
@@ -358,62 +364,71 @@ Item {
                                 Behavior on opacity { NumberAnimation { duration: 100 } }
                             }
 
-                            delegate: Rectangle {
-                                id: histCard
+                            delegate: Item {
+                                id: histDelegateWrap
                                 z: index === 0 ? 3 : 1
                                 width: histListView.width
-                                implicitHeight: Math.max(54, histItemCol.implicitHeight + 16)
-                                height: implicitHeight
-                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                height: histCard.height
 
-                                property real enterX: 0
-                                property real enterY: 0
-                                property real enterScale: 1.0
-                                property real enterOp: 1.0
+                                Rectangle {
+                                    id: histCard
+                                    x: 6
+                                    width: parent.width - 12
+                                    implicitHeight: Math.max(54, histItemCol.implicitHeight + 16)
+                                    height: implicitHeight
+                                    radius: (Theme && Theme.isRounded) ? 10 : 0
 
-                                opacity: enterOp
-                                transform: [
-                                    Scale {
-                                        origin.x: histCard.width * 0.5
-                                        origin.y: histCard.height * 0.5
-                                        xScale: histCard.enterScale
-                                        yScale: histCard.enterScale
-                                    },
-                                    Translate {
-                                        x: histCard.enterX
-                                        y: histCard.enterY
+                                    property real enterY: 0
+                                    property real enterScale: 1.0
+                                    property real enterOp: 1.0
+
+                                    opacity: enterOp
+                                    transform: [
+                                        Scale {
+                                            origin.x: histCard.width * 0.5
+                                            origin.y: histCard.height * 0.5
+                                            xScale: histCard.enterScale
+                                            yScale: histCard.enterScale
+                                        },
+                                        Translate {
+                                            y: histCard.enterY
+                                        }
+                                    ]
+
+                                    ParallelAnimation {
+                                        id: newCardSpringAnim
+                                        NumberAnimation { target: histCard; property: "enterOp"; from: 0.0; to: 1.0; duration: 180; easing.type: Easing.OutCubic }
+                                        NumberAnimation { target: histCard; property: "enterScale"; from: 0.80; to: 1.0; duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.32 }
+                                        NumberAnimation { target: histCard; property: "enterY"; from: 16; to: 0; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.30 }
                                     }
-                                ]
 
-                                ParallelAnimation {
-                                    id: newCardSpringAnim
-                                    NumberAnimation { target: histCard; property: "enterOp"; from: 0.0; to: 1.0; duration: 170; easing.type: Easing.OutCubic }
-                                    NumberAnimation { target: histCard; property: "enterScale"; from: 0.74; to: 1.0; duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.85 }
-                                    NumberAnimation { target: histCard; property: "enterX"; from: 42; to: 0; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.50 }
-                                    NumberAnimation { target: histCard; property: "enterY"; from: -24; to: 0; duration: 420; easing.type: Easing.OutBack; easing.overshoot: 1.50 }
-                                }
-
-                                NumberAnimation {
-                                    id: cascadePushSpringAnim
-                                    target: histCard
-                                    property: "enterY"
-                                    from: -58
-                                    to: 0
-                                    duration: 390
-                                    easing.type: Easing.OutBack
-                                    easing.overshoot: 1.38
-                                }
-
-                                Component.onCompleted: {
-                                    if (!histListView.readyForAnims) return
-                                    if (index === 0 && modelData.id > histListView.knownMaxId) {
-                                        histListView.activeSpringId = modelData.id
-                                        histListView.knownMaxId = modelData.id
-                                        newCardSpringAnim.restart()
-                                    } else if (index > 0 && index <= 14 && Mako && Mako.history.length > 0 && histListView.activeSpringId === Mako.history[0].id) {
-                                        cascadePushSpringAnim.restart()
+                                    NumberAnimation {
+                                        id: cascadePushSpringAnim
+                                        target: histCard
+                                        property: "enterY"
+                                        from: -54
+                                        to: 0
+                                        duration: 390
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.25
                                     }
-                                }
+
+                                    Component.onCompleted: {
+                                        if (!histListView.readyForAnims) return
+                                        var curLen = Mako ? Mako.history.length : 0
+                                        if (index === 0) {
+                                            if (modelData.id !== histListView.lastTopId && curLen >= histListView.lastHistCount) {
+                                                histListView.activeSpringId = modelData.id
+                                                newCardSpringAnim.restart()
+                                            } else {
+                                                histListView.activeSpringId = -1
+                                            }
+                                            histListView.lastTopId = modelData.id
+                                            histListView.lastHistCount = curLen
+                                        } else if (index > 0 && index <= 14 && Mako && curLen > 0 && histListView.activeSpringId === Mako.history[0].id) {
+                                            cascadePushSpringAnim.restart()
+                                        }
+                                    }
                                 color: modelData.critical
                                        ? Qt.rgba(1.0, 0.25, 0.25, 0.08)
                                        : (Theme && Theme.isRounded && Config
@@ -508,6 +523,7 @@ Item {
                                             Layout.fillWidth: true
                                         }
                                     }
+                                }
                                 }
                             }
                         }

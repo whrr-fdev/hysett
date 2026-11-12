@@ -38,6 +38,8 @@ void MakoManager::onTickPopups() {
         QVariantMap m = m_activePopups[i].toMap();
         if (now >= m["expireAt"].toLongLong()) {
             m_activePopups.removeAt(i);
+            m_history.prepend(m);
+            while (m_history.size() > 50) m_history.removeLast();
             removed = true;
         }
     }
@@ -94,9 +96,9 @@ void MakoManager::showInternalNotification(const QString &appName, const QString
     item["expireAt"] = QDateTime::currentMSecsSinceEpoch() + dur;
 
     m_activePopups.prepend(item);
-    while (m_activePopups.size() > 50) m_activePopups.removeLast();
-
-    m_history.prepend(item);
+    while (m_activePopups.size() > 50) {
+        m_history.prepend(m_activePopups.takeLast().toMap());
+    }
     while (m_history.size() > 50) m_history.removeLast();
 
     if (!m_tickTimer->isActive()) m_tickTimer->start();
@@ -106,7 +108,9 @@ void MakoManager::showInternalNotification(const QString &appName, const QString
 void MakoManager::dismissPopup(int id) {
     for (int i = 0; i < m_activePopups.size(); ++i) {
         if (m_activePopups[i].toMap()["id"].toInt() == id) {
-            m_activePopups.removeAt(i);
+            QVariantMap m = m_activePopups.takeAt(i).toMap();
+            m_history.prepend(m);
+            while (m_history.size() > 50) m_history.removeLast();
             emit popupChanged();
             return;
         }
@@ -115,6 +119,10 @@ void MakoManager::dismissPopup(int id) {
 
 void MakoManager::dismissAll() {
     m_tickTimer->stop();
+    for (int i = m_activePopups.size() - 1; i >= 0; --i) {
+        m_history.prepend(m_activePopups[i].toMap());
+    }
+    while (m_history.size() > 50) m_history.removeLast();
     m_activePopups.clear();
     emit popupChanged();
 }

@@ -293,16 +293,14 @@ ApplicationWindow {
         if (anc.indexOf("center") !== -1) return Math.round((root.width - notifW) * 0.5)
         return (barPos === 3) ? (barLeft - notifW - 6) : (root.width - notifW - edgeGap)
     }
-    readonly property real maxPossibleBarRight: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width + Math.max(baseBarW, targetDrawerW)) * 0.5) : (fullBarLeft + maxAvailBarW)
-    readonly property real minPossibleBarLeft: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - Math.max(baseBarW, targetDrawerW)) * 0.5) : fullBarLeft
-    readonly property bool barOverlapsNotifX: !isVertBar && ((barLeft + barW > notifX - 2 && barLeft < notifX + notifW + 2) ||
-                                              (drawerActive && maxPossibleBarRight > notifX - 2 && minPossibleBarLeft < notifX + notifW + 2))
-    property real notifY: {
+    // Проверяем перекрытие только по базовой ширине панели (baseBarW), чтобы при открытии окна настроек уведомления не прыгали вниз
+    readonly property real closedBarLeft: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - baseBarW) * 0.5) : fullBarLeft
+    readonly property bool barOverlapsNotifX: !isVertBar && (closedBarLeft + baseBarW > notifX - 2) && (closedBarLeft < notifX + notifW + 2)
+    readonly property real notifY: {
         if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH) : (root.height - animNotifH - barTop)
         if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barRectY
         return barTop
     }
-    Behavior on notifY { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
 
     property bool modalOpen: false
     property bool barSavePromptOpen: false
@@ -2210,22 +2208,14 @@ ApplicationWindow {
                 acceptedButtons: Qt.AllButtons
             }
 
-            readonly property bool overlapsOpenDrawer: root.drawerActive &&
-                                                       (root.notifX < root.drawerX + root.effDrawerW) &&
-                                                       (root.notifX + root.notifW > root.drawerX) &&
-                                                       (root.notifY < root.drawerY + root.animDrawerH) &&
-                                                       (root.notifY + root.animNotifH > root.drawerY)
+            readonly property bool overlapsOpenDrawer: root.drawerActive
 
             Rectangle {
                 anchors.fill: parent
                 visible: notifClipBox.overlapsOpenDrawer
                 color: mergedShellBg.surfCol
                 opacity: mergedShellBg.currentOpacity
-                readonly property real rNotif: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.8) : 16) : 0
-                topLeftRadius: (root.barPos === 0 && root.barOverlapsNotifX) ? 0 : rNotif
-                topRightRadius: (root.barPos === 0 && root.barOverlapsNotifX) ? 0 : rNotif
-                bottomLeftRadius: (root.barPos === 1 && root.barOverlapsNotifX) ? 0 : rNotif
-                bottomRightRadius: (root.barPos === 1 && root.barOverlapsNotifX) ? 0 : rNotif
+                radius: (Theme && Theme.isRounded) ? Math.round(mergedShellBg.u_radius * 1.25) : 0
                 border.width: 1
                 border.color: Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.32) : Qt.rgba(1, 1, 1, 0.20)
             }

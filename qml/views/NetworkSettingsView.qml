@@ -132,55 +132,22 @@ Item {
                                 spacing: 6
 
                                 Repeater {
-                                    model: Network ? Network.activeConnections : []
+                                    model: Network ? Network.activeConnections.length : 0
                                     delegate: Rectangle {
+                                        readonly property var connItem: (Network && index < Network.activeConnections.length)
+                                                                        ? Network.activeConnections[index]
+                                                                        : ({ iface: "", type: "ethernet", icon: "󰈀", title: "", ip: "", selected: false })
+                                        readonly property bool isSel: connItem.selected === true
                                         Layout.fillWidth: true
                                         implicitHeight: 56
                                         radius: (Theme && Theme.isRounded) ? 10 : 0
-                                        color: modelData.selected
+                                        color: isSel
                                             ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18) : Qt.rgba(1,1,1,0.14))
                                             : Qt.rgba(1, 1, 1, 0.03)
-                                        border.color: modelData.selected ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.14)
-                                        border.width: modelData.selected ? 1.5 : 1
+                                        border.color: isSel ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.14)
+                                        border.width: isSel ? 1.5 : 1
                                         Behavior on color { ColorAnimation { duration: 160 } }
-
-                                        RowLayout {
-                                            anchors.fill: parent; anchors.margins: 12; spacing: 14
-
-                                            Rectangle {
-                                                width: 36; height: 36
-                                                radius: (Theme && Theme.isRounded) ? 10 : 0
-                                                color: modelData.selected ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.08)
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: modelData.icon
-                                                    font.pixelSize: 18
-                                                    color: modelData.selected ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                                }
-                                            }
-
-                                            ColumnLayout {
-                                                Layout.fillWidth: true; spacing: 2
-                                                Text {
-                                                    text: modelData.title
-                                                    color: "#ffffff"
-                                                    font.pixelSize: Config.fontSize + 1
-                                                    font.bold: modelData.selected
-                                                }
-                                                Text {
-                                                    text: (modelData.selected ? "󰄬 Основной маршрут интернета  •  " : "Доступно  •  ") + "IPv4: " + modelData.ip
-                                                    color: modelData.selected ? "#69f0ae" : "#999999"
-                                                    font.pixelSize: Config.fontSize - 1
-                                                }
-                                            }
-
-                                            StyledButton {
-                                                text: modelData.selected ? "󰄬 Выбрано" : "Выбрать"
-                                                isActive: modelData.selected
-                                                implicitHeight: 26
-                                                onClicked: if (Network) Network.selectInterface(modelData.iface)
-                                            }
-                                        }
+                                        Behavior on border.color { ColorAnimation { duration: 160 } }
 
                                         MouseArea {
                                             anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
@@ -190,7 +157,67 @@ Item {
                                                 connListWrap.hoveredIdx = index
                                             }
                                             onExited: connHoverHold.restart()
-                                            onClicked: if (Network) Network.selectInterface(modelData.iface)
+                                            onClicked: if (Network && parent.connItem.iface) Network.selectInterface(parent.connItem.iface)
+                                        }
+
+                                        RowLayout {
+                                            z: 2
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 12
+                                            anchors.rightMargin: 12
+                                            spacing: 14
+
+                                            Rectangle {
+                                                Layout.preferredWidth: 36
+                                                Layout.preferredHeight: 36
+                                                Layout.fillWidth: false
+                                                Layout.alignment: Qt.AlignVCenter
+                                                width: 36; height: 36
+                                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                                color: isSel ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.08)
+                                                Behavior on color { ColorAnimation { duration: 160 } }
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: connItem.icon
+                                                    font.pixelSize: 18
+                                                    color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                                }
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
+                                                spacing: 2
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    horizontalAlignment: Text.AlignLeft
+                                                    elide: Text.ElideRight
+                                                    text: connItem.title
+                                                    color: "#ffffff"
+                                                    font.pixelSize: Config.fontSize + 1
+                                                    font.bold: isSel
+                                                }
+                                                Text {
+                                                    Layout.fillWidth: true
+                                                    horizontalAlignment: Text.AlignLeft
+                                                    elide: Text.ElideRight
+                                                    text: (isSel ? "󰄬 Основной маршрут интернета  •  " : "Доступно  •  ") + "IPv4: " + connItem.ip
+                                                    color: isSel ? "#69f0ae" : "#999999"
+                                                    font.pixelSize: Config.fontSize - 1
+                                                    Behavior on color { ColorAnimation { duration: 160 } }
+                                                }
+                                            }
+
+                                            StyledButton {
+                                                Layout.fillWidth: false
+                                                Layout.preferredWidth: 112
+                                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                                text: isSel ? "󰄬 Выбрано" : "Выбрать"
+                                                isActive: isSel
+                                                implicitWidth: 112
+                                                implicitHeight: 26
+                                                onClicked: if (Network && connItem.iface) Network.selectInterface(connItem.iface)
+                                            }
                                         }
                                     }
                                 }

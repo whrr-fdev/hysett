@@ -18,8 +18,8 @@ Slider {
 
     readonly property real waveSpeed: Config ? Config.sliderWaveSpeed : 1.25
     readonly property real baseWaveAmp: control.isM3 ? (Config ? Config.sliderWaveAmplitude : 2.0) : 0.0
-    property real waveAmp: baseWaveAmp * (control.pressed ? 1.22 : (control.hovered ? 1.10 : 1.0))
-    Behavior on waveAmp { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+    property real waveAmp: baseWaveAmp * (control.pressed ? 1.20 : (control.hovered ? 1.08 : 1.0))
+    Behavior on waveAmp { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
 
     readonly property real waveLen: Config ? Config.sliderWaveLength : 24.0
     readonly property real lineThick: Config ? Config.sliderThickness : 2.4
@@ -33,13 +33,13 @@ Slider {
     property real wavePhase: 0.0
 
     Timer {
-        interval: 22
+        interval: 20
         repeat: true
         running: control.visible && control.isM3 && control.waveSpeed > 0.02 && control.waveAmp > 0.08 && control.animPos > 0.01 &&
                  (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
         onTriggered: {
-            var boost = control.pressed ? 1.35 : (control.hovered ? 1.12 : 1.0)
-            control.wavePhase = (control.wavePhase + 0.09 * control.waveSpeed * boost) % (Math.PI * 2.0)
+            var boost = control.pressed ? 1.30 : (control.hovered ? 1.10 : 1.0)
+            control.wavePhase = (control.wavePhase + 0.085 * control.waveSpeed * boost) % (Math.PI * 2.0)
             trackCanvas.requestPaint()
         }
     }
@@ -70,6 +70,7 @@ Slider {
         Canvas {
             id: trackCanvas
             anchors.fill: parent
+            antialiasing: true
             onWidthChanged: requestPaint()
             onHeightChanged: requestPaint()
 
@@ -82,8 +83,9 @@ Slider {
                 var thick = control.lineThick
                 var padX = Math.max(4.0, thick + 2.0)
                 var maxAmp = Math.max(0.0, (height * 0.5) - thick - 2.0)
-                var amp = control.isM3 ? Math.min(maxAmp, control.waveAmp) : 0.0
-                var wl = Math.max(10.0, control.waveLen)
+                var wl = Math.max(14.0, control.waveLen)
+                // Ограничиваем крутизну волны относительно длины волны, чтобы изгибы всегда оставались плавными
+                var amp = control.isM3 ? Math.min(maxAmp, Math.min(control.waveAmp, wl * 0.16)) : 0.0
 
                 var activeEnd = Math.max(padX, parent.handleX - parent.gapHalf)
                 var inactiveStart = Math.min(width - padX, parent.handleX + parent.gapHalf)
@@ -101,7 +103,7 @@ Slider {
                     ctx.stroke()
                 }
 
-                // 2. Левая активная волнистая часть трека
+                // 2. Левая активная волнистая часть трека (гладкие кривые Безье + C1 smoothstep огибающая на краях)
                 var span = activeEnd - padX
                 if (span > 1.5) {
                     ctx.beginPath()
@@ -110,20 +112,36 @@ Slider {
                     ctx.lineJoin = "round"
                     ctx.strokeStyle = Config ? Config.m3Primary.toString() : "#a8c7fa"
 
-                    if (amp <= 0.10 || span < 6.0) {
+                    if (amp <= 0.08 || span < 8.0) {
                         ctx.moveTo(padX, cy)
                         ctx.lineTo(activeEnd, cy)
                     } else {
-                        var steps = Math.max(14, Math.min(84, Math.ceil(span / 2.2)))
-                        for (var i = 0; i <= steps; ++i) {
-                            var t = i / steps
-                            var px = padX + t * span
-                            var env = Math.sin(Math.min(1.0, (px - padX) / 10.0) * Math.PI * 0.5) *
-                                      Math.sin(Math.min(1.0, (activeEnd - px) / 10.0) * Math.PI * 0.5)
-                            var wy = cy + Math.sin((px / wl) * Math.PI * 2.0 - control.wavePhase) * amp * env
-                            if (i === 0) ctx.moveTo(px, wy)
-                            else ctx.lineTo(px, wy)
+                        var taper = Math.max(6.0, Math.min(22.0, span * 0.35))
+                        var steps = Math.max(24, Math.ceil(span / 1.5))
+                        var prevX = padX
+                        var prevY = cy
+                        ctx.moveTo(padX, cy)
+
+                        for (var i = 1; i <= steps; ++i) {
+                            var px = padX + (i / steps) * span
+                            var uL = Math.min(1.0, Math.max(0.0, (px - padX) / taper))
+                            var uR = Math.min(1.0, Math.max(0.0, (activeEnd - px) / taper))
+                            var envL = uL * uL * (3.0 - 2.0 * uL)
+                            var envR = uR * uR * (3.0 - 2.0 * uR)
+                            var env = envL * envR
+                            var wy = cy + Math.sin(((px - padX) / wl) * Math.PI * 2.0 - control.wavePhase) * amp * env
+
+                            if (i === 1) {
+                                ctx.lineTo(px, wy)
+                            } else {
+                                var midX = (prevX + px) * 0.5
+                                var midY = (prevY + wy) * 0.5
+                                ctx.quadraticCurveTo(prevX, prevY, midX, midY)
+                            }
+                            prevX = px
+                            prevY = wy
                         }
+                        ctx.lineTo(activeEnd, cy)
                     }
                     ctx.stroke()
                 }

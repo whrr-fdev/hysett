@@ -50,10 +50,12 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
-float sceneSdf(vec2 p) {
+float sceneSdf(vec2 p, out float outNotifBlend) {
+    outNotifBlend = 0.0;
     vec2 bHalf = 0.5 * u_bar_rect.zw;
     vec2 bCenter = u_bar_rect.xy + bHalf;
-    float d = sdRoundedBox(p - bCenter, bHalf, u_radius);
+    float dBar = sdRoundedBox(p - bCenter, bHalf, u_radius);
+    float d = dBar;
 
     if (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) {
         vec2 dHalf = 0.5 * u_drawer_rect.zw;
@@ -108,6 +110,8 @@ float sceneSdf(vec2 p) {
         vec2 nCenter = u_notif_rect.xy + nHalf;
         float dNotif = sdRoundedBox(p - nCenter, nHalf, u_radius * 1.25);
         float nk = u_fillet * smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w, p.y) * clamp(u_notif_rect.w / 32.0, 0.0, 1.0);
+        // Плавный вес зоны уведомлений только там, где точка ближе к блоку уведомлений, чем к панели и окну настроек
+        outNotifBlend = smoothstep(6.0, -6.0, dNotif - d);
         d = smin(d, dNotif, nk);
     }
 
@@ -118,15 +122,16 @@ void main() {
     vec2 res = max(u_resolution, vec2(1.0));
     vec2 p = qt_TexCoord0 * res;
 
-    float d = sceneSdf(p);
+    float notifBlend = 0.0;
+    float d = sceneSdf(p, notifBlend);
     float mask = 1.0 - smoothstep(-0.6, 0.6, d);
     if (mask <= 0.001) { fragColor = vec4(0.0); return; }
 
     float distInward = max(0.0, -d);
     float outlineMask = exp(-distInward * 1.65);
 
-    bool inNotifZone = (u_notif_rect.w > 0.5 && p.x >= u_notif_rect.x - 8.0 && p.x <= u_notif_rect.x + u_notif_rect.z + 8.0 && p.y >= u_notif_rect.y - 4.0 && p.y <= u_notif_rect.y + u_notif_rect.w + 8.0);
-    vec4 activeFill = inNotifZone ? u_notif_color : ((u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) ? u_bg_color : vec4(u_bg_color.rgb, u_bar_alpha));
+    vec4 shellFill = (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) ? u_bg_color : vec4(u_bg_color.rgb, u_bar_alpha);
+    vec4 activeFill = mix(shellFill, u_notif_color, notifBlend);
 
     vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, outlineMask * u_outline_color.a);
     float baseAlpha = clamp(activeFill.a + outlineMask * 0.10, 0.05, 0.98);

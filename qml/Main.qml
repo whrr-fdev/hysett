@@ -599,8 +599,8 @@ ApplicationWindow {
                                           : (Config ? Config.opacity : 0.85)
             Behavior on currentOpacity { enabled: pageController.currentIndex === 14; NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
             property color surfCol: Config ? Config.m3Surface : "#0e1015"
-            property color notifBgCol: (Theme && Theme.isRounded && Config) ? Config.m3SurfaceContainer : (Mako ? Mako.bgColor : surfCol)
-            property real notifAlpha: Mako ? Mako.bgOpacity : 0.90
+            property color notifBgCol: (root.drawerActive || (Theme && Theme.isRounded && Config)) ? surfCol : (Mako ? Mako.bgColor : surfCol)
+            property real notifAlpha: root.drawerActive ? currentOpacity : (Mako ? Mako.bgOpacity : 0.90)
             property color outCol: (root.notifActive && Mako && Mako.popupCritical) ? Mako.criticalBorderColor : (Config ? Config.m3Outline : "#444854")
 
             property vector2d u_resolution: Qt.vector2d(width, height)

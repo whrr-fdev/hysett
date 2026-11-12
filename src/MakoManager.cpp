@@ -157,7 +157,7 @@ void MakoManager::load() {
         else if (k == "border-size") m_borderSize = std::clamp(v.toInt(), 0, 10);
         else if (k == "border-radius") m_borderRadius = std::clamp(v.toInt(), 0, 30);
         else if (k == "default-timeout" && !inCrit) { int t = v.toInt(); m_defaultTimeout = (t <= 0) ? 4500 : std::clamp(t, 1000, 30000); }
-        else if (k == "max-visible") m_maxVisible = std::clamp(v.toInt(), 1, 8);
+        else if (k == "max-visible") m_maxVisible = std::clamp(v.toInt(), 1, 10);
         else if (k == "icons") m_icons = (v == "1" || v == "true");
         else if (k == "background-color") parseHexRgba(v, m_bgColor, m_bgOpacity);
         else if (k == "text-color") { qreal d = 1.0; parseHexRgba(v, m_textColor, d); }
@@ -184,7 +184,7 @@ void MakoManager::setBorderSize(int v) { v = std::clamp(v, 0, 10); if (m_borderS
 void MakoManager::setBorderRadius(int v) { v = std::clamp(v, 0, 30); if (m_borderRadius != v) { m_borderRadius = v; emit changed(); save(); } }
 void MakoManager::setFontSize(int v) { v = std::clamp(v, 8, 20); if (m_fontSize != v) { m_fontSize = v; emit changed(); save(); } }
 void MakoManager::setDefaultTimeout(int v) { v = std::clamp(v, 1000, 30000); if (m_defaultTimeout != v) { m_defaultTimeout = v; emit changed(); save(); } }
-void MakoManager::setMaxVisible(int v) { v = std::clamp(v, 1, 8); if (m_maxVisible != v) { m_maxVisible = v; emit changed(); save(); } }
+void MakoManager::setMaxVisible(int v) { v = std::clamp(v, 1, 10); if (m_maxVisible != v) { m_maxVisible = v; emit changed(); emit popupChanged(); save(); } }
 void MakoManager::setIcons(bool v) { if (m_icons != v) { m_icons = v; emit changed(); save(); } }
 void MakoManager::setBgOpacity(qreal v) { v = std::clamp(v, 0.05, 1.0); if (!qFuzzyCompare(m_bgOpacity, v)) { m_bgOpacity = v; emit changed(); save(); } }
 void MakoManager::setBgColor(const QColor &v) { if (v.isValid() && m_bgColor != v) { m_bgColor = v; emit changed(); save(); } }

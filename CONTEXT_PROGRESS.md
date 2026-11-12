@@ -277,7 +277,7 @@
   - Зафиксировано выравнивание колонок в карточке «Активные подключения» во вкладке «Сеть и Интернет».
 
 ## Команда быстрого восстановления главного бэкапа
-`cd ~/hysett && cp -rf ~/.cache/hysett_final_backup/src ~/.cache/hysett_final_backup/qml ~/.cache/hysett_final_backup/scripts ~/.cache/hysett_final_backup/CMakeLists.txt ~/.cache/hysett_final_backup/README.md ~/.cache/hysett_final_backup/CONTEXT_PROGRESS.md ~/hysett/ && cp -f ~/.cache/hysett_final_backup/hyprland.lua ~/.config/hypr/hyprland.lua && cp -f ~/.cache/hysett_final_backup/sync_m3_windows.py ~/.config/hypr/scripts/sync_m3_windows.py && cmake --build build -j$(nproc) && pkill -x hysett; nohup ./build/hysett --daemon >/dev/null 2>&1 &`
+`cd ~/hysett && cp -rf ~/hysett/backups/hysett_final_backup/src ~/hysett/backups/hysett_final_backup/qml ~/hysett/backups/hysett_final_backup/scripts ~/hysett/backups/hysett_final_backup/CMakeLists.txt ~/hysett/backups/hysett_final_backup/README.md ~/hysett/backups/hysett_final_backup/CONTEXT_PROGRESS.md ~/hysett/ && cp -f ~/hysett/backups/hysett_final_backup/hyprland.lua ~/.config/hypr/hyprland.lua && cp -f ~/hysett/backups/hysett_final_backup/sync_m3_windows.py ~/.config/hypr/scripts/sync_m3_windows.py && cmake --build build -j$(nproc) && pkill -x hysett; nohup ./build/hysett --daemon >/dev/null 2>&1 &`
 
 ## Выполнено в Шаге 29 (Единая вкладка Время, Полировка UI, Пинг и Разделение БС / ЧС в VPN)
 - Единая вкладка «󱑂 Время» (`qml/views/TimerView.qml`, `idx: 22`, объединены Часы, Календарь, Таймер и Секундомер):

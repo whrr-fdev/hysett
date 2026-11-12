@@ -347,6 +347,8 @@ def load_state():
         "wl_sub_cache": {},
         "ping_cache": {},
         "country_cache": {},
+        "bl_groups_cache": [],
+        "cached_hint": "",
         "wl_servers": [],
         "frozen_sigs": [],
         "pinned_sigs": [],
@@ -1017,7 +1019,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
 
     # 2. После импортированных серверов добавляем публичные серверы обхода Чёрных списков
     if include_public_bl and not mark_wl_badges:
-        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=28, allow_network_probe=allow_network_probe)
+        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, country_cache, per_group_limit=25, allow_network_probe=allow_network_probe)
         groups.extend(bl_groups)
 
     # 3. Формируем умный "Авто-выбор (Импорт в приоритете)" на позиции 0 для Обычного VPN
@@ -1509,7 +1511,6 @@ def build_config(outbound, st, use_tun=False):
             "mtu": 1320,
             "auto_route": True,
             "strict_route": False,
-            "route_exclude_address": collect_outbound_exclude_cidrs(outbound, st),
             "stack": "gvisor"
         })
 
@@ -1556,7 +1557,7 @@ def build_config(outbound, st, use_tun=False):
         "log": {"level": st.get("log_level", "info")},
         "dns": {
             "servers": [
-                {"type": "udp", "tag": "dns-remote", "server": "1.1.1.1"},
+                {"type": "udp", "tag": "dns-remote", "server": "1.1.1.1", "detour": "proxy"},
                 {"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}
             ],
             "rules": dns_rules,
@@ -1711,12 +1712,22 @@ def set_desktop_proxy(enable):
     else:
         subprocess.run(["gsettings", "set", "org.gnome.system.proxy", "mode", "none"], stderr=subprocess.DEVNULL)
 
+def cleanup_stale_throne_rules():
+    try:
+        out = subprocess.check_output(["ip", "-4", "rule", "show"], text=True, stderr=subprocess.DEVNULL)
+        for ln in out.splitlines():
+            if "1651821031" in ln:
+                subprocess.run(["ip", "-4", "rule", "del", "lookup", "1651821031"], stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
 def stop_vpn(save_disabled=True):
     if save_disabled:
         st = load_state()
         st["vpn_enabled"] = False
         save_state(st)
     set_desktop_proxy(False)
+    cleanup_stale_throne_rules()
     subprocess.run(["pkill", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
     subprocess.run(["killall", "-q", "Throne", "throne", "ThroneCore", "hiddify", "HiddifyCli"], stderr=subprocess.DEVNULL)
     for _ in range(25):
@@ -1765,7 +1776,7 @@ def launch_singbox_process(sb_bin, cfg_path, append_log=False):
     )
     lf.close()
 
-def start_vpn():
+def start_vpn(fast_switch=False):
     wait_network_ready(5.0)
     st = load_state()
     st["vpn_enabled"] = True
@@ -1827,12 +1838,13 @@ def start_vpn():
             wait_port(2080, 3.0)
 
         set_desktop_proxy(not use_tun)
-        loc, cc = detect_live_location()
-        if loc:
-            st["server_name"] = loc
-            log_wl_msg(f"✓ Туннель активен, выходной узел: {loc}")
-            if not is_wl_active:
-                st["sub_server_name"] = loc
+        if not fast_switch:
+            loc, cc = detect_live_location()
+            if loc:
+                st["server_name"] = loc
+                log_wl_msg(f"✓ Туннель активен, выходной узел: {loc}")
+                if not is_wl_active:
+                    st["sub_server_name"] = loc
         save_state(st)
         return True
     else:
@@ -1902,8 +1914,12 @@ def dump_status_json():
 
     srv_names = wl_srv_names if st.get("whitelist_mode", False) else sub_srv_names
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]
-    blocked_d, ru_d, _, _ = load_bypass_routing_sets(st)
-    hint = f"Маршруты: {len(blocked_d)} в обход • {len(ru_d)} РФ напрямую"
+    hint = st.get("cached_hint", "")
+    if not hint:
+        blocked_d, ru_d, _, _ = load_bypass_routing_sets(st)
+        hint = f"Маршруты: {len(blocked_d)} в обход • {len(ru_d)} РФ напрямую"
+        st["cached_hint"] = hint
+        save_state(st)
     last_upd = st.get("last_updated", "")
     if not last_upd:
         upd_log = os.path.join(HYSETT_DIR, "bypass-lists/update.log")
@@ -2177,20 +2193,18 @@ if __name__ == "__main__":
         if len(sys.argv) > 2:
             idx = int(sys.argv[2])
             st = load_state()
-            st = sync_active_server_list(st, allow_network_probe=False)
             if st.get("whitelist_mode", False):
-                wl_srvs = st.get("wl_servers", [])
-                if 0 <= idx < len(wl_srvs):
-                    st["wl_selected_index"] = idx
+                st["wl_selected_index"] = idx
             else:
-                sub_srvs = st.get("sub_servers", [])
-                if 0 <= idx < len(sub_srvs):
-                    st["sub_selected_index"] = idx
+                st["sub_selected_index"] = idx
             st = sync_active_server_list(st, allow_network_probe=False)
             save_state(st)
+            dump_status_json()
             if st.get("vpn_enabled", False) and st.get("active_is_wl", False) == st.get("whitelist_mode", False):
-                restart_if_running()
-        dump_status_json()
+                if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0:
+                    start_vpn(fast_switch=True)
+        else:
+            dump_status_json()
     elif cmd == "set_ru":
         st = load_state()
         ru_on = (sys.argv[2] == "1")

@@ -7,6 +7,7 @@ import HySett
 Rectangle {
     id: bar
     property int currentIndex: 0
+    property int prevIndex: 0
     signal categorySelected(int index)
     signal returnToWelcome()
     readonly property bool isM3: Theme && Theme.isRounded
@@ -21,6 +22,60 @@ Rectangle {
     property var winObj: ApplicationWindow.window
     readonly property bool winMax: winObj ? (winObj.isSettingsMaximized || winObj.isWallpaperExpanded) : false
     property real sidebarSpringScale: 1.0
+
+    property real headerCascade: 1.0
+    property real closeCascade: 1.0
+    property real pillCascade: 1.0
+
+    SequentialAnimation {
+        id: headerCascadeAnim
+        PropertyAction { target: bar; property: "headerCascade"; value: 0.0 }
+        NumberAnimation { target: bar; property: "headerCascade"; from: 0.0; to: 1.0; duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.35 }
+    }
+
+    SequentialAnimation {
+        id: closeCascadeAnim
+        PropertyAction { target: bar; property: "closeCascade"; value: 0.0 }
+        PauseAnimation { id: closeCascadeDelay; duration: 240 }
+        NumberAnimation { target: bar; property: "closeCascade"; from: 0.0; to: 1.0; duration: 230; easing.type: Easing.OutBack; easing.overshoot: 1.35 }
+    }
+
+    SequentialAnimation {
+        id: pillCascadeAnim
+        PropertyAction { target: bar; property: "pillCascade"; value: 0.0 }
+        PauseAnimation { id: pillCascadeDelay; duration: 80 }
+        NumberAnimation { target: bar; property: "pillCascade"; from: 0.0; to: 1.0; duration: 220; easing.type: Easing.OutCubic }
+    }
+
+    function triggerStaircaseCascade() {
+        headerCascadeAnim.restart()
+        var step = 0
+        var activeDelay = 60
+        for (var i = 0; i < navRepeater.count; ++i) {
+            var it = navRepeater.itemAt(i)
+            if (it && it.isShown) {
+                step++
+                var d = Math.min(step * 15, 280)
+                if (it.tabIdx === bar.currentIndex) activeDelay = d
+                it.playCascade(d)
+            }
+        }
+        step++
+        var setDelay = Math.min(step * 15, 300)
+        if (bar.currentIndex === 17) activeDelay = setDelay
+        setBtn.playCascade(setDelay)
+        closeCascadeDelay.duration = Math.min((step + 1) * 15, 320)
+        closeCascadeAnim.restart()
+        pillCascadeDelay.duration = activeDelay
+        pillCascadeAnim.restart()
+    }
+
+    onCurrentIndexChanged: {
+        if (bar.prevIndex === 0 && bar.currentIndex > 0) {
+            triggerStaircaseCascade()
+        }
+        bar.prevIndex = bar.currentIndex
+    }
 
     SequentialAnimation {
         id: sidebarMaxSpringAnim
@@ -103,6 +158,7 @@ Rectangle {
         radius: bar.isM3 ? height / 2 : 0
         color: bar.isM3 && Config ? Config.m3SecondaryContainer : (Config ? Config.accentColor : "#ffffff")
         visible: bar.currentIndex === 17
+        opacity: bar.pillCascade
         y: mainColLayout.y + setBtn.y + (setBtn.height - height) * 0.5
     }
 
@@ -135,6 +191,7 @@ Rectangle {
             radius: bar.isM3 ? height / 2 : 0
             color: bar.isM3 && Config ? Config.m3SecondaryContainer : (Config ? Config.accentColor : "#ffffff")
             visible: bar.currentIndex > 0 && bar.currentIndex !== 17 && bar.activeBtnObj !== null && bar.activeBtnObj.opacity > 0.5
+            opacity: bar.pillCascade
             y: (bar.activeBtnObj && bar.activeBtnObj !== setBtn) ? (bar.activeBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - height) * 0.5) : 0
             Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             Behavior on radius { NumberAnimation { duration: 150 } }
@@ -156,6 +213,11 @@ Rectangle {
             implicitHeight: bar.isM3 ? 34 : 24
             flat: true
             clip: true
+            opacity: Math.min(1.0, bar.headerCascade * 1.25)
+            transform: Translate {
+                x: -12 * (1.0 - bar.headerCascade)
+                y: -12 * (1.0 - bar.headerCascade)
+            }
             background: Item {}
             contentItem: Item {
                 anchors.fill: parent
@@ -329,11 +391,15 @@ Rectangle {
             Layout.preferredHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
             Layout.maximumHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
             implicitHeight: isCloseShown ? (bar.isM3 ? 30 : 24) : 0
-            opacity: isCloseShown ? 1.0 : 0.0
+            opacity: isCloseShown ? Math.min(1.0, bar.closeCascade * 1.25) : 0.0
             visible: Layout.preferredHeight > 0.5 || opacity > 0.01
             enabled: isCloseShown
             clip: true
             flat: true
+            transform: Translate {
+                x: -12 * (1.0 - bar.closeCascade)
+                y: -12 * (1.0 - bar.closeCascade)
+            }
             onClicked: if (ApplicationWindow.window) ApplicationWindow.window.requestCloseDrawer()
 
             contentItem: Item {

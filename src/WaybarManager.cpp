@@ -1854,6 +1854,23 @@ void WaybarManager::removeVpnSubUrl(int idx) {
 }
 
 void WaybarManager::selectVpnServer(int idx) {
+    // Мгновенное переключение выделения в UI за 0 мс без ожидания перезапуска sing-box
+    m_vpnSelectedServer = idx;
+    if (m_vpnWhitelistMode) {
+        m_vpnWlSelectedServer = idx;
+        if (idx >= 0 && idx < m_vpnWlServers.size()) {
+            m_vpnWlServerName = m_vpnWlServers[idx];
+            if (m_vpnActiveIsWl) m_vpnServerName = m_vpnWlServerName;
+        }
+    } else {
+        m_vpnSubSelectedServer = idx;
+        if (idx >= 0 && idx < m_vpnSubServers.size()) {
+            m_vpnSubServerName = m_vpnSubServers[idx];
+            if (!m_vpnActiveIsWl) m_vpnServerName = m_vpnSubServerName;
+        }
+    }
+    emit sysStatsChanged();
+
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {

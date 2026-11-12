@@ -860,7 +860,7 @@ ApplicationWindow {
                                     id: wsRow; z: 1; visible: !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
                                         id: wsRep
-                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces.length : 0
                                         delegate: Rectangle {
                                             readonly property bool isFirst: index === 0
                                             readonly property bool isLast: index === wsRep.count - 1
@@ -909,32 +909,39 @@ ApplicationWindow {
                                     bottomLeftRadius: isFirst ? wsModuleItem.outerR : wsModuleItem.innerR
                                     topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                     bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
+                                    Behavior on topLeftRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                    Behavior on bottomLeftRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                    Behavior on topRightRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                    Behavior on bottomRightRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                     color: Config ? Config.m3Primary : "#ffffff"
                                     x: wsRow.x + wsModuleItem.activeWsIdx * wsModuleItem.wsStep
                                     Behavior on x { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                 }
 
-                                // Режим 1: Номера (1..5)
+                                // Режим 1: Номера (1..5) — делегаты не пересоздаются при смене стола
                                 Row {
                                     z: 4; visible: !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
-                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces.length : 0
                                         delegate: Item {
-                                            property bool act: modelData.active === true
-                                            property bool occ: (modelData.windows || 0) > 0
+                                            readonly property var wsItem: (Waybar && index < Waybar.workspaces.length)
+                                                                          ? Waybar.workspaces[index]
+                                                                          : ({ id: index + 1, active: false, windows: 0 })
+                                            property bool act: wsItem.active === true
+                                            property bool occ: (wsItem.windows || 0) > 0
                                             property bool hov: wsNumMa.containsMouse
                                             width: wsModuleItem.wsBtnW
                                             height: topBarContainer.pillHeight
 
                                             Text {
                                                 anchors.centerIn: parent
-                                                text: modelData.id
+                                                text: parent.wsItem.id
                                                 font.pixelSize: 11
                                                 font.bold: parent.act || parent.hov
                                                 color: parent.act
                                                        ? (Config ? Config.accentTextColor : "#000000")
                                                        : (parent.hov ? "#ffffff" : (parent.occ ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff") : "#7c8292"))
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on color { ColorAnimation { duration: 180 } }
                                             }
 
                                             MouseArea {
@@ -945,13 +952,13 @@ ApplicationWindow {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
                                                 onExited: { if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1 }
-                                                onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                                onClicked: if (Waybar) Waybar.switchWorkspace(parent.wsItem.id)
                                             }
                                         }
                                     }
                                 }
 
-                                // Режим 2: Компактные кнопочки (точки), которые плавно растягиваются при активации и только меняют цвет при наведении
+                                // Режим 2: Компактные кнопочки (точки) — делегаты живые, плавно растягиваются и меняют цвет
                                 Row {
                                     id: wsDotsRow
                                     z: 4
@@ -961,11 +968,14 @@ ApplicationWindow {
 
                                     Repeater {
                                         id: wsDotsRep
-                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces : []
+                                        model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces.length : 0
                                         delegate: Item {
                                             id: dotSlot
-                                            property bool act: modelData.active === true
-                                            property bool occ: (modelData.windows || 0) > 0
+                                            readonly property var wsItem: (Waybar && index < Waybar.workspaces.length)
+                                                                          ? Waybar.workspaces[index]
+                                                                          : ({ id: index + 1, active: false, windows: 0 })
+                                            property bool act: wsItem.active === true
+                                            property bool occ: (wsItem.windows || 0) > 0
                                             property bool hov: wsDotMa.containsMouse
                                             width: dotRect.width
                                             height: topBarContainer.pillHeight
@@ -973,22 +983,22 @@ ApplicationWindow {
                                             Rectangle {
                                                 id: dotRect
                                                 anchors.centerIn: parent
-                                                width: parent.act ? 16 : 6
+                                                width: parent.act ? 18 : 6
                                                 height: 6
                                                 radius: (Theme && Theme.isRounded) ? 3 : 1
                                                 color: parent.act
                                                        ? (Config ? Config.m3Primary : "#ffffff")
                                                        : (parent.hov
                                                           ? (Theme && Theme.isRounded && Config
-                                                             ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.78)
+                                                             ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.80)
                                                              : Qt.rgba(1, 1, 1, 0.85))
                                                           : (parent.occ
                                                              ? (Theme && Theme.isRounded && Config
                                                                 ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.65)
                                                                 : Qt.rgba(1, 1, 1, 0.65))
                                                              : Qt.rgba(1, 1, 1, 0.25)))
-                                                Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
-                                                Behavior on color { ColorAnimation { duration: 150 } }
+                                                Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                                                Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                             }
 
                                             MouseArea {
@@ -1001,7 +1011,7 @@ ApplicationWindow {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onEntered: { wsModuleItem.lastHoverIdx = index; wsModuleItem.hoveredWsIdx = index }
                                                 onExited: { if (wsModuleItem.hoveredWsIdx === index) wsModuleItem.hoveredWsIdx = -1 }
-                                                onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                                onClicked: if (Waybar) Waybar.switchWorkspace(parent.wsItem.id)
                                             }
                                         }
                                     }
@@ -1777,7 +1787,7 @@ ApplicationWindow {
                             id: vWsCol; z: 1; visible: !vWsBox.isDots; anchors.centerIn: parent; spacing: vWsBox.gap
                             Repeater {
                                 id: vWsRep
-                                model: Waybar ? Waybar.workspaces : []
+                                model: Waybar ? Waybar.workspaces.length : 0
                                 delegate: Rectangle {
                                     readonly property bool isFirst: index === 0
                                     readonly property bool isLast: index === vWsRep.count - 1
@@ -1820,6 +1830,10 @@ ApplicationWindow {
                             topRightRadius: isFirst ? vWsBox.outerR : vWsBox.innerR
                             bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
                             bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
+                            Behavior on topLeftRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                            Behavior on topRightRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                            Behavior on bottomLeftRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                            Behavior on bottomRightRadius { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                             color: Config ? Config.m3Primary : "#ffffff"
                             y: vWsBox.activeIdx * vWsBox.step
                             Behavior on y { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
@@ -1828,21 +1842,25 @@ ApplicationWindow {
                         Column {
                             z: 4; visible: !vWsBox.isDots; anchors.centerIn: parent; spacing: vWsBox.gap
                             Repeater {
-                                model: Waybar ? Waybar.workspaces : []
+                                model: Waybar ? Waybar.workspaces.length : 0
                                 delegate: Item {
-                                    property bool act: modelData.active === true
-                                    property bool occ: (modelData.windows || 0) > 0
+                                    readonly property var wsItem: (Waybar && index < Waybar.workspaces.length)
+                                                                  ? Waybar.workspaces[index]
+                                                                  : ({ id: index + 1, active: false, windows: 0 })
+                                    property bool act: wsItem.active === true
+                                    property bool occ: (wsItem.windows || 0) > 0
                                     property bool hov: vWsMa.containsMouse
                                     width: topBarContainer.pillHeight; height: vWsBox.btnH
                                     Text {
-                                        anchors.centerIn: parent; text: modelData.id; font.pixelSize: 11; font.bold: parent.act || parent.hov
+                                        anchors.centerIn: parent; text: parent.wsItem.id; font.pixelSize: 11; font.bold: parent.act || parent.hov
                                         color: parent.act ? (Config ? Config.accentTextColor : "#000000") : (parent.hov ? "#ffffff" : (parent.occ ? (Theme && Theme.isRounded && Config ? Config.m3OnPrimaryContainer : "#ffffff") : "#7c8292"))
+                                        Behavior on color { ColorAnimation { duration: 180 } }
                                     }
                                     MouseArea {
                                         id: vWsMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onEntered: { vWsBox.lastHoverIdx = index; vWsBox.hoveredIdx = index }
                                         onExited: if (vWsBox.hoveredIdx === index) vWsBox.hoveredIdx = -1
-                                        onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                        onClicked: if (Waybar) Waybar.switchWorkspace(parent.wsItem.id)
                                     }
                                 }
                             }
@@ -1856,10 +1874,13 @@ ApplicationWindow {
                             spacing: 4
                             Repeater {
                                 id: vWsDotsRep
-                                model: Waybar ? Waybar.workspaces : []
+                                model: Waybar ? Waybar.workspaces.length : 0
                                 delegate: Item {
-                                    property bool act: modelData.active === true
-                                    property bool occ: (modelData.windows || 0) > 0
+                                    readonly property var wsItem: (Waybar && index < Waybar.workspaces.length)
+                                                                  ? Waybar.workspaces[index]
+                                                                  : ({ id: index + 1, active: false, windows: 0 })
+                                    property bool act: wsItem.active === true
+                                    property bool occ: (wsItem.windows || 0) > 0
                                     property bool hov: vWsDotMa.containsMouse
                                     width: topBarContainer.pillHeight
                                     height: vDotRect.height
@@ -1868,28 +1889,28 @@ ApplicationWindow {
                                         id: vDotRect
                                         anchors.centerIn: parent
                                         width: 6
-                                        height: parent.act ? 16 : 6
+                                        height: parent.act ? 18 : 6
                                         radius: (Theme && Theme.isRounded) ? 3 : 1
                                         color: parent.act
                                                ? (Config ? Config.m3Primary : "#ffffff")
                                                : (parent.hov
                                                   ? (Theme && Theme.isRounded && Config
-                                                     ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.78)
+                                                     ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.80)
                                                      : Qt.rgba(1, 1, 1, 0.85))
                                                   : (parent.occ
                                                      ? (Theme && Theme.isRounded && Config
                                                         ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.65)
                                                         : Qt.rgba(1, 1, 1, 0.65))
                                                      : Qt.rgba(1, 1, 1, 0.25)))
-                                        Behavior on height { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
-                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                        Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                                        Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     }
 
                                     MouseArea {
                                         id: vWsDotMa; anchors.fill: parent; anchors.topMargin: -2; anchors.bottomMargin: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                         onEntered: { vWsBox.lastHoverIdx = index; vWsBox.hoveredIdx = index }
                                         onExited: if (vWsBox.hoveredIdx === index) vWsBox.hoveredIdx = -1
-                                        onClicked: if (Waybar) Waybar.switchWorkspace(modelData.id)
+                                        onClicked: if (Waybar) Waybar.switchWorkspace(parent.wsItem.id)
                                     }
                                 }
                             }

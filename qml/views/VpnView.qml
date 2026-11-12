@@ -766,20 +766,11 @@ ScrollView {
                                         onTriggered: urlsBlurBox.isHovering = false
                                     }
 
-                                    layer.enabled: vpnScroll.hideSubLinks
-                                    layer.smooth: true
-                                    layer.effect: ShaderEffect {
-                                        property var source: urlsBlurBox
-                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, urlsBlurBox.width), Math.max(1, urlsBlurBox.height))
-                                        property real u_blur: 0.92
-                                        fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
-                                    }
-
                                     Rectangle {
                                         z: 1
                                         opacity: urlsBlurBox.isHovering ? 1.0 : 0.0
                                         x: 0; y: urlsBlurBox.hovY
-                                        width: urlsBlurBox.width; height: 32
+                                        width: urlsBlurBox.width; height: 34
                                         radius: vpnScroll.isM3 ? 8 : 0
                                         color: vpnScroll.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.10)
                                         Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
@@ -795,10 +786,13 @@ ScrollView {
                                             delegate: Rectangle {
                                                 id: subRowItem
                                                 visible: vpnScroll.activeSubTab === 0 || vpnScroll.activeSubTab === (index + 1)
-                                                Layout.fillWidth: true; implicitHeight: 32
+                                                Layout.fillWidth: true; implicitHeight: 34
                                                 radius: vpnScroll.isM3 ? 8 : 0
-                                                color: Qt.rgba(1, 1, 1, 0.03)
+                                                color: vpnScroll.isM3 && Config
+                                                       ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.28)
+                                                       : Qt.rgba(1, 1, 1, 0.03)
                                                 border.color: Qt.rgba(1, 1, 1, 0.12); border.width: 1
+                                                clip: true
 
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton
@@ -811,17 +805,52 @@ ScrollView {
                                                 }
 
                                                 RowLayout {
-                                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
-                                                    Text {
-                                                        text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
-                                                        color: "#ffffff"; font.pixelSize: 10
-                                                        Layout.fillWidth: true; elide: Text.ElideMiddle
+                                                    anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 8
+
+                                                    Item {
+                                                        id: subUrlBlurWrap
+                                                        Layout.fillWidth: true
+                                                        Layout.preferredHeight: 24
+                                                        layer.enabled: vpnScroll.hideSubLinks
+                                                        layer.smooth: true
+                                                        layer.textureSize: Qt.size(Math.max(1, Math.round(width * 0.22)), Math.max(1, Math.round(height * 0.35)))
+                                                        layer.effect: ShaderEffect {
+                                                            property var source: subUrlBlurWrap
+                                                            property vector2d u_resolution: Qt.vector2d(Math.max(1, subUrlBlurWrap.width * 0.22), Math.max(1, subUrlBlurWrap.height * 0.35))
+                                                            property real u_blur: 0.45
+                                                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                                                        }
+
+                                                        Text {
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            width: parent.width
+                                                            text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
+                                                            color: "#ffffff"; font.pixelSize: 10
+                                                            elide: Text.ElideMiddle
+                                                        }
                                                     }
+
+                                                    Rectangle {
+                                                        visible: (modelData.ping || "").length > 0
+                                                        width: subPingBadgeTxt.implicitWidth + 12
+                                                        height: 22
+                                                        radius: vpnScroll.isM3 ? 6 : 0
+                                                        color: Qt.rgba(0.4, 0.95, 0.68, 0.16)
+                                                        Text {
+                                                            id: subPingBadgeTxt
+                                                            anchors.centerIn: parent
+                                                            text: modelData.ping || ""
+                                                            font.pixelSize: Config.fontSize - 2
+                                                            font.bold: true
+                                                            font.features: { "tnum": 1 }
+                                                            color: "#69f0ae"
+                                                        }
+                                                    }
+
                                                     StyledButton {
                                                         text: vpnScroll.copiedSubIdx === index ? "󰄬 Скопировано" : "󰆏 Копировать"
                                                         implicitHeight: 22
                                                         isActive: vpnScroll.copiedSubIdx === index
-                                                        enabled: !vpnScroll.hideSubLinks
                                                         onClicked: {
                                                             if (Waybar) {
                                                                 var safeUrl = modelData.url.replace(/'/g, "'\\''");
@@ -834,7 +863,6 @@ ScrollView {
                                                     StyledButton {
                                                         text: "󰅖 Удалить"
                                                         implicitHeight: 22
-                                                        enabled: !vpnScroll.hideSubLinks
                                                         onClicked: {
                                                             if (Waybar) {
                                                                 vpnScroll.activeSubTab = 0;
@@ -1003,6 +1031,24 @@ ScrollView {
                                                     font.pixelSize: Config.fontSize
                                                     font.bold: isSel
                                                     Layout.fillWidth: true; elide: Text.ElideRight
+                                                }
+
+                                                Rectangle {
+                                                    readonly property string pingLbl: modelData.ping || parsed.ping || ""
+                                                    visible: !isFrz && pingLbl.length > 0
+                                                    width: normSrvPingTxt.implicitWidth + 10
+                                                    height: 20
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(0.4, 0.95, 0.68, 0.16)
+                                                    Text {
+                                                        id: normSrvPingTxt
+                                                        anchors.centerIn: parent
+                                                        text: parent.pingLbl
+                                                        font.pixelSize: Config.fontSize - 2
+                                                        font.bold: true
+                                                        font.features: { "tnum": 1 }
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
+                                                    }
                                                 }
 
                                                 StyledButton {
@@ -1338,20 +1384,11 @@ ScrollView {
                                         onTriggered: wlSubsBlurBox.isHovering = false
                                     }
 
-                                    layer.enabled: vpnScroll.hideSubLinks
-                                    layer.smooth: true
-                                    layer.effect: ShaderEffect {
-                                        property var source: wlSubsBlurBox
-                                        property vector2d u_resolution: Qt.vector2d(Math.max(1, wlSubsBlurBox.width), Math.max(1, wlSubsBlurBox.height))
-                                        property real u_blur: 0.92
-                                        fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
-                                    }
-
                                     Rectangle {
                                         z: 1
                                         opacity: wlSubsBlurBox.isHovering ? 1.0 : 0.0
                                         x: 0; y: wlSubsBlurBox.hovY
-                                        width: wlSubsBlurBox.width; height: 32
+                                        width: wlSubsBlurBox.width; height: 34
                                         radius: vpnScroll.isM3 ? 8 : 0
                                         color: vpnScroll.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.10)
                                         Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
@@ -1366,10 +1403,13 @@ ScrollView {
                                             model: Waybar ? Waybar.vpnWlSubGroups : []
                                             delegate: Rectangle {
                                                 id: wlSubRowItem
-                                                Layout.fillWidth: true; implicitHeight: 32
+                                                Layout.fillWidth: true; implicitHeight: 34
                                                 radius: vpnScroll.isM3 ? 8 : 0
-                                                color: Qt.rgba(1, 1, 1, 0.03)
+                                                color: vpnScroll.isM3 && Config
+                                                       ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.28)
+                                                       : Qt.rgba(1, 1, 1, 0.03)
                                                 border.color: Qt.rgba(1, 1, 1, 0.14); border.width: 1
+                                                clip: true
 
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.NoButton
@@ -1382,17 +1422,52 @@ ScrollView {
                                                 }
 
                                                 RowLayout {
-                                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; spacing: 6
-                                                    Text {
-                                                        text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
-                                                        color: "#ffffff"; font.pixelSize: 10; font.bold: true
-                                                        Layout.fillWidth: true; elide: Text.ElideMiddle
+                                                    anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 8; spacing: 8
+
+                                                    Item {
+                                                        id: wlUrlBlurWrap
+                                                        Layout.fillWidth: true
+                                                        Layout.preferredHeight: 24
+                                                        layer.enabled: vpnScroll.hideSubLinks
+                                                        layer.smooth: true
+                                                        layer.textureSize: Qt.size(Math.max(1, Math.round(width * 0.22)), Math.max(1, Math.round(height * 0.35)))
+                                                        layer.effect: ShaderEffect {
+                                                            property var source: wlUrlBlurWrap
+                                                            property vector2d u_resolution: Qt.vector2d(Math.max(1, wlUrlBlurWrap.width * 0.22), Math.max(1, wlUrlBlurWrap.height * 0.35))
+                                                            property real u_blur: 0.45
+                                                            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+                                                        }
+
+                                                        Text {
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                            width: parent.width
+                                                            text: modelData.title + " • " + modelData.count + " серв. • " + modelData.url
+                                                            color: "#ffffff"; font.pixelSize: 10; font.bold: true
+                                                            elide: Text.ElideMiddle
+                                                        }
                                                     }
+
+                                                    Rectangle {
+                                                        visible: (modelData.ping || "").length > 0
+                                                        width: wlSubPingBadgeTxt.implicitWidth + 12
+                                                        height: 22
+                                                        radius: vpnScroll.isM3 ? 6 : 0
+                                                        color: Qt.rgba(0.4, 0.95, 0.68, 0.16)
+                                                        Text {
+                                                            id: wlSubPingBadgeTxt
+                                                            anchors.centerIn: parent
+                                                            text: modelData.ping || ""
+                                                            font.pixelSize: Config.fontSize - 2
+                                                            font.bold: true
+                                                            font.features: { "tnum": 1 }
+                                                            color: "#69f0ae"
+                                                        }
+                                                    }
+
                                                     StyledButton {
                                                         text: vpnScroll.copiedWlSubIdx === index ? "󰄬 Скопировано" : "󰆏 Копировать"
                                                         implicitHeight: 22
                                                         isActive: vpnScroll.copiedWlSubIdx === index
-                                                        enabled: !vpnScroll.hideSubLinks
                                                         onClicked: {
                                                             if (Waybar) {
                                                                 var safeUrl = modelData.url.replace(/'/g, "'\\''");
@@ -1405,7 +1480,6 @@ ScrollView {
                                                     StyledButton {
                                                         text: "󰅖 Удалить"
                                                         implicitHeight: 22
-                                                        enabled: !vpnScroll.hideSubLinks
                                                         onClicked: if (Waybar) Waybar.removeVpnWlSubUrl(index)
                                                     }
                                                 }
@@ -1581,23 +1655,6 @@ ScrollView {
                                                     }
                                                 }
 
-                                                Rectangle {
-                                                    visible: !isFrz && parsed.ping.length > 0
-                                                    width: pingTxt.implicitWidth + 10
-                                                    height: 18
-                                                    radius: vpnScroll.isM3 ? 5 : 0
-                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(0.4, 0.95, 0.68, 0.16)
-
-                                                    Text {
-                                                        id: pingTxt
-                                                        anchors.centerIn: parent
-                                                        text: parsed.ping
-                                                        font.pixelSize: Config.fontSize - 2
-                                                        font.bold: true
-                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
-                                                    }
-                                                }
-
                                                 Text {
                                                     text: parsed.title
                                                     color: isSel
@@ -1606,6 +1663,25 @@ ScrollView {
                                                     font.pixelSize: Config.fontSize
                                                     font.bold: isSel
                                                     Layout.fillWidth: true; elide: Text.ElideRight
+                                                }
+
+                                                Rectangle {
+                                                    readonly property string pingLbl: modelData.ping || parsed.ping || ""
+                                                    visible: !isFrz && pingLbl.length > 0
+                                                    width: pingTxt.implicitWidth + 10
+                                                    height: 20
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: isSel ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(0.4, 0.95, 0.68, 0.16)
+
+                                                    Text {
+                                                        id: pingTxt
+                                                        anchors.centerIn: parent
+                                                        text: parent.pingLbl
+                                                        font.pixelSize: Config.fontSize - 2
+                                                        font.bold: true
+                                                        font.features: { "tnum": 1 }
+                                                        color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
+                                                    }
                                                 }
 
                                                 StyledButton {

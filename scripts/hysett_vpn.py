@@ -574,6 +574,49 @@ def fetch_single_url(u):
             print(f"Fetch error ({u}): {e}", file=sys.stderr)
     return "", []
 
+def quick_host_ping_ms(host, port=443, timeout=0.55):
+    if not host:
+        return None
+    t0 = time.monotonic()
+    try:
+        with socket.create_connection((host, int(port or 443)), timeout=timeout):
+            return max(1, int((time.monotonic() - t0) * 1000))
+    except Exception:
+        return None
+
+def ensure_sub_cache_pings(cache_dict):
+    changed = False
+    tasks = []
+    for u, entry in cache_dict.items():
+        if isinstance(entry, dict):
+            for s in entry.get("servers", []):
+                if "ping_ms" not in s and isinstance(s.get("outbound"), dict):
+                    tasks.append(s)
+    if tasks:
+        with ThreadPoolExecutor(max_workers=16) as ex:
+            futs = {
+                ex.submit(
+                    quick_host_ping_ms,
+                    s["outbound"].get("server", ""),
+                    s["outbound"].get("server_port", 443),
+                    0.55
+                ): s for s in tasks[:32]
+            }
+            for f in as_completed(futs):
+                s_item = futs[f]
+                ms = f.result()
+                s_item["ping_ms"] = ms if ms is not None else 0
+                changed = True
+    return changed
+
+def extract_ping_str(name_str, ping_ms=0):
+    if isinstance(ping_ms, int) and ping_ms > 0:
+        return f"{ping_ms} мс"
+    parts = [p.strip() for p in (name_str or "").split(" • ") if p.strip()]
+    if parts and parts[0].endswith("мс"):
+        return parts[0]
+    return ""
+
 def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False, pinned_set=None):
     if pinned_set is None:
         pinned_set = set()
@@ -590,22 +633,28 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             title = short_sub_title(u, idx, entry.get("title", ""))
         start_idx = len(all_srvs)
         group_srv_names = []
+        best_group_ms = None
         for s in srvs:
             nm = clean_server_title(s.get("name", "Сервер"))
             ob = s.get("outbound", {})
             uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
             sig = server_sig(ob)
+            p_ms = int(s.get("ping_ms") or 0)
+            if p_ms > 0 and (best_group_ms is None or p_ms < best_group_ms):
+                best_group_ms = p_ms
+            p_str = extract_ping_str(nm, p_ms)
             is_frz = (sig in frozen_set) if sig else False
             is_pin = (sig in pinned_set) if sig else False
             if mark_wl_badges and ob:
                 badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
                 nm = f"{badge} • {nm}"
-            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "frozen": is_frz, "pinned": is_pin, "sub_index": idx}
+            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "ping": p_str, "ping_ms": p_ms, "frozen": is_frz, "pinned": is_pin, "sub_index": idx}
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm,
                 "uri": uri,
                 "sig": sig,
+                "ping": p_str,
                 "frozen": is_frz,
                 "pinned": is_pin,
                 "global_index": len(all_srvs) - 1
@@ -614,6 +663,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             "index": idx,
             "title": title,
             "url": u,
+            "ping": f"{best_group_ms} мс" if best_group_ms else "",
             "count": len(srvs),
             "start_index": start_idx,
             "servers": group_srv_names
@@ -1195,6 +1245,7 @@ def fetch_subscriptions(is_wl=False, only_url=None):
         if k not in urls:
             del cache[k]
 
+    ensure_sub_cache_pings(cache)
     st[cache_key] = cache
     if is_wl and st.get("whitelist_file") == "my_wl_subs":
         st["wl_servers"] = load_whitelist_servers(st, "my_wl_subs")
@@ -1353,6 +1404,8 @@ def start_vpn():
 
 def dump_status_json():
     st = load_state()
+    c1 = ensure_sub_cache_pings(st.get("sub_cache", {}))
+    c2 = ensure_sub_cache_pings(st.get("wl_sub_cache", {}))
     st = sync_active_server_list(st)
     save_state(st)
     frozen_set = set(st.get("frozen_sigs", []))
@@ -1369,10 +1422,11 @@ def dump_status_json():
         ob = s.get("outbound", {})
         uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
         sig = s.get("sig", "") or server_sig(ob)
+        p_str = s.get("ping") or extract_ping_str(nm, int(s.get("ping_ms") or 0))
         frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
         pin = bool(s.get("pinned", False) or (sig and sig in pinned_set))
         sub_srv_names.append(nm)
-        sub_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "pinned": pin, "global_index": i})
+        sub_srv_items.append({"name": nm, "uri": uri, "sig": sig, "ping": p_str, "frozen": frz, "pinned": pin, "global_index": i})
 
     wl_srv_names = []
     wl_srv_items = []
@@ -1381,10 +1435,11 @@ def dump_status_json():
         ob = s.get("outbound", {})
         uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
         sig = s.get("sig", "") or server_sig(ob)
+        p_str = s.get("ping") or extract_ping_str(nm, int(s.get("ping_ms") or 0))
         frz = bool(s.get("frozen", False) or (sig and sig in frozen_set))
         pin = bool(s.get("pinned", False) or (sig and sig in pinned_set))
         wl_srv_names.append(nm)
-        wl_srv_items.append({"name": nm, "uri": uri, "sig": sig, "frozen": frz, "pinned": pin, "global_index": i})
+        wl_srv_items.append({"name": nm, "uri": uri, "sig": sig, "ping": p_str, "frozen": frz, "pinned": pin, "global_index": i})
 
     srv_names = wl_srv_names if st.get("whitelist_mode", False) else sub_srv_names
     wl_files = [{"key": k, "label": lbl} for k, lbl, _ in WHITELIST_SOURCES]

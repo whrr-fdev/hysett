@@ -14,13 +14,14 @@ ScrollView {
     property int activeSubTab: 0
     readonly property bool isM3: Theme && Theme.isRounded
 
-    // Мгновенное переключение вкладок в 0 мс без ожидания Python-скрипта
     property bool viewWlMode: Waybar ? Waybar.vpnWhitelistMode : false
     readonly property bool isWlMode: viewWlMode
     property real modeSlideProgress: viewWlMode ? 1.0 : 0.0
     Behavior on modeSlideProgress { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
 
-    // Независимые состояния активности для каждой вкладки
+    readonly property bool normalScreenVis: modeSlideProgress < 0.999
+    readonly property bool wlScreenVis: modeSlideProgress > 0.001
+
     readonly property bool normalVpnOn: Waybar ? (Waybar.vpnActive && !Waybar.vpnActiveIsWl) : false
     readonly property bool wlVpnOn: Waybar ? (Waybar.vpnActive && Waybar.vpnActiveIsWl) : false
 
@@ -67,6 +68,8 @@ ScrollView {
     }
 
     component VpnLogsCard: GlassPanel {
+        id: logsCardRoot
+        property bool activeScreen: true
         objectName: "atmoObstacle"
         Layout.fillWidth: true
         implicitHeight: logsInnerCol.implicitHeight + 28
@@ -186,7 +189,6 @@ ScrollView {
                 }
             }
 
-            // Плавный Flickable + TextEdit (не сбрасывает позицию при обновлении текста и не дергается!)
             Rectangle {
                 readonly property int boxH: Waybar ? Waybar.vpnLogHeight : 160
                 Layout.fillWidth: true
@@ -210,6 +212,21 @@ ScrollView {
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                     property real targetY: 0
+                    property real stableWrapW: 780
+
+                    Timer {
+                        id: wrapWidthDebounce
+                        interval: 220
+                        onTriggered: if (logFlick.width > 60) logFlick.stableWrapW = Math.round(logFlick.width - 10)
+                    }
+
+                    onWidthChanged: {
+                        if (Math.abs(width - 10 - stableWrapW) > 260 && stableWrapW === 780 && width > 60) {
+                            stableWrapW = Math.round(width - 10)
+                        } else {
+                            wrapWidthDebounce.restart()
+                        }
+                    }
 
                     NumberAnimation {
                         id: smoothLogAnim
@@ -230,7 +247,7 @@ ScrollView {
                     }
 
                     onContentHeightChanged: {
-                        if (Waybar && Waybar.vpnLogAutoScroll) {
+                        if (Waybar && Waybar.vpnLogAutoScroll && !wrapWidthDebounce.running) {
                             var maxY = Math.max(0, logFlick.contentHeight - logFlick.height)
                             if (!smoothLogAnim.running) {
                                 logFlick.contentY = maxY
@@ -251,7 +268,6 @@ ScrollView {
                             var base = smoothLogAnim.running ? logFlick.targetY : logFlick.contentY
                             var nextY = Math.max(0, Math.min(maxY, base - step))
 
-                            // Если пользователь крутит наверх — выключаем автопрокрутку, чтобы она не тянула обратно вниз!
                             if (step > 0 && Waybar && Waybar.vpnLogAutoScroll && (maxY - nextY > 24)) {
                                 Waybar.vpnLogAutoScroll = false
                             } else if (step < 0 && Waybar && !Waybar.vpnLogAutoScroll && (maxY - nextY <= 8)) {
@@ -269,7 +285,7 @@ ScrollView {
 
                     TextEdit {
                         id: logEdit
-                        width: logFlick.width - 10
+                        width: logFlick.stableWrapW
                         readOnly: true
                         selectByMouse: true
                         textFormat: TextEdit.PlainText
@@ -277,7 +293,7 @@ ScrollView {
                         font.family: "monospace"
                         font.pixelSize: 10
                         color: "#cccccc"
-                        text: Waybar ? Waybar.vpnLogHtml : ""
+                        text: (vpnScroll.visible && logsCardRoot.activeScreen && Waybar) ? Waybar.vpnLogHtml : ""
                     }
                 }
             }
@@ -441,7 +457,6 @@ ScrollView {
                 }
             }
 
-            // Мгновенное переключение слайдера (0 мс)
             SegmentedButton {
                 Layout.fillWidth: true
                 implicitHeight: 34
@@ -476,6 +491,7 @@ ScrollView {
                 Item {
                     width: fullPageSlider.width
                     implicitHeight: normalFullCol.implicitHeight
+                    visible: vpnScroll.normalScreenVis
 
                     ColumnLayout {
                         id: normalFullCol
@@ -642,27 +658,6 @@ ScrollView {
                                     }
 
                                     Flow {
-                                        z: 1
-                                        width: parent.width; spacing: 5
-                                        Rectangle {
-                                            width: allSubTabBtn.width; height: 28
-                                            radius: vpnScroll.isM3 ? 8 : 0
-                                            color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
-                                            border.color: Qt.rgba(1, 1, 1, 0.16); border.width: vpnScroll.isM3 ? 0 : 1
-                                        }
-                                        Repeater {
-                                            model: Waybar ? Waybar.vpnSubGroups : []
-                                            delegate: Rectangle {
-                                                width: oneSubTabRepeater.itemAt(index) ? oneSubTabRepeater.itemAt(index).width : 100
-                                                height: 28
-                                                radius: vpnScroll.isM3 ? 8 : 0
-                                                color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
-                                                border.color: Qt.rgba(1, 1, 1, 0.16); border.width: vpnScroll.isM3 ? 0 : 1
-                                            }
-                                        }
-                                    }
-
-                                    Flow {
                                         id: subTabFlow
                                         z: 4; width: parent.width; spacing: 5
 
@@ -671,6 +666,14 @@ ScrollView {
                                             width: allSubTabTxt.implicitWidth + 24; height: 28
                                             property bool isSel: vpnScroll.activeSubTab === 0
                                             onIsSelChanged: if (isSel) subTabBar.activeItem = allSubTabBtn
+
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                z: -1
+                                                radius: vpnScroll.isM3 ? 8 : 0
+                                                color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
+                                                border.color: Qt.rgba(1, 1, 1, 0.16); border.width: vpnScroll.isM3 ? 0 : 1
+                                            }
 
                                             Text {
                                                 id: allSubTabTxt; anchors.centerIn: parent
@@ -702,6 +705,14 @@ ScrollView {
                                                 width: oneSubTabTxt.implicitWidth + 24; height: 28
                                                 property bool isSel: vpnScroll.activeSubTab === (index + 1)
                                                 onIsSelChanged: if (isSel) subTabBar.activeItem = oneSubTabBtn
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    z: -1
+                                                    radius: vpnScroll.isM3 ? 8 : 0
+                                                    color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
+                                                    border.color: Qt.rgba(1, 1, 1, 0.16); border.width: vpnScroll.isM3 ? 0 : 1
+                                                }
 
                                                 Text {
                                                     id: oneSubTabTxt; anchors.centerIn: parent
@@ -897,10 +908,11 @@ ScrollView {
                                     ListView {
                                         id: normalSrvList
                                         z: 2; anchors.fill: parent; spacing: 4
+                                        cacheBuffer: 0
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
 
                                         model: {
-                                            if (!Waybar) return [];
+                                            if (!Waybar || !vpnScroll.normalScreenVis) return [];
                                             if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
                                                 return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
                                             }
@@ -1010,7 +1022,7 @@ ScrollView {
 
                         SplitTunnelCard {}
 
-                        VpnLogsCard {}
+                        VpnLogsCard { activeScreen: vpnScroll.normalScreenVis }
                     }
                 }
 
@@ -1020,6 +1032,7 @@ ScrollView {
                 Item {
                     width: fullPageSlider.width
                     implicitHeight: wlFullCol.implicitHeight
+                    visible: vpnScroll.wlScreenVis
 
                     ColumnLayout {
                         id: wlFullCol
@@ -1157,22 +1170,6 @@ ScrollView {
                                     }
 
                                     Flow {
-                                        z: 1
-                                        width: parent.width; spacing: 5
-                                        Repeater {
-                                            model: Waybar ? Waybar.vpnWhitelistFiles : []
-                                            delegate: Rectangle {
-                                                width: wlCatRepeater.itemAt(index) ? wlCatRepeater.itemAt(index).width : 110
-                                                height: 28
-                                                radius: vpnScroll.isM3 ? 8 : 0
-                                                color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
-                                                border.color: Qt.rgba(1, 1, 1, 0.16)
-                                                border.width: vpnScroll.isM3 ? 0 : 1
-                                            }
-                                        }
-                                    }
-
-                                    Flow {
                                         id: wlCatFlow
                                         z: 4; width: parent.width; spacing: 5
                                         Repeater {
@@ -1194,6 +1191,15 @@ ScrollView {
                                                 }
                                                 onIsSelChanged: if (isSel) wlCatContainer.activeItem = catBtn
                                                 Component.onCompleted: if (isSel) wlCatContainer.activeItem = catBtn
+
+                                                Rectangle {
+                                                    anchors.fill: parent
+                                                    z: -1
+                                                    radius: vpnScroll.isM3 ? 8 : 0
+                                                    color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
+                                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                                    border.width: vpnScroll.isM3 ? 0 : 1
+                                                }
 
                                                 Row {
                                                     id: catContentRow
@@ -1449,8 +1455,9 @@ ScrollView {
                                     ListView {
                                         id: wlSrvList
                                         z: 2; anchors.fill: parent; spacing: 4
+                                        cacheBuffer: 0
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                                        model: Waybar ? Waybar.vpnWlServerItems : []
+                                        model: (Waybar && vpnScroll.wlScreenVis) ? Waybar.vpnWlServerItems : []
 
                                         delegate: Rectangle {
                                             width: wlSrvList.width; height: 30
@@ -1615,7 +1622,7 @@ ScrollView {
 
                         SplitTunnelCard {}
 
-                        VpnLogsCard {}
+                        VpnLogsCard { activeScreen: vpnScroll.wlScreenVis }
                     }
                 }
             }

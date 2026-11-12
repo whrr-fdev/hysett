@@ -30,6 +30,7 @@ ApplicationWindow {
     property string clipSearchQuery: ""
     property int calYear: new Date().getFullYear()
     property int calMonth: new Date().getMonth()
+    property int timeSubTab: 0
 
     // Таймер и Секундомер (живут в фоне и отображаются в таблетках на панели задач)
     property int timerTotalMs: 5 * 60 * 1000
@@ -1427,7 +1428,7 @@ ApplicationWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: (mouse) => {
                                 if (mouse.button === Qt.RightButton) root.toggleTimerPause()
-                                else root.openDrawerWithMode("settings", 28)
+                                else { root.timeSubTab = 2; root.openDrawerWithMode("settings", 22) }
                             }
                         }
                     }
@@ -1477,7 +1478,7 @@ ApplicationWindow {
                             cursorShape: Qt.PointingHandCursor
                             onClicked: (mouse) => {
                                 if (mouse.button === Qt.RightButton) root.toggleStopwatch()
-                                else root.openDrawerWithMode("settings", 28)
+                                else { root.timeSubTab = 3; root.openDrawerWithMode("settings", 22) }
                             }
                         }
                     }

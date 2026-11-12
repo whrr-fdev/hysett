@@ -759,7 +759,7 @@ RowLayout {
                                 Repeater {
                                     model: [
                                         { title: "󰍉  Поиск", idx: 16 }, { title: "󰖙  Погода", idx: 20 }, { title: "   Монитор", idx: 21 },
-                                        { title: "  Календарь", idx: 22 }, { title: "󰅌  Буфер", idx: 23 }, { title: "󰖲  Окна", idx: 1 },
+                                        { title: "󱑂  Время", idx: 22 }, { title: "󰅌  Буфер", idx: 23 }, { title: "󰖲  Окна", idx: 1 },
                                         { title: "󱐌  Анимации", idx: 2 }, { title: "󰆿  Курсор", idx: 3 }, { title: "󰍹   Мониторы", idx: 4 },
                                         { title: "󰌌  Устройства", idx: 5 }, { title: "󰖩  Сеть", idx: 6 }, { title: "󰂯  Блютуз", idx: 7 },
                                         { title: "󱓞   Панель", idx: 8 }, { title: "󰂚   Уведомления", idx: 18 }, { title: "󰒲   Автозапуск", idx: 9 },

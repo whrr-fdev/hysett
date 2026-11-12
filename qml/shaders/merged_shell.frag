@@ -109,9 +109,10 @@ float sceneSdf(vec2 p, out float outNotifBlend) {
         vec2 nHalf = 0.5 * u_notif_rect.zw;
         vec2 nCenter = u_notif_rect.xy + nHalf;
         float dNotif = sdRoundedBox(p - nCenter, nHalf, u_radius * 1.25);
-        float nk = u_fillet * smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w, p.y) * clamp(u_notif_rect.w / 32.0, 0.0, 1.0);
-        // Плавный вес зоны уведомлений только там, где точка ближе к блоку уведомлений, чем к панели и окну настроек
-        outNotifBlend = smoothstep(6.0, -6.0, dNotif - d);
+        bool barTouchesNotif = (u_notif_rect.x < u_bar_rect.x + u_bar_rect.z - 4.0) && (u_notif_rect.x + u_notif_rect.z > u_bar_rect.x + 4.0);
+        float neckZone = barTouchesNotif ? (1.0 - smoothstep(u_bar_rect.y + u_bar_rect.w, u_bar_rect.y + u_bar_rect.w + u_fillet * 1.5, p.y)) : 0.0;
+        float nk = u_fillet * neckZone * smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w, p.y) * clamp(u_notif_rect.w / 32.0, 0.0, 1.0);
+        outNotifBlend = smoothstep(4.0, -4.0, dNotif - dBar);
         d = smin(d, dNotif, nk);
     }
 

@@ -288,13 +288,17 @@ ApplicationWindow {
     readonly property real animNotifH: smoothNotifTargetH * notifProgress
     readonly property real notifX: {
         var anc = Mako ? Mako.anchor : "top-right"
-        if (anc.indexOf("left") !== -1) return 10
+        var m = Mako ? Mako.margin : 10
+        if (anc.indexOf("left") !== -1) return (barPos === 2) ? (barLeft + barW + m) : m
         if (anc.indexOf("center") !== -1) return Math.round((root.width - notifW) * 0.5)
-        return root.width - notifW - 10
+        return (barPos === 3) ? (barLeft - notifW - m) : (root.width - notifW - m)
     }
-    readonly property real notifY: (barPos === 1)
-                                   ? ((isCenteredBar || customBarW < maxAvailBarW) ? (root.height - animNotifH - barTop) : (barRectY - animNotifH))
-                                   : ((isCenteredBar || customBarW < maxAvailBarW) ? barTop : (barRectY + barH))
+    readonly property bool barOverlapsNotifX: !isVertBar && (barLeft + barW > notifX - 12) && (barLeft < notifX + notifW + 12)
+    readonly property real notifY: {
+        if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH) : (root.height - animNotifH - barTop)
+        if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barTop
+        return Mako ? Mako.margin : 10
+    }
 
     property bool modalOpen: false
     property bool barSavePromptOpen: false
@@ -2190,14 +2194,37 @@ ApplicationWindow {
 
         }
 
-        // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (В ЦВЕТАХ ТЕКУЩЕЙ ТЕМЫ MD3)
+        // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (ПОВЕРХ ОКНА НАСТРОЕК С СОБСТВЕННОЙ ПОДЛОЖКОЙ ПРИ ОТКРЫТОМ ОКНЕ)
         Item {
             id: notifClipBox
             x: root.notifX; y: root.notifY; width: root.notifW; height: root.animNotifH
-            clip: true; visible: root.notifActive; z: 8
+            clip: true; visible: root.notifActive; z: 15
+
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.AllButtons
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                visible: root.drawerActive
+                color: (Theme && Theme.isRounded && Config) ? Config.m3Surface : (Mako ? Mako.bgColor : "#0e1015")
+                opacity: Mako ? Math.max(0.95, Mako.bgOpacity) : 0.96
+                readonly property real rNotif: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.8) : 16) : 0
+                topLeftRadius: (root.barPos === 0 && root.barOverlapsNotifX) ? 0 : rNotif
+                topRightRadius: (root.barPos === 0 && root.barOverlapsNotifX) ? 0 : rNotif
+                bottomLeftRadius: (root.barPos === 1 && root.barOverlapsNotifX) ? 0 : rNotif
+                bottomRightRadius: (root.barPos === 1 && root.barOverlapsNotifX) ? 0 : rNotif
+                border.width: 1
+                border.color: (Mako && Mako.popupCritical)
+                              ? Mako.criticalBorderColor
+                              : (Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.20))
+            }
 
             Column {
                 id: notifStackCol
+                z: 2
                 width: root.notifW
                 y: -(1.0 - root.notifProgress) * 18
                 opacity: Math.min(1.0, root.notifProgress * 1.35)

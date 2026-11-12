@@ -509,4 +509,6 @@ private:
     QVariantList m_weatherWeek;
     QVariantList m_weatherMonth;
     QString m_vpnLastUpdated;
+    QString m_vpnIpCheckText = "Туннель отключен";
+    int m_vpnIpCheckState = 0;
 };

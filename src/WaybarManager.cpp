@@ -1956,7 +1956,7 @@ void WaybarManager::toggleFreezeVpnServer(int idx, bool isWl) {
                 bool changed = false;
                 for (int s = 0; s < gsrvs.size(); ++s) {
                     QVariantMap sm = gsrvs[s].toMap();
-                    if (sm["global_index"].toInt(-1) == idx) {
+                    if (sm["global_index"].toInt() == idx) {
                         sm["frozen"] = nextFrz;
                         gsrvs[s] = sm;
                         changed = true;
@@ -2013,7 +2013,7 @@ void WaybarManager::checkVpn2ip() {
     m_vpnIpCheckText = "Проверка IP и геолокации на 2ip.io...";
     QFile icf("/tmp/hysett_vpn_ipcheck.json");
     if (icf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        icf.write("{"state":1,"text":"Проверка..."}");
+        icf.write(R"({"state":1,"text":"Проверка..."})");
         icf.close();
     }
     emit sysStatsChanged();

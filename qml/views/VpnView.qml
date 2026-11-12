@@ -427,7 +427,7 @@ ScrollView {
 
         ColumnLayout {
             id: topHeaderCol
-            width: Math.min(parent.width - 48, 1180)
+            width: Math.min(parent.width - 48, 880)
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top; anchors.topMargin: 18
             spacing: 12
@@ -478,24 +478,25 @@ ScrollView {
             anchors.top: topHeaderCol.bottom
             anchors.topMargin: 12
             width: parent.width
+            clip: true
             implicitHeight: vpnScroll.viewWlMode ? wlFullCol.implicitHeight : normalFullCol.implicitHeight
             Behavior on implicitHeight { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
 
-            Row {
-                width: fullPageSlider.width * 2
-                x: -vpnScroll.modeSlideProgress * fullPageSlider.width
+            Item {
+                anchors.fill: parent
 
                 // =========================================================================
                 // ЭКРАН 0: ОБЫЧНЫЙ VPN
                 // =========================================================================
                 Item {
+                    x: -vpnScroll.modeSlideProgress * fullPageSlider.width
                     width: fullPageSlider.width
                     implicitHeight: normalFullCol.implicitHeight
                     visible: vpnScroll.normalScreenVis
 
                     ColumnLayout {
                         id: normalFullCol
-                        width: Math.min(parent.width - 48, 1180)
+                        width: Math.min(parent.width - 48, 880)
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 12
 
@@ -1030,13 +1031,14 @@ ScrollView {
                 // ЭКРАН 1: БЕЛЫЕ СПИСКИ
                 // =========================================================================
                 Item {
+                    x: (1.0 - vpnScroll.modeSlideProgress) * fullPageSlider.width
                     width: fullPageSlider.width
                     implicitHeight: wlFullCol.implicitHeight
                     visible: vpnScroll.wlScreenVis
 
                     ColumnLayout {
                         id: wlFullCol
-                        width: Math.min(parent.width - 48, 1180)
+                        width: Math.min(parent.width - 48, 880)
                         anchors.horizontalCenter: parent.horizontalCenter
                         spacing: 12
 

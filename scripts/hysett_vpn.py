@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, json, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re, ipaddress, bisect
+import sys, os, json, uuid as uuid_lib, base64, urllib.request, urllib.parse, subprocess, shutil, socket, time, re, ipaddress, bisect
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 HYSETT_DIR = os.path.expanduser("~/hysett")
@@ -273,7 +273,9 @@ def parse_uri(uri):
 
     if scheme == "vless":
         uuid = urllib.parse.unquote(u.username or "").strip()
-        if len(uuid) < 8:
+        try:
+            uuid = str(uuid_lib.UUID(uuid))
+        except Exception:
             return None, None
         ob = {
             "type": "vless", "tag": "proxy",
@@ -333,7 +335,14 @@ def parse_uri(uri):
         if sec == "reality":
             pbk = q.get("pbk", "").strip()
             sid = q.get("sid", "").strip()
-            if not pbk or not re.match(r"^[0-9a-fA-F]{0,16}$", sid):
+            if not pbk or not re.match(r"^[0-9a-fA-F]{0,16}$", sid) or (len(sid) % 2 != 0):
+                return None, None
+            try:
+                pad_pbk = pbk + "=" * ((4 - len(pbk) % 4) % 4)
+                raw_pbk = base64.urlsafe_b64decode(pad_pbk.encode("ascii"))
+                if len(raw_pbk) != 32:
+                    return None, None
+            except Exception:
                 return None, None
             tls["reality"] = {"enabled": True, "public_key": pbk, "short_id": sid}
         ob["tls"] = tls
@@ -743,111 +752,156 @@ def tcp_quick_filter(item, timeout=0.9):
     except Exception:
         return False, item
 
-def probe_http204_via_port(port, item, starts, merged, timeout=2.8):
+def strip_ping_and_badge(raw_name, fallback):
+    parts = [p.strip() for p in (raw_name or "").split(" • ") if p.strip()]
+    while parts and (parts[0].endswith("мс") or parts[0] in ("CIDR+SNI", "CIDR РФ", "Белый SNI", "VLESS")):
+        parts.pop(0)
+    return " • ".join(parts) if parts else fallback
+
+def probe_http204_via_port(port, item, starts, merged, timeout=3.0):
     proxy_url = f"http://127.0.0.1:{port}"
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({"http": proxy_url, "https": proxy_url}))
-    t0 = time.monotonic()
+    for test_url in ("http://www.gstatic.com/generate_204", "http://cp.cloudflare.com/generate_204"):
+        t0 = time.monotonic()
+        try:
+            req = urllib.request.Request(test_url, headers={"User-Agent": "curl/8.0"})
+            with opener.open(req, timeout=timeout) as r:
+                if r.status in (200, 204):
+                    ms = max(1, int((time.monotonic() - t0) * 1000))
+                    ob = item["outbound"]
+                    badge, tier = classify_whitelist_badge(ob, starts, merged, resolve_dns=True)
+                    fallback = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+                    base_title = strip_ping_and_badge(item.get("name", ""), fallback)
+                    return (tier, ms), {
+                        "name": f"{ms} мс • {badge} • {base_title}",
+                        "outbound": ob,
+                        "uri": item.get("uri", "") or rebuild_uri_from_outbound(ob, base_title),
+                        "sig": item.get("sig", "") or server_sig(ob),
+                        "frozen": False,
+                        "pinned": bool(item.get("pinned", False))
+                    }
+        except Exception:
+            pass
+    return None, item
+
+def log_wl_msg(msg):
     try:
-        req = urllib.request.Request("http://cp.cloudflare.com/generate_204", headers={"User-Agent": "curl/8.0"})
-        with opener.open(req, timeout=timeout) as r:
-            if r.status in (200, 204):
-                ms = int((time.monotonic() - t0) * 1000)
-                ob = item["outbound"]
-                badge, tier = classify_whitelist_badge(ob, starts, merged, resolve_dns=True)
-                parts = item.get("name", "").split(" • ")
-                base_title = parts[-1] if parts else f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
-                return (tier, ms), {
-                    "name": f"{ms} мс • {badge} • {base_title}",
-                    "outbound": ob,
-                    "uri": item.get("uri", "") or rebuild_uri_from_outbound(ob, base_title),
-                    "sig": item.get("sig", "") or server_sig(ob),
-                    "frozen": False
-                }
+        with open("/tmp/singbox_vpn.log", "a", encoding="utf-8") as lf:
+            lf.write(f"[БС] {msg}\n")
     except Exception:
         pass
-    return None, item
 
 def test_and_sort_whitelist(st):
     frozen_set = set(st.get("frozen_sigs", []))
-    wl = load_whitelist_servers(st, st.get("whitelist_file", "auto"), limit=110)
+    pinned_set = set(st.get("pinned_sigs", []))
+    pinned_items = st.get("pinned_wl_items", [])
+    wl = load_whitelist_servers(st, st.get("whitelist_file", "auto"), limit=120)
     real_srvs = [s for s in wl if s.get("outbound", {}).get("type") != "urltest" and not s.get("frozen")]
     if not real_srvs:
         return st
 
+    log_wl_msg(f"Запуск проверки {len(real_srvs)} серверов категории '{st.get('whitelist_file', 'auto')}'...")
     tcp_alive = []
-    with ThreadPoolExecutor(max_workers=32) as ex:
-        futs = [ex.submit(tcp_quick_filter, s, 0.9) for s in real_srvs]
+    with ThreadPoolExecutor(max_workers=36) as ex:
+        futs = [ex.submit(tcp_quick_filter, s, 1.0) for s in real_srvs]
         for f in as_completed(futs):
             ok, item = f.result()
             if ok:
                 tcp_alive.append(item)
 
-    candidates = tcp_alive[:45] if tcp_alive else real_srvs[:30]
+    candidates = tcp_alive[:50] if tcp_alive else real_srvs[:35]
+    log_wl_msg(f"TCP-фильтр прошли: {len(tcp_alive)} серв. Проверка рукопожатий через sing-box ({len(candidates)} канд.)...")
     starts, merged = load_ru_whitelist_ip_intervals()
 
     sb_bin = shutil.which("sing-box") or "/usr/bin/sing-box"
     verified = []
     if os.path.exists(sb_bin) and candidates:
         base_port = 29100
-        inbounds = []
-        outbounds = [{"type": "direct", "tag": "direct"}]
-        rules = []
-        for idx, c in enumerate(candidates):
-            in_tag = f"in-{idx}"
-            out_tag = f"test-{idx}"
-            inbounds.append({
-                "type": "mixed",
-                "tag": in_tag,
-                "listen": "127.0.0.1",
-                "listen_port": base_port + idx
-            })
-            ob_copy = {k: v for k, v in c["outbound"].items() if not k.startswith("_")}
-            ob_copy["tag"] = out_tag
-            outbounds.append(ob_copy)
-            rules.append({"inbound": in_tag, "outbound": out_tag})
+        phys_if = detect_physical_interface()
 
-        test_cfg = {
-            "log": {"level": "error"},
-            "dns": {
-                "servers": [{"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}],
-                "final": "dns-direct"
-            },
-            "inbounds": inbounds,
-            "outbounds": outbounds,
-            "route": {
+        def build_audit_cfg(cand_list):
+            inbounds = []
+            outbounds = [{"type": "direct", "tag": "direct"}]
+            rules = []
+            for idx, c in enumerate(cand_list):
+                in_tag = f"in-{idx}"
+                out_tag = f"test-{idx}"
+                inbounds.append({
+                    "type": "mixed",
+                    "tag": in_tag,
+                    "listen": "127.0.0.1",
+                    "listen_port": base_port + idx
+                })
+                ob_copy = {k: v for k, v in c["outbound"].items() if not k.startswith("_")}
+                ob_copy["tag"] = out_tag
+                outbounds.append(ob_copy)
+                rules.append({"inbound": in_tag, "outbound": out_tag})
+            route_obj = {
                 "default_domain_resolver": "dns-direct",
                 "auto_detect_interface": True,
                 "rules": rules,
                 "final": "direct"
             }
-        }
+            if phys_if:
+                route_obj["default_interface"] = phys_if
+            return {
+                "log": {"level": "error"},
+                "dns": {
+                    "servers": [{"type": "udp", "tag": "dns-direct", "server": "77.88.8.8"}],
+                    "final": "dns-direct"
+                },
+                "inbounds": inbounds,
+                "outbounds": outbounds,
+                "route": route_obj
+            }
+
         test_cfg_path = "/tmp/singbox_wl_audit.json"
         with open(test_cfg_path, "w", encoding="utf-8") as f:
-            json.dump(test_cfg, f)
+            json.dump(build_audit_cfg(candidates), f)
 
-        proc = subprocess.Popen([sb_bin, "run", "-c", test_cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        try:
-            wait_port(base_port, 2.0)
-            with ThreadPoolExecutor(max_workers=24) as ex:
-                futs = [ex.submit(probe_http204_via_port, base_port + i, c, starts, merged, 2.8) for i, c in enumerate(candidates)]
-                for f in as_completed(futs):
-                    score, item = f.result()
-                    if score is not None:
-                        verified.append((score, item))
-        finally:
-            proc.terminate()
+        # Если один из кандидатов не проходит sing-box check — фильтруем его
+        if subprocess.run([sb_bin, "check", "-c", test_cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+            valid_cands = []
+            for c in candidates:
+                with open(test_cfg_path, "w", encoding="utf-8") as f:
+                    json.dump(build_audit_cfg([c]), f)
+                if subprocess.run([sb_bin, "check", "-c", test_cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0:
+                    valid_cands.append(c)
+            candidates = valid_cands
+            with open(test_cfg_path, "w", encoding="utf-8") as f:
+                json.dump(build_audit_cfg(candidates), f)
+
+        if candidates:
+            proc = subprocess.Popen([sb_bin, "run", "-c", test_cfg_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             try:
-                proc.wait(timeout=1.0)
-            except Exception:
-                proc.kill()
+                if wait_port(base_port, 2.5):
+                    with ThreadPoolExecutor(max_workers=25) as ex:
+                        futs = [ex.submit(probe_http204_via_port, base_port + i, c, starts, merged, 3.0) for i, c in enumerate(candidates)]
+                        for f in as_completed(futs):
+                            score, item = f.result()
+                            if score is not None:
+                                verified.append((score, item))
+            finally:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=1.0)
+                except Exception:
+                    proc.kill()
 
     verified.sort(key=lambda x: x[0])
     alive = [x[1] for x in verified]
+    log_wl_msg(f"Проверка завершена: {len(alive)} рабочих серверов ответили HTTP 204.")
     if not alive:
         alive = candidates[:25]
 
     frozen_items = [s for s in wl if s.get("outbound", {}).get("type") != "urltest" and s.get("frozen")]
-    final_list = apply_freeze_and_urltest(alive + frozen_items, frozen_set, f"Авто-выбор • {len(alive)} проверенных серверов")
+    final_list = apply_freeze_and_urltest(
+        alive + frozen_items,
+        frozen_set,
+        f"Авто-выбор • {len(alive)} проверенных серверов",
+        pinned_set=pinned_set,
+        pinned_items=pinned_items
+    )
 
     st["wl_servers"] = final_list
     st["wl_selected_index"] = 0

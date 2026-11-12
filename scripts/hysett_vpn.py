@@ -1816,35 +1816,11 @@ def start_vpn(fast_switch=False):
     launch_singbox_process(sb_bin, SB_CONF, append_log=False)
 
     if wait_port(2080, 3.2):
-        # В режиме БС проверяем, что выбранный публичный сервер реально пропускает трафик
-        if is_wl_active and not verify_active_tunnel_port(2080, timeout=2.5):
-            sel_idx = st.get("wl_selected_index", 0)
-            wl_list = st.get("wl_servers", [])
-            if 0 < sel_idx < len(wl_list):
-                dead_sig = wl_list[sel_idx].get("sig") or server_sig(wl_list[sel_idx].get("outbound", {}))
-                if dead_sig:
-                    frz = st.get("frozen_sigs", [])
-                    if dead_sig not in frz:
-                        frz.append(dead_sig)
-                        st["frozen_sigs"] = frz
-            log_wl_msg("⚠ Узел БС перегружен. Авто-переключение на проверенный сервер...")
-            st["wl_selected_index"] = 0
-            st = test_and_sort_whitelist(st, max_candidates=40)
-            cfg = build_config(st["outbound"], st, use_tun)
-            with open(SB_CONF, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, indent=2, ensure_ascii=False)
-            stop_vpn(save_disabled=False)
-            launch_singbox_process(sb_bin, SB_CONF, append_log=True)
-            wait_port(2080, 3.0)
-
         set_desktop_proxy(not use_tun)
         if not fast_switch:
             loc, cc = detect_live_location()
             if loc:
-                st["server_name"] = loc
                 log_wl_msg(f"✓ Туннель активен, выходной узел: {loc}")
-                if not is_wl_active:
-                    st["sub_server_name"] = loc
         save_state(st)
         return True
     else:
@@ -2193,18 +2169,54 @@ if __name__ == "__main__":
         if len(sys.argv) > 2:
             idx = int(sys.argv[2])
             st = load_state()
-            if st.get("whitelist_mode", False):
+            is_wl = (sys.argv[3] == "1") if len(sys.argv) > 3 else bool(st.get("whitelist_mode", False))
+            st["whitelist_mode"] = is_wl
+            if is_wl:
                 st["wl_selected_index"] = idx
             else:
                 st["sub_selected_index"] = idx
             st = sync_active_server_list(st, allow_network_probe=False)
             save_state(st)
             dump_status_json()
-            if st.get("vpn_enabled", False) and st.get("active_is_wl", False) == st.get("whitelist_mode", False):
-                if subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0:
-                    start_vpn(fast_switch=True)
+            if st.get("vpn_enabled", False) and bool(st.get("active_is_wl", False)) == is_wl:
+                token = f"{time.monotonic():.6f}"
+                try:
+                    with open("/tmp/hysett_vpn_switch.token", "w") as tf:
+                        tf.write(token)
+                    with open("/tmp/hysett_vpn_switching.lock", "w") as lf:
+                        lf.write(str(time.time()))
+                except Exception:
+                    pass
+                subprocess.Popen(
+                    [sys.executable, os.path.abspath(__file__), "apply_selected_bg", token],
+                    stdin=subprocess.DEVNULL,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    close_fds=True,
+                    start_new_session=True
+                )
         else:
             dump_status_json()
+    elif cmd == "apply_selected_bg":
+        token = sys.argv[2] if len(sys.argv) > 2 else ""
+        time.sleep(0.06)
+        try:
+            cur_tok = open("/tmp/hysett_vpn_switch.token").read().strip()
+            if token and cur_tok != token:
+                sys.exit(0)
+        except Exception:
+            pass
+        try:
+            with open("/tmp/hysett_vpn_switching.lock", "w") as lf:
+                lf.write(str(time.time()))
+            start_vpn(fast_switch=True)
+        finally:
+            try:
+                cur_tok = open("/tmp/hysett_vpn_switch.token").read().strip()
+                if not token or cur_tok == token:
+                    os.remove("/tmp/hysett_vpn_switching.lock")
+            except Exception:
+                pass
     elif cmd == "set_ru":
         st = load_state()
         ru_on = (sys.argv[2] == "1")

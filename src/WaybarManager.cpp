@@ -1853,10 +1853,13 @@ void WaybarManager::removeVpnSubUrl(int idx) {
     p->start("/usr/bin/python3", {script, "remove_url", QString::number(idx)});
 }
 
+static uint64_t s_vpnSelectSeq = 0;
+
 void WaybarManager::selectVpnServer(int idx) {
     // Мгновенное переключение выделения в UI за 0 мс без ожидания перезапуска sing-box
+    const bool isWl = m_vpnWhitelistMode;
     m_vpnSelectedServer = idx;
-    if (m_vpnWhitelistMode) {
+    if (isWl) {
         m_vpnWlSelectedServer = idx;
         if (idx >= 0 && idx < m_vpnWlServers.size()) {
             m_vpnWlServerName = m_vpnWlServers[idx];
@@ -1871,13 +1874,22 @@ void WaybarManager::selectVpnServer(int idx) {
     }
     emit sysStatsChanged();
 
+    const uint64_t mySeq = ++s_vpnSelectSeq;
+    QFile swLock("/tmp/hysett_vpn_switching.lock");
+    if (swLock.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        swLock.write("1");
+        swLock.close();
+    }
+
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
-    connect(p, &QProcess::finished, this, [this, p]() {
-        syncVpnStateFromScript(p->readAllStandardOutput());
+    connect(p, &QProcess::finished, this, [this, p, mySeq]() {
+        if (mySeq == s_vpnSelectSeq) {
+            syncVpnStateFromScript(p->readAllStandardOutput());
+        }
         p->deleteLater();
     });
-    p->start("/usr/bin/python3", {script, "select_server", QString::number(idx)});
+    p->start("/usr/bin/python3", {script, "select_server", QString::number(idx), isWl ? "1" : "0"});
 }
 
 void WaybarManager::setVpnRuDirect(bool v) {

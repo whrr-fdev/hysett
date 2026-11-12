@@ -1027,8 +1027,12 @@ ScrollView {
                                     ListView {
                                         id: normalSrvList
                                         z: 2; anchors.fill: parent; spacing: 4
-                                        cacheBuffer: 0
+                                        cacheBuffer: 600
+                                        boundsBehavior: Flickable.StopAtBounds
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                        property real savedContentY: 0
+                                        property int lastTabIdx: vpnScroll.activeSubTab
+                                        onContentYChanged: if (!moving && contentY >= 0) savedContentY = contentY
 
                                         model: {
                                             if (!Waybar || !vpnScroll.normalScreenVis) return [];
@@ -1036,6 +1040,19 @@ ScrollView {
                                                 return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
                                             }
                                             return Waybar.vpnSubServerItems;
+                                        }
+                                        onModelChanged: {
+                                            if (lastTabIdx !== vpnScroll.activeSubTab) {
+                                                lastTabIdx = vpnScroll.activeSubTab
+                                                savedContentY = 0
+                                                contentY = 0
+                                            } else if (savedContentY > 0) {
+                                                var restoreY = savedContentY
+                                                Qt.callLater(function() {
+                                                    var maxY = Math.max(0, normalSrvList.contentHeight - normalSrvList.height)
+                                                    normalSrvList.contentY = Math.min(restoreY, maxY)
+                                                })
+                                            }
                                         }
 
                                         delegate: Rectangle {
@@ -1672,13 +1689,32 @@ ScrollView {
                                     ListView {
                                         id: wlSrvList
                                         z: 2; anchors.fill: parent; spacing: 4
-                                        cacheBuffer: 0
+                                        cacheBuffer: 600
+                                        boundsBehavior: Flickable.StopAtBounds
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                        property real savedContentY: 0
+                                        property string lastWlKey: Waybar ? Waybar.vpnWhitelistFile : ""
+                                        onContentYChanged: if (!moving && contentY >= 0) savedContentY = contentY
                                         model: (Waybar && vpnScroll.wlScreenVis) ? Waybar.vpnWlServerItems : []
+                                        onModelChanged: {
+                                            var curKey = Waybar ? Waybar.vpnWhitelistFile : ""
+                                            if (lastWlKey !== curKey) {
+                                                lastWlKey = curKey
+                                                savedContentY = 0
+                                                contentY = 0
+                                            } else if (savedContentY > 0) {
+                                                var restoreY = savedContentY
+                                                Qt.callLater(function() {
+                                                    var maxY = Math.max(0, wlSrvList.contentHeight - wlSrvList.height)
+                                                    wlSrvList.contentY = Math.min(restoreY, maxY)
+                                                })
+                                            }
+                                        }
 
                                         delegate: Rectangle {
                                             width: wlSrvList.width; height: 30
-                                            property bool isSel: Waybar && Waybar.vpnWlSelectedServer === index
+                                            property int realIdx: modelData.global_index !== undefined ? modelData.global_index : index
+                                            property bool isSel: Waybar && Waybar.vpnWlSelectedServer === realIdx
                                             property bool isFrz: modelData.frozen === true
                                             property bool isPin: modelData.pinned === true
                                             property string srvUri: modelData.uri || ""
@@ -1709,7 +1745,7 @@ ScrollView {
                                                     wlSrvListWrap.isHovering = true
                                                 }
                                                 onExited: wlSrvHoverHold.restart()
-                                                onClicked: if (Waybar) Waybar.selectVpnServer(index)
+                                                onClicked: if (Waybar) Waybar.selectVpnServer(parent.realIdx)
                                             }
 
                                             RowLayout {
@@ -1839,7 +1875,7 @@ ScrollView {
                                                     text: "󰐃"
                                                     implicitWidth: 24; implicitHeight: 22
                                                     isActive: isPin
-                                                    onClicked: if (Waybar) Waybar.togglePinVpnServer(index, true)
+                                                    onClicked: if (Waybar) Waybar.togglePinVpnServer(realIdx, true)
                                                 }
 
                                                 StyledButton {
@@ -1847,7 +1883,7 @@ ScrollView {
                                                     text: isFrz ? "󰑐" : "󰜺"
                                                     implicitWidth: 24; implicitHeight: 22
                                                     isActive: isFrz
-                                                    onClicked: if (Waybar) Waybar.toggleFreezeVpnServer(index, true)
+                                                    onClicked: if (Waybar) Waybar.toggleFreezeVpnServer(realIdx, true)
                                                 }
                                             }
                                         }

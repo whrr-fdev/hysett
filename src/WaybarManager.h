@@ -122,6 +122,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int vpnProgressPercent READ vpnProgressPercent NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnProgressText READ vpnProgressText NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnStatusHint READ vpnStatusHint NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnIpCheckText READ vpnIpCheckText NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vpnIpCheckState READ vpnIpCheckState NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnLastUpdated READ vpnLastUpdated NOTIFY sysStatsChanged)
 
     // Погода Gismeteo (Сейчас, Завтра, Неделя, Месяц)
@@ -266,6 +268,7 @@ public:
     Q_INVOKABLE void toggleFreezeVpnServer(int idx, bool isWl);
     Q_INVOKABLE void togglePinVpnServer(int idx, bool isWl);
     Q_INVOKABLE void clearFrozenVpnServers();
+    Q_INVOKABLE void checkVpn2ip();
     QStringList vpnLogs() const { return m_vpnLogs; }
     QString vpnLogHtml() const { return m_vpnLogHtml; }
     int vpnLogHeight() const { return m_vpnLogHeight; }
@@ -301,6 +304,8 @@ public:
     int vpnProgressPercent() const { return m_vpnProgressPercent; }
     QString vpnProgressText() const { return m_vpnProgressText; }
     QString vpnStatusHint() const { return m_vpnStatusHint; }
+    QString vpnIpCheckText() const { return m_vpnIpCheckText; }
+    int vpnIpCheckState() const { return m_vpnIpCheckState; }
     QString vpnLastUpdated() const { return m_vpnLastUpdated; }
     Q_INVOKABLE void updateBypassLists();
     Q_INVOKABLE void testWhitelistServers();

@@ -349,6 +349,8 @@ def load_state():
         "country_cache": {},
         "bl_groups_cache": [],
         "cached_hint": "",
+        "ip_check_state": 0,
+        "ip_check_text": "",
         "wl_servers": [],
         "frozen_sigs": [],
         "pinned_sigs": [],
@@ -609,7 +611,7 @@ def load_bypass_routing_sets(st):
     blocked_domains = {
         "google.ru", "www.google.ru", "google.com", "youtube.ru", "www.youtube.ru",
         "youtube.com", "youtu.be", "googlevideo.com", "ytimg.com", "ggpht.com",
-        "gstatic.com", "googleapis.com", "2ip.ru", "2ip.io"
+        "gstatic.com", "googleapis.com", "2ip.ru", "2ip.io", "api.2ip.io"
     }
     for svc in ("youtube.lst", "discord.lst", "telegram.lst", "google_ai.lst", "meta.lst", "twitter.lst", "tiktok.lst", "hdrezka.lst", "roblox.lst", "google_meet.lst"):
         blocked_domains.update(read_domain_file(f"allow-domains/Services/{svc}", 2000))
@@ -1517,6 +1519,7 @@ def build_config(outbound, st, use_tun=False):
     rules = [
         {"action": "sniff", "timeout": "300ms"},
         {"protocol": "dns", "action": "hijack-dns"},
+        {"inbound": ["mixed-in"], "outbound": "proxy"},
         {"ip_is_private": True, "outbound": "direct"},
         {"network": "udp", "port": 443, "action": "reject"}
     ]
@@ -1725,7 +1728,10 @@ def stop_vpn(save_disabled=True):
     if save_disabled:
         st = load_state()
         st["vpn_enabled"] = False
+        st["ip_check_state"] = 0
+        st["ip_check_text"] = "Туннель отключен"
         save_state(st)
+        write_ipcheck(0, "Туннель отключен")
     set_desktop_proxy(False)
     cleanup_stale_throne_rules()
     subprocess.run(["pkill", "-f", "sing-box.*singbox_vpn.json"], stderr=subprocess.DEVNULL)
@@ -1735,21 +1741,75 @@ def stop_vpn(save_disabled=True):
             break
         time.sleep(0.04)
 
-def detect_live_location():
-    proxy_handler = urllib.request.ProxyHandler({"http": "http://127.0.0.1:2080", "https": "http://127.0.0.1:2080"})
-    opener = urllib.request.build_opener(proxy_handler)
+IPCHECK_FILE = "/tmp/hysett_vpn_ipcheck.json"
+
+def write_ipcheck(state_code, text):
     try:
-        req = urllib.request.Request("http://ip-api.com/json/?fields=status,country,countryCode,city&lang=ru", headers={"User-Agent": "curl/8.0"})
-        with opener.open(req, timeout=2.5) as r:
-            d = json.loads(r.read().decode("utf-8", errors="ignore"))
-        if d.get("status") == "success" and d.get("country"):
-            country = d.get("country", "")
-            city = d.get("city", "")
-            cc = d.get("countryCode", "")
-            return (f"{country}, {city}" if city else country), cc
+        tmp = IPCHECK_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"state": int(state_code), "text": str(text), "ts": time.time()}, f, ensure_ascii=False)
+        os.replace(tmp, IPCHECK_FILE)
     except Exception:
         pass
-    return None, ""
+
+def detect_live_location(timeout=2.8):
+    proxy_handler = urllib.request.ProxyHandler({"http": "http://127.0.0.1:2080", "https": "http://127.0.0.1:2080"})
+    opener = urllib.request.build_opener(proxy_handler)
+
+    # 1. Основная проверка через 2ip.io API (https://api.2ip.io/?lang=ru)
+    for url in ("https://api.2ip.io/?lang=ru", "https://api.2ip.io/"):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "curl/8.0", "Accept": "application/json", "Connection": "close"})
+            with opener.open(req, timeout=timeout) as r:
+                d = json.loads(r.read().decode("utf-8", errors="ignore"))
+            ip = (d.get("ip") or "").strip()
+            if ip:
+                country = (d.get("country") or "").strip()
+                city = (d.get("city") or "").strip()
+                cc = (d.get("code") or "").strip().upper()
+                loc_part = f"{country}, {city}" if (country and city and city != country) else (country or city or "Туннель активен")
+                cc_part = f" [{cc}]" if cc else ""
+                full_str = f"{ip} • {loc_part}{cc_part} (2ip.io)"
+                return full_str, cc
+        except Exception:
+            pass
+
+    # 2. Прямой запрос к 2ip.io (текстовый IP) + гео-уточнение
+    ip_from_2ip = ""
+    for url2 in ("https://2ip.io/", "http://2ip.io/"):
+        try:
+            req2 = urllib.request.Request(url2, headers={"User-Agent": "curl/8.0", "Connection": "close"})
+            with opener.open(req2, timeout=timeout) as r2:
+                raw2 = r2.read().decode("utf-8", errors="ignore").strip()
+            if IPV4_RE.match(raw2):
+                ip_from_2ip = raw2
+                break
+            m = re.search(r"\b(?:\d{1,3}\.){3}\d{1,3}\b", raw2)
+            if m:
+                ip_from_2ip = m.group(0)
+                break
+        except Exception:
+            pass
+
+    try:
+        req3 = urllib.request.Request("http://ip-api.com/json/?fields=status,query,country,countryCode,city&lang=ru", headers={"User-Agent": "curl/8.0", "Connection": "close"})
+        with opener.open(req3, timeout=timeout) as r3:
+            d3 = json.loads(r3.read().decode("utf-8", errors="ignore"))
+        if d3.get("status") == "success":
+            ip = ip_from_2ip or (d3.get("query") or "").strip()
+            country = (d3.get("country") or "").strip()
+            city = (d3.get("city") or "").strip()
+            cc = (d3.get("countryCode") or "").strip().upper()
+            loc_part = f"{country}, {city}" if (country and city and city != country) else (country or city)
+            cc_part = f" [{cc}]" if cc else ""
+            full_str = f"{ip} • {loc_part}{cc_part} (2ip.io)" if ip else f"{loc_part}{cc_part}"
+            return full_str, cc
+    except Exception:
+        pass
+
+    if ip_from_2ip:
+        return f"{ip_from_2ip} • Доступен через туннель (2ip.io)", ""
+    return None, "" 
 
 def wait_network_ready(timeout=5.0):
     t0 = time.time()
@@ -1817,13 +1877,25 @@ def start_vpn(fast_switch=False):
 
     if wait_port(2080, 3.2):
         set_desktop_proxy(not use_tun)
-        if not fast_switch:
-            loc, cc = detect_live_location()
-            if loc:
-                log_wl_msg(f"✓ Туннель активен, выходной узел: {loc}")
+        write_ipcheck(1, "Проверка IP и геолокации на 2ip.io...")
+        loc, cc = detect_live_location(timeout=2.6)
+        if loc:
+            st["ip_check_state"] = 2
+            st["ip_check_text"] = loc
+            write_ipcheck(2, loc)
+            log_wl_msg(f"✓ 2ip.io: {loc}")
+        else:
+            st["ip_check_state"] = 3
+            st["ip_check_text"] = "Сервер не работает (нет ответа от 2ip.io через туннель)"
+            write_ipcheck(3, st["ip_check_text"])
+            log_wl_msg("✗ Ошибка: выбранный сервер не пропускает трафик (2ip.io недоступен)")
         save_state(st)
         return True
     else:
+        st["ip_check_state"] = 3
+        st["ip_check_text"] = "Ошибка запуска sing-box для выбранного сервера"
+        write_ipcheck(3, st["ip_check_text"])
+        save_state(st)
         stop_vpn(save_disabled=False)
     return False
 
@@ -1932,6 +2004,8 @@ def dump_status_json():
         "custom_proxy_domains": st.get("custom_proxy_domains", []),
         "custom_direct_domains": st.get("custom_direct_domains", []),
         "status_hint": hint,
+        "ip_check_state": st.get("ip_check_state", 0) if st.get("vpn_enabled", False) else 0,
+        "ip_check_text": st.get("ip_check_text", "") if st.get("vpn_enabled", False) else "Туннель отключен",
         "log_level": st.get("log_level", "info")
     }
     print(json.dumps(out, ensure_ascii=False), flush=True)
@@ -2009,12 +2083,32 @@ if __name__ == "__main__":
         if st.get("active_is_wl", False):
             restart_if_running()
         dump_status_json()
+    elif cmd == "check_2ip":
+        st = load_state()
+        is_running = (subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0)
+        if not st.get("vpn_enabled", False) or not is_running:
+            st["ip_check_state"] = 0
+            st["ip_check_text"] = "Туннель отключен"
+            write_ipcheck(0, "Туннель отключен")
+        else:
+            write_ipcheck(1, "Проверка IP и геолокации на 2ip.io...")
+            loc, cc = detect_live_location(timeout=2.8)
+            if loc:
+                st["ip_check_state"] = 2
+                st["ip_check_text"] = loc
+                write_ipcheck(2, loc)
+            else:
+                st["ip_check_state"] = 3
+                st["ip_check_text"] = "Сервер не работает (нет ответа от 2ip.io через туннель)"
+                write_ipcheck(3, st["ip_check_text"])
+        save_state(st)
+        dump_status_json()
     elif cmd == "toggle_freeze":
+        need_bg_restart = False
         if len(sys.argv) > 3:
             idx = int(sys.argv[2])
             is_wl = (sys.argv[3] == "1")
             st = load_state()
-            st = sync_active_server_list(st, allow_network_probe=False)
             target_list = st.get("wl_servers", []) if is_wl else st.get("sub_servers", [])
             if 0 <= idx < len(target_list):
                 ob = target_list[idx].get("outbound", {})
@@ -2027,20 +2121,29 @@ if __name__ == "__main__":
                     else:
                         frz.append(sig)
                     st["frozen_sigs"] = frz
-                    if is_wl and not was_frozen and st.get("wl_selected_index") == idx:
-                        st["wl_selected_index"] = 0
-                    elif not is_wl and not was_frozen and st.get("sub_selected_index") == idx:
-                        st["sub_selected_index"] = 0
+                    cur_sel = st.get("wl_selected_index", 0) if is_wl else st.get("sub_selected_index", 0)
+                    if not was_frozen and cur_sel == idx:
+                        if is_wl:
+                            st["wl_selected_index"] = 0
+                        else:
+                            st["sub_selected_index"] = 0
+                        need_bg_restart = True
+                    elif cur_sel == 0:
+                        need_bg_restart = True
                     st = sync_active_server_list(st, allow_network_probe=False)
                     save_state(st)
-                    restart_if_running()
         dump_status_json()
+        if need_bg_restart and st.get("vpn_enabled", False) and bool(st.get("active_is_wl", False)) == is_wl:
+            token = f"{time.monotonic():.6f}"
+            with open("/tmp/hysett_vpn_switch.token", "w") as tf:
+                tf.write(token)
+            subprocess.Popen([sys.executable, os.path.abspath(__file__), "apply_selected_bg", token],
+                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True, start_new_session=True)
     elif cmd == "toggle_pin":
         if len(sys.argv) > 3:
             idx = int(sys.argv[2])
             is_wl = (sys.argv[3] == "1")
             st = load_state()
-            st = sync_active_server_list(st, allow_network_probe=False)
             target_list = st.get("wl_servers", []) if is_wl else st.get("sub_servers", [])
             if 0 <= idx < len(target_list):
                 srv = target_list[idx]
@@ -2077,15 +2180,12 @@ if __name__ == "__main__":
                                 break
                         st = sync_active_server_list(st, allow_network_probe=False)
                     save_state(st)
-                    if st.get("active_is_wl", False) == is_wl:
-                        restart_if_running()
         dump_status_json()
     elif cmd == "clear_frozen":
         st = load_state()
         st["frozen_sigs"] = []
         st = sync_active_server_list(st, allow_network_probe=False)
         save_state(st)
-        restart_if_running()
         dump_status_json()
     elif cmd == "set_split_mode":
         if len(sys.argv) > 2:

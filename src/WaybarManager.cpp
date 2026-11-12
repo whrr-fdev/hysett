@@ -359,6 +359,20 @@ void WaybarManager::pollHyprState() {
 }
 
 void WaybarManager::pollSysStats() {
+    if (m_vpnIpCheckState == 1) {
+        QFile icf("/tmp/hysett_vpn_ipcheck.json");
+        if (icf.open(QIODevice::ReadOnly)) {
+            QJsonObject ico = QJsonDocument::fromJson(icf.readAll()).object();
+            icf.close();
+            int stCode = ico["state"].toInt(1);
+            QString stTxt = ico["text"].toString();
+            if (stCode != 1 && !stTxt.isEmpty()) {
+                m_vpnIpCheckState = stCode;
+                m_vpnIpCheckText = stTxt;
+                emit sysStatsChanged();
+            }
+        }
+    }
     if (m_vpnBusy) {
         QFile pf("/tmp/hysett_vpn_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1874,6 +1888,13 @@ void WaybarManager::selectVpnServer(int idx) {
     }
     emit sysStatsChanged();
 
+    if (m_vpnActive && m_vpnActiveIsWl == isWl) {
+        m_vpnIpCheckState = 1;
+        m_vpnIpCheckText = "Подключение и проверка на 2ip.io...";
+        QFile icf("/tmp/hysett_vpn_ipcheck.json");
+        if (icf.open(QIODevice::WriteOnly | QIODevice::Truncate)) { icf.write("{\"state\":1,\"text\":\"Проверка...\"}"); icf.close(); }
+    }
+    emit sysStatsChanged();
     const uint64_t mySeq = ++s_vpnSelectSeq;
     QFile swLock("/tmp/hysett_vpn_switching.lock");
     if (swLock.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
@@ -1911,15 +1932,92 @@ void WaybarManager::removeVpnWlSubUrl(int idx) {
 }
 
 void WaybarManager::toggleFreezeVpnServer(int idx, bool isWl) {
+    // Мгновенное (0 мс) обновление флага frozen в памяти C++ до ответа Python
+    if (isWl) {
+        if (idx >= 0 && idx < m_vpnWlServerItems.size()) {
+            QVariantMap m = m_vpnWlServerItems[idx].toMap();
+            bool nextFrz = !m["frozen"].toBool();
+            m["frozen"] = nextFrz;
+            m_vpnWlServerItems[idx] = m;
+            m_vpnFrozenCount = std::max(0, m_vpnFrozenCount + (nextFrz ? 1 : -1));
+            if (nextFrz && m_vpnWlSelectedServer == idx) m_vpnWlSelectedServer = 0;
+        }
+    } else {
+        if (idx >= 0 && idx < m_vpnSubServerItems.size()) {
+            QVariantMap m = m_vpnSubServerItems[idx].toMap();
+            bool nextFrz = !m["frozen"].toBool();
+            m["frozen"] = nextFrz;
+            m_vpnSubServerItems[idx] = m;
+            m_vpnFrozenCount = std::max(0, m_vpnFrozenCount + (nextFrz ? 1 : -1));
+            if (nextFrz && m_vpnSubSelectedServer == idx) m_vpnSubSelectedServer = 0;
+            for (int g = 0; g < m_vpnSubGroups.size(); ++g) {
+                QVariantMap gm = m_vpnSubGroups[g].toMap();
+                QVariantList gsrvs = gm["servers"].toList();
+                bool changed = false;
+                for (int s = 0; s < gsrvs.size(); ++s) {
+                    QVariantMap sm = gsrvs[s].toMap();
+                    if (sm["global_index"].toInt(-1) == idx) {
+                        sm["frozen"] = nextFrz;
+                        gsrvs[s] = sm;
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    gm["servers"] = gsrvs;
+                    m_vpnSubGroups[g] = gm;
+                }
+            }
+        }
+    }
+    emit sysStatsChanged();
     runVpnScriptCmd({"toggle_freeze", QString::number(idx), isWl ? "1" : "0"});
 }
 
 void WaybarManager::togglePinVpnServer(int idx, bool isWl) {
+    if (isWl && idx >= 0 && idx < m_vpnWlServerItems.size()) {
+        QVariantMap m = m_vpnWlServerItems[idx].toMap();
+        m["pinned"] = !m["pinned"].toBool();
+        if (m["pinned"].toBool()) m["frozen"] = false;
+        m_vpnWlServerItems[idx] = m;
+        emit sysStatsChanged();
+    }
     runVpnScriptCmd({"toggle_pin", QString::number(idx), isWl ? "1" : "0"});
 }
 
 void WaybarManager::clearFrozenVpnServers() {
+    m_vpnFrozenCount = 0;
+    for (int i = 0; i < m_vpnWlServerItems.size(); ++i) {
+        QVariantMap m = m_vpnWlServerItems[i].toMap();
+        if (m["frozen"].toBool()) { m["frozen"] = false; m_vpnWlServerItems[i] = m; }
+    }
+    for (int i = 0; i < m_vpnSubServerItems.size(); ++i) {
+        QVariantMap m = m_vpnSubServerItems[i].toMap();
+        if (m["frozen"].toBool()) { m["frozen"] = false; m_vpnSubServerItems[i] = m; }
+    }
+    for (int g = 0; g < m_vpnSubGroups.size(); ++g) {
+        QVariantMap gm = m_vpnSubGroups[g].toMap();
+        QVariantList gsrvs = gm["servers"].toList();
+        for (int s = 0; s < gsrvs.size(); ++s) {
+            QVariantMap sm = gsrvs[s].toMap();
+            if (sm["frozen"].toBool()) { sm["frozen"] = false; gsrvs[s] = sm; }
+        }
+        gm["servers"] = gsrvs;
+        m_vpnSubGroups[g] = gm;
+    }
+    emit sysStatsChanged();
     runVpnScriptCmd({"clear_frozen"});
+}
+
+void WaybarManager::checkVpn2ip() {
+    m_vpnIpCheckState = 1;
+    m_vpnIpCheckText = "Проверка IP и геолокации на 2ip.io...";
+    QFile icf("/tmp/hysett_vpn_ipcheck.json");
+    if (icf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        icf.write("{"state":1,"text":"Проверка..."}");
+        icf.close();
+    }
+    emit sysStatsChanged();
+    runVpnScriptCmd({"check_2ip"});
 }
 
 void WaybarManager::setVpnLogHeight(int v) {

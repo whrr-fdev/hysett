@@ -477,6 +477,75 @@ ScrollView {
                 }
             }
 
+            // Плашка живой проверки выходного IP и геолокации через 2ip.io
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 36
+                radius: vpnScroll.isM3 ? 10 : 0
+                color: vpnScroll.isM3 && Config
+                       ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.38)
+                       : Qt.rgba(1, 1, 1, 0.05)
+                border.width: 1
+                border.color: {
+                    var st = Waybar ? Waybar.vpnIpCheckState : 0
+                    if (st === 2) return Qt.rgba(0.41, 0.94, 0.68, 0.45)
+                    if (st === 3) return Qt.rgba(1.0, 0.42, 0.42, 0.55)
+                    if (st === 1) return Qt.rgba(1.0, 0.84, 0.31, 0.45)
+                    return Qt.rgba(1, 1, 1, 0.14)
+                }
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    anchors.rightMargin: 8
+                    spacing: 8
+
+                    Rectangle {
+                        width: 8; height: 8; radius: 4
+                        color: {
+                            var st = Waybar ? Waybar.vpnIpCheckState : 0
+                            if (st === 2) return "#69f0ae"
+                            if (st === 3) return "#ff6b6b"
+                            if (st === 1) return "#ffd54f"
+                            return "#777777"
+                        }
+                    }
+
+                    Text {
+                        text: "󰍎 2ip.io:"
+                        color: "#bbbbbb"
+                        font.pixelSize: Config.fontSize - 1
+                        font.bold: true
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                        font.pixelSize: Config.fontSize
+                        font.bold: (Waybar ? Waybar.vpnIpCheckState : 0) >= 2
+                        color: {
+                            var st = Waybar ? Waybar.vpnIpCheckState : 0
+                            if (st === 2) return "#69f0ae"
+                            if (st === 3) return "#ff8a80"
+                            if (st === 1) return "#ffd54f"
+                            return "#999999"
+                        }
+                        text: {
+                            if (!Waybar || !Waybar.vpnActive) return "Туннель отключен"
+                            var t = Waybar.vpnIpCheckText || ""
+                            return t.length > 0 ? t : "Нажмите «Проверить» для теста 2ip.io"
+                        }
+                    }
+
+                    StyledButton {
+                        text: (Waybar && Waybar.vpnIpCheckState === 1) ? "󰑐 Проверка..." : "󰑐 Проверить 2ip.io"
+                        implicitHeight: 24
+                        enabled: Waybar && Waybar.vpnActive && Waybar.vpnIpCheckState !== 1
+                        onClicked: if (Waybar) Waybar.checkVpn2ip()
+                    }
+                }
+            }
+
             SegmentedButton {
                 Layout.fillWidth: true
                 implicitHeight: 34

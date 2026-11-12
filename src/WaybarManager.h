@@ -119,6 +119,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QStringList vpnCustomProxyDomains READ vpnCustomProxyDomains NOTIFY sysStatsChanged)
     Q_PROPERTY(QStringList vpnCustomDirectDomains READ vpnCustomDirectDomains NOTIFY sysStatsChanged)
     Q_PROPERTY(bool vpnBusy READ vpnBusy NOTIFY sysStatsChanged)
+    Q_PROPERTY(int vpnProgressPercent READ vpnProgressPercent NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnProgressText READ vpnProgressText NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnStatusHint READ vpnStatusHint NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnLastUpdated READ vpnLastUpdated NOTIFY sysStatsChanged)
 
@@ -296,6 +298,8 @@ public:
     QStringList vpnCustomProxyDomains() const { return m_vpnCustomProxyDomains; }
     QStringList vpnCustomDirectDomains() const { return m_vpnCustomDirectDomains; }
     bool vpnBusy() const { return m_vpnBusy; }
+    int vpnProgressPercent() const { return m_vpnProgressPercent; }
+    QString vpnProgressText() const { return m_vpnProgressText; }
     QString vpnStatusHint() const { return m_vpnStatusHint; }
     QString vpnLastUpdated() const { return m_vpnLastUpdated; }
     Q_INVOKABLE void updateBypassLists();
@@ -486,6 +490,8 @@ private:
     QStringList m_vpnCustomProxyDomains;
     QStringList m_vpnCustomDirectDomains;
     bool m_vpnBusy = false;
+    int m_vpnProgressPercent = 0;
+    QString m_vpnProgressText;
     QString m_vpnStatusHint = "";
     void syncVpnStateFromScript(const QByteArray &raw);
     void runVpnScriptCmd(const QStringList &args);

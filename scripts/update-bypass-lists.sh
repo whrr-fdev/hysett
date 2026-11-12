@@ -4,6 +4,7 @@ set -uo pipefail
 BASE_DIR="$HOME/hysett/bypass-lists"
 REPOS_DIR="$BASE_DIR/repos"
 LOG_FILE="$BASE_DIR/update.log"
+PROG_FILE="/tmp/hysett_vpn_progress.json"
 
 GIT_REPOS=(
     "https://github.com/bol-van/zapret.git"
@@ -19,27 +20,41 @@ GIT_REPOS=(
 
 mkdir -p "$REPOS_DIR"
 
+write_prog() {
+    local pct="$1"
+    local txt="$2"
+    printf '{"percent": %d, "text": "%s"}\n' "$pct" "$txt" > "$PROG_FILE.tmp" && mv -f "$PROG_FILE.tmp" "$PROG_FILE"
+}
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a "$LOG_FILE"
 }
 
 UPDATED_COUNT=0
 ERROR_COUNT=0
+TOTAL_REPOS=${#GIT_REPOS[@]}
+IDX=0
 
-log "=== Запуск обновления списков и репозиториев БС ==="
+log "=== Запуск обновления списков и репозиториев БС/ЧС ==="
+write_prog 5 "Синхронизация репозиториев (0/$TOTAL_REPOS)..."
 
 for repo_url in "${GIT_REPOS[@]}"; do
+    ((IDX++))
     repo_name=$(basename "$repo_url" .git)
     target_dir="$REPOS_DIR/$repo_name"
+    rem_repos=$((TOTAL_REPOS - IDX + 1))
+    est_sec=$((rem_repos * 2 + 4))
+    pct=$((5 + IDX * 50 / TOTAL_REPOS))
+    write_prog "$pct" "Репозиторий $IDX/$TOTAL_REPOS: $repo_name (~${est_sec} сек)"
 
     if [[ -d "$target_dir/.git" ]]; then
-        if timeout 25 git -C "$target_dir" pull --ff-only --quiet 2>/dev/null; then
+        if timeout 20 git -C "$target_dir" pull --ff-only --quiet 2>/dev/null; then
             ((UPDATED_COUNT++))
         else
             ((ERROR_COUNT++))
         fi
     else
-        if timeout 35 git clone --depth 1 --quiet "$repo_url" "$target_dir" 2>/dev/null; then
+        if timeout 30 git clone --depth 1 --quiet "$repo_url" "$target_dir" 2>/dev/null; then
             ((UPDATED_COUNT++))
         else
             ((ERROR_COUNT++))
@@ -47,7 +62,8 @@ for repo_url in "${GIT_REPOS[@]}"; do
     fi
 done
 
-# Нормализация и распаковка (в т.ч. base64) всех vless/trojan/hy2 ключей из новых репозиториев
+write_prog 62 "Распаковка ключей БС и ЧС (~4 сек)..."
+
 python3 - << 'PYEOF'
 import os, base64, re
 

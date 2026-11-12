@@ -450,10 +450,30 @@ ScrollView {
                     font.pixelSize: Config.fontSize - 1
                 }
                 StyledButton {
-                    text: (Waybar && Waybar.vpnBusy) ? "󰑐 Обновление..." : "󰑐 Обновить всё"
+                    text: (Waybar && Waybar.vpnBusy)
+                          ? ("󰑐 " + Waybar.vpnProgressPercent + "% • " + (Waybar.vpnProgressText.length > 0 ? Waybar.vpnProgressText : "Обновление..."))
+                          : "󰑐 Обновить всё"
                     implicitHeight: 26
                     enabled: !(Waybar && Waybar.vpnBusy)
                     onClicked: if (Waybar) Waybar.updateBypassLists()
+                }
+            }
+
+            // Полоса прогресса при обновлении репозиториев или проверке серверов БС
+            Rectangle {
+                visible: Waybar && Waybar.vpnBusy
+                Layout.fillWidth: true
+                height: 6
+                radius: vpnScroll.isM3 ? 3 : 0
+                color: Qt.rgba(1, 1, 1, 0.10)
+                clip: true
+
+                Rectangle {
+                    width: parent.width * Math.max(0.05, Math.min(1.0, (Waybar ? Waybar.vpnProgressPercent : 0) / 100.0))
+                    height: parent.height
+                    radius: parent.radius
+                    color: Config ? Config.m3Primary : "#69f0ae"
+                    Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
                 }
             }
 
@@ -785,7 +805,7 @@ ScrollView {
                                             model: Waybar ? Waybar.vpnSubGroups : []
                                             delegate: Rectangle {
                                                 id: subRowItem
-                                                visible: vpnScroll.activeSubTab === 0 || vpnScroll.activeSubTab === (index + 1)
+                                                visible: !modelData.is_public_bl && (vpnScroll.activeSubTab === 0 || vpnScroll.activeSubTab === (index + 1))
                                                 Layout.fillWidth: true; implicitHeight: 34
                                                 radius: vpnScroll.isM3 ? 8 : 0
                                                 color: vpnScroll.isM3 && Config
@@ -957,7 +977,14 @@ ScrollView {
                                             if (vpnScroll.activeSubTab > 0 && vpnScroll.activeSubTab <= Waybar.vpnSubGroups.length) {
                                                 return Waybar.vpnSubGroups[vpnScroll.activeSubTab - 1].servers;
                                             }
-                                            return Waybar.vpnSubServerItems;
+                                            var own = [];
+                                            for (var i = 0; i < Waybar.vpnSubGroups.length; ++i) {
+                                                var g = Waybar.vpnSubGroups[i];
+                                                if (!g.is_public_bl && g.servers) {
+                                                    for (var j = 0; j < g.servers.length; ++j) own.push(g.servers[j]);
+                                                }
+                                            }
+                                            return own.length > 0 ? own : Waybar.vpnSubServerItems;
                                         }
 
                                         delegate: Rectangle {
@@ -1179,7 +1206,7 @@ ScrollView {
                                         Layout.fillWidth: true
                                     }
                                     StyledButton {
-                                        text: (Waybar && Waybar.vpnBusy) ? "󰑐 Проверка..." : "󰓅 Проверить серверы"
+                                        text: (Waybar && Waybar.vpnBusy) ? ("󰑐 " + Waybar.vpnProgressPercent + "%") : "󰓅 Проверить серверы"
                                         implicitHeight: 26
                                         enabled: !(Waybar && Waybar.vpnBusy)
                                         onClicked: if (Waybar) Waybar.testWhitelistServers()

@@ -359,6 +359,20 @@ void WaybarManager::pollHyprState() {
 }
 
 void WaybarManager::pollSysStats() {
+    if (m_vpnBusy) {
+        QFile pf("/tmp/hysett_vpn_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject po = QJsonDocument::fromJson(pf.readAll()).object();
+            pf.close();
+            int pct = po["percent"].toInt(m_vpnProgressPercent);
+            QString ptxt = po["text"].toString(m_vpnProgressText);
+            if (pct != m_vpnProgressPercent || ptxt != m_vpnProgressText) {
+                m_vpnProgressPercent = pct;
+                m_vpnProgressText = ptxt;
+                emit sysStatsChanged();
+            }
+        }
+    }
     // 1. CPU Usage
     QFile statFile("/proc/stat");
     if (statFile.open(QIODevice::ReadOnly)) {
@@ -1682,6 +1696,8 @@ void WaybarManager::toggleVpnForMode(bool isWl) {
 
 void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     m_vpnBusy = false;
+    m_vpnProgressPercent = 100;
+    m_vpnProgressText.clear();
     QJsonDocument doc = QJsonDocument::fromJson(raw.trimmed());
     if (!doc.isObject()) { emit sysStatsChanged(); return; }
     QJsonObject o = doc.object();
@@ -1750,6 +1766,13 @@ void WaybarManager::runVpnScriptCmd(const QStringList &args) {
     bool isHeavy = (!args.isEmpty() && (args[0] == "update_lists" || args[0] == "update" || args[0] == "test_whitelist"));
     if (isHeavy) {
         m_vpnBusy = true;
+        m_vpnProgressPercent = 5;
+        m_vpnProgressText = (args[0] == "test_whitelist") ? "Подготовка проверки серверов БС..." : "Запуск обновления списков...";
+        QFile pf("/tmp/hysett_vpn_progress.json");
+        if (pf.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            pf.write("{\"percent\":5,\"text\":\"Запуск...\"}");
+            pf.close();
+        }
         emit sysStatsChanged();
     }
     QProcess *p = new QProcess(this);

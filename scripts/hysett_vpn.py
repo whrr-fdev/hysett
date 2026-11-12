@@ -30,6 +30,17 @@ WHITE_SNI_KEYWORDS = (
     "mts.ru", "megafon.ru", "beeline.ru", "tele2.ru", "rostelecom", "selectel", "2gis"
 )
 
+PROG_FILE = "/tmp/hysett_vpn_progress.json"
+
+def write_progress(pct, text):
+    try:
+        tmp = PROG_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump({"percent": int(pct), "text": str(text)}, f, ensure_ascii=False)
+        os.replace(tmp, PROG_FILE)
+    except Exception:
+        pass
+
 WHITELIST_SOURCES = [
     ("auto", "󰓅 Все проверенные БС", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt",
@@ -37,32 +48,22 @@ WHITELIST_SOURCES = [
         "vpn-configs/white_sni_ru.txt",
         "vpn-configs/whitelist_cidr1_ru.txt",
         "wl/vless_lite.txt",
-        "wl/hysett_wl.txt",
-        "all_subs/hysett_wl.txt",
+        "wl/vless.txt",
         "V.O.I.D-VPN_Bypass/hysett_wl.txt"
     ]),
     ("my_wl_subs", "󰌘 Мои подписки БС", []),
     ("zieng2_wl", "󰄜 zieng2 Mobile БС", [
         "wl/vless_lite.txt",
         "wl/vless.txt",
-        "wl/hysett_wl.txt"
+        "wl/vless_universal.txt"
     ]),
-    ("all_subs_wl", "󰒃 all_subs БС РФ", [
-        "all_subs/hysett_wl.txt"
-    ]),
-    ("void_wl", "󰞀 VOID Bypass БС", [
-        "V.O.I.D-VPN_Bypass/hysett_wl.txt"
-    ]),
-    ("goida_wl", "󰦝 Goida VLESS РФ", [
-        "goida-vpn-configs/hysett_wl.txt"
-    ]),
-    ("igareck_mobile", "󰄜 igareck Mobile", [
+    ("igareck_mobile", "󰄜 igareck Mobile БС", [
         "vpn-configs-for-russia/Vless-Reality-White-Lists-Rus-Mobile.txt"
     ]),
-    ("igareck_cidr_checked", "󰞀 igareck CIDR", [
+    ("igareck_cidr_checked", "󰞀 igareck CIDR РФ", [
         "vpn-configs-for-russia/WHITE-CIDR-RU-checked.txt"
     ]),
-    ("igareck_sni", "󰒃 igareck SNI РФ", [
+    ("igareck_sni", "󰒃 igareck Белый SNI", [
         "vpn-configs-for-russia/WHITE-SNI-RU-all.txt"
     ]),
     ("igareck_cidr_all", "󰒃 igareck Все CIDR", [
@@ -83,9 +84,38 @@ WHITELIST_SOURCES = [
     ("wl_all", "󰒃 wlunlocker Все БС", [
         "vpn-configs/whitelist_all.txt"
     ]),
-    ("igareck_black", "󰦝 igareck VLESS", [
-        "vpn-configs-for-russia/BLACK_VLESS_RUS.txt",
+    ("void_wl", "󰞀 VOID Bypass БС", [
+        "V.O.I.D-VPN_Bypass/hysett_wl.txt"
+    ]),
+    ("all_subs_wl", "󰒃 all_subs (только БС)", [
+        "all_subs/hysett_wl.txt"
+    ]),
+    ("goida_wl", "󰦝 Goida (только БС)", [
+        "goida-vpn-configs/hysett_wl.txt"
+    ])
+]
+
+BLACKLIST_SOURCES = [
+    ("bl_igareck_vless", "󰦝 ЧС: igareck VLESS", [
+        "vpn-configs-for-russia/BLACK_VLESS_RUS.txt"
+    ]),
+    ("bl_igareck_mobile", "󰄜 ЧС: igareck Mobile", [
         "vpn-configs-for-russia/BLACK_VLESS_RUS_mobile.txt"
+    ]),
+    ("bl_wlunlocker_1", "󰈀 ЧС: wlunlocker #1", [
+        "vpn-configs/blacklist_vpn1.txt"
+    ]),
+    ("bl_wlunlocker_2", "󰈀 ЧС: wlunlocker #2", [
+        "vpn-configs/blacklist_vpn2.txt"
+    ]),
+    ("bl_wlunlocker_all", "󰈀 ЧС: wlunlocker Все", [
+        "vpn-configs/blacklist_all.txt"
+    ]),
+    ("bl_all_subs", "󰒃 ЧС: all_subs", [
+        "all_subs/hysett_wl.txt"
+    ]),
+    ("bl_goida", "󰦝 ЧС: Goida VLESS", [
+        "goida-vpn-configs/hysett_wl.txt"
     ])
 ]
 
@@ -215,6 +245,7 @@ def load_state():
         "sub_servers": [],
         "sub_cache": {},
         "wl_sub_cache": {},
+        "ping_cache": {},
         "wl_servers": [],
         "frozen_sigs": [],
         "pinned_sigs": [],
@@ -233,6 +264,8 @@ def load_state():
         st["sub_cache"] = {}
     if not isinstance(st.get("wl_sub_cache"), dict):
         st["wl_sub_cache"] = {}
+    if not isinstance(st.get("ping_cache"), dict):
+        st["ping_cache"] = {}
     if not isinstance(st.get("frozen_sigs"), list):
         st["frozen_sigs"] = []
     if not isinstance(st.get("pinned_sigs"), list):
@@ -617,9 +650,140 @@ def extract_ping_str(name_str, ping_ms=0):
         return parts[0]
     return ""
 
-def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False, pinned_set=None):
+def populate_server_pings(srv_list, ping_cache, max_new_probes=60, timeout=0.50):
+    if not isinstance(ping_cache, dict):
+        ping_cache = {}
+    to_probe = []
+    for s in srv_list:
+        ob = s.get("outbound", {})
+        if not isinstance(ob, dict) or ob.get("type") == "urltest":
+            continue
+        existing_str = extract_ping_str(s.get("name", ""), int(s.get("ping_ms") or 0))
+        if existing_str:
+            s["ping"] = existing_str
+            try:
+                ms_val = int(existing_str.split()[0])
+                s["ping_ms"] = ms_val
+                hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+                if hp != ":443":
+                    ping_cache[hp] = ms_val
+            except Exception:
+                pass
+            continue
+        hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+        if hp in ping_cache:
+            ms_c = int(ping_cache[hp] or 0)
+            s["ping_ms"] = ms_c
+            s["ping"] = f"{ms_c} мс" if ms_c > 0 else ""
+        elif len(to_probe) < max_new_probes:
+            to_probe.append((hp, ob.get("server", ""), ob.get("server_port", 443), s))
+
+    if to_probe:
+        with ThreadPoolExecutor(max_workers=36) as ex:
+            futs = {ex.submit(quick_host_ping_ms, host, port, timeout): (hp, s_ref) for hp, host, port, s_ref in to_probe}
+            for f in as_completed(futs):
+                hp, s_ref = futs[f]
+                ms = f.result()
+                val = int(ms) if ms is not None else 0
+                ping_cache[hp] = val
+                s_ref["ping_ms"] = val
+                s_ref["ping"] = f"{val} мс" if val > 0 else ""
+    # Второй проход для серверов с тем же host:port
+    for s in srv_list:
+        if not s.get("ping"):
+            ob = s.get("outbound", {})
+            hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+            ms_c = int(ping_cache.get(hp) or 0)
+            if ms_c > 0:
+                s["ping_ms"] = ms_c
+                s["ping"] = f"{ms_c} мс"
+
+def load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, per_group_limit=30):
+    bl_groups = []
+    seen_sigs = {s.get("sig") for s in all_srvs if s.get("sig")}
+    base_group_idx = 100
+    for b_idx, (b_key, b_title, rel_files) in enumerate(BLACKLIST_SOURCES):
+        raw_items = []
+        for rel in rel_files:
+            full = os.path.join(BYPASS_REPOS, rel)
+            if not os.path.exists(full):
+                continue
+            try:
+                with open(full, "r", encoding="utf-8", errors="ignore") as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith("#"):
+                            continue
+                        if any(line.startswith(p) for p in ("vless://", "trojan://", "hy2://", "hysteria2://", "ss://")):
+                            name, ob = parse_uri(line)
+                            if not ob:
+                                continue
+                            sig = server_sig(ob)
+                            if not sig or sig in seen_sigs:
+                                continue
+                            seen_sigs.add(sig)
+                            title = name if (name and name != "Сервер") else f"{ob['server']}:{ob['server_port']}"
+                            raw_items.append({
+                                "name": title[:54],
+                                "outbound": ob,
+                                "uri": line,
+                                "sig": sig
+                            })
+                            if len(raw_items) >= per_group_limit:
+                                break
+            except Exception:
+                pass
+            if len(raw_items) >= per_group_limit:
+                break
+
+        if not raw_items:
+            continue
+        populate_server_pings(raw_items, ping_cache, max_new_probes=15, timeout=0.45)
+        raw_items.sort(key=lambda x: (0 if int(x.get("ping_ms") or 0) > 0 else 1, int(x.get("ping_ms") or 9999)))
+        start_idx = len(all_srvs)
+        group_srv_names = []
+        best_ms = None
+        for s in raw_items:
+            nm = s["name"]
+            ob = s["outbound"]
+            uri = s["uri"]
+            sig = s["sig"]
+            p_ms = int(s.get("ping_ms") or 0)
+            p_str = s.get("ping", "")
+            if p_ms > 0 and (best_ms is None or p_ms < best_ms):
+                best_ms = p_ms
+            is_frz = sig in frozen_set
+            is_pin = sig in pinned_set
+            item = {
+                "name": nm, "outbound": ob, "uri": uri, "sig": sig,
+                "ping": p_str, "ping_ms": p_ms,
+                "frozen": is_frz, "pinned": is_pin,
+                "sub_index": base_group_idx + b_idx,
+                "is_public_bl": True
+            }
+            all_srvs.append(item)
+            group_srv_names.append({
+                "name": nm, "uri": uri, "sig": sig, "ping": p_str,
+                "frozen": is_frz, "pinned": is_pin,
+                "global_index": len(all_srvs) - 1
+            })
+        bl_groups.append({
+            "index": base_group_idx + b_idx,
+            "title": b_title,
+            "url": "",
+            "is_public_bl": True,
+            "ping": f"{best_ms} мс" if best_ms else "",
+            "count": len(group_srv_names),
+            "start_index": start_idx,
+            "servers": group_srv_names
+        })
+    return bl_groups
+
+def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=False, pinned_set=None, ping_cache=None, include_public_bl=False):
     if pinned_set is None:
         pinned_set = set()
+    if ping_cache is None:
+        ping_cache = {}
     starts, merged = (load_ru_whitelist_ip_intervals() if mark_wl_badges else ([], []))
     all_srvs = []
     groups = []
@@ -639,7 +803,10 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             ob = s.get("outbound", {})
             uri = s.get("uri", "") or rebuild_uri_from_outbound(ob, nm)
             sig = server_sig(ob)
-            p_ms = int(s.get("ping_ms") or 0)
+            hp = f"{ob.get('server', '')}:{ob.get('server_port', 443)}"
+            p_ms = int(s.get("ping_ms") or ping_cache.get(hp) or 0)
+            if p_ms > 0:
+                ping_cache[hp] = p_ms
             if p_ms > 0 and (best_group_ms is None or p_ms < best_group_ms):
                 best_group_ms = p_ms
             p_str = extract_ping_str(nm, p_ms)
@@ -648,7 +815,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             if mark_wl_badges and ob:
                 badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
                 nm = f"{badge} • {nm}"
-            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "ping": p_str, "ping_ms": p_ms, "frozen": is_frz, "pinned": is_pin, "sub_index": idx}
+            item = {"name": nm, "outbound": ob, "uri": uri, "sig": sig, "ping": p_str, "ping_ms": p_ms, "frozen": is_frz, "pinned": is_pin, "sub_index": idx, "is_public_bl": False}
             all_srvs.append(item)
             group_srv_names.append({
                 "name": nm,
@@ -663,11 +830,15 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
             "index": idx,
             "title": title,
             "url": u,
+            "is_public_bl": False,
             "ping": f"{best_group_ms} мс" if best_group_ms else "",
             "count": len(srvs),
             "start_index": start_idx,
             "servers": group_srv_names
         })
+    if include_public_bl and not mark_wl_badges:
+        bl_groups = load_blacklist_groups(all_srvs, frozen_set, pinned_set, ping_cache, per_group_limit=30)
+        groups.extend(bl_groups)
     return all_srvs, groups
 
 def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера", pinned_set=None, pinned_items=None):
@@ -770,7 +941,10 @@ def load_whitelist_servers(st, wl_key="auto", limit=240):
                             continue
                         seen.add(sig)
                         sni = ob.get("tls", {}).get("server_name", "")
-                        badge, _ = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
+                        badge, tier = classify_whitelist_badge(ob, starts, merged, resolve_dns=False)
+                        # В смешанных репозиториях для вкладки БС берем только ключи с признаками обхода БС (CIDR РФ или Белый SNI)
+                        if (wl_key in ("all_subs_wl", "goida_wl") or rel in ("all_subs/hysett_wl.txt", "goida-vpn-configs/hysett_wl.txt")) and tier >= 3:
+                            continue
                         title = name if (name and name != "Сервер") else f"{ob['server']}:{ob['server_port']}"
                         if sni and sni not in title:
                             title = f"{title} • {sni}"
@@ -779,6 +953,7 @@ def load_whitelist_servers(st, wl_key="auto", limit=240):
                             "outbound": ob,
                             "uri": line,
                             "sig": sig,
+                            "tier": tier,
                             "frozen": (sig in frozen_set)
                         })
                         if len(servers) >= limit:
@@ -788,6 +963,8 @@ def load_whitelist_servers(st, wl_key="auto", limit=240):
         if len(servers) >= limit:
             break
 
+    populate_server_pings(servers, st.setdefault("ping_cache", {}), max_new_probes=55, timeout=0.50)
+    servers.sort(key=lambda x: (0 if int(x.get("ping_ms") or 0) > 0 else 1, x.get("tier", 2), int(x.get("ping_ms") or 9999)))
     return apply_freeze_and_urltest(servers, frozen_set, pinned_set=pinned_set, pinned_items=pinned_items)
 
 def tcp_quick_filter(item, timeout=0.85):
@@ -969,6 +1146,7 @@ def test_and_sort_whitelist(st, max_candidates=65):
         return st
 
     starts, merged = load_ru_whitelist_ip_intervals()
+    write_progress(15, f"TCP-фильтр {len(real_srvs)} серверов БС (~4 сек)...")
     log_wl_msg(f"Аудит {len(real_srvs)} серверов категории '{st.get('whitelist_file', 'auto')}' (TCP + HTTPS 204)...")
     tcp_alive = []
     with ThreadPoolExecutor(max_workers=48) as ex:
@@ -981,10 +1159,12 @@ def test_and_sort_whitelist(st, max_candidates=65):
 
     tcp_alive.sort(key=lambda x: x[0])
     candidates = [x[1] for x in tcp_alive[:max_candidates]] if tcp_alive else real_srvs[:35]
+    write_progress(52, f"Проверка HTTP+HTTPS через sing-box ({len(candidates)} серв., ~3 сек)...")
     log_wl_msg(f"TCP прошли: {len(tcp_alive)} серв. Стресс-тест HTTP+HTTPS через sing-box ({len(candidates)} канд.)...")
 
     verified = run_singbox_batch_audit(candidates, starts, merged, timeout=2.4)
     alive = [x[1] for x in verified]
+    write_progress(95, f"Найдено {len(alive)} стабильных серверов БС")
     log_wl_msg(f"Проверка завершена: найдено {len(alive)} стабильных серверов без перегрузки.")
     if not alive:
         alive = candidates[:15]
@@ -1173,7 +1353,7 @@ def sync_active_server_list(st):
         sub_cache[urls[0]] = {"title": short_sub_title(urls[0], 0), "servers": st["sub_servers"]}
         st["sub_cache"] = sub_cache
 
-    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, frozen_set, mark_wl_badges=False, pinned_set=pinned_set)
+    sub_srvs, _ = rebuild_sub_servers_from_cache(urls, sub_cache, frozen_set, mark_wl_badges=False, pinned_set=pinned_set, ping_cache=st.setdefault('ping_cache', {}), include_public_bl=True)
     st["sub_servers"] = sub_srvs
 
     if sub_srvs:
@@ -1193,6 +1373,7 @@ def sync_active_server_list(st):
     if not st.get("wl_servers") or wl_file == "my_wl_subs":
         st["wl_servers"] = load_whitelist_servers(st, wl_file)
     else:
+        populate_server_pings(st["wl_servers"], st.setdefault("ping_cache", {}), max_new_probes=45, timeout=0.45)
         st["wl_servers"] = apply_freeze_and_urltest(st["wl_servers"], frozen_set, pinned_set=pinned_set, pinned_items=pinned_items)
 
     wl_srvs = st.get("wl_servers", [])
@@ -1412,8 +1593,8 @@ def dump_status_json():
     pinned_set = set(st.get("pinned_sigs", []))
     urls = read_sub_urls()
     wl_urls = read_wl_sub_urls()
-    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), frozen_set, mark_wl_badges=False, pinned_set=pinned_set)
-    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True, pinned_set=pinned_set)
+    _, sub_groups = rebuild_sub_servers_from_cache(urls, st.get("sub_cache", {}), frozen_set, mark_wl_badges=False, pinned_set=pinned_set, ping_cache=st.setdefault('ping_cache', {}), include_public_bl=True)
+    _, wl_sub_groups = rebuild_sub_servers_from_cache(wl_urls, st.get("wl_sub_cache", {}), frozen_set, mark_wl_badges=True, pinned_set=pinned_set, ping_cache=st.setdefault('ping_cache', {}), include_public_bl=False)
 
     sub_srv_names = []
     sub_srv_items = []
@@ -1500,16 +1681,22 @@ if __name__ == "__main__":
             start_vpn()
         dump_status_json()
     elif cmd in ("update", "update_lists"):
+        write_progress(5, "Запуск обновления репозиториев БС и ЧС...")
         if os.path.exists(UPDATE_SCRIPT):
             subprocess.run(["/usr/bin/bash", UPDATE_SCRIPT], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        write_progress(72, "Обновление личных подписок (~3 сек)...")
         fetch_subscriptions(is_wl=False)
         fetch_subscriptions(is_wl=True)
+        write_progress(86, "Замер пинга серверов БС и ЧС (~2 сек)...")
         st = load_state()
+        st["ping_cache"] = {}
         st["last_updated"] = time.strftime("%d.%m в %H:%M")
         st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"))
         st = sync_active_server_list(st)
         save_state(st)
+        write_progress(96, "Перезапуск туннеля...")
         restart_if_running()
+        write_progress(100, "Готово")
         dump_status_json()
     elif cmd == "set_whitelist_mode":
         st = load_state()

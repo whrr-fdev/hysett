@@ -475,26 +475,47 @@ ScrollView {
                     Layout.fillWidth: true
                     elide: Text.ElideRight
                     font.pixelSize: Config.fontSize
-                    font.bold: (Waybar ? Waybar.vpnIpCheckState : 0) >= 1
+                    font.bold: (Waybar ? Waybar.vpnIpCheckState : 0) >= 1 || (Waybar && Waybar.vpnBusy)
                     color: {
-                        if (!Waybar || !Waybar.vpnActive) return "#999999"
+                        if (!Waybar) return "#999999"
+                        if (Waybar.vpnBusy) return "#ffd54f"
                         var st = Waybar.vpnIpCheckState
                         if (st === 2) return "#69f0ae"
                         if (st === 3) return "#ff8a80"
                         if (st === 1) return "#ffd54f"
-                        return "#cccccc"
+                        return Waybar.vpnActive ? "#cccccc" : "#999999"
                     }
                     text: {
-                        if (!Waybar || !Waybar.vpnActive) return "Туннель отключен"
+                        if (!Waybar) return "Туннель отключен"
+                        if (Waybar.vpnBusy && Waybar.vpnProgressText.length > 0) return Waybar.vpnProgressText
                         var t = Waybar.vpnIpCheckText || ""
-                        return t.length > 0 ? t : "Нажмите «Проверить 2ip.io»"
+                        if (t.length > 0 && (Waybar.vpnActive || Waybar.vpnIpCheckState > 0)) return t
+                        return Waybar.vpnActive ? "Нажмите «2ip.io» или «Проверка конфигов»" : "Туннель отключен • Доступна «Проверка конфигов»"
                     }
                 }
 
                 StyledButton {
-                    text: (Waybar && Waybar.vpnIpCheckState === 1) ? "󰑐 Проверка..." : "󰑐 Проверить 2ip.io"
+                    text: (Waybar && Waybar.vpnBusy)
+                          ? ("󰅖 Стоп (" + Waybar.vpnProgressPercent + "%)")
+                          : "󰓅 Проверка конфигов"
                     implicitHeight: 24
-                    enabled: Waybar && Waybar.vpnActive && Waybar.vpnIpCheckState !== 1
+                    isActive: Waybar && Waybar.vpnBusy
+                    onClicked: {
+                        if (!Waybar) return
+                        if (Waybar.vpnBusy) {
+                            Waybar.stopVpnConfigAudit()
+                        } else if (vpnScroll.viewWlMode) {
+                            Waybar.testWhitelistServers()
+                        } else {
+                            Waybar.testNormalVpnServers(vpnScroll.activeSubTab)
+                        }
+                    }
+                }
+
+                StyledButton {
+                    text: (Waybar && Waybar.vpnIpCheckState === 1 && !Waybar.vpnBusy) ? "󰑐 ..." : "󰍎 2ip.io"
+                    implicitHeight: 24
+                    enabled: Waybar && Waybar.vpnActive && !Waybar.vpnBusy && Waybar.vpnIpCheckState !== 1
                     onClicked: if (Waybar) Waybar.checkVpn2ip()
                 }
             }
@@ -1147,6 +1168,8 @@ ScrollView {
                                             property bool isPin: modelData.pinned === true
                                             property string srvUri: modelData.uri || ""
                                             property string srvSig: modelData.sig || ("sub_" + realIdx)
+                                            property bool isAuditing: Waybar && Waybar.vpnBusy && srvSig.length > 0 && Waybar.vpnAuditingSig === srvSig
+                                            onIsAuditingChanged: if (isAuditing) normalSrvList.positionViewAtIndex(index, ListView.Contain)
                                             property var parsed: vpnScroll.parseServerItem(modelData.name !== undefined ? modelData.name : modelData, false)
                                             radius: vpnScroll.isM3 ? 8 : 0
                                             opacity: isFrz ? 0.42 : 1.0
@@ -1190,7 +1213,21 @@ ScrollView {
                                                 }
 
                                                 Rectangle {
-                                                    visible: !isFrz && modelData.verified === true
+                                                    visible: isAuditing
+                                                    width: audSubTxt.implicitWidth + 10; height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: Qt.rgba(1, 0.84, 0.31, 0.25)
+                                                    border.width: 1; border.color: "#ffd54f"
+                                                    Text {
+                                                        id: audSubTxt; anchors.centerIn: parent
+                                                        text: "󰑐 ПРОВЕРКА..."
+                                                        font.pixelSize: Config.fontSize - 2; font.bold: true
+                                                        color: "#ffd54f"
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: !isAuditing && !isFrz && modelData.verified === true
                                                     width: verSubTxt.implicitWidth + 10; height: 18
                                                     radius: vpnScroll.isM3 ? 5 : 0
                                                     color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)
@@ -1820,6 +1857,8 @@ ScrollView {
                                             property bool isPin: modelData.pinned === true
                                             property string srvUri: modelData.uri || ""
                                             property string srvSig: modelData.sig || ("wl_" + index)
+                                            property bool isAuditing: Waybar && Waybar.vpnBusy && srvSig.length > 0 && Waybar.vpnAuditingSig === srvSig
+                                            onIsAuditingChanged: if (isAuditing) wlSrvList.positionViewAtIndex(index, ListView.Contain)
                                             property var parsed: vpnScroll.parseServerItem(modelData.name || "", true)
                                             radius: vpnScroll.isM3 ? 8 : 0
                                             opacity: isFrz ? 0.42 : 1.0
@@ -1877,7 +1916,21 @@ ScrollView {
                                                 }
 
                                                 Rectangle {
-                                                    visible: !isFrz && modelData.verified === true
+                                                    visible: isAuditing
+                                                    width: audWlTxt.implicitWidth + 10; height: 18
+                                                    radius: vpnScroll.isM3 ? 5 : 0
+                                                    color: Qt.rgba(1, 0.84, 0.31, 0.25)
+                                                    border.width: 1; border.color: "#ffd54f"
+                                                    Text {
+                                                        id: audWlTxt; anchors.centerIn: parent
+                                                        text: "󰑐 ПРОВЕРКА..."
+                                                        font.pixelSize: Config.fontSize - 2; font.bold: true
+                                                        color: "#ffd54f"
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: !isAuditing && !isFrz && modelData.verified === true
                                                     width: verWlBadgeTxt.implicitWidth + 10; height: 18
                                                     radius: vpnScroll.isM3 ? 5 : 0
                                                     color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)

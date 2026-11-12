@@ -124,6 +124,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QString vpnStatusHint READ vpnStatusHint NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnIpCheckText READ vpnIpCheckText NOTIFY sysStatsChanged)
     Q_PROPERTY(int vpnIpCheckState READ vpnIpCheckState NOTIFY sysStatsChanged)
+    Q_PROPERTY(QString vpnAuditingSig READ vpnAuditingSig NOTIFY sysStatsChanged)
     Q_PROPERTY(QString vpnLastUpdated READ vpnLastUpdated NOTIFY sysStatsChanged)
 
     // Погода Gismeteo (Сейчас, Завтра, Неделя, Месяц)
@@ -306,6 +307,7 @@ public:
     QString vpnStatusHint() const { return m_vpnStatusHint; }
     QString vpnIpCheckText() const { return m_vpnIpCheckText; }
     int vpnIpCheckState() const { return m_vpnIpCheckState; }
+    QString vpnAuditingSig() const { return m_vpnAuditingSig; }
     QString vpnLastUpdated() const { return m_vpnLastUpdated; }
     Q_INVOKABLE void updateBypassLists();
     Q_INVOKABLE void testWhitelistServers();
@@ -512,4 +514,5 @@ private:
     QString m_vpnLastUpdated;
     QString m_vpnIpCheckText = "Туннель отключен";
     int m_vpnIpCheckState = 0;
+    QString m_vpnAuditingSig;
 };

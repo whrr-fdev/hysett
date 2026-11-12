@@ -1584,7 +1584,7 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
         pct = max(5, int(((i + 1) * 100) / total))
         step_msg = f"[{i+1}/{total}] Проверка: {nm}..."
         write_progress(pct, step_msg)
-        write_ipcheck(1, f"Проверка конфигов [{i+1}/{total}]: {nm}...", reload_state=False)
+        write_ipcheck(1, f"Проверка [{i+1}/{total}]: {nm}...", reload_state=False, auditing_sig=sig)
 
         loc_str, cc, ms = test_single_outbound_via_singbox(ob, port=29250 + (i % 15), timeout=2.6)
         if loc_str and ms > 0:
@@ -1605,7 +1605,7 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
             srv["frozen"] = False
             srv["verified"] = True
             log_wl_msg(f"✓ [{i+1}/{total}] РАБОЧИЙ ({ms} мс): {nm} -> {loc_str}")
-            write_ipcheck(2, f"✓ [{i+1}/{total}] {nm}: {loc_str}", reload_state=True)
+            write_ipcheck(2, f"✓ [{i+1}/{total}] РАБОЧИЙ: {nm} ({loc_str})", reload_state=True, auditing_sig="")
         else:
             frz_count += 1
             if sig:
@@ -1616,7 +1616,7 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
             srv["frozen"] = True
             srv["verified"] = False
             log_wl_msg(f"❄ [{i+1}/{total}] ЗАМОРОЖЕН (>3 сек): {nm}")
-            write_ipcheck(3, f"❄ [{i+1}/{total}] Заморожен (>3 сек): {nm}", reload_state=True)
+            write_ipcheck(3, f"❄ [{i+1}/{total}] ЗАМОРОЖЕН (>3 сек): {nm}", reload_state=True, auditing_sig="")
 
         st["frozen_sigs"] = frozen_sigs
         st["verified_sigs"] = verified_sigs
@@ -1934,7 +1934,7 @@ def stop_vpn(save_disabled=True):
 
 IPCHECK_FILE = "/tmp/hysett_vpn_ipcheck.json"
 
-def write_ipcheck(state_code, text, reload_state=False):
+def write_ipcheck(state_code, text, reload_state=False, auditing_sig=""):
     try:
         tmp = IPCHECK_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
@@ -1942,6 +1942,7 @@ def write_ipcheck(state_code, text, reload_state=False):
                 "state": int(state_code),
                 "text": str(text),
                 "reload_state": bool(reload_state),
+                "auditing_sig": str(auditing_sig or ""),
                 "ts": time.time()
             }, f, ensure_ascii=False)
         os.replace(tmp, IPCHECK_FILE)

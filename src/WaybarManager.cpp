@@ -373,10 +373,12 @@ void WaybarManager::pollSysStats() {
                     icf.close();
                     int stCode = ico["state"].toInt(m_vpnIpCheckState);
                     QString stTxt = ico["text"].toString();
+                    QString audSig = ico["auditing_sig"].toString();
                     bool reloadSt = ico["reload_state"].toBool(false);
-                    if (!stTxt.isEmpty() && (stCode != m_vpnIpCheckState || stTxt != m_vpnIpCheckText)) {
+                    if (!stTxt.isEmpty() && (stCode != m_vpnIpCheckState || stTxt != m_vpnIpCheckText || audSig != m_vpnAuditingSig)) {
                         m_vpnIpCheckState = stCode;
                         m_vpnIpCheckText = stTxt;
+                        m_vpnAuditingSig = audSig;
                         emit sysStatsChanged();
                     }
                     if (reloadSt) {
@@ -1881,6 +1883,7 @@ void WaybarManager::stopVpnConfigAudit() {
         sf.close();
     }
     m_vpnBusy = false;
+    m_vpnAuditingSig.clear();
     emit sysStatsChanged();
 }
 

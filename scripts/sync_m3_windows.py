@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, io, glob, json, time, subprocess, zipfile, struct, zlib
+import os, io, glob, json, subprocess, zipfile, struct, zlib
 
 home = os.path.expanduser("~")
 cc_path = os.path.join(home, ".config/hypr/scripts/control_center.conf")
@@ -116,8 +116,7 @@ with open(sysinfo_conf_path, "w") as f:
 # 3. Терминал Kitty и монитор Btop
 kitty_dir = os.path.join(home, ".config/kitty")
 os.makedirs(kitty_dir, exist_ok=True)
-kitty_conf_file = os.path.join(kitty_dir, "hysett-m3.conf")
-with open(kitty_conf_file, "w") as f:
+with open(os.path.join(kitty_dir, "hysett-m3.conf"), "w") as f:
     f.write(f"""background {surf_hex}
 foreground #e6e8ee
 cursor {pri_hex}
@@ -190,7 +189,7 @@ theme[upload_mid]="{pri_hex}"
 theme[upload_end]="{ter_hex}"
 """)
 
-# 4. GTK 3 / GTK 4 / libadwaita 1.6+ (включая CSS-переменные боковой панели Nautilus)
+# 4. GTK 3 / GTK 4 / libadwaita + динамические темы HySett-M3-A / HySett-M3-B (для живого обновления Firefox и GTK без закрытия окон)
 gtk_css = f"""@define-color accent_color {pri_hex};
 @define-color accent_bg_color {pri_hex};
 @define-color accent_fg_color #0b0d12;
@@ -219,16 +218,17 @@ gtk_css = f"""@define-color accent_color {pri_hex};
 @define-color popover_fg_color #e6e8ee;
 @define-color dialog_bg_color {cont_hex};
 @define-color dialog_fg_color #e6e8ee;
-@define-color theme_bg_color {surf_hex};
+@define-color theme_bg_color {cont_hex};
 @define-color theme_fg_color #e6e8ee;
-@define-color theme_base_color {cont_hex};
+@define-color theme_base_color {surf_hex};
 @define-color theme_text_color #e6e8ee;
 @define-color theme_selected_bg_color {pri_hex};
 @define-color theme_selected_fg_color #0b0d12;
 @define-color insensitive_bg_color {surf_hex};
-@define-color theme_unfocused_bg_color {surf_hex};
-@define-color theme_unfocused_base_color {cont_hex};
+@define-color theme_unfocused_bg_color {cont_hex};
+@define-color theme_unfocused_base_color {surf_hex};
 @define-color theme_unfocused_selected_bg_color {pri_hex};
+@define-color borders {high_hex};
 
 :root {{
     --accent-color: {pri_hex};
@@ -281,61 +281,82 @@ navigation-split-view > .sidebar-pane, overlay-split-view > .sidebar-pane,
     color: {pri_hex} !important;
 }}
 """
+
 for gver in ("gtk-3.0", "gtk-4.0"):
     gdir = os.path.join(home, ".config", gver)
     os.makedirs(gdir, exist_ok=True)
     with open(os.path.join(gdir, "gtk.css"), "w") as f:
         f.write(gtk_css)
 
-# 5. Полное окрашивание Firefox
+gtk3_theme_css = '@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained-dark.css");\n' + gtk_css
+for tname in ("HySett-M3-A", "HySett-M3-B"):
+    for base_root in (os.path.join(home, ".local/share/themes"), os.path.join(home, ".themes")):
+        t3 = os.path.join(base_root, tname, "gtk-3.0")
+        t4 = os.path.join(base_root, tname, "gtk-4.0")
+        os.makedirs(t3, exist_ok=True)
+        os.makedirs(t4, exist_ok=True)
+        with open(os.path.join(t3, "gtk.css"), "w") as f:
+            f.write(gtk3_theme_css)
+        with open(os.path.join(t3, "gtk-dark.css"), "w") as f:
+            f.write(gtk3_theme_css)
+        with open(os.path.join(t4, "gtk.css"), "w") as f:
+            f.write(gtk_css)
+        with open(os.path.join(t4, "gtk-dark.css"), "w") as f:
+            f.write(gtk_css)
+
+# 5. Полное окрашивание Firefox (с поддержкой живых системных токенов AccentColor / -moz-dialog / -moz-field)
 ctrl_r = int(float(conf.get("m3_control_radius", "12"))) if is_rounded else 0
 card_r = int(float(conf.get("m3_card_radius", "16"))) if is_rounded else 0
 
-ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
+ff_chrome_css = f"""/* HySett Material Design 3 Live Dynamic Firefox UI */
 :root, #main-window, #navigator-toolbox, #TabsToolbar, #nav-bar, #PersonalToolbar, #sidebar-box, #tabbrowser-tabpanels, panel, menupopup {{
-    --toolbar-bgcolor: {cont_hex} !important;
+    --hs-pri: AccentColor;
+    --hs-surf: -moz-field;
+    --hs-cont: -moz-dialog;
+    --hs-high: color-mix(in srgb, -moz-dialog 76%, AccentColor 24%);
+    --toolbar-bgcolor: var(--hs-cont) !important;
     --toolbar-color: #e6e8ee !important;
-    --lwt-accent-color: {surf_hex} !important;
-    --lwt-accent-color-inactive: {surf_hex} !important;
+    --lwt-accent-color: var(--hs-surf) !important;
+    --lwt-accent-color-inactive: var(--hs-surf) !important;
     --lwt-text-color: #e6e8ee !important;
-    --lwt-toolbar-field-background-color: {surf_hex} !important;
+    --lwt-toolbar-field-background-color: var(--hs-surf) !important;
     --lwt-toolbar-field-color: #e6e8ee !important;
-    --lwt-toolbar-field-focus: {surf_hex} !important;
+    --lwt-toolbar-field-focus: var(--hs-surf) !important;
     --lwt-toolbar-field-border-color: transparent !important;
-    --lwt-selected-tab-background-color: {high_hex} !important;
-    --tab-selected-bgcolor: {high_hex} !important;
-    --tab-selected-textcolor: {pri_hex} !important;
+    --lwt-selected-tab-background-color: var(--hs-high) !important;
+    --tab-selected-bgcolor: var(--hs-high) !important;
+    --tab-selected-textcolor: var(--hs-pri) !important;
     --tab-border-radius: {ctrl_r}px !important;
-    --tabpanel-background-color: {surf_hex} !important;
-    --urlbar-box-bgcolor: {surf_hex} !important;
-    --urlbar-box-focus-bgcolor: {surf_hex} !important;
-    --urlbar-box-hover-bgcolor: {high_hex} !important;
-    --toolbar-field-background-color: {surf_hex} !important;
-    --toolbar-field-focus-background-color: {surf_hex} !important;
+    --tabpanel-background-color: var(--hs-surf) !important;
+    --urlbar-box-bgcolor: var(--hs-surf) !important;
+    --urlbar-box-focus-bgcolor: var(--hs-surf) !important;
+    --urlbar-box-hover-bgcolor: var(--hs-high) !important;
+    --toolbar-field-background-color: var(--hs-surf) !important;
+    --toolbar-field-focus-background-color: var(--hs-surf) !important;
     --toolbar-field-color: #e6e8ee !important;
     --toolbar-field-focus-color: #ffffff !important;
     --toolbar-field-border-color: transparent !important;
-    --focus-outline-color: {pri_hex} !important;
-    --arrowpanel-background: {cont_hex} !important;
+    --focus-outline-color: var(--hs-pri) !important;
+    --arrowpanel-background: var(--hs-cont) !important;
     --arrowpanel-color: #e6e8ee !important;
-    --arrowpanel-border-color: {high_hex} !important;
+    --arrowpanel-border-color: var(--hs-high) !important;
     --arrowpanel-border-radius: {card_r}px !important;
-    --panel-background: {cont_hex} !important;
+    --panel-background: var(--hs-cont) !important;
     --panel-color: #e6e8ee !important;
-    --panel-border-color: {high_hex} !important;
-    --sidebar-background-color: {surf_hex} !important;
+    --panel-border-color: var(--hs-high) !important;
+    --sidebar-background-color: var(--hs-surf) !important;
     --sidebar-text-color: #e6e8ee !important;
-    --sidebar-border-color: {high_hex} !important;
+    --sidebar-border-color: var(--hs-high) !important;
     --toolbarbutton-border-radius: {ctrl_r}px !important;
-    --toolbarbutton-hover-background: {high_hex} !important;
-    --toolbarbutton-active-background: {pri_hex}33 !important;
+    --toolbarbutton-hover-background: var(--hs-high) !important;
+    --toolbarbutton-active-background: color-mix(in srgb, AccentColor 25%, transparent) !important;
     --toolbarbutton-icon-fill: #e6e8ee !important;
-    --toolbarbutton-icon-fill-attention: {pri_hex} !important;
+    --toolbarbutton-icon-fill-attention: var(--hs-pri) !important;
 }}
 #main-window, #navigator-toolbox, #TabsToolbar, #titlebar, #TabsToolbar-customization-target,
 #main-window:-moz-window-inactive, #navigator-toolbox:-moz-window-inactive {{
-    background: {surf_hex} !important;
-    background-color: {surf_hex} !important;
+    background: var(--hs-surf) !important;
+    background-color: var(--hs-surf) !important;
     background-image: none !important;
     color: #e6e8ee !important;
     border: none !important;
@@ -343,8 +364,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
 }}
 #nav-bar, #PersonalToolbar, #PlacesToolbar, .browser-toolbar:not(#TabsToolbar), findbar,
 #nav-bar:-moz-window-inactive, #PersonalToolbar:-moz-window-inactive {{
-    background: {cont_hex} !important;
-    background-color: {cont_hex} !important;
+    background: var(--hs-cont) !important;
+    background-color: var(--hs-cont) !important;
     background-image: none !important;
     color: #e6e8ee !important;
     border: none !important;
@@ -357,8 +378,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
     border: none !important;
 }}
 #PersonalToolbar toolbarbutton.bookmark-item:hover {{
-    background-color: {high_hex} !important;
-    color: {pri_hex} !important;
+    background-color: var(--hs-high) !important;
+    color: var(--hs-pri) !important;
 }}
 .tabbrowser-tab, .tab-stack {{
     background: transparent !important;
@@ -377,20 +398,20 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
     box-shadow: none !important;
 }}
 .tabbrowser-tab:hover > .tab-stack > .tab-background:not([selected]) {{
-    background-color: {cont_hex} !important;
+    background-color: var(--hs-cont) !important;
 }}
 .tab-background:is([selected], [multiselected]), .tab-background[selected="true"] {{
-    background: {high_hex} !important;
-    background-color: {high_hex} !important;
+    background: var(--hs-high) !important;
+    background-color: var(--hs-high) !important;
     background-image: none !important;
-    border: 1px solid {pri_hex}55 !important;
+    border: 1px solid color-mix(in srgb, AccentColor 38%, transparent) !important;
     box-shadow: none !important;
 }}
 .tabbrowser-tab:not([selected]) .tab-label {{
     color: #b8bece !important;
 }}
 .tabbrowser-tab[selected] .tab-label {{
-    color: {pri_hex} !important;
+    color: var(--hs-pri) !important;
     font-weight: bold !important;
 }}
 #urlbar, #searchbar, #urlbar-container, #search-container {{
@@ -401,22 +422,22 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
     box-shadow: none !important;
 }}
 #urlbar-background, #urlbar > .urlbar-background, .searchbar-textbox {{
-    background: {surf_hex} !important;
-    background-color: {surf_hex} !important;
+    background: var(--hs-surf) !important;
+    background-color: var(--hs-surf) !important;
     background-image: none !important;
-    border: 1px solid {high_hex} !important;
+    border: 1px solid var(--hs-high) !important;
     border-radius: {max(ctrl_r, 14) if is_rounded else 0}px !important;
     box-shadow: none !important;
     outline: none !important;
 }}
 #urlbar[focused="true"] > #urlbar-background {{
-    border-color: {pri_hex} !important;
+    border-color: var(--hs-pri) !important;
     box-shadow: none !important;
 }}
 #urlbar[breakout][breakout-extend] > #urlbar-background {{
     border-radius: {card_r}px !important;
-    background-color: {cont_hex} !important;
-    border-color: {pri_hex} !important;
+    background-color: var(--hs-cont) !important;
+    border-color: var(--hs-pri) !important;
 }}
 .urlbarView, .urlbarView-body-outer, .urlbarView-body-inner, #PopupAutoComplete, .autocomplete-richlistbox {{
     background: transparent !important;
@@ -427,48 +448,52 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
     border-radius: {ctrl_r}px !important;
 }}
 .urlbarView-row[selected], .urlbarView-row:hover {{
-    background-color: {high_hex} !important;
-    color: {pri_hex} !important;
+    background-color: var(--hs-high) !important;
+    color: var(--hs-pri) !important;
 }}
 menupopup, panel, .panel-subview-body, .menupopup-arrowscrollbox {{
-    background: {cont_hex} !important;
-    background-color: {cont_hex} !important;
+    background: var(--hs-cont) !important;
+    background-color: var(--hs-cont) !important;
     color: #e6e8ee !important;
     border-radius: {card_r}px !important;
-    border: 1px solid {high_hex} !important;
+    border: 1px solid var(--hs-high) !important;
 }}
 menuitem, menu {{
     border-radius: {max(0, ctrl_r - 4)}px !important;
 }}
 menuitem:hover, menu:hover, menuitem[_moz-menuactive="true"], menu[_moz-menuactive="true"] {{
-    background-color: {high_hex} !important;
-    color: {pri_hex} !important;
+    background-color: var(--hs-high) !important;
+    color: var(--hs-pri) !important;
 }}
 #sidebar-box, #sidebar-header, #sidebar {{
-    background-color: {surf_hex} !important;
+    background-color: var(--hs-surf) !important;
     color: #e6e8ee !important;
     border: none !important;
 }}
 #statuspanel-label {{
-    background-color: {cont_hex} !important;
-    color: {pri_hex} !important;
-    border: 1px solid {high_hex} !important;
+    background-color: var(--hs-cont) !important;
+    color: var(--hs-pri) !important;
+    border: 1px solid var(--hs-high) !important;
     border-radius: {max(0, ctrl_r - 4)}px !important;
 }}
 #tabbrowser-tabpanels, browser[type="content"] {{
-    background-color: {surf_hex} !important;
+    background-color: var(--hs-surf) !important;
 }}
 """
 
-ff_content_css = f"""/* HySett Material Design 3 Clean NewTab Theme */
+ff_content_css = f"""/* HySett Material Design 3 Live NewTab Theme */
 @-moz-document url-prefix("about:newtab"), url-prefix("about:home"), url-prefix("about:blank"), url-prefix("about:privatebrowsing") {{
     :root, html, body, #root, .outer-wrapper {{
-        --newtab-background-color: {surf_hex} !important;
-        --newtab-background-color-secondary: {cont_hex} !important;
-        --newtab-primary-action-background: {pri_hex} !important;
+        --hs-pri: AccentColor;
+        --hs-surf: -moz-field;
+        --hs-cont: -moz-dialog;
+        --hs-high: color-mix(in srgb, -moz-dialog 76%, AccentColor 24%);
+        --newtab-background-color: var(--hs-surf) !important;
+        --newtab-background-color-secondary: var(--hs-cont) !important;
+        --newtab-primary-action-background: var(--hs-pri) !important;
         --newtab-text-primary-color: #e6e8ee !important;
-        background: {surf_hex} !important;
-        background-color: {surf_hex} !important;
+        background: var(--hs-surf) !important;
+        background-color: var(--hs-surf) !important;
         color: #e6e8ee !important;
     }}
     .search-wrapper, .search-inner-wrapper {{
@@ -477,14 +502,14 @@ ff_content_css = f"""/* HySett Material Design 3 Clean NewTab Theme */
         box-shadow: none !important;
     }}
     .search-wrapper .search-handoff-button, .search-wrapper input {{
-        background-color: {cont_hex} !important;
+        background-color: var(--hs-cont) !important;
         color: #e6e8ee !important;
-        border: 1px solid {high_hex} !important;
+        border: 1px solid var(--hs-high) !important;
         border-radius: {24 if is_rounded else 0}px !important;
         box-shadow: none !important;
     }}
     .top-site-outer .tile, .card-outer {{
-        background-color: {cont_hex} !important;
+        background-color: var(--hs-cont) !important;
         border-radius: {card_r}px !important;
         box-shadow: none !important;
     }}
@@ -497,9 +522,6 @@ req_prefs = {
     "toolkit.startup.recent_crashes": "0",
     "toolkit.startup.max_resumed_crashes": "-1",
     "browser.sessionstore.resume_from_crash": "false",
-    "browser.warnOnQuit": "false",
-    "browser.warnOnQuitShortcut": "false",
-    "browser.tabs.warnOnClose": "false",
     "widget.non-native-theme.enabled": "true",
     "ui.systemUsesDarkTheme": "1",
     "browser.theme.content-theme": "0",
@@ -548,7 +570,7 @@ for cprof in glob.glob(os.path.join(home, ".config/google-chrome/*/Preferences")
     except Exception:
         pass
 
-# 6. Папки Papirus в цвет темы
+# 6. Папки Papirus и живое переключение GTK-темы (HySett-M3-A <-> HySett-M3-B)
 papirus_src = "/usr/share/icons/Papirus/64x64/places"
 if os.path.isdir(papirus_src):
     for ivar in ("HySett-Papirus-A", "HySett-Papirus-B"):
@@ -576,7 +598,9 @@ if os.path.isdir(papirus_src):
         subprocess.run(["gtk-update-icon-cache", "-f", "-t", idir], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 try:
-    subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", "Adwaita-dark"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    cur_gtk = subprocess.check_output(["gsettings", "get", "org.gnome.desktop.interface", "gtk-theme"], stderr=subprocess.DEVNULL).decode().strip().strip("'")
+    next_gtk = "HySett-M3-B" if cur_gtk == "HySett-M3-A" else "HySett-M3-A"
+    subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "gtk-theme", next_gtk], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.run(["gsettings", "set", "org.gnome.desktop.interface", "color-scheme", "prefer-dark"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if os.path.isdir(papirus_src):
         cur_ico = subprocess.check_output(["gsettings", "get", "org.gnome.desktop.interface", "icon-theme"], stderr=subprocess.DEVNULL).decode().strip().strip("'")
@@ -585,7 +609,16 @@ try:
 except Exception:
     pass
 
-# 7. Живой пакет темы и палитры для AyuGram (атомарная запись для QFileSystemWatcher)
+# 7. Обновление фонового демона Nautilus только если окно проводника закрыто
+try:
+    clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore"))
+    naut_wins = [c for c in clients if "nautilus" in str(c.get("class", "")).lower() and int(c.get("workspace", {}).get("id", 0)) > 0]
+    if not naut_wins:
+        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
+except Exception:
+    pass
+
+# 8. Живой пакет темы для AyuGram
 def make_solid_png(r, g, b, w=64, h=64):
     raw = b"".join(b"\x00" + bytes([int(r), int(g), int(b)]) * w for _ in range(h))
     def chunk(tag, data):
@@ -662,93 +695,3 @@ if os.path.isdir(ayu_tdata):
                 f.flush()
         except Exception:
             pass
-
-# 8. Мгновенное применение темы в открытом/фоновом Проводнике (Nautilus) и Браузере (Firefox)
-def resolve_nautilus_dir(title):
-    t = (title or "").strip()
-    mapping = {
-        "Домашняя папка": home,
-        "Home": home,
-        "Загрузки": os.path.join(home, "Downloads"),
-        "Downloads": os.path.join(home, "Downloads"),
-        "Изображения": os.path.join(home, "Pictures"),
-        "Pictures": os.path.join(home, "Pictures"),
-        "Видео": os.path.join(home, "Videos"),
-        "Videos": os.path.join(home, "Videos"),
-        "Документы": os.path.join(home, "Documents"),
-        "Documents": os.path.join(home, "Documents"),
-        "Музыка": os.path.join(home, "Music"),
-        "Music": os.path.join(home, "Music"),
-        "Рабочий стол": os.path.join(home, "Desktop"),
-        "Desktop": os.path.join(home, "Desktop"),
-    }
-    if t in mapping and os.path.isdir(mapping[t]):
-        return mapping[t]
-    cand = os.path.join(home, t)
-    if t and os.path.isdir(cand):
-        return cand
-    for sub in ("Pictures", "Downloads", "Documents", "Videos", "hysett", ".config"):
-        cand2 = os.path.join(home, sub, t)
-        if t and os.path.isdir(cand2):
-            return cand2
-    return home
-
-try:
-    clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore"))
-
-    # 8a. Проводник (Nautilus)
-    naut_wins = [c for c in clients if "nautilus" in str(c.get("class", "")).lower() and int(c.get("workspace", {}).get("id", 0)) > 0]
-    if not naut_wins:
-        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
-    else:
-        w = naut_wins[0]
-        ws_id = int(w.get("workspace", {}).get("id", 1))
-        folder = resolve_nautilus_dir(w.get("title", ""))
-        subprocess.Popen(
-            f"hyprctl eval \"hl.window_rule({{ name = 'naut-theme-reload', match = {{ class = '.*(?i)nautilus.*' }}, workspace = '{ws_id} silent' }})\" >/dev/null 2>&1; "
-            f"pkill -9 -x nautilus 2>/dev/null; sleep 0.08; "
-            f"nautilus --new-window '{folder}' >/dev/null 2>&1 & "
-            f"sleep 0.7; "
-            f"hyprctl eval \"hl.window_rule({{ name = 'naut-theme-reload', match = {{ class = '^__none__$' }} }})\" >/dev/null 2>&1; "
-            f"nautilus --gapplication-service >/dev/null 2>&1 &",
-            shell=True
-        )
-
-    # 8b. Браузер (Firefox)
-    ff_wins = [c for c in clients if "firefox" in str(c.get("class", "")).lower()]
-    if ff_wins:
-        visible_ff = [c for c in ff_wins if 0 < int(c.get("workspace", {}).get("id", 0)) < 10]
-        if not visible_ff:
-            # Все окна Firefox на фоновом 10-м столе -> тихо перезапускаем на 10-м столе
-            subprocess.Popen(
-                "rm -f ~/.cache/ff_theme_dirty; "
-                "hyprctl eval \"hl.window_rule({ name = 'ff-prewarm-trap', match = { class = '.*(?i)firefox.*' }, workspace = '10 silent' })\" >/dev/null 2>&1; "
-                "killall -q -TERM firefox firefox-bin 2>/dev/null || pkill -f firefox 2>/dev/null; "
-                "for _ in $(seq 1 20); do pgrep -x firefox >/dev/null || break; sleep 0.05; done; "
-                "MALLOC_ARENA_MAX=2 MALLOC_TRIM_THRESHOLD_=65536 firefox >/dev/null 2>&1 & "
-                "sleep 1.8; "
-                "hyprctl eval \"hl.window_rule({ name = 'ff-prewarm-trap', match = { class = '^__none__$' } })\" >/dev/null 2>&1",
-                shell=True
-            )
-        else:
-            # Firefox открыт на экране -> проверяем, не играет ли медиа, и мягко перезапускаем с сохранением вкладок
-            playing = subprocess.run("playerctl -p firefox status 2>/dev/null | grep -qi Playing", shell=True).returncode == 0
-            if not playing:
-                ws_id = int(visible_ff[0].get("workspace", {}).get("id", 1))
-                for prof in ff_profiles:
-                    p_path = os.path.join(prof, "prefs.js")
-                    if os.path.exists(p_path):
-                        with open(p_path, "a") as pf:
-                            pf.write('\nuser_pref("browser.sessionstore.resume_session_once", true);\n')
-                subprocess.Popen(
-                    f"rm -f ~/.cache/ff_theme_dirty; "
-                    f"hyprctl eval \"hl.window_rule({{ name = 'ff-prewarm-trap', match = {{ class = '.*(?i)firefox.*' }}, workspace = '{ws_id} silent' }})\" >/dev/null 2>&1; "
-                    f"killall -q -TERM firefox firefox-bin 2>/dev/null; "
-                    f"for _ in $(seq 1 25); do pgrep -x firefox >/dev/null || break; sleep 0.05; done; "
-                    f"MALLOC_ARENA_MAX=2 MALLOC_TRIM_THRESHOLD_=65536 firefox >/dev/null 2>&1 & "
-                    f"sleep 1.8; "
-                    f"hyprctl eval \"hl.window_rule({{ name = 'ff-prewarm-trap', match = {{ class = '^__none__$' }} }})\" >/dev/null 2>&1",
-                    shell=True
-                )
-except Exception:
-    pass

@@ -1069,7 +1069,7 @@ def rebuild_sub_servers_from_cache(urls, cache_dict, frozen_set, mark_wl_badges=
 
     return all_srvs, groups
 
-def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера", pinned_set=None, pinned_items=None):
+def apply_freeze_and_urltest(raw_servers, frozen_set, auto_title="Авто-выбор лучшего сервера", pinned_set=None, pinned_items=None, verified_set=None):
     if pinned_set is None:
         pinned_set = set()
     if verified_set is None:

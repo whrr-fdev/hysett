@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import os, glob, json, subprocess, zipfile, struct, zlib
+import os, io, glob, json, time, subprocess, zipfile, struct, zlib
 
 home = os.path.expanduser("~")
 cc_path = os.path.join(home, ".config/hypr/scripts/control_center.conf")
@@ -80,7 +80,7 @@ ayu_pri_hex = rgb_to_hex(*ayu_pri_rgb)
 subprocess.run(["hyprctl", "keyword", "general:col.active_border", f"rgba({pri_hex.lstrip('#')}ee)"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 subprocess.run(["hyprctl", "keyword", "general:col.inactive_border", f"rgba({high_hex.lstrip('#')}aa)"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# 2. Виджеты рабочего стола: clock_overlay (clock_m3_sync) и sysinfo_overlay (widgets_m3_sync)
+# 2. Виджеты рабочего стола: clock_overlay и sysinfo_overlay
 widgets_m3_sync = conf.get("widgets_m3_sync", "1") in ("1", "true")
 clock_m3_sync = conf.get("clock_m3_sync", conf.get("widgets_m3_sync", "1")) in ("1", "true")
 c_rgb = pri if (not is_monochrome and clock_m3_sync) else (255, 255, 255)
@@ -190,7 +190,7 @@ theme[upload_mid]="{pri_hex}"
 theme[upload_end]="{ter_hex}"
 """)
 
-# 4. GTK 3 / GTK 4
+# 4. GTK 3 / GTK 4 / libadwaita 1.6+ (включая CSS-переменные боковой панели Nautilus)
 gtk_css = f"""@define-color accent_color {pri_hex};
 @define-color accent_bg_color {pri_hex};
 @define-color accent_fg_color #0b0d12;
@@ -210,8 +210,11 @@ gtk_css = f"""@define-color accent_color {pri_hex};
 @define-color sidebar_bg_color {cont_hex};
 @define-color sidebar_fg_color #e6e8ee;
 @define-color sidebar_backdrop_color {cont_hex};
+@define-color sidebar_border_color {high_hex};
 @define-color secondary_sidebar_bg_color {cont_hex};
+@define-color secondary_sidebar_fg_color #e6e8ee;
 @define-color secondary_sidebar_backdrop_color {cont_hex};
+@define-color secondary_sidebar_border_color {high_hex};
 @define-color popover_bg_color {cont_hex};
 @define-color popover_fg_color #e6e8ee;
 @define-color dialog_bg_color {cont_hex};
@@ -227,6 +230,34 @@ gtk_css = f"""@define-color accent_color {pri_hex};
 @define-color theme_unfocused_base_color {cont_hex};
 @define-color theme_unfocused_selected_bg_color {pri_hex};
 
+:root {{
+    --accent-color: {pri_hex};
+    --accent-bg-color: {pri_hex};
+    --accent-fg-color: #0b0d12;
+    --window-bg-color: {surf_hex};
+    --window-fg-color: #e6e8ee;
+    --view-bg-color: {surf_hex};
+    --view-fg-color: #e6e8ee;
+    --headerbar-bg-color: {cont_hex};
+    --headerbar-fg-color: #e6e8ee;
+    --headerbar-backdrop-color: {cont_hex};
+    --headerbar-border-color: {high_hex};
+    --sidebar-bg-color: {cont_hex};
+    --sidebar-fg-color: #e6e8ee;
+    --sidebar-backdrop-color: {cont_hex};
+    --sidebar-border-color: {high_hex};
+    --secondary-sidebar-bg-color: {cont_hex};
+    --secondary-sidebar-fg-color: #e6e8ee;
+    --secondary-sidebar-backdrop-color: {cont_hex};
+    --secondary-sidebar-border-color: {high_hex};
+    --card-bg-color: {cont_hex};
+    --card-fg-color: #e6e8ee;
+    --popover-bg-color: {cont_hex};
+    --popover-fg-color: #e6e8ee;
+    --dialog-bg-color: {cont_hex};
+    --dialog-fg-color: #e6e8ee;
+}}
+
 window, .background, window:backdrop, .background:backdrop {{
     background-color: {surf_hex} !important;
     color: #e6e8ee !important;
@@ -237,9 +268,17 @@ headerbar, .titlebar, headerbar:backdrop, .titlebar:backdrop, .top-bar, .top-bar
     color: #e6e8ee !important;
 }}
 .sidebar, .navigation-sidebar, .sidebar-pane, placessidebar,
+navigation-split-view > .sidebar-pane, overlay-split-view > .sidebar-pane,
+.sidebar-pane > scrolledwindow, .sidebar-pane > box, listview.navigation-sidebar,
 .sidebar:backdrop, .navigation-sidebar:backdrop, .sidebar-pane:backdrop, placessidebar:backdrop {{
+    background: {cont_hex} !important;
     background-color: {cont_hex} !important;
+    background-image: none !important;
     color: #e6e8ee !important;
+}}
+.navigation-sidebar > row:selected, listview.navigation-sidebar > row:selected {{
+    background-color: {high_hex} !important;
+    color: {pri_hex} !important;
 }}
 """
 for gver in ("gtk-3.0", "gtk-4.0"):
@@ -248,7 +287,7 @@ for gver in ("gtk-3.0", "gtk-4.0"):
     with open(os.path.join(gdir, "gtk.css"), "w") as f:
         f.write(gtk_css)
 
-# 5. Полное окрашивание Firefox (все панели, меню, выпадающие списки, сайдбар, статусбар) и глубокое окрашивание сайтов
+# 5. Полное окрашивание Firefox
 ctrl_r = int(float(conf.get("m3_control_radius", "12"))) if is_rounded else 0
 card_r = int(float(conf.get("m3_card_radius", "16"))) if is_rounded else 0
 
@@ -354,7 +393,6 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Rounded Firefox UI */
     color: {pri_hex} !important;
     font-weight: bold !important;
 }}
-/* Внешний #urlbar прозрачный и без рамки, скругленная рамка ТОЛЬКО у #urlbar-background! */
 #urlbar, #searchbar, #urlbar-container, #search-container {{
     background: transparent !important;
     background-color: transparent !important;
@@ -459,6 +497,9 @@ req_prefs = {
     "toolkit.startup.recent_crashes": "0",
     "toolkit.startup.max_resumed_crashes": "-1",
     "browser.sessionstore.resume_from_crash": "false",
+    "browser.warnOnQuit": "false",
+    "browser.warnOnQuitShortcut": "false",
+    "browser.tabs.warnOnClose": "false",
     "widget.non-native-theme.enabled": "true",
     "ui.systemUsesDarkTheme": "1",
     "browser.theme.content-theme": "0",
@@ -544,16 +585,7 @@ try:
 except Exception:
     pass
 
-# 7. Мгновенное обновление проводника Nautilus (если окно открыто — перезапускаем окно напрямую из Python!)
-try:
-    clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore"))
-    naut_wins = [c for c in clients if "nautilus" in str(c.get("class", "")).lower() and int(c.get("workspace", {}).get("id", 0)) > 0]
-    if not naut_wins:
-        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.1; nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
-except Exception:
-    pass
-
-# 8. Пакет темы для AyuGram (более темные тона ayu_surf_hex / ayu_cont_hex / ayu_high_hex)
+# 7. Живой пакет темы и палитры для AyuGram (атомарная запись для QFileSystemWatcher)
 def make_solid_png(r, g, b, w=64, h=64):
     raw = b"".join(b"\x00" + bytes([int(r), int(g), int(b)]) * w for _ in range(h))
     def chunk(tag, data):
@@ -602,7 +634,121 @@ trayCounterBg: {ayu_pri_hex};
 trayCounterFg: #07090c;
 """
 
-ayu_theme_path = os.path.join(home, ".cache/hysett_ayugram.tdesktop-theme")
-with zipfile.ZipFile(ayu_theme_path, "w", zipfile.ZIP_DEFLATED) as zf:
+zip_buf = io.BytesIO()
+with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
     zf.writestr("colors.tdesktop-palette", ayu_palette)
+    zf.writestr("colors.tdesktop-theme", ayu_palette)
     zf.writestr("background.png", make_solid_png(*ayu_surf_rgb))
+zip_bytes = zip_buf.getvalue()
+
+for tpath in (
+    os.path.join(home, "hysett_ayugram.tdesktop-theme"),
+    os.path.join(home, ".cache/hysett_ayugram.tdesktop-theme"),
+):
+    try:
+        with open(tpath, "wb") as f:
+            f.write(zip_bytes)
+            f.flush()
+    except Exception:
+        pass
+
+ayu_tdata = os.path.join(home, ".local/share/AyuGramDesktop/tdata")
+if os.path.isdir(ayu_tdata):
+    edit_pal = os.path.join(ayu_tdata, "editing-theme.tdesktop-palette")
+    if os.path.exists(edit_pal):
+        try:
+            with open(edit_pal, "w", encoding="utf-8") as f:
+                f.write(ayu_palette)
+                f.flush()
+        except Exception:
+            pass
+
+# 8. Мгновенное применение темы в открытом/фоновом Проводнике (Nautilus) и Браузере (Firefox)
+def resolve_nautilus_dir(title):
+    t = (title or "").strip()
+    mapping = {
+        "Домашняя папка": home,
+        "Home": home,
+        "Загрузки": os.path.join(home, "Downloads"),
+        "Downloads": os.path.join(home, "Downloads"),
+        "Изображения": os.path.join(home, "Pictures"),
+        "Pictures": os.path.join(home, "Pictures"),
+        "Видео": os.path.join(home, "Videos"),
+        "Videos": os.path.join(home, "Videos"),
+        "Документы": os.path.join(home, "Documents"),
+        "Documents": os.path.join(home, "Documents"),
+        "Музыка": os.path.join(home, "Music"),
+        "Music": os.path.join(home, "Music"),
+        "Рабочий стол": os.path.join(home, "Desktop"),
+        "Desktop": os.path.join(home, "Desktop"),
+    }
+    if t in mapping and os.path.isdir(mapping[t]):
+        return mapping[t]
+    cand = os.path.join(home, t)
+    if t and os.path.isdir(cand):
+        return cand
+    for sub in ("Pictures", "Downloads", "Documents", "Videos", "hysett", ".config"):
+        cand2 = os.path.join(home, sub, t)
+        if t and os.path.isdir(cand2):
+            return cand2
+    return home
+
+try:
+    clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore"))
+
+    # 8a. Проводник (Nautilus)
+    naut_wins = [c for c in clients if "nautilus" in str(c.get("class", "")).lower() and int(c.get("workspace", {}).get("id", 0)) > 0]
+    if not naut_wins:
+        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
+    else:
+        w = naut_wins[0]
+        ws_id = int(w.get("workspace", {}).get("id", 1))
+        folder = resolve_nautilus_dir(w.get("title", ""))
+        subprocess.Popen(
+            f"hyprctl eval \"hl.window_rule({{ name = 'naut-theme-reload', match = {{ class = '.*(?i)nautilus.*' }}, workspace = '{ws_id} silent' }})\" >/dev/null 2>&1; "
+            f"pkill -9 -x nautilus 2>/dev/null; sleep 0.08; "
+            f"nautilus --new-window '{folder}' >/dev/null 2>&1 & "
+            f"sleep 0.7; "
+            f"hyprctl eval \"hl.window_rule({{ name = 'naut-theme-reload', match = {{ class = '^__none__$' }} }})\" >/dev/null 2>&1; "
+            f"nautilus --gapplication-service >/dev/null 2>&1 &",
+            shell=True
+        )
+
+    # 8b. Браузер (Firefox)
+    ff_wins = [c for c in clients if "firefox" in str(c.get("class", "")).lower()]
+    if ff_wins:
+        visible_ff = [c for c in ff_wins if 0 < int(c.get("workspace", {}).get("id", 0)) < 10]
+        if not visible_ff:
+            # Все окна Firefox на фоновом 10-м столе -> тихо перезапускаем на 10-м столе
+            subprocess.Popen(
+                "rm -f ~/.cache/ff_theme_dirty; "
+                "hyprctl eval \"hl.window_rule({ name = 'ff-prewarm-trap', match = { class = '.*(?i)firefox.*' }, workspace = '10 silent' })\" >/dev/null 2>&1; "
+                "killall -q -TERM firefox firefox-bin 2>/dev/null || pkill -f firefox 2>/dev/null; "
+                "for _ in $(seq 1 20); do pgrep -x firefox >/dev/null || break; sleep 0.05; done; "
+                "MALLOC_ARENA_MAX=2 MALLOC_TRIM_THRESHOLD_=65536 firefox >/dev/null 2>&1 & "
+                "sleep 1.8; "
+                "hyprctl eval \"hl.window_rule({ name = 'ff-prewarm-trap', match = { class = '^__none__$' } })\" >/dev/null 2>&1",
+                shell=True
+            )
+        else:
+            # Firefox открыт на экране -> проверяем, не играет ли медиа, и мягко перезапускаем с сохранением вкладок
+            playing = subprocess.run("playerctl -p firefox status 2>/dev/null | grep -qi Playing", shell=True).returncode == 0
+            if not playing:
+                ws_id = int(visible_ff[0].get("workspace", {}).get("id", 1))
+                for prof in ff_profiles:
+                    p_path = os.path.join(prof, "prefs.js")
+                    if os.path.exists(p_path):
+                        with open(p_path, "a") as pf:
+                            pf.write('\nuser_pref("browser.sessionstore.resume_session_once", true);\n')
+                subprocess.Popen(
+                    f"rm -f ~/.cache/ff_theme_dirty; "
+                    f"hyprctl eval \"hl.window_rule({{ name = 'ff-prewarm-trap', match = {{ class = '.*(?i)firefox.*' }}, workspace = '{ws_id} silent' }})\" >/dev/null 2>&1; "
+                    f"killall -q -TERM firefox firefox-bin 2>/dev/null; "
+                    f"for _ in $(seq 1 25); do pgrep -x firefox >/dev/null || break; sleep 0.05; done; "
+                    f"MALLOC_ARENA_MAX=2 MALLOC_TRIM_THRESHOLD_=65536 firefox >/dev/null 2>&1 & "
+                    f"sleep 1.8; "
+                    f"hyprctl eval \"hl.window_rule({{ name = 'ff-prewarm-trap', match = {{ class = '^__none__$' }} }})\" >/dev/null 2>&1",
+                    shell=True
+                )
+except Exception:
+    pass

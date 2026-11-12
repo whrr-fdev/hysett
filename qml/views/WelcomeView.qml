@@ -92,6 +92,35 @@ Item {
         }
     }
 
+    function focusSearchInput() {
+        welcomeSearchField.forceActiveFocus()
+        welcomeFocusRetry.restart()
+    }
+
+    Timer {
+        id: welcomeFocusRetry
+        interval: 55
+        repeat: false
+        onTriggered: {
+            if (welcomeRoot.visible && (!welcomeRoot.winObj || welcomeRoot.winObj.drawerOpen)) {
+                welcomeSearchField.forceActiveFocus()
+            }
+        }
+    }
+
+    Connections {
+        target: welcomeRoot.winObj
+        function onDrawerOpenChanged() {
+            if (welcomeRoot.winObj && welcomeRoot.winObj.drawerOpen && welcomeRoot.visible) {
+                welcomeRoot.focusSearchInput()
+            }
+        }
+    }
+
+    onVisibleChanged: {
+        if (visible) focusSearchInput()
+    }
+
     onIsMaximizedChanged: {
         recalcCardsLayout()
         welcomeSpringPulse.restart()
@@ -100,7 +129,7 @@ Item {
     onTargetViewHChanged: recalcCardsLayout()
     onIsM3Changed: Qt.callLater(recalcCardsLayout)
     onSettingsSearchQueryChanged: recalcCardsLayout()
-    Component.onCompleted: Qt.callLater(recalcCardsLayout)
+    Component.onCompleted: { Qt.callLater(recalcCardsLayout); if (visible) focusSearchInput() }
 
     Connections {
         target: Config

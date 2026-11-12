@@ -619,32 +619,34 @@ ScrollView {
                                     visible: Waybar && Waybar.vpnSubGroups.length > 0
                                     Layout.fillWidth: true
                                     implicitHeight: subTabFlow.implicitHeight
-                                    property bool isHovering: false
-                                    property real hovX: 0
-                                    property real hovY: 0
-                                    property real hovW: 90
-                                    property var activeItem: allSubTabBtn
-
-                                    Timer {
-                                        id: subTabHoverHold
-                                        interval: 45
-                                        onTriggered: subTabBar.isHovering = false
-                                    }
+                                    property Item activeItem: allSubTabBtn
+                                    property Item hoveredItem: null
+                                    property Item lastHoveredItem: allSubTabBtn
 
                                     Rectangle {
+                                        id: subTabHoverPill
                                         z: 2
-                                        opacity: subTabBar.isHovering ? 1.0 : 0.0
-                                        x: subTabBar.hovX; y: subTabBar.hovY
-                                        width: subTabBar.hovW; height: 28
+                                        opacity: (subTabBar.hoveredItem && subTabBar.hoveredItem !== subTabBar.activeItem) ? 1.0 : 0.0
+                                        x: subTabBar.lastHoveredItem ? subTabBar.lastHoveredItem.x : 0
+                                        y: subTabBar.lastHoveredItem ? subTabBar.lastHoveredItem.y : 0
+                                        width: subTabBar.lastHoveredItem ? subTabBar.lastHoveredItem.width : 90
+                                        height: 28
                                         radius: vpnScroll.isM3 ? 8 : 0
-                                        color: vpnScroll.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.14)
-                                        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                                        Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                                        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                                        Behavior on opacity { NumberAnimation { duration: 130 } }
+                                        color: vpnScroll.isM3 && Config
+                                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.22)
+                                               : Qt.rgba(1, 1, 1, 0.14)
+                                        border.width: 1
+                                        border.color: vpnScroll.isM3 && Config
+                                                      ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.48)
+                                                      : Qt.rgba(1, 1, 1, 0.28)
+                                        Behavior on x { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                        Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                        Behavior on width { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                        Behavior on opacity { NumberAnimation { duration: 110 } }
                                     }
 
                                     Rectangle {
+                                        id: subTabActivePill
                                         z: 3
                                         visible: subTabBar.activeItem !== null
                                         x: subTabBar.activeItem ? subTabBar.activeItem.x : 0
@@ -653,27 +655,34 @@ ScrollView {
                                         height: 28
                                         radius: vpnScroll.isM3 ? 8 : 0
                                         color: Config ? Config.m3Primary : "#ffffff"
-                                        Behavior on x { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                                        Behavior on y { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-                                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+                                        Behavior on x { NumberAnimation { duration: 230; easing.type: Easing.OutQuint } }
+                                        Behavior on y { NumberAnimation { duration: 230; easing.type: Easing.OutQuint } }
+                                        Behavior on width { NumberAnimation { duration: 230; easing.type: Easing.OutQuint } }
                                     }
 
                                     Flow {
                                         id: subTabFlow
-                                        z: 4; width: parent.width; spacing: 5
+                                        z: 4; width: parent.width; spacing: 6
 
                                         Item {
                                             id: allSubTabBtn
                                             width: allSubTabTxt.implicitWidth + 24; height: 28
                                             property bool isSel: vpnScroll.activeSubTab === 0
                                             onIsSelChanged: if (isSel) subTabBar.activeItem = allSubTabBtn
+                                            Component.onCompleted: if (isSel) subTabBar.activeItem = allSubTabBtn
 
                                             Rectangle {
                                                 anchors.fill: parent
                                                 z: -1
                                                 radius: vpnScroll.isM3 ? 8 : 0
-                                                color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
-                                                border.color: Qt.rgba(1, 1, 1, 0.16); border.width: vpnScroll.isM3 ? 0 : 1
+                                                color: parent.isSel
+                                                       ? "transparent"
+                                                       : (vpnScroll.isM3 && Config
+                                                          ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.42)
+                                                          : Qt.rgba(1, 1, 1, 0.06))
+                                                border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
+                                                border.width: vpnScroll.isM3 ? 0 : 1
+                                                Behavior on color { ColorAnimation { duration: 130 } }
                                             }
 
                                             Text {
@@ -683,17 +692,15 @@ ScrollView {
                                                 color: parent.isSel
                                                        ? (Config ? Config.accentTextColor : "#000000")
                                                        : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
+                                                Behavior on color { ColorAnimation { duration: 120 } }
                                             }
                                             MouseArea {
                                                 anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                 onEntered: {
-                                                    subTabHoverHold.stop()
-                                                    subTabBar.hovX = allSubTabBtn.x
-                                                    subTabBar.hovY = allSubTabBtn.y
-                                                    subTabBar.hovW = allSubTabBtn.width
-                                                    subTabBar.isHovering = true
+                                                    subTabBar.lastHoveredItem = allSubTabBtn
+                                                    subTabBar.hoveredItem = allSubTabBtn
                                                 }
-                                                onExited: subTabHoverHold.restart()
+                                                onExited: if (subTabBar.hoveredItem === allSubTabBtn) subTabBar.hoveredItem = null
                                                 onPressed: vpnScroll.activeSubTab = 0
                                             }
                                         }
@@ -706,13 +713,20 @@ ScrollView {
                                                 width: oneSubTabTxt.implicitWidth + 24; height: 28
                                                 property bool isSel: vpnScroll.activeSubTab === (index + 1)
                                                 onIsSelChanged: if (isSel) subTabBar.activeItem = oneSubTabBtn
+                                                Component.onCompleted: if (isSel) subTabBar.activeItem = oneSubTabBtn
 
                                                 Rectangle {
                                                     anchors.fill: parent
                                                     z: -1
                                                     radius: vpnScroll.isM3 ? 8 : 0
-                                                    color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
-                                                    border.color: Qt.rgba(1, 1, 1, 0.16); border.width: vpnScroll.isM3 ? 0 : 1
+                                                    color: parent.isSel
+                                                           ? "transparent"
+                                                           : (vpnScroll.isM3 && Config
+                                                              ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.42)
+                                                              : Qt.rgba(1, 1, 1, 0.06))
+                                                    border.color: parent.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
+                                                    border.width: vpnScroll.isM3 ? 0 : 1
+                                                    Behavior on color { ColorAnimation { duration: 130 } }
                                                 }
 
                                                 Text {
@@ -722,17 +736,15 @@ ScrollView {
                                                     color: parent.isSel
                                                            ? (Config ? Config.accentTextColor : "#000000")
                                                            : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
+                                                    Behavior on color { ColorAnimation { duration: 120 } }
                                                 }
                                                 MouseArea {
                                                     anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                                                     onEntered: {
-                                                        subTabHoverHold.stop()
-                                                        subTabBar.hovX = oneSubTabBtn.x
-                                                        subTabBar.hovY = oneSubTabBtn.y
-                                                        subTabBar.hovW = oneSubTabBtn.width
-                                                        subTabBar.isHovering = true
+                                                        subTabBar.lastHoveredItem = oneSubTabBtn
+                                                        subTabBar.hoveredItem = oneSubTabBtn
                                                     }
-                                                    onExited: subTabHoverHold.restart()
+                                                    onExited: if (subTabBar.hoveredItem === oneSubTabBtn) subTabBar.hoveredItem = null
                                                     onPressed: vpnScroll.activeSubTab = index + 1
                                                 }
                                             }
@@ -1150,11 +1162,17 @@ ScrollView {
                                         x: wlCatContainer.hovX; y: wlCatContainer.hovY
                                         width: wlCatContainer.hovW; height: 28
                                         radius: vpnScroll.isM3 ? 8 : 0
-                                        color: vpnScroll.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.14)
-                                        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                                        Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                                        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutQuint } }
-                                        Behavior on opacity { NumberAnimation { duration: 130 } }
+                                        color: vpnScroll.isM3 && Config
+                                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.22)
+                                               : Qt.rgba(1, 1, 1, 0.14)
+                                        border.width: 1
+                                        border.color: vpnScroll.isM3 && Config
+                                                      ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.48)
+                                                      : Qt.rgba(1, 1, 1, 0.28)
+                                        Behavior on x { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                        Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                        Behavior on width { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                        Behavior on opacity { NumberAnimation { duration: 110 } }
                                     }
 
                                     Rectangle {
@@ -1198,9 +1216,14 @@ ScrollView {
                                                     anchors.fill: parent
                                                     z: -1
                                                     radius: vpnScroll.isM3 ? 8 : 0
-                                                    color: vpnScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.06)
-                                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                                    color: catBtn.isSel
+                                                           ? "transparent"
+                                                           : (vpnScroll.isM3 && Config
+                                                              ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.42)
+                                                              : Qt.rgba(1, 1, 1, 0.06))
+                                                    border.color: catBtn.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
                                                     border.width: vpnScroll.isM3 ? 0 : 1
+                                                    Behavior on color { ColorAnimation { duration: 130 } }
                                                 }
 
                                                 Row {

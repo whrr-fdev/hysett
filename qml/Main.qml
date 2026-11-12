@@ -3286,7 +3286,7 @@ ApplicationWindow {
                             }
 
                             onLoaded: {
-                                if ((index === 12 || index === 16) && item && item.focusSearchInput && index === pageController.currentIndex) Qt.callLater(item.focusSearchInput)
+                                if ((index === 0 || index === 12 || index === 16) && item && item.focusSearchInput && index === pageController.currentIndex) Qt.callLater(item.focusSearchInput)
                                 if (index === 0 && item) {
                                     item.navigateTo.connect((target) => pageController.switchPage(target))
                                 }

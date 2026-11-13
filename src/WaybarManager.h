@@ -75,6 +75,13 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool ymBusy READ ymBusy NOTIFY ymStateChanged)
     Q_PROPERTY(int ymProgress READ ymProgress NOTIFY ymStateChanged)
     Q_PROPERTY(QString ymStatusText READ ymStatusText NOTIFY ymStateChanged)
+    Q_PROPERTY(bool ymAutoSyncPlaylists READ ymAutoSyncPlaylists WRITE setYmAutoSyncPlaylists NOTIFY stateChanged)
+    Q_PROPERTY(bool ymAutoSyncMyWave READ ymAutoSyncMyWave WRITE setYmAutoSyncMyWave NOTIFY stateChanged)
+    Q_PROPERTY(int ymAutoSyncDelay READ ymAutoSyncDelay WRITE setYmAutoSyncDelay NOTIFY stateChanged)
+    Q_PROPERTY(QVariantList ymPlaylists READ ymPlaylists NOTIFY ymLibraryChanged)
+    Q_PROPERTY(int ymSelectedPlaylist READ ymSelectedPlaylist WRITE setYmSelectedPlaylist NOTIFY ymLibraryChanged)
+    Q_PROPERTY(QString mediaCoverPath READ mediaCoverPath NOTIFY mediaChanged)
+    Q_PROPERTY(QString currentLocalTrackPath READ currentLocalTrackPath NOTIFY mediaChanged)
 
     // Разделители и режим редактирования панели задач (Drag & Drop)
     Q_PROPERTY(bool barSeparators READ barSeparators WRITE setBarSeparators NOTIFY stateChanged)
@@ -261,6 +268,19 @@ public:
     bool ymBusy() const { return m_ymBusy; }
     int ymProgress() const { return m_ymProgress; }
     QString ymStatusText() const { return m_ymStatusText; }
+    bool ymAutoSyncPlaylists() const { return m_ymAutoSyncPlaylists; }
+    void setYmAutoSyncPlaylists(bool v);
+    bool ymAutoSyncMyWave() const { return m_ymAutoSyncMyWave; }
+    void setYmAutoSyncMyWave(bool v);
+    int ymAutoSyncDelay() const { return m_ymAutoSyncDelay; }
+    void setYmAutoSyncDelay(int sec);
+    QVariantList ymPlaylists() const { return m_ymPlaylists; }
+    int ymSelectedPlaylist() const { return m_ymSelectedPlaylist; }
+    void setYmSelectedPlaylist(int idx);
+    QString mediaCoverPath() const { return m_mediaCoverPath; }
+    QString currentLocalTrackPath() const { return m_currentLocalTrackPath; }
+    Q_INVOKABLE void refreshYmLibrary();
+    Q_INVOKABLE void playYmTrack(int playlistIdx, int trackIdx);
     Q_INVOKABLE void saveYmToken(const QString &raw);
     Q_INVOKABLE void openYmOAuth();
     Q_INVOKABLE void syncYmPlaylists();
@@ -436,6 +456,7 @@ signals:
     void cursorPosChanged();
     void audioSpectrumChanged();
     void ymStateChanged();
+    void ymLibraryChanged();
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
@@ -523,6 +544,16 @@ private:
     bool m_mediaCollapsed = false;
     bool m_ymBusy = false;
     int m_ymProgress = 0;
+    bool m_ymAutoSyncPlaylists = true;
+    bool m_ymAutoSyncMyWave = false;
+    int m_ymAutoSyncDelay = 45;
+    bool m_ymAutoSyncDone = false;
+    qint64 m_netOnlineSinceMs = 0;
+    QVariantList m_ymPlaylists;
+    int m_ymSelectedPlaylist = 0;
+    QString m_mediaCoverPath;
+    QString m_currentLocalTrackPath;
+    void loadYmIndexFromDisk();
     QString m_ymStatusText = "Готово к синхронизации (~/Music/YandexMusic)";
     int m_mediaPausedSec = 0;
 

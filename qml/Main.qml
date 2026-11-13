@@ -31,6 +31,7 @@ ApplicationWindow {
     property int calYear: new Date().getFullYear()
     property int calMonth: new Date().getMonth()
     property int timeSubTab: 0
+    property int musicSubTab: 0
 
     // Таймер и Секундомер (живут в фоне и отображаются в таблетках на панели задач)
     property int timerTotalMs: 5 * 60 * 1000
@@ -969,7 +970,7 @@ ApplicationWindow {
                             var _m = Waybar ? Waybar.mediaActive : false
                             if (modKey === "sep") return true
                             if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
-                            if (modKey === "media") return (Waybar ? Waybar.mediaActive : false) || topBarContainer.editMode
+                            if (modKey === "media") return (Waybar ? (Waybar.mediaActive || Waybar.ymBusy) : false) || topBarContainer.editMode
                             return true
                         }
                         visible: modVis
@@ -1007,7 +1008,13 @@ ApplicationWindow {
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
                                 if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
-                                if (modKey === "media") return (Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12)
+                                if (modKey === "media") {
+                                    var dlW = (Waybar && Waybar.ymBusy) ? (ymDlRow.implicitWidth + 16) : 0
+                                    var plVis = (Waybar && Waybar.mediaActive) || topBarContainer.editMode
+                                    var plW = !plVis ? 0 : ((Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
+                                    var gapW = (dlW > 0 && plW > 0) ? (Waybar ? Waybar.spacing : 4) : 0
+                                    return dlW + gapW + plW
+                                }
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
                                 return 0
                             }
@@ -1297,11 +1304,76 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
 
+                            // Индикатор загрузки треков Яндекс.Музыки слева от пилюли плеера (появляется даже когда музыка не играет)
+                            Rectangle {
+                                id: ymDownloadPillBox
+                                visible: modKey === "media" && width > 0.5
+                                readonly property bool dlActive: (modKey === "media") && Waybar && Waybar.ymBusy
+                                opacity: dlActive ? 1.0 : 0.0
+                                clip: true
+                                width: dlActive ? (ymDlRow.implicitWidth + 16) : 0
+                                height: topBarContainer.pillHeight
+                                x: 0
+                                anchors.verticalCenter: parent.verticalCenter
+                                radius: topBarContainer.pillRadius
+                                color: topBarContainer.pillColor
+                                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 160 } }
+
+                                Rectangle {
+                                    anchors.left: parent.left
+                                    anchors.bottom: parent.bottom
+                                    height: 2
+                                    width: parent.width * Math.max(0.06, Math.min(1.0, (Waybar ? Waybar.ymProgress : 0) / 100.0))
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae"
+                                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                }
+
+                                Row {
+                                    id: ymDlRow
+                                    height: topBarContainer.pillHeight
+                                    anchors.centerIn: parent
+                                    spacing: 4
+                                    Text {
+                                        text: "󰇚"
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae"
+                                        font.pixelSize: 11
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: (Waybar ? Waybar.ymProgress : 0) + "%"
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                        font.pixelSize: 10
+                                        font.bold: true
+                                        font.family: "monospace"
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                }
+
+                                MouseArea {
+                                    enabled: !topBarContainer.editMode
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton) {
+                                            if (Waybar) Waybar.stopYmSync()
+                                        } else {
+                                            root.musicSubTab = 1
+                                            root.openDrawerWithMode("settings", 27)
+                                        }
+                                    }
+                                }
+                            }
+
                             // Контент: media (со сворачиванием по стрелочке и передачей координат для волны нижней границы панели)
                             Rectangle {
                                 id: mediaPillBox
-                                visible: modKey === "media"
-                                width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                visible: modKey === "media" && ((Waybar && Waybar.mediaActive) || topBarContainer.editMode)
+                                width: !visible ? 0 : ((Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
+                                height: topBarContainer.pillHeight
+                                anchors.right: parent.right
+                                anchors.verticalCenter: parent.verticalCenter
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 clip: true
                                 readonly property bool isCollapsed: Waybar ? Waybar.mediaCollapsed : false

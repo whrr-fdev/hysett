@@ -95,6 +95,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     }
     pollWeather();
     QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
+    QTimer::singleShot(800, this, &WaybarManager::refreshYmLibrary);
     QProcess *vpInit = new QProcess(this);
     connect(vpInit, &QProcess::finished, this, [this, vpInit]() { syncVpnStateFromScript(vpInit->readAllStandardOutput()); vpInit->deleteLater(); });
     vpInit->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "boot"});
@@ -214,6 +215,9 @@ void WaybarManager::loadState() {
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
             else if (k == "media_wave_mode") m_mediaWaveMode = std::clamp(v.toInt(), 0, 1);
             else if (k == "ym_wave_count") m_ymWaveCount = std::clamp(v.toInt(), 10, 500);
+            else if (k == "ym_auto_sync_playlists") m_ymAutoSyncPlaylists = (v == "1" || v == "true");
+            else if (k == "ym_auto_sync_my_wave") m_ymAutoSyncMyWave = (v == "1" || v == "true");
+            else if (k == "ym_auto_sync_delay") m_ymAutoSyncDelay = std::clamp(v.toInt(), 15, 300);
             else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 5.0);
             else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
             else if (k == "media_wave_count") m_mediaWaveCount = std::clamp(v.toInt(), 20, 220);
@@ -273,6 +277,9 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
         out << "media_wave_mode=" << m_mediaWaveMode << "\n";
         out << "ym_wave_count=" << m_ymWaveCount << "\n";
+        out << "ym_auto_sync_playlists=" << (m_ymAutoSyncPlaylists ? "1" : "0") << "\n";
+        out << "ym_auto_sync_my_wave=" << (m_ymAutoSyncMyWave ? "1" : "0") << "\n";
+        out << "ym_auto_sync_delay=" << m_ymAutoSyncDelay << "\n";
         out << "media_wave_speed=" << QString::number(m_mediaWaveSpeed, 'f', 2) << "\n";
         out << "media_wave_size=" << QString::number(m_mediaWaveSize, 'f', 1) << "\n";
         out << "media_wave_count=" << m_mediaWaveCount << "\n";
@@ -1232,6 +1239,7 @@ void WaybarManager::syncYmPlaylists() {
             ymf.close();
         }
         m_ymBusy = false;
+        loadYmIndexFromDisk();
         emit ymStateChanged();
     });
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "sync"});
@@ -1254,6 +1262,7 @@ void WaybarManager::downloadYmMyWave() {
             ymf.close();
         }
         m_ymBusy = false;
+        loadYmIndexFromDisk();
         emit ymStateChanged();
     });
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "my_wave", QString::number(m_ymWaveCount)});
@@ -1412,6 +1421,14 @@ void WaybarManager::pollMediaState() {
     } else {
         m_mediaPausedSec = std::min(3600, m_mediaPausedSec + 1);
     }
+    if (!m_mediaTitle.isEmpty()) {
+        QString covCandidate = QDir::homePath() + "/Music/YandexMusic/.covers/" + m_mediaTitle + ".jpg";
+        QString normTitle = m_mediaTitle;
+        normTitle.replace(" — ", " - ");
+        QString covCandidate2 = QDir::homePath() + "/Music/YandexMusic/.covers/" + normTitle + ".jpg";
+        if (QFile::exists(covCandidate)) m_mediaCoverPath = covCandidate;
+        else if (QFile::exists(covCandidate2)) m_mediaCoverPath = covCandidate2;
+    }
     emit mediaChanged();
 }
 
@@ -1547,6 +1564,7 @@ void WaybarManager::pollFastState() {
         }
 
         if (!nextConn) {
+            m_netOnlineSinceMs = 0;
             s_offlineTicks++;
             // Если физический интернет пропал (>1 сек) — гасим sing-box, чтобы не висел мертвый туннель, сохраняя m_vpnWantedEnabled
             if (s_offlineTicks >= 2 && m_vpnActive && !m_vpnBusy) {
@@ -1558,6 +1576,38 @@ void WaybarManager::pollFastState() {
             }
         } else {
             s_offlineTicks = 0;
+            qint64 nowOnlineMs = QDateTime::currentMSecsSinceEpoch();
+            if (m_netOnlineSinceMs <= 0) m_netOnlineSinceMs = nowOnlineMs;
+            if (!m_ymAutoSyncDone && !m_ymBusy && !m_vpnBusy && ymHasToken() &&
+                (m_ymAutoSyncPlaylists || m_ymAutoSyncMyWave) &&
+                (nowOnlineMs - m_netOnlineSinceMs) >= qint64(m_ymAutoSyncDelay) * 1000LL) {
+                m_ymAutoSyncDone = true;
+                m_ymBusy = true;
+                m_ymProgress = 5;
+                m_ymStatusText = "Автообновление треков Яндекс.Музыки...";
+                emit ymStateChanged();
+                QProcess *ap = new QProcess(this);
+                connect(ap, &QProcess::finished, this, [this, ap]() {
+                    ap->deleteLater();
+                    QFile ymf("/tmp/hysett_ym_progress.json");
+                    if (ymf.open(QIODevice::ReadOnly)) {
+                        QJsonObject yo = QJsonDocument::fromJson(ymf.readAll()).object();
+                        m_ymStatusText = yo["text"].toString(m_ymStatusText);
+                        m_ymProgress = yo["percent"].toInt(100);
+                        ymf.close();
+                    }
+                    m_ymBusy = false;
+                    loadYmIndexFromDisk();
+                    emit ymStateChanged();
+                });
+                ap->start("/usr/bin/python3", {
+                    QDir::homePath() + "/hysett/scripts/ym_sync.py",
+                    "auto_sync",
+                    m_ymAutoSyncPlaylists ? "1" : "0",
+                    m_ymAutoSyncMyWave ? "1" : "0",
+                    QString::number(m_ymWaveCount)
+                });
+            }
             if ((becameOnline || ifaceReconnected) && m_vpnWantedEnabled && !m_vpnBusy) {
                 s_lastIfaceToken = nextIfaceToken;
                 runVpnScriptCmd({"start"});
@@ -2617,4 +2667,92 @@ void WaybarManager::clearVpnLogs() {
         emit vpnLogsChanged();
     });
     p->start("/usr/bin/python3", {script, "clear_logs"});
+}
+
+
+void WaybarManager::setYmAutoSyncPlaylists(bool v) {
+    if (m_ymAutoSyncPlaylists != v) { m_ymAutoSyncPlaylists = v; saveState(false); }
+}
+void WaybarManager::setYmAutoSyncMyWave(bool v) {
+    if (m_ymAutoSyncMyWave != v) { m_ymAutoSyncMyWave = v; saveState(false); }
+}
+void WaybarManager::setYmAutoSyncDelay(int sec) {
+    sec = std::clamp(sec, 15, 300);
+    if (m_ymAutoSyncDelay != sec) { m_ymAutoSyncDelay = sec; saveState(false); }
+}
+void WaybarManager::setYmSelectedPlaylist(int idx) {
+    idx = std::max(0, idx);
+    if (m_ymSelectedPlaylist != idx) { m_ymSelectedPlaylist = idx; emit ymLibraryChanged(); }
+}
+
+void WaybarManager::loadYmIndexFromDisk() {
+    QFile f(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
+    if (!f.open(QIODevice::ReadOnly)) return;
+    QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    QVariantList nextPls = o["playlists"].toArray().toVariantList();
+    if (m_ymPlaylists != nextPls) {
+        m_ymPlaylists = nextPls;
+        if (m_ymSelectedPlaylist >= m_ymPlaylists.size()) m_ymSelectedPlaylist = 0;
+        emit ymLibraryChanged();
+    }
+}
+
+void WaybarManager::refreshYmLibrary() {
+    loadYmIndexFromDisk();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        p->deleteLater();
+        loadYmIndexFromDisk();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "scan_local"});
+}
+
+void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
+    if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
+    QVariantMap pl = m_ymPlaylists[playlistIdx].toMap();
+    QVariantList trs = pl["tracks"].toList();
+    if (trackIdx < 0 || trackIdx >= trs.size()) return;
+
+    QVariantMap chosen = trs[trackIdx].toMap();
+    QString chosenPath = chosen["path"].toString();
+    if (chosenPath.isEmpty() || !QFile::exists(chosenPath)) return;
+
+    // Если кликнули по уже играющему треку — ставим на паузу / продолжаем
+    if (m_currentLocalTrackPath == chosenPath && m_mediaActive) {
+        mediaPlayPause();
+        return;
+    }
+
+    m_currentLocalTrackPath = chosenPath;
+    m_mediaCoverPath = chosen["cover"].toString();
+    m_mediaTitle = chosen["artist"].toString() + " — " + chosen["title"].toString();
+    m_mediaActive = true;
+    m_mediaPlaying = true;
+    m_mediaPausedSec = 0;
+    emit mediaChanged();
+
+    // Формируем очередь воспроизведения .m3u8 со всеми треками выбранного плейлиста
+    QString qPath = "/tmp/hysett_ym_queue.m3u8";
+    QFile qf(qPath);
+    if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+        QTextStream out(&qf);
+        out << "#EXTM3U
+";
+        for (const QVariant &tv : trs) {
+            QString tp = tv.toMap()["path"].toString();
+            if (!tp.isEmpty()) out << tp << "
+";
+        }
+        qf.close();
+    }
+
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
+    QProcess::startDetached("mpv", {
+        "--no-video",
+        "--really-quiet",
+        QString("--playlist=%1").arg(qPath),
+        QString("--playlist-start=%1").arg(trackIdx)
+    });
+    QTimer::singleShot(350, this, &WaybarManager::pollMediaState);
 }

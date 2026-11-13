@@ -78,6 +78,7 @@ class WaybarManager : public QObject {
     // Звук, раскладка, сеть
     Q_PROPERTY(int volume READ volume NOTIFY audioChanged)
     Q_PROPERTY(bool muted READ muted NOTIFY audioChanged)
+    Q_PROPERTY(QVariantList audioStreams READ audioStreams NOTIFY audioStreamsChanged)
     Q_PROPERTY(QString kbLayout READ kbLayout NOTIFY kbLayoutChanged)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(QString recordingTimeText READ recordingTimeText NOTIFY recordingChanged)
@@ -238,6 +239,10 @@ public:
 
     int volume() const { return m_volume; }
     bool muted() const { return m_muted; }
+    QVariantList audioStreams() const { return m_audioStreams; }
+    Q_INVOKABLE void refreshAudioStreams();
+    Q_INVOKABLE void setStreamVolume(int streamId, int percent);
+    Q_INVOKABLE void toggleStreamMute(int streamId);
     QString kbLayout() const { return m_kbLayout; }
     bool recording() const { return m_recording; }
     QString recordingTimeText() const { return m_recordingTimeText; }
@@ -356,6 +361,7 @@ signals:
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
+    void audioStreamsChanged();
     void kbLayoutChanged();
     void weatherChanged();
     void recordingChanged();
@@ -456,6 +462,7 @@ private:
 
     int m_volume = 50;
     bool m_muted = false;
+    QVariantList m_audioStreams;
     QString m_kbLayout = "RU";
     bool m_recording = false;
     qint64 m_recordingStartSec = 0;

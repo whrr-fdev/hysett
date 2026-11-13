@@ -276,6 +276,10 @@ ApplicationWindow {
                     var now = new Date()
                     root.calYear = now.getFullYear()
                     root.calMonth = now.getMonth()
+                } else if (root.pendingDrawerMode === "volume") {
+                    if (Waybar) Qt.callLater(() => Waybar.refreshAudioStreams())
+                } else if (root.pendingDrawerMode === "bluetooth") {
+                    if (Bluetooth) Qt.callLater(() => Bluetooth.refresh())
                 } else if (root.pendingDrawerMode === "power") {
                     root.powerSelectedIndex = 0
                 } else if (root.pendingDrawerMode === "settings") {
@@ -373,6 +377,7 @@ ApplicationWindow {
         if (drawerMode === "traymenu") return 230
         if (drawerMode === "power") return isM3 ? 300 : 280
         if (drawerMode === "calendar") return isM3 ? 320 : 300
+        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 390 : 360
         if (drawerMode === "clipboard") return isM3 ? 500 : 460
         return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
     }
@@ -381,6 +386,7 @@ ApplicationWindow {
         if (drawerMode === "traymenu") return 196
         if (drawerMode === "power") return isM3 ? 315 : 295
         if (drawerMode === "calendar") return isM3 ? 305 : 285
+        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 375 : 350
         if (drawerMode === "clipboard") return isM3 ? 400 : 370
         if (isWallpaperExpanded || isSettingsMaximized) {
             return isVertBar ? (root.height - 12) : (root.height - (barRectY + barH) - Math.max(4, fullBarLeft))
@@ -489,6 +495,8 @@ ApplicationWindow {
 
         root.isWallpaperExpanded = false
         root.drawerMode = mode
+        if (mode === "volume" && Waybar) Qt.callLater(() => Waybar.refreshAudioStreams())
+        if (mode === "bluetooth" && Bluetooth) Qt.callLater(() => Bluetooth.refresh())
         if (mode === "clipboard" && Waybar) {
             root.clipSearchQuery = ""
             Qt.callLater(() => Waybar.refreshClipboard())
@@ -1787,7 +1795,7 @@ ApplicationWindow {
                                     }
                                 }
 
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("bluetooth") }
                             }
 
                             Item {
@@ -1813,7 +1821,7 @@ ApplicationWindow {
                                     Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                                 }
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("volume") }
                             }
 
                             Item {
@@ -2476,7 +2484,7 @@ ApplicationWindow {
                                 visible: !Waybar || Waybar.isBarModuleVisible("bluetooth")
                                 width: topBarContainer.pillHeight; height: 15
                                 Text { anchors.centerIn: parent; text: "󰂯"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("bluetooth") }
                             }
                             Item {
                                 visible: !Waybar || Waybar.isBarModuleVisible("network")
@@ -2499,7 +2507,7 @@ ApplicationWindow {
                                     Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"); font.pixelSize: 12 }
                                     Text { anchors.horizontalCenter: parent.horizontalCenter; text: (Waybar && Waybar.muted) ? "M" : ((Waybar ? Waybar.volume : 50) + "%"); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 8; font.bold: true }
                                 }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 5) }
+                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("volume") }
                             }
                             Item {
                                 visible: !Waybar || Waybar.isBarModuleVisible("language")
@@ -2970,6 +2978,332 @@ ApplicationWindow {
                                         anchors.centerIn: parent; text: parent.cellInfo.day
                                         color: parent.cellInfo.today ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                         font.pixelSize: 11; font.bold: parent.cellInfo.today
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3b. КОМПАКТНОЕ ОКНО ЗВУКА И МИКШЕРА ПРИЛОЖЕНИЙ
+                Item {
+                    id: volumePopupBox
+                    anchors.fill: parent
+                    visible: root.drawerMode === "volume"
+
+                    Timer {
+                        interval: 1500
+                        repeat: true
+                        running: root.drawerOpen && root.drawerMode === "volume"
+                        onTriggered: if (Waybar) Waybar.refreshAudioStreams()
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "󰕾  Громкость и микшер"
+                                color: "#ffffff"
+                                font.pixelSize: 13
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            StyledButton {
+                                text: "󰒓 Настройки"
+                                implicitHeight: 22
+                                onClicked: root.openDrawerWithMode("settings", 5)
+                            }
+                        }
+
+                        // Карточка общей системной громкости
+                        GlassPanel {
+                            Layout.fillWidth: true
+                            implicitHeight: 54
+                            radius: (Theme && Theme.isRounded) ? 10 : 0
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                spacing: 10
+
+                                StyledButton {
+                                    text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"
+                                    isIconOnly: true
+                                    implicitWidth: 30
+                                    implicitHeight: 30
+                                    isActive: Waybar ? !Waybar.muted : true
+                                    onClicked: if (Waybar) Waybar.toggleMute()
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    RowLayout {
+                                        Layout.fillWidth: true
+                                        Text {
+                                            text: "Общая громкость"
+                                            color: "#dddddd"
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                            Layout.fillWidth: true
+                                        }
+                                        Text {
+                                            text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%")
+                                            color: (Waybar && Waybar.muted) ? "#ff6b6b" : (Config ? Config.m3Primary : "#ffffff")
+                                            font.pixelSize: 11
+                                            font.bold: true
+                                        }
+                                    }
+                                    StyledSlider {
+                                        Layout.fillWidth: true
+                                        from: 0; to: 100; stepSize: 1
+                                        value: Waybar ? Waybar.volume : 50
+                                        onMoved: if (Waybar) Waybar.setVolumeExact(Math.round(value))
+                                    }
+                                }
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "Приложения • " + (Waybar ? Waybar.audioStreams.length : 0)
+                                color: "#aaaaaa"
+                                font.pixelSize: 11
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            StyledButton {
+                                text: "󰑐"
+                                isIconOnly: true
+                                implicitWidth: 22; implicitHeight: 22
+                                onClicked: if (Waybar) Waybar.refreshAudioStreams()
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            Text {
+                                visible: !Waybar || Waybar.audioStreams.length === 0
+                                anchors.centerIn: parent
+                                text: "Нет активных аудио-потоков приложений"
+                                color: "#777777"
+                                font.pixelSize: 11
+                            }
+
+                            ListView {
+                                anchors.fill: parent
+                                clip: true
+                                spacing: 6
+                                visible: Waybar && Waybar.audioStreams.length > 0
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                model: (root.drawerActive && root.drawerMode === "volume" && Waybar) ? Waybar.audioStreams : []
+
+                                delegate: GlassPanel {
+                                    width: ListView.view.width
+                                    implicitHeight: 52
+                                    height: 52
+                                    radius: (Theme && Theme.isRounded) ? 10 : 0
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 10
+                                        spacing: 10
+
+                                        StyledButton {
+                                            text: modelData.muted ? "󰝟" : "󰕾"
+                                            isIconOnly: true
+                                            implicitWidth: 28; implicitHeight: 28
+                                            isActive: !modelData.muted
+                                            onClicked: if (Waybar) Waybar.toggleStreamMute(modelData.id)
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 2
+                                            RowLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 6
+                                                Text {
+                                                    text: modelData.name + (modelData.subtitle && modelData.subtitle.length > 0 ? (" — " + modelData.subtitle) : "")
+                                                    color: "#ffffff"
+                                                    font.pixelSize: 11
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                                Text {
+                                                    text: modelData.muted ? "Mute" : (modelData.volume + "%")
+                                                    color: modelData.muted ? "#ff6b6b" : (Config ? Config.m3Primary : "#cccccc")
+                                                    font.pixelSize: 10
+                                                    font.bold: true
+                                                }
+                                            }
+                                            StyledSlider {
+                                                Layout.fillWidth: true
+                                                from: 0; to: 100; stepSize: 1
+                                                value: modelData.volume
+                                                onMoved: if (Waybar) Waybar.setStreamVolume(modelData.id, Math.round(value))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3c. КОМПАКТНОЕ ОКНО BLUETOOTH
+                Item {
+                    id: bluetoothPopupBox
+                    anchors.fill: parent
+                    visible: root.drawerMode === "bluetooth"
+
+                    Timer {
+                        interval: 3000
+                        repeat: true
+                        running: root.drawerOpen && root.drawerMode === "bluetooth"
+                        onTriggered: if (Bluetooth && !Bluetooth.scanning) Bluetooth.refresh()
+                    }
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Text {
+                                text: "󰂯  Bluetooth"
+                                color: "#ffffff"
+                                font.pixelSize: 13
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            StyledButton {
+                                text: (Bluetooth && Bluetooth.scanning) ? "󰑐 Поиск..." : "󰍉 Поиск"
+                                implicitHeight: 22
+                                isActive: Bluetooth && Bluetooth.scanning
+                                onClicked: if (Bluetooth) Bluetooth.scanDevices()
+                            }
+                            StyledButton {
+                                text: "󰒓"
+                                isIconOnly: true
+                                implicitWidth: 24; implicitHeight: 22
+                                onClicked: root.openDrawerWithMode("settings", 7)
+                            }
+                        }
+
+                        GlassPanel {
+                            Layout.fillWidth: true
+                            implicitHeight: 64
+                            radius: (Theme && Theme.isRounded) ? 10 : 0
+
+                            ColumnLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12; anchors.rightMargin: 12
+                                anchors.topMargin: 6; anchors.bottomMargin: 6
+                                spacing: 4
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Адаптер Bluetooth"
+                                        color: "#ffffff"
+                                        font.pixelSize: 11
+                                        font.bold: true
+                                        Layout.fillWidth: true
+                                    }
+                                    StyledSwitch {
+                                        checked: Bluetooth ? Bluetooth.powered : false
+                                        onToggled: if (Bluetooth) Bluetooth.powered = checked
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: "Автоподключение к наушникам"
+                                        color: "#aaaaaa"
+                                        font.pixelSize: 10
+                                        Layout.fillWidth: true
+                                    }
+                                    StyledSwitch {
+                                        checked: Bluetooth ? Bluetooth.autoConnect : true
+                                        onToggled: if (Bluetooth) Bluetooth.autoConnect = checked
+                                    }
+                                }
+                            }
+                        }
+
+                        ListView {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+                            spacing: 5
+                            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                            model: (root.drawerActive && root.drawerMode === "bluetooth" && Bluetooth) ? Bluetooth.devices : []
+
+                            delegate: GlassPanel {
+                                width: ListView.view.width
+                                height: 42
+                                implicitHeight: 42
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 8
+                                    spacing: 8
+
+                                    Text {
+                                        text: modelData.isAudio ? "󰋋" : (modelData.connected ? "󰂱" : "󰂯")
+                                        color: modelData.connected ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                                        font.pixelSize: 14
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        RowLayout {
+                                            spacing: 6
+                                            Text {
+                                                text: modelData.name
+                                                color: "#ffffff"
+                                                font.pixelSize: 11
+                                                font.bold: modelData.connected
+                                                elide: Text.ElideRight
+                                            }
+                                            Text {
+                                                visible: modelData.battery !== undefined && modelData.battery >= 0
+                                                text: "󰁹 " + modelData.battery + "%"
+                                                color: Config ? Config.m3Primary : "#69f0ae"
+                                                font.pixelSize: 9
+                                                font.bold: true
+                                            }
+                                        }
+                                        Text {
+                                            text: modelData.connected ? "Подключено" : (modelData.paired ? "Сопряжено" : modelData.mac)
+                                            color: modelData.connected ? "#69f0ae" : "#777777"
+                                            font.pixelSize: 9
+                                        }
+                                    }
+
+                                    StyledButton {
+                                        text: modelData.connected ? "Откл." : "Подкл."
+                                        implicitHeight: 22
+                                        isActive: modelData.connected
+                                        onClicked: if (Bluetooth) Bluetooth.toggleConnect(modelData.mac, modelData.connected)
                                     }
                                 }
                             }

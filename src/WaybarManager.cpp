@@ -1542,6 +1542,108 @@ void WaybarManager::setVolumeExact(int percent) {
     m_volume = percent; emit audioChanged();
 }
 
+void WaybarManager::refreshAudioStreams() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QString out = QString::fromUtf8(p->readAllStandardOutput());
+        p->deleteLater();
+
+        QVariantList list;
+        static const QRegularExpression idRe(R"(^Sink Input #(\d+))");
+        static const QRegularExpression volRe(R"(/\s*(\d+)%\s*/)");
+        static const QRegularExpression propRe(R"re(^\s*([a-zA-Z0-9._-]+)\s*=\s*"([^"]*)")re");
+
+        int curId = -1;
+        int curVol = 100;
+        bool curMuted = false;
+        QString appName;
+        QString mediaName;
+        QString binName;
+
+        auto flushCurrent = [&]() {
+            if (curId < 0) return;
+            QString title = !appName.isEmpty() ? appName : (!binName.isEmpty() ? binName : QString("Поток #%1").arg(curId));
+            if (title.compare("speech-dispatcher-dummy", Qt::CaseInsensitive) == 0) {
+                curId = -1;
+                return;
+            }
+            QVariantMap m;
+            m["id"] = curId;
+            m["name"] = title;
+            m["subtitle"] = (mediaName != title) ? mediaName : "";
+            m["volume"] = std::clamp(curVol, 0, 150);
+            m["muted"] = curMuted;
+            list.append(m);
+            curId = -1;
+        };
+
+        for (const QString &rawLine : out.split('\n')) {
+            QString line = rawLine.trimmed();
+            QRegularExpressionMatch im = idRe.match(line);
+            if (im.hasMatch()) {
+                flushCurrent();
+                curId = im.captured(1).toInt();
+                curVol = 100;
+                curMuted = false;
+                appName.clear();
+                mediaName.clear();
+                binName.clear();
+                continue;
+            }
+            if (curId < 0) continue;
+            if (line.startsWith("Mute:")) {
+                curMuted = line.contains("yes", Qt::CaseInsensitive);
+            } else if (line.startsWith("Volume:")) {
+                QRegularExpressionMatch vm = volRe.match(line);
+                if (vm.hasMatch()) curVol = vm.captured(1).toInt();
+            } else {
+                QRegularExpressionMatch pm = propRe.match(rawLine);
+                if (pm.hasMatch()) {
+                    QString k = pm.captured(1);
+                    QString v = pm.captured(2).trimmed();
+                    if (k == "application.name") appName = v;
+                    else if (k == "media.name") mediaName = v;
+                    else if (k == "application.process.binary") binName = v;
+                }
+            }
+        }
+        flushCurrent();
+
+        if (m_audioStreams != list) {
+            m_audioStreams = list;
+            emit audioStreamsChanged();
+        }
+    });
+    p->start("pactl", {"list", "sink-inputs"});
+}
+
+void WaybarManager::setStreamVolume(int streamId, int percent) {
+    percent = std::clamp(percent, 0, 150);
+    for (int i = 0; i < m_audioStreams.size(); ++i) {
+        QVariantMap m = m_audioStreams[i].toMap();
+        if (m["id"].toInt() == streamId) {
+            m["volume"] = percent;
+            m_audioStreams[i] = m;
+            emit audioStreamsChanged();
+            break;
+        }
+    }
+    QProcess::startDetached("pactl", {"set-sink-input-volume", QString::number(streamId), QString::number(percent) + "%"});
+}
+
+void WaybarManager::toggleStreamMute(int streamId) {
+    for (int i = 0; i < m_audioStreams.size(); ++i) {
+        QVariantMap m = m_audioStreams[i].toMap();
+        if (m["id"].toInt() == streamId) {
+            m["muted"] = !m["muted"].toBool();
+            m_audioStreams[i] = m;
+            emit audioStreamsChanged();
+            break;
+        }
+    }
+    QProcess::startDetached("pactl", {"set-sink-input-mute", QString::number(streamId), "toggle"});
+}
+
 void WaybarManager::toggleMute() {
     QProcess::startDetached("wpctl", {"set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"});
     QTimer::singleShot(50, this, &WaybarManager::pollFastState);

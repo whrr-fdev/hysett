@@ -255,8 +255,8 @@ void BluetoothManager::setPowered(bool v) {
         proc->start("sh", {"-c",
             "rfkill unblock bluetooth 2>/dev/null; "
             "for d in /sys/bus/usb/devices/*; do "
-            "  if [ -f "$d/bDeviceClass" ] && grep -qiE 'e0|ef' "$d/bDeviceClass" 2>/dev/null; then "
-            "    echo on > "$d/power/control" 2>/dev/null || true; "
+            "  if [ -f '$d/bDeviceClass' ] && grep -qiE 'e0|ef' '$d/bDeviceClass' 2>/dev/null; then "
+            "    echo on > '$d/power/control' 2>/dev/null || true; "
             "  fi; "
             "done; "
             "hciconfig hci0 up 2>/dev/null || true; "

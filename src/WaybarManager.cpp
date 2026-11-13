@@ -98,7 +98,16 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     connect(vpInit, &QProcess::finished, this, [this, vpInit]() { syncVpnStateFromScript(vpInit->readAllStandardOutput()); vpInit->deleteLater(); });
     vpInit->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "boot"});
     // Фоновое обновление списков обхода через 25 секунд после старта демона hysett
-    QTimer::singleShot(25000, this, &WaybarManager::updateBypassLists);
+    QTimer::singleShot(25000, this, [this]() {
+        if (!m_vpnBusy) {
+            QProcess *p = new QProcess(this);
+            connect(p, &QProcess::finished, this, [this, p]() {
+                syncVpnStateFromScript(p->readAllStandardOutput());
+                p->deleteLater();
+            });
+            p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "sync_repos_quiet"});
+        }
+    });
 
     m_sysTimer = new QTimer(this);
     m_sysTimer->setInterval(450);
@@ -361,7 +370,6 @@ void WaybarManager::pollHyprState() {
 void WaybarManager::pollSysStats() {
     {
         static qint64 s_lastIpCheckMtime = 0;
-        static bool s_initial2ipTriggered = false;
         QFileInfo icInfo("/tmp/hysett_vpn_ipcheck.json");
         if (icInfo.exists()) {
             qint64 mt = icInfo.lastModified().toMSecsSinceEpoch();
@@ -374,21 +382,14 @@ void WaybarManager::pollSysStats() {
                     int stCode = ico["state"].toInt(m_vpnIpCheckState);
                     QString stTxt = ico["text"].toString();
                     QString audSig = ico["auditing_sig"].toString();
-                    bool reloadSt = ico["reload_state"].toBool(false);
                     if (!stTxt.isEmpty() && (stCode != m_vpnIpCheckState || stTxt != m_vpnIpCheckText || audSig != m_vpnAuditingSig)) {
                         m_vpnIpCheckState = stCode;
                         m_vpnIpCheckText = stTxt;
                         m_vpnAuditingSig = audSig;
                         emit sysStatsChanged();
                     }
-                    if (reloadSt) {
-                        runVpnScriptCmd({"status"});
-                    }
                 }
             }
-        } else if (m_vpnActive && m_vpnIpCheckState == 0 && !s_initial2ipTriggered) {
-            s_initial2ipTriggered = true;
-            QTimer::singleShot(800, this, &WaybarManager::checkVpn2ip);
         }
     }
     if (m_vpnBusy) {
@@ -1800,9 +1801,14 @@ void WaybarManager::syncVpnStateFromScript(const QByteArray &raw) {
     emit sysStatsChanged();
 }
 
+static QProcess *s_runningHeavyVpnProc = nullptr;
+
 void WaybarManager::runVpnScriptCmd(const QStringList &args) {
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     bool isHeavy = (!args.isEmpty() && (args[0] == "update_lists" || args[0] == "update" || args[0] == "update_subs" || args[0] == "test_whitelist" || args[0] == "test_normal"));
+    if (isHeavy && s_runningHeavyVpnProc && s_runningHeavyVpnProc->state() != QProcess::NotRunning) {
+        return;
+    }
     if (isHeavy) {
         m_vpnBusy = true;
         m_vpnProgressPercent = 5;
@@ -1815,7 +1821,9 @@ void WaybarManager::runVpnScriptCmd(const QStringList &args) {
         emit sysStatsChanged();
     }
     QProcess *p = new QProcess(this);
+    if (isHeavy) s_runningHeavyVpnProc = p;
     connect(p, &QProcess::finished, this, [this, p]() {
+        if (s_runningHeavyVpnProc == p) s_runningHeavyVpnProc = nullptr;
         syncVpnStateFromScript(p->readAllStandardOutput());
         p->deleteLater();
     });
@@ -1900,6 +1908,7 @@ void WaybarManager::addVpnSubUrl(const QString &u) {
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
+        if (s_runningHeavyVpnProc == p) s_runningHeavyVpnProc = nullptr;
         syncVpnStateFromScript(p->readAllStandardOutput());
         p->deleteLater();
     });
@@ -1910,6 +1919,7 @@ void WaybarManager::removeVpnSubUrl(int idx) {
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
+        if (s_runningHeavyVpnProc == p) s_runningHeavyVpnProc = nullptr;
         syncVpnStateFromScript(p->readAllStandardOutput());
         p->deleteLater();
     });

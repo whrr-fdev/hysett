@@ -1735,7 +1735,20 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
         write_ipcheck(3, "Нет серверов для проверки", reload_state=False)
         return st
 
-    write_progress(8, f"Фаза 1/2: Быстрый TCP-фильтр {total} серверов...")
+    # Перед началом новой проверки очищаем старые пометки "рабочий" и "заморожен" у проверяемого списка, чтобы они отображались как обычно
+    target_sigs = {s.get("sig") or server_sig(s.get("outbound", {})) for s in target_srvs}
+    target_sigs.discard("")
+    frozen_sigs = [x for x in frozen_sigs if x not in target_sigs]
+    verified_sigs = [x for x in verified_sigs if x not in target_sigs]
+    for s in target_srvs:
+        s["frozen"] = False
+        s["verified"] = False
+    st["frozen_sigs"] = frozen_sigs
+    st["verified_sigs"] = verified_sigs
+    st = sync_active_server_list(st, allow_network_probe=False)
+    save_state(st)
+
+    write_progress(8, f"Фаза 1/2: Быстрый фильтр {total} серверов...")
     write_ipcheck(1, f"Фаза 1/2: Проверка доступности портов ({total} серв.)...", reload_state=False)
 
     tcp_alive = []
@@ -1879,7 +1892,7 @@ def run_sequential_config_audit(st, is_wl=False, sub_tab=0):
         st["verified_sigs"] = verified_sigs
         st = sync_active_server_list(st, allow_network_probe=False)
         save_state(st)
-        write_ipcheck(1, f"Проверено {min(len(tcp_alive), b_start + len(raw_chunk))}/{len(tcp_alive)} • Найдено рабочих: {ok_count} ✓", reload_state=True, auditing_sig="")
+        write_ipcheck(1, f"Проверено {min(len(tcp_alive), b_start + len(raw_chunk))}/{len(tcp_alive)} • Найдено рабочих: {ok_count} ✓", reload_state=False, auditing_sig="")
 
     summary = f"Готово: {ok_count} рабочих ✓ • {frz_count} заморожено ❄"
     write_progress(100, summary)
@@ -2036,15 +2049,6 @@ def sync_active_server_list(st, allow_network_probe=False):
 
     urls = read_sub_urls()
     sub_cache = st.get("sub_cache", {})
-    if urls:
-        for idx_u, u in enumerate(urls):
-            entry_u = sub_cache.get(u, {})
-            srvs_u = entry_u if isinstance(entry_u, list) else entry_u.get("servers", [])
-            if not srvs_u:
-                t_u, parsed_u = fetch_single_url(u)
-                if parsed_u:
-                    sub_cache[u] = {"title": short_sub_title(u, idx_u, t_u), "servers": parsed_u}
-                    st["sub_cache"] = sub_cache
 
     sub_srvs, _ = rebuild_sub_servers_from_cache(
         urls, sub_cache, frozen_set,
@@ -2377,28 +2381,14 @@ def start_vpn(fast_switch=False):
         save_state(st)
         write_ipcheck(3, msg, reload_state=frozen_now)
 
-    if wait_port(2080, 2.5):
+    if wait_port(2080, 2.2):
         set_desktop_proxy(not use_tun)
-        write_ipcheck(1, "Проверка локации (2ip.io)...")
-        loc, cc = detect_live_location(timeout=2.6)
-        if loc:
-            st["ip_check_state"] = 2
-            st["ip_check_text"] = loc
-            save_state(st)
-            write_ipcheck(2, loc, reload_state=False)
-            log_wl_msg(f"✓ Туннель активен: {loc}")
-        elif verify_active_tunnel_port(2080, timeout=2.0):
-            msg = f"Туннель работает ✓ ({st.get('server_name', 'VPN')})"
-            st["ip_check_state"] = 2
-            st["ip_check_text"] = msg
-            save_state(st)
-            write_ipcheck(2, msg, reload_state=False)
-        else:
-            msg = "Нет ответа от сервера (> 3 сек)"
-            st["ip_check_state"] = 3
-            st["ip_check_text"] = msg
-            save_state(st)
-            write_ipcheck(3, msg, reload_state=False)
+        srv_lbl = st.get("server_name", "VPN")
+        st["ip_check_state"] = 0
+        st["ip_check_text"] = f"Подключен: {srv_lbl} (нажмите «2ip.io» для проверки IP)"
+        save_state(st)
+        write_ipcheck(0, st["ip_check_text"], reload_state=False)
+        log_wl_msg(f"✓ Запущен сервер: {srv_lbl}")
         return True
     else:
         st["ip_check_state"] = 3
@@ -2532,11 +2522,24 @@ if __name__ == "__main__":
         dump_status_json()
     elif cmd == "boot":
         st = load_state()
-        ensure_sub_cache_metadata(st.get("sub_cache", {}), st.setdefault("ping_cache", {}), st.setdefault("country_cache", {}))
+        st = sync_active_server_list(st, allow_network_probe=False)
         save_state(st)
         is_running = (subprocess.run(["pgrep", "-f", "sing-box.*singbox_vpn.json"], stdout=subprocess.DEVNULL).returncode == 0)
         if st.get("vpn_enabled", False) and not is_running:
-            start_vpn()
+            start_vpn(fast_switch=True)
+        dump_status_json()
+    elif cmd == "sync_repos_quiet":
+        try:
+            os.nice(15)
+        except Exception:
+            pass
+        if os.path.exists(UPDATE_SCRIPT):
+            subprocess.run(["/usr/bin/bash", UPDATE_SCRIPT], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
+        st = load_state()
+        st["last_updated"] = time.strftime("%d.%m в %H:%M")
+        st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"), allow_network_probe=False)
+        st = sync_active_server_list(st, allow_network_probe=False)
+        save_state(st)
         dump_status_json()
     elif cmd == "update_lists":
         try:
@@ -2549,7 +2552,7 @@ if __name__ == "__main__":
         write_progress(80, "Обновление списков серверов...")
         st = load_state()
         st["last_updated"] = time.strftime("%d.%m в %H:%M")
-        st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"), allow_network_probe=True)
+        st["wl_servers"] = load_whitelist_servers(st, st.get("whitelist_file", "auto"), allow_network_probe=False)
         st = sync_active_server_list(st, allow_network_probe=False)
         save_state(st)
         write_progress(100, "Готово")
@@ -2823,9 +2826,9 @@ if __name__ == "__main__":
             st = sync_active_server_list(st, allow_network_probe=False)
             will_switch = bool(st.get("vpn_enabled", False)) and (bool(st.get("active_is_wl", False)) == is_wl)
             if will_switch:
-                st["ip_check_state"] = 1
-                st["ip_check_text"] = "Переключение сервера и проверка на 2ip.io..."
-                write_ipcheck(1, st["ip_check_text"])
+                st["ip_check_state"] = 0
+                st["ip_check_text"] = f"Переключение на {st.get('server_name', 'сервер')}..."
+                write_ipcheck(0, st["ip_check_text"])
             save_state(st)
             dump_status_json()
             if will_switch:

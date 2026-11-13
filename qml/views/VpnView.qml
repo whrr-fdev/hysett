@@ -578,7 +578,7 @@ ScrollView {
                 StyledButton {
                     text: (Waybar && Waybar.vpnBusy)
                           ? ("󰅖 Стоп (" + Waybar.vpnProgressPercent + "%)")
-                          : "󰓅 Проверка конфигов"
+                          : "󰓅 Проверка серверов"
                     implicitHeight: 24
                     isActive: Waybar && Waybar.vpnBusy
                     onClicked: {
@@ -1160,16 +1160,7 @@ ScrollView {
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                         Layout.fillWidth: true
                                     }
-                                    StyledButton {
-                                        text: (Waybar && Waybar.vpnBusy) ? ("󰅖 Стоп (" + Waybar.vpnProgressPercent + "%)") : "󰓅 Проверка конфигов"
-                                        implicitHeight: 24
-                                        isActive: Waybar && Waybar.vpnBusy
-                                        onClicked: {
-                                            if (!Waybar) return
-                                            if (Waybar.vpnBusy) Waybar.stopVpnConfigAudit()
-                                            else Waybar.testNormalVpnServers(vpnScroll.activeSubTab)
-                                        }
-                                    }
+
                                     StyledButton {
                                         visible: Waybar && Waybar.vpnFrozenCount > 0
                                         text: "󰑐 Разморозить все"
@@ -1507,16 +1498,7 @@ ScrollView {
                                         color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
                                         Layout.fillWidth: true
                                     }
-                                    StyledButton {
-                                        text: (Waybar && Waybar.vpnBusy) ? ("󰅖 Стоп (" + Waybar.vpnProgressPercent + "%)") : "󰓅 Проверка конфигов"
-                                        implicitHeight: 26
-                                        isActive: Waybar && Waybar.vpnBusy
-                                        onClicked: {
-                                            if (!Waybar) return
-                                            if (Waybar.vpnBusy) Waybar.stopVpnConfigAudit()
-                                            else Waybar.testWhitelistServers()
-                                        }
-                                    }
+
                                 }
 
                                 Item {

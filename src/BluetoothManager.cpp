@@ -242,25 +242,23 @@ void BluetoothManager::refresh() {
 
 void BluetoothManager::setPowered(bool v) {
     m_powered = v;
-    m_powerTransitionUntilMs = QDateTime::currentMSecsSinceEpoch() + 1800;
+    m_powerTransitionUntilMs = QDateTime::currentMSecsSinceEpoch() + 3200;
     emit stateChanged();
 
     QProcess *proc = new QProcess(this);
     connect(proc, &QProcess::finished, this, [this, proc]() {
         proc->deleteLater();
-        QTimer::singleShot(350, this, &BluetoothManager::refresh);
-        QTimer::singleShot(1100, this, &BluetoothManager::refresh);
+        QTimer::singleShot(300, this, &BluetoothManager::refresh);
+        QTimer::singleShot(1200, this, &BluetoothManager::refresh);
     });
     if (v) {
         proc->start("sh", {"-c",
             "rfkill unblock bluetooth 2>/dev/null; "
-            "for d in /sys/bus/usb/devices/*; do "
-            "  if [ -f '$d/bDeviceClass' ] && grep -qiE 'e0|ef' '$d/bDeviceClass' 2>/dev/null; then "
-            "    echo on > '$d/power/control' 2>/dev/null || true; "
-            "  fi; "
-            "done; "
-            "hciconfig hci0 up 2>/dev/null || true; "
-            "bluetoothctl power on"
+            "if ! bluetoothctl show 2>/dev/null | grep -q 'Controller'; then "
+            "  sudo -n /usr/local/bin/hysett-bt-revive >/dev/null 2>&1; "
+            "else "
+            "  bluetoothctl power on >/dev/null 2>&1 || sudo -n /usr/local/bin/hysett-bt-revive >/dev/null 2>&1; "
+            "fi"
         });
     } else {
         proc->start("bluetoothctl", {"power", "off"});

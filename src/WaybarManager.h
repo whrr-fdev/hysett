@@ -44,6 +44,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool hasRealMedia READ hasRealMedia NOTIFY mediaChanged)
     Q_PROPERTY(bool mediaPlaying READ mediaPlaying NOTIFY mediaChanged)
     Q_PROPERTY(QString mediaTitle READ mediaTitle NOTIFY mediaChanged)
+    Q_PROPERTY(QString mediaTrackTitle READ mediaTrackTitle NOTIFY mediaChanged)
+    Q_PROPERTY(QString mediaTrackArtist READ mediaTrackArtist NOTIFY mediaChanged)
     Q_PROPERTY(QString mediaPositionText READ mediaPositionText NOTIFY mediaChanged)
     Q_PROPERTY(QString mediaDurationText READ mediaDurationText NOTIFY mediaChanged)
     Q_PROPERTY(int mediaPosSec READ mediaPosSec NOTIFY mediaChanged)
@@ -219,6 +221,8 @@ public:
     bool hasRealMedia() const { return m_mediaActive; }
     bool mediaPlaying() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoPlaying : m_mediaPlaying; }
     QString mediaTitle() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoTracks.value(m_demoTrackIdx) : m_mediaTitle; }
+    QString mediaTrackTitle() const;
+    QString mediaTrackArtist() const;
     QString mediaPositionText() const;
     QString mediaDurationText() const;
     int mediaPosSec() const { return (m_mediaDemoMode && !m_mediaActive) ? m_demoPosSec : m_realPosSec; }
@@ -288,6 +292,7 @@ public:
     Q_INVOKABLE void deleteYmTrack(int playlistIdx, int trackIdx);
     Q_INVOKABLE void restoreYmTrack(int playlistIdx, int trackIdx);
     Q_INVOKABLE void copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle);
+    Q_INVOKABLE bool toggleYmFavorite(const QString &trackPath, const QString &fullTitle);
     Q_INVOKABLE bool isTrackInPlaylist(const QString &fullTitle, const QString &playlistTitle) const;
     Q_INVOKABLE void playYmMyWave();
     Q_INVOKABLE void saveYmToken(const QString &raw);
@@ -466,6 +471,7 @@ signals:
     void audioSpectrumChanged();
     void ymStateChanged();
     void ymLibraryChanged();
+    void ymFavoritesChanged();
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
@@ -563,6 +569,14 @@ private:
     bool m_ymShuffle = false;
     QString m_mediaCoverPath;
     QString m_currentLocalTrackPath;
+    bool m_localPlayerActive = false;
+    bool m_localPlayerPlaying = false;
+    QProcess *m_localMpvProc = nullptr;
+    QVariantList m_localQueue;
+    int m_localQueuePos = 0;
+    void startLocalQueueAt(int qIdx);
+    bool sendMpvIpcCommand(const QByteArray &jsonLine);
+    void pollLocalMpvTime();
     void loadYmIndexFromDisk();
     QString m_ymStatusText = "Готово к синхронизации (~/Music/YandexMusic)";
     int m_mediaPausedSec = 0;

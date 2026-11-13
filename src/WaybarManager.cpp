@@ -96,6 +96,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     }
     pollWeather();
     QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
+    loadYmIndexFromDisk();
     QTimer::singleShot(800, this, &WaybarManager::refreshYmLibrary);
     QProcess *vpInit = new QProcess(this);
     connect(vpInit, &QProcess::finished, this, [this, vpInit]() { syncVpnStateFromScript(vpInit->readAllStandardOutput()); vpInit->deleteLater(); });
@@ -150,6 +151,7 @@ WaybarManager::~WaybarManager() {
     }
     if (m_hyprEventFd >= 0) ::close(m_hyprEventFd);
     if (m_audioCapProc) { m_audioCapProc->kill(); delete m_audioCapProc; m_audioCapProc = nullptr; }
+    if (m_localMpvProc) { m_localMpvProc->kill(); delete m_localMpvProc; m_localMpvProc = nullptr; }
 }
 
 void WaybarManager::initSpecs() {
@@ -1287,7 +1289,80 @@ void WaybarManager::toggleMediaDemo() {
     setMediaDemoMode(!m_mediaDemoMode);
 }
 
+QString WaybarManager::mediaTrackTitle() const {
+    QString full = mediaTitle();
+    if (full.contains(" — ")) return full.section(" — ", 1).trimmed();
+    if (full.contains(" - ")) return full.section(" - ", 1).trimmed();
+    return full;
+}
+
+QString WaybarManager::mediaTrackArtist() const {
+    QString full = mediaTitle();
+    if (full.contains(" — ")) return full.section(" — ", 0, 0).trimmed();
+    if (full.contains(" - ")) return full.section(" - ", 0, 0).trimmed();
+    return full.isEmpty() ? "" : "Яндекс.Музыка";
+}
+
+bool WaybarManager::sendMpvIpcCommand(const QByteArray &jsonLine) {
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return false;
+    struct sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, "/tmp/hysett_mpv.sock", sizeof(addr.sun_path) - 1);
+    if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
+        ::close(fd);
+        return false;
+    }
+    ::write(fd, jsonLine.constData(), jsonLine.size());
+    ::close(fd);
+    return true;
+}
+
+void WaybarManager::pollLocalMpvTime() {
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return;
+    struct sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    std::strncpy(addr.sun_path, "/tmp/hysett_mpv.sock", sizeof(addr.sun_path) - 1);
+    int flags = ::fcntl(fd, F_GETFL, 0);
+    ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+    if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
+        const char *q = "{\"command\":[\"get_property\",\"time-pos\"],\"request_id\":1}\n{\"command\":[\"get_property\",\"duration\"],\"request_id\":2}\n";
+        ::write(fd, q, std::strlen(q));
+        usleep(6000);
+        char buf[1024];
+        ssize_t n = ::read(fd, buf, sizeof(buf) - 1);
+        if (n > 0) {
+            buf[n] = '\0';
+            for (const QByteArray &ln : QByteArray(buf, n).split('\n')) {
+                if (ln.trimmed().isEmpty()) continue;
+                QJsonObject o = QJsonDocument::fromJson(ln).object();
+                if (o["request_id"].toInt() == 1 && o.contains("data")) {
+                    m_realPosSec = std::max(0, qRound(o["data"].toDouble()));
+                } else if (o["request_id"].toInt() == 2 && o.contains("data")) {
+                    int d = qRound(o["data"].toDouble());
+                    if (d > 0) m_realLenSec = d;
+                }
+            }
+        }
+    }
+    ::close(fd);
+}
+
 void WaybarManager::mediaPlayPause() {
+    if (m_localPlayerActive && m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
+        m_localPlayerPlaying = !m_localPlayerPlaying;
+        m_mediaPlaying = m_localPlayerPlaying;
+        if (m_localPlayerPlaying) m_mediaPausedSec = 0;
+        QByteArray cmd = m_localPlayerPlaying
+                         ? "{\"command\":[\"set_property\",\"pause\",false]}\n"
+                         : "{\"command\":[\"set_property\",\"pause\",true]}\n";
+        if (!sendMpvIpcCommand(cmd)) {
+            ::kill(m_localMpvProc->processId(), m_localPlayerPlaying ? SIGCONT : SIGSTOP);
+        }
+        emit mediaChanged();
+        return;
+    }
     if (m_mediaDemoMode && !m_mediaActive) {
         m_demoPlaying = !m_demoPlaying;
         if (m_demoPlaying) m_mediaPausedSec = 0;
@@ -1304,6 +1379,11 @@ void WaybarManager::mediaPlayPause() {
 }
 
 void WaybarManager::mediaPrev() {
+    if (m_localPlayerActive && !m_localQueue.isEmpty()) {
+        int prevIdx = (m_localQueuePos - 1 + m_localQueue.size()) % m_localQueue.size();
+        startLocalQueueAt(prevIdx);
+        return;
+    }
     if (m_mediaDemoMode && !m_mediaActive) {
         m_demoTrackIdx = (m_demoTrackIdx + m_demoTracks.size() - 1) % m_demoTracks.size();
         m_demoPosSec = 0;
@@ -1322,6 +1402,11 @@ void WaybarManager::mediaPrev() {
 }
 
 void WaybarManager::mediaNext() {
+    if (m_localPlayerActive && !m_localQueue.isEmpty()) {
+        int nextIdx = (m_localQueuePos + 1) % m_localQueue.size();
+        startLocalQueueAt(nextIdx);
+        return;
+    }
     if (m_mediaDemoMode && !m_mediaActive) {
         m_demoTrackIdx = (m_demoTrackIdx + 1) % m_demoTracks.size();
         m_demoPosSec = 0;
@@ -1340,6 +1425,13 @@ void WaybarManager::mediaNext() {
 }
 
 void WaybarManager::mediaSeek(int deltaSec) {
+    if (m_localPlayerActive && m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
+        m_realPosSec = std::clamp(m_realPosSec + deltaSec, 0, std::max(1, m_realLenSec));
+        QByteArray cmd = QString("{\"command\":[\"seek\",%1,\"absolute\"]}\n").arg(m_realPosSec).toUtf8();
+        sendMpvIpcCommand(cmd);
+        emit mediaChanged();
+        return;
+    }
     if (m_mediaDemoMode && !m_mediaActive) {
         m_demoPosSec = std::clamp(m_demoPosSec + deltaSec, 0, 215);
         emit mediaChanged();
@@ -1356,6 +1448,18 @@ void WaybarManager::mediaSeek(int deltaSec) {
 }
 
 void WaybarManager::pollMediaState() {
+    if (m_localPlayerActive && m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
+        m_mediaActive = true;
+        m_mediaPlaying = m_localPlayerPlaying;
+        if (m_localPlayerPlaying) {
+            m_mediaPausedSec = 0;
+            pollLocalMpvTime();
+        } else {
+            m_mediaPausedSec = std::min(3600, m_mediaPausedSec + 1);
+        }
+        emit mediaChanged();
+        return;
+    }
     QString foundService;
     bool isPlaying = false;
     QString trackText;
@@ -2689,12 +2793,48 @@ void WaybarManager::setYmSelectedPlaylist(int idx) {
 }
 
 void WaybarManager::loadYmIndexFromDisk() {
+    QVariantList nextPls;
     QFile f(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
-    if (!f.open(QIODevice::ReadOnly)) return;
-    QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
-    f.close();
-    QVariantList nextPls = o["playlists"].toArray().toVariantList();
-    if (m_ymPlaylists != nextPls) {
+    if (f.open(QIODevice::ReadOnly)) {
+        QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
+        f.close();
+        nextPls = o["playlists"].toArray().toVariantList();
+    }
+    // Если индекс пустой или еще не создан — мгновенно сканируем папки ~/Music/YandexMusic напрямую в C++
+    if (nextPls.isEmpty()) {
+        QDir baseDir(QDir::homePath() + "/Music/YandexMusic");
+        if (baseDir.exists()) {
+            QStringList dirs = baseDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+            for (const QString &d : dirs) {
+                if (d.startsWith('.')) continue;
+                QDir plDir(baseDir.filePath(d));
+                QStringList mp3s = plDir.entryList({"*.mp3"}, QDir::Files, QDir::Time);
+                if (mp3s.isEmpty()) continue;
+                QVariantList trs;
+                for (const QString &fn : mp3s) {
+                    QString base = fn.left(fn.length() - 4);
+                    QString art = base.contains(" - ") ? base.section(" - ", 0, 0) : "Яндекс.Музыка";
+                    QString tit = base.contains(" - ") ? base.section(" - ", 1) : base;
+                    QString cov = baseDir.filePath(".covers/" + base + ".jpg");
+                    QVariantMap tm;
+                    tm["title"] = tit;
+                    tm["artist"] = art;
+                    tm["fullTitle"] = base;
+                    tm["duration"] = "";
+                    tm["path"] = plDir.filePath(fn);
+                    tm["cover"] = QFile::exists(cov) ? cov : "";
+                    trs.append(tm);
+                }
+                QVariantMap pm;
+                pm["title"] = d;
+                pm["folder"] = plDir.absolutePath();
+                pm["count"] = trs.size();
+                pm["tracks"] = trs;
+                nextPls.append(pm);
+            }
+        }
+    }
+    if (!nextPls.isEmpty() && m_ymPlaylists != nextPls) {
         m_ymPlaylists = nextPls;
         if (m_ymSelectedPlaylist >= m_ymPlaylists.size()) m_ymSelectedPlaylist = 0;
         emit ymLibraryChanged();
@@ -2793,6 +2933,55 @@ void WaybarManager::playYmMyWave() {
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "play_wave_init", "15"});
 }
 
+void WaybarManager::startLocalQueueAt(int qIdx) {
+    if (m_localQueue.isEmpty()) return;
+    m_localQueuePos = std::clamp(qIdx, 0, int(m_localQueue.size()) - 1);
+    QVariantMap chosen = m_localQueue[m_localQueuePos].toMap();
+    QString chosenPath = chosen["path"].toString();
+    if (chosenPath.isEmpty() || !QFile::exists(chosenPath)) return;
+
+    if (m_localMpvProc) {
+        m_localMpvProc->disconnect();
+        m_localMpvProc->kill();
+        m_localMpvProc->deleteLater();
+        m_localMpvProc = nullptr;
+    }
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_mpv.sock"});
+    QFile::remove("/tmp/hysett_mpv.sock");
+
+    m_localPlayerActive = true;
+    m_localPlayerPlaying = true;
+    m_currentLocalTrackPath = chosenPath;
+    m_mediaCoverPath = chosen["cover"].toString();
+    m_mediaTitle = chosen["artist"].toString() + " — " + chosen["title"].toString();
+    m_mediaActive = true;
+    m_mediaPlaying = true;
+    m_mediaPausedSec = 0;
+    m_realPosSec = 0;
+
+    QString durStr = chosen["duration"].toString();
+    if (durStr.contains(':')) {
+        m_realLenSec = std::max(1, durStr.section(':', 0, 0).toInt() * 60 + durStr.section(':', 1, 1).toInt());
+    } else {
+        m_realLenSec = 215;
+    }
+    emit mediaChanged();
+
+    m_localMpvProc = new QProcess(this);
+    connect(m_localMpvProc, &QProcess::finished, this, [this](int code, QProcess::ExitStatus status) {
+        if (m_localPlayerActive && status == QProcess::NormalExit && code == 0 && !m_localQueue.isEmpty()) {
+            int nextIdx = (m_localQueuePos + 1) % m_localQueue.size();
+            startLocalQueueAt(nextIdx);
+        }
+    });
+    m_localMpvProc->start("mpv", {
+        "--no-video",
+        "--really-quiet",
+        "--input-ipc-server=/tmp/hysett_mpv.sock",
+        chosenPath
+    });
+}
+
 void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
     QVariantMap pl = m_ymPlaylists[playlistIdx].toMap();
@@ -2803,60 +2992,27 @@ void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     QString chosenPath = chosen["path"].toString();
     if (chosenPath.isEmpty() || !QFile::exists(chosenPath)) return;
 
-    if (m_currentLocalTrackPath == chosenPath && m_mediaActive) {
+    if (m_localPlayerActive && m_currentLocalTrackPath == chosenPath && m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
         mediaPlayPause();
         return;
     }
 
-    m_currentLocalTrackPath = chosenPath;
-    m_mediaCoverPath = chosen["cover"].toString();
-    m_mediaTitle = chosen["artist"].toString() + " — " + chosen["title"].toString();
-    m_mediaActive = true;
-    m_mediaPlaying = true;
-    m_mediaPausedSec = 0;
-    emit mediaChanged();
-
-    QStringList queuePaths;
+    m_localQueue.clear();
     if (m_ymShuffle && trs.size() > 1) {
-        queuePaths.append(chosenPath);
-        QStringList rest;
+        m_localQueue.append(chosen);
+        QVariantList rest;
         for (int i = 0; i < trs.size(); ++i) {
-            if (i == trackIdx) continue;
-            QString tp = trs[i].toMap()["path"].toString();
-            if (!tp.isEmpty()) rest.append(tp);
+            if (i != trackIdx) rest.append(trs[i]);
         }
         std::mt19937 rng(uint32_t(QDateTime::currentMSecsSinceEpoch()));
         std::shuffle(rest.begin(), rest.end(), rng);
-        queuePaths.append(rest);
+        m_localQueue.append(rest);
+        startLocalQueueAt(0);
     } else {
-        for (const QVariant &tv : trs) {
-            QString tp = tv.toMap()["path"].toString();
-            if (!tp.isEmpty()) queuePaths.append(tp);
-        }
+        m_localQueue = trs;
+        startLocalQueueAt(trackIdx);
     }
-
-    QString qPath = "/tmp/hysett_ym_queue.m3u8";
-    QFile qf(qPath);
-    if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-        QTextStream out(&qf);
-        out << "#EXTM3U\n";
-        for (const QString &tp : queuePaths) {
-            out << tp << "\n";
-        }
-        qf.close();
-    }
-
-    int startPos = m_ymShuffle ? 0 : trackIdx;
-    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
-    QProcess::startDetached("mpv", {
-        "--no-video",
-        "--really-quiet",
-        QString("--playlist=%1").arg(qPath),
-        QString("--playlist-start=%1").arg(startPos)
-    });
-    QTimer::singleShot(350, this, &WaybarManager::pollMediaState);
 }
-
 
 static void saveYmPlaylistsIndexAndM3u(const QVariantList &playlists) {
     for (const QVariant &pv : playlists) {
@@ -3162,6 +3318,49 @@ void WaybarManager::copyYmTrackToPlaylist(const QString &trackPath, const QStrin
     }
 
     saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
-    emit ymLibraryChanged();
+    if (cleanTarget == "Мне нравится") emit ymFavoritesChanged();
+    else emit ymLibraryChanged();
     emit mediaChanged();
+}
+
+
+bool WaybarManager::toggleYmFavorite(const QString &trackPath, const QString &fullTitle) {
+    QString norm = fullTitle.trimmed();
+    norm.replace(" — ", " - ");
+    if (norm.isEmpty() && !trackPath.isEmpty()) {
+        norm = QFileInfo(trackPath).completeBaseName();
+    }
+    if (norm.isEmpty()) return false;
+
+    if (isTrackInPlaylist(norm, "Мне нравится")) {
+        // Убираем из «Мне нравится»
+        for (int i = 0; i < m_ymPlaylists.size(); ++i) {
+            QVariantMap pl = m_ymPlaylists[i].toMap();
+            if (pl["title"].toString() != "Мне нравится") continue;
+            QVariantList trs = pl["tracks"].toList();
+            for (int j = trs.size() - 1; j >= 0; --j) {
+                QVariantMap tm = trs[j].toMap();
+                QString ft = tm["fullTitle"].toString();
+                if (ft.compare(norm, Qt::CaseInsensitive) == 0 ||
+                    QFileInfo(tm["path"].toString()).completeBaseName().compare(norm, Qt::CaseInsensitive) == 0) {
+                    QString fp = tm["path"].toString();
+                    if (!fp.isEmpty() && QFile::exists(fp)) QFile::remove(fp);
+                    trs.removeAt(j);
+                }
+            }
+            pl["tracks"] = trs;
+            pl["count"] = trs.size();
+            m_ymPlaylists[i] = pl;
+            break;
+        }
+        saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
+        emit ymFavoritesChanged();
+        emit mediaChanged();
+        return false;
+    } else {
+        // Добавляем в «Мне нравится» без полного сброса открытого списка
+        copyYmTrackToPlaylist(trackPath, "Мне нравится");
+        emit ymFavoritesChanged();
+        return true;
+    }
 }

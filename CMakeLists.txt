@@ -75,6 +75,7 @@ qt6_add_shaders(hysett "hysett_shaders"
         qml/shaders/vortex_suck.frag
         qml/shaders/atmosphere_fx.frag
         qml/shaders/merged_shell.frag
+        qml/shaders/round_clip.frag
         qml/shaders/weather_sky.frag
 )
 

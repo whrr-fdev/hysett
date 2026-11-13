@@ -152,7 +152,8 @@ float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, 
 float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend) {
     outNotifBlend = 0.0;
     outDrwBlend = 0.0;
-    float barVis = clamp(u_bar_alpha * 10.0, 0.0, 1.0);
+    float bigOpen = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
+    float barVis = clamp(max(u_bar_alpha * 10.0, bigOpen), 0.0, 1.0);
     float waveStretch = (barVis > 0.01) ? computeFerroStretchForRect(p, u_bar_rect, u_music_wave.z, u_radius, true) : 0.0;
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);
     vec2 bHalf = 0.5 * bSize;
@@ -251,9 +252,10 @@ void main() {
     float bigSettingsMix = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
     vec3 darkBgRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix);
 
-    // Компактные выпадающие окошки имеют точно такую же прозрачность u_bar_alpha, как и сама панель задач
+    // При открытии большого окна настроек ВСЯ панель задач целиком принимает прозрачность и цвет окна настроек
+    float barBaseAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
     float popupOrSettingsAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
-    float effAlpha = mix(u_bar_alpha, popupOrSettingsAlpha, drwBlend);
+    float effAlpha = mix(barBaseAlpha, popupOrSettingsAlpha, drwBlend);
     float outlineVis = clamp(effAlpha * 3.0, 0.0, 1.0);
 
     vec4 shellFill = vec4(darkBgRgb, effAlpha);

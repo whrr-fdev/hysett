@@ -1023,7 +1023,7 @@ ScrollView {
                                             model: Waybar ? Waybar.vpnSubGroups : []
                                             delegate: Rectangle {
                                                 id: subRowItem
-                                                visible: !modelData.is_public_bl && (vpnScroll.activeSubTab === 0 || vpnScroll.activeSubTab === (index + 1))
+                                                visible: !modelData.is_public_bl
                                                 Layout.fillWidth: true; implicitHeight: 34
                                                 radius: vpnScroll.isM3 ? 8 : 0
                                                 color: vpnScroll.isM3 && Config

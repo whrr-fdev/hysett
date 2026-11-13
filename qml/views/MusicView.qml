@@ -223,7 +223,7 @@ ScrollView {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Скорость жидких пиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 4.0; stepSize: 0.1; value: Waybar ? Waybar.mediaWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.mediaWaveSpeed = value }
+                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 5.0; stepSize: 0.1; value: Waybar ? Waybar.mediaWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.mediaWaveSpeed = value }
                             Text { text: (Waybar ? Waybar.mediaWaveSpeed.toFixed(1) : "1.5") + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
 
@@ -293,28 +293,28 @@ ScrollView {
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Скорость столбиков дуги:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 4.0; stepSize: 0.1; value: Waybar ? Waybar.arcWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.arcWaveSpeed = value }
+                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 5.0; stepSize: 0.1; value: Waybar ? Waybar.arcWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.arcWaveSpeed = value }
                             Text { text: (Waybar ? Waybar.arcWaveSpeed.toFixed(1) : "1.5") + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Высота выступа столбиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 4.0; to: 32.0; stepSize: 1.0; value: Waybar ? Waybar.arcWaveSize : 16.0; onMoved: if (Waybar) Waybar.arcWaveSize = value }
+                            StyledSlider { Layout.fillWidth: true; from: 10.0; to: 80.0; stepSize: 2.0; value: Waybar ? Waybar.arcWaveSize : 38.0; onMoved: if (Waybar) Waybar.arcWaveSize = value }
                             Text { text: Math.round(Waybar ? Waybar.arcWaveSize : 16) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Толщина столбиков дуги:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 1; to: 6; stepSize: 1; value: Waybar ? Waybar.arcWaveWidth : 2; onMoved: if (Waybar) Waybar.arcWaveWidth = Math.round(value) }
+                            StyledSlider { Layout.fillWidth: true; from: 4; to: 36; stepSize: 1; value: Waybar ? Waybar.arcWaveWidth : 14; onMoved: if (Waybar) Waybar.arcWaveWidth = Math.round(value) }
                             Text { text: (Waybar ? Waybar.arcWaveWidth : 2) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true; spacing: 8
                             Text { text: "Расстояние между столбиками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 1; to: 6; stepSize: 1; value: Waybar ? Waybar.arcWaveGap : 1; onMoved: if (Waybar) Waybar.arcWaveGap = Math.round(value) }
+                            StyledSlider { Layout.fillWidth: true; from: 2; to: 20; stepSize: 1; value: Waybar ? Waybar.arcWaveGap : 6; onMoved: if (Waybar) Waybar.arcWaveGap = Math.round(value) }
                             Text { text: (Waybar ? Waybar.arcWaveGap : 1) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
 

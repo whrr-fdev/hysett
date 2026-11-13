@@ -1,6 +1,6 @@
-static qint64 m_vpnStartGraceUntilMs = 0;
 #include <QPointer>
 #include "WaybarManager.h"
+static qint64 m_vpnStartGraceUntilMs = 0;
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>

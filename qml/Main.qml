@@ -619,29 +619,35 @@ ApplicationWindow {
     property real mediaPillHalfW: 95.0
     readonly property int waveMode: Waybar ? Waybar.mediaWaveMode : 0
     readonly property bool anyMusicWaveOn: !root.isVertBar && root.barPos === 0 && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
-    readonly property bool barShaderWaveRun: anyMusicWaveOn && (waveMode === 0 || waveMode === 2) && !(root.drawerOpen && root.drawerMode === "settings")
-    readonly property real targetBarWaveAmp: !barShaderWaveRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 16.0) : (Waybar ? Waybar.mediaWaveSize : 11.0))
+    readonly property bool barShaderWaveRun: anyMusicWaveOn && (waveMode === 0 || waveMode === 2)
+    readonly property real targetBarWaveAmp: !barShaderWaveRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 38.0) : (Waybar ? Waybar.mediaWaveSize : 11.0))
     property real musicWaveAmp: targetBarWaveAmp
     Behavior on musicWaveAmp { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
     readonly property bool drawerAnimSettled: root.drawerOpen && !openSeqAnim.running && !switchDrawerAnim.running && !closeSeqAnim.running && root.drawerProgress > 0.98
-    readonly property bool drawerWaveShouldRun: anyMusicWaveOn && waveMode === 0 && drawerAnimSettled
-    property real drawerWaveAmp: drawerWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
+    readonly property bool drawerWaveShouldRun: anyMusicWaveOn && (waveMode === 0 || waveMode === 2) && drawerAnimSettled
+    property real drawerWaveAmp: !drawerWaveShouldRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 38.0) : (Waybar ? Waybar.mediaWaveSize : 11.0))
     Behavior on drawerWaveAmp { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
-    // Легкий 30-FPS таймер фазы волн вместо 160-FPS NumberAnimation (снижает нагрузку на композитор Hyprland в 5 раз!)
-    Timer {
-        interval: 33
-        repeat: true
+    property real smoothBass: Waybar ? Waybar.audioBass : 0.0
+    property real smoothMid: Waybar ? Waybar.audioMid : 0.0
+    property real smoothTreb: Waybar ? Waybar.audioTreble : 0.0
+    Behavior on smoothBass { NumberAnimation { duration: 65; easing.type: Easing.Linear } }
+    Behavior on smoothMid  { NumberAnimation { duration: 65; easing.type: Easing.Linear } }
+    Behavior on smoothTreb { NumberAnimation { duration: 65; easing.type: Easing.Linear } }
+
+    FrameAnimation {
         running: root.anyMusicWaveOn
         onTriggered: {
+            var dt = Math.min(0.05, Math.max(0.002, frameTime))
             var spd = 1.5
             if (Waybar) {
                 if (root.waveMode === 1) spd = Waybar.pillWaveSpeed
                 else if (root.waveMode === 2) spd = Waybar.arcWaveSpeed
                 else spd = Waybar.mediaWaveSpeed
             }
-            root.musicWavePhase = (root.musicWavePhase + 0.012 * spd) % 628.31853
+            var mult = (root.waveMode === 0) ? 7.5 : ((root.waveMode === 2) ? 2.8 : 2.6)
+            root.musicWavePhase = (root.musicWavePhase + dt * mult * spd) % 6283.1853
         }
     }
 
@@ -803,7 +809,7 @@ ApplicationWindow {
             width: parent.width
             height: (root.drawerActive || root.notifActive || root.isVertBar || root.barPos !== 0)
                     ? parent.height
-                    : Math.min(parent.height, root.barRectY + root.actualBarH + 46)
+                    : Math.min(parent.height, root.barRectY + root.actualBarH + 115)
             z: 2
             property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
@@ -821,7 +827,8 @@ ApplicationWindow {
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
             property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
-            property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
+            readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : '#a8c7fa')
+            property vector3d u_glow_color: Qt.vector3d(activeWaveTint.r, activeWaveTint.g, activeWaveTint.b)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
             property real u_bar_alpha: Math.min(Waybar ? Waybar.barOpacity : 0.70, currentOpacity)
             property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13.0) : 0.0
@@ -874,15 +881,15 @@ ApplicationWindow {
             property color pillColor: {
                 if (!Theme || !Theme.isRounded || !Config) return "transparent"
                 var wOpen = settingsOpenWeight
-                var priMix = 0.18 - 0.07 * wOpen
-                var lift = 0.042 - 0.025 * wOpen
-                var baseOp = Math.max(0.78, Waybar ? Waybar.pillOpacity : 0.85)
-                var closedAlpha = Math.min(0.96, baseOp * 1.06)
-                var openAlpha = Math.max(0.50, baseOp * 0.68)
+                var priMix = 0.14 - 0.04 * wOpen
+                var darkScale = 0.72 + 0.28 * wOpen
+                var baseOp = Math.max(0.82, Waybar ? Waybar.pillOpacity : 0.88)
+                var closedAlpha = Math.min(0.97, baseOp * 1.08)
+                var openAlpha = Math.max(0.54, baseOp * 0.72)
                 return Qt.rgba(
-                    Math.min(1.0, Config.m3SurfaceContainerHigh.r * (1.0 - priMix) + Config.m3Primary.r * priMix + lift),
-                    Math.min(1.0, Config.m3SurfaceContainerHigh.g * (1.0 - priMix) + Config.m3Primary.g * priMix + lift),
-                    Math.min(1.0, Config.m3SurfaceContainerHigh.b * (1.0 - priMix) + Config.m3Primary.b * priMix + lift),
+                    Math.min(1.0, (Config.m3SurfaceContainerHigh.r * (1.0 - priMix) + Config.m3Primary.r * priMix) * darkScale),
+                    Math.min(1.0, (Config.m3SurfaceContainerHigh.g * (1.0 - priMix) + Config.m3Primary.g * priMix) * darkScale),
+                    Math.min(1.0, (Config.m3SurfaceContainerHigh.b * (1.0 - priMix) + Config.m3Primary.b * priMix) * darkScale),
                     closedAlpha + (openAlpha - closedAlpha) * wOpen
                 )
             }
@@ -1326,36 +1333,40 @@ ApplicationWindow {
                                     id: insidePillEqRow
                                     z: 1
                                     visible: opacity > 0.01
-                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? 0.50 : 0.0
+                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? (0.48 - 0.28 * topBarContainer.settingsOpenWeight) : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
                                     anchors.bottom: parent.bottom
-                                    anchors.left: parent.left
-                                    anchors.right: parent.right
-                                    anchors.leftMargin: 2
-                                    anchors.rightMargin: 2
+                                    anchors.bottomMargin: 1
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    readonly property int sidePad: Math.max(10, topBarContainer.pillRadius + 3)
                                     readonly property int pBarW: Waybar ? Waybar.pillWaveWidth : 2
                                     readonly property int pGapW: Waybar ? Waybar.pillWaveGap : 1
-                                    readonly property real pMaxH: (Waybar ? Waybar.pillWaveHeight : 85) / 100.0
+                                    readonly property real pMaxH: (Waybar ? Waybar.pillWaveHeight : 70) / 100.0
                                     spacing: pGapW
-                                    readonly property int barCnt: Math.max(4, Math.floor((mediaPillBox.width - 4) / Math.max(2, pBarW + pGapW)))
+                                    readonly property int availW: Math.max(10, mediaPillBox.width - sidePad * 2)
+                                    readonly property int barCnt: Math.max(3, Math.floor((availW + pGapW) / Math.max(2, pBarW + pGapW)))
 
                                     Repeater {
                                         model: insidePillEqRow.visible ? insidePillEqRow.barCnt : 0
                                         delegate: Rectangle {
                                             width: insidePillEqRow.pBarW
                                             radius: 0
+                                            antialiasing: true
                                             anchors.bottom: parent.bottom
-                                            readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
-                                            readonly property real mLvl: Waybar ? Waybar.audioMid : 0.35
-                                            readonly property real tLvl: Waybar ? Waybar.audioTreble : 0.3
+                                            readonly property real bLvl: root.smoothBass
+                                            readonly property real mLvl: root.smoothMid
+                                            readonly property real tLvl: root.smoothTreb
                                             readonly property real eMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
-                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.8 + index * 0.75)
-                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 4.5 - index * 0.62)
-                                            readonly property real amp: Math.min(1.0, (0.2 + 0.8 * (s1 * 0.55 + s2 * 0.45)) * (0.35 + 0.85 * eMix))
-                                            height: Math.max(2, Math.round(amp * (topBarContainer.pillHeight - 2) * insidePillEqRow.pMaxH))
-                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#a8c7fa"
+                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 1.8 + index * 0.85)
+                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 2.9 - index * 0.71)
+                                            readonly property real edgeTaper: Math.min(1.0, Math.min(index + 1, insidePillEqRow.barCnt - index) / 2.2)
+                                            readonly property real amp: Math.min(1.0, (0.16 + 0.84 * (s1 * 0.55 + s2 * 0.45)) * (0.32 + 0.88 * eMix)) * (0.45 + 0.55 * edgeTaper)
+                                            height: Math.max(1.5, amp * (topBarContainer.pillHeight - 7) * 0.70 * insidePillEqRow.pMaxH)
+                                            readonly property color baseCol: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : "#a8c7fa")
+                                            color: Qt.darker(baseCol, 1.0 + 0.35 * topBarContainer.settingsOpenWeight)
                                         }
                                     }
+                                }
                                 }
 
                                 // Свернутый режим (клик ЛКМ разворачивает, ПКМ пауза/играть)
@@ -1446,7 +1457,7 @@ ApplicationWindow {
                                         Text {
                                             id: mediaSepMeasure
                                             visible: false
-                                            text: "   •   "
+                                            text: "        "
                                             font.pixelSize: 10
                                             font.bold: true
                                         }
@@ -1504,7 +1515,7 @@ ApplicationWindow {
                                             }
                                             Text {
                                                 anchors.verticalCenter: parent.verticalCenter
-                                                text: "   •   "
+                                                text: "        "
                                                 color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#aaaaaa"
                                                 font.pixelSize: 10
                                                 font.bold: true

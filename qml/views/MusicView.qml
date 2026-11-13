@@ -221,6 +221,56 @@ ScrollView {
                     }
 
                     RowLayout {
+                        visible: Waybar ? Waybar.mediaWaves : true
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "Размер (высота) волн:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 230
+                        }
+                        StyledSlider {
+                            Layout.fillWidth: true
+                            from: 4.0; to: 24.0; stepSize: 0.5
+                            value: Waybar ? Waybar.mediaWaveSize : 11.0
+                            onMoved: if (Waybar) Waybar.mediaWaveSize = value
+                        }
+                        Text {
+                            text: Math.round(Waybar ? Waybar.mediaWaveSize : 11) + " px"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 58
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Waybar ? Waybar.mediaWaves : true
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "Количество волн на панели:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 230
+                        }
+                        StyledSlider {
+                            Layout.fillWidth: true
+                            from: 20; to: 200; stepSize: 5
+                            value: Waybar ? Waybar.mediaWaveCount : 95
+                            onMoved: if (Waybar) Waybar.mediaWaveCount = Math.round(value)
+                        }
+                        Text {
+                            text: String(Waybar ? Waybar.mediaWaveCount : 95)
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 58
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+
+                    RowLayout {
                         Layout.fillWidth: true
                         Text {
                             text: "Свернуть виджет музыки на панели (компактный вид):"

@@ -1,5 +1,6 @@
 #pragma once
 #include <QObject>
+#include <QProcess>
 #include <QVariantList>
 #include <QVariantMap>
 #include <QTimer>
@@ -51,6 +52,11 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int mediaHideTimeout READ mediaHideTimeout WRITE setMediaHideTimeout NOTIFY stateChanged)
     Q_PROPERTY(bool mediaWaves READ mediaWaves WRITE setMediaWaves NOTIFY stateChanged)
     Q_PROPERTY(qreal mediaWaveSpeed READ mediaWaveSpeed WRITE setMediaWaveSpeed NOTIFY stateChanged)
+    Q_PROPERTY(qreal mediaWaveSize READ mediaWaveSize WRITE setMediaWaveSize NOTIFY stateChanged)
+    Q_PROPERTY(int mediaWaveCount READ mediaWaveCount WRITE setMediaWaveCount NOTIFY stateChanged)
+    Q_PROPERTY(qreal audioBass READ audioBass NOTIFY audioSpectrumChanged)
+    Q_PROPERTY(qreal audioMid READ audioMid NOTIFY audioSpectrumChanged)
+    Q_PROPERTY(qreal audioTreble READ audioTreble NOTIFY audioSpectrumChanged)
     Q_PROPERTY(QPointF globalCursorPos READ globalCursorPos NOTIFY cursorPosChanged)
     Q_PROPERTY(bool mediaCollapsed READ mediaCollapsed WRITE setMediaCollapsed NOTIFY stateChanged)
 
@@ -200,6 +206,13 @@ public:
     void setMediaWaves(bool v);
     qreal mediaWaveSpeed() const { return m_mediaWaveSpeed; }
     void setMediaWaveSpeed(qreal v);
+    qreal mediaWaveSize() const { return m_mediaWaveSize; }
+    void setMediaWaveSize(qreal v);
+    int mediaWaveCount() const { return m_mediaWaveCount; }
+    void setMediaWaveCount(int v);
+    qreal audioBass() const { return m_audioBass; }
+    qreal audioMid() const { return m_audioMid; }
+    qreal audioTreble() const { return m_audioTreble; }
     QPointF globalCursorPos() const { return m_globalCursorPos; }
     bool mediaCollapsed() const { return m_mediaCollapsed; }
     void setMediaCollapsed(bool v);
@@ -371,6 +384,7 @@ signals:
     void clipboardChanged();
     void mediaChanged();
     void cursorPosChanged();
+    void audioSpectrumChanged();
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
@@ -434,6 +448,13 @@ private:
     int m_mediaHideTimeout = 15;
     bool m_mediaWaves = true;
     qreal m_mediaWaveSpeed = 1.5;
+    qreal m_mediaWaveSize = 11.0;
+    int m_mediaWaveCount = 95;
+    qreal m_audioBass = 0.0;
+    qreal m_audioMid = 0.0;
+    qreal m_audioTreble = 0.0;
+    QProcess *m_audioCapProc = nullptr;
+    void updateAudioCaptureState();
     QPointF m_globalCursorPos = QPointF(-500, -500);
     QTimer *m_cursorPollTimer = nullptr;
     bool m_mediaCollapsed = false;

@@ -618,7 +618,7 @@ ApplicationWindow {
     property real mediaPillCenterX: 320.0
     property real mediaPillHalfW: 95.0
     readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !(root.drawerOpen && root.drawerMode === "settings") && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
-    property real musicWaveAmp: musicWaveShouldRun ? 10.5 : 0.0
+    property real musicWaveAmp: musicWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
     Behavior on musicWaveAmp { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
     NumberAnimation on musicWavePhase {
         from: 0.0; to: 62.831853
@@ -816,6 +816,7 @@ ApplicationWindow {
             property vector2d u_trail2: Qt.vector2d(root.trail2.x, root.trail2.y)
             readonly property point effWaveMouse: (Waybar && Waybar.globalCursorPos.x > -100) ? Waybar.globalCursorPos : root.mousePos
             property vector4d u_music_wave: Qt.vector4d(effWaveMouse.x, effWaveMouse.y, root.musicWaveAmp, root.musicWavePhase)
+            property vector4d u_music_wave2: Qt.vector4d(Waybar ? Waybar.mediaWaveCount : 95, Waybar ? Waybar.audioBass : 0.0, Waybar ? Waybar.audioMid : 0.0, Waybar ? Waybar.audioTreble : 0.0)
             fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
         }
 
@@ -971,7 +972,7 @@ ApplicationWindow {
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
                                 if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
-                                if (modKey === "media") return (Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 14) : (mediaInnerRow.implicitWidth + 18)
+                                if (modKey === "media") return (Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12)
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
                                 return 0
                             }
@@ -1333,46 +1334,125 @@ ApplicationWindow {
                                     }
                                 }
 
-                                // Развернутый режим
+                                // Развернутый режим (уменьшенные отступы, компактная длина и бегущая строка)
                                 Row {
                                     id: mediaInnerRow
                                     z: 5
                                     visible: !mediaPillBox.isCollapsed
                                     height: topBarContainer.pillHeight
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: 2
 
                                     Item {
-                                        width: 14; height: topBarContainer.pillHeight
-                                        Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                                        width: 11; height: topBarContainer.pillHeight
+                                        Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 10 }
                                         MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
                                     }
 
                                     Item {
-                                        width: 14; height: topBarContainer.pillHeight
-                                        Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                                        width: 11; height: topBarContainer.pillHeight
+                                        Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 10 }
                                         MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
                                     }
 
                                     Item {
-                                        width: 14; height: topBarContainer.pillHeight
-                                        Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
+                                        width: 11; height: topBarContainer.pillHeight
+                                        Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 10 }
                                         MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
                                     }
 
                                     Item {
-                                        width: Math.min(145, Math.max(36, mediaTrackLbl.implicitWidth))
+                                        id: mediaTitleBox
+                                        readonly property string trackStr: Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер"
+                                        readonly property int maxTitleW: 90
+                                        readonly property bool needMarquee: mediaTrackMeasure.implicitWidth > maxTitleW
+                                        readonly property real scrollStepW: mediaTrackMeasure.implicitWidth + mediaSepMeasure.implicitWidth
+                                        width: Math.min(maxTitleW, Math.max(28, mediaTrackMeasure.implicitWidth))
                                         height: topBarContainer.pillHeight
+                                        clip: true
+
                                         Text {
-                                            id: mediaTrackLbl
+                                            id: mediaTrackMeasure
+                                            visible: false
+                                            text: mediaTitleBox.trackStr
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            id: mediaSepMeasure
+                                            visible: false
+                                            text: "   •   "
+                                            font.pixelSize: 10
+                                            font.bold: true
+                                        }
+
+                                        // Статичный текст, когда название помещается целиком
+                                        Text {
+                                            visible: !mediaTitleBox.needMarquee
                                             anchors.verticalCenter: parent.verticalCenter
-                                            width: parent.width
-                                            text: Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер"
+                                            text: mediaTitleBox.trackStr
                                             color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
                                             font.pixelSize: 10
                                             font.bold: true
-                                            elide: Text.ElideRight
                                         }
+
+                                        // Бесшовная бегущая строка, когда название не влезает
+                                        Row {
+                                            id: marqueeRow
+                                            visible: mediaTitleBox.needMarquee
+                                            height: parent.height
+                                            x: 0
+
+                                            onVisibleChanged: {
+                                                marqueeAnim.stop()
+                                                x = 0
+                                                if (visible) marqueeAnim.start()
+                                            }
+                                            Connections {
+                                                target: mediaTitleBox
+                                                function onTrackStrChanged() {
+                                                    marqueeAnim.stop()
+                                                    marqueeRow.x = 0
+                                                    if (mediaTitleBox.needMarquee && marqueeRow.visible) marqueeAnim.start()
+                                                }
+                                            }
+
+                                            SequentialAnimation on x {
+                                                id: marqueeAnim
+                                                loops: Animation.Infinite
+                                                running: mediaTitleBox.needMarquee && mediaPillBox.visible && !mediaPillBox.isCollapsed
+                                                PauseAnimation { duration: 1200 }
+                                                NumberAnimation {
+                                                    from: 0
+                                                    to: -mediaTitleBox.scrollStepW
+                                                    duration: Math.max(2500, Math.round(mediaTitleBox.scrollStepW * 36))
+                                                    easing.type: Easing.Linear
+                                                }
+                                            }
+
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: mediaTitleBox.trackStr
+                                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: "   •   "
+                                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#aaaaaa"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                            Text {
+                                                anchors.verticalCenter: parent.verticalCenter
+                                                text: mediaTitleBox.trackStr
+                                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                                font.pixelSize: 10
+                                                font.bold: true
+                                            }
+                                        }
+
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent
@@ -1391,18 +1471,12 @@ ApplicationWindow {
                                     // Кнопка сворачивания виджета музыки ‹
                                     Item {
                                         z: 15
-                                        width: 16; height: topBarContainer.pillHeight
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            width: 14; height: 14
-                                            radius: 4
-                                            color: colMediaMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
-                                        }
+                                        width: 11; height: topBarContainer.pillHeight
                                         Text {
                                             anchors.centerIn: parent
                                             text: "‹"
                                             color: colMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"
-                                            font.pixelSize: 14
+                                            font.pixelSize: 13
                                             font.bold: true
                                         }
                                         MouseArea {
@@ -1420,7 +1494,7 @@ ApplicationWindow {
                                 }
                             }
 
-                            Rectangle {
+                                                        Rectangle {
                                 visible: topBarContainer.editMode
                                 anchors.fill: parent
                                 radius: 4

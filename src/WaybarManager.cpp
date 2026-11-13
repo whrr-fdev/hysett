@@ -122,12 +122,20 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     m_cursorPollTimer = new QTimer(this);
     m_cursorPollTimer->setInterval(28);
     connect(m_cursorPollTimer, &QTimer::timeout, this, [this]() {
+        updateAudioCaptureState();
         if (!m_mediaWaves || !mediaActive() || !mediaPlaying()) {
             if (m_globalCursorPos.x() > -100) {
                 m_globalCursorPos = QPointF(-500, -500);
                 emit cursorPosChanged();
             }
             return;
+        }
+        if (m_mediaDemoMode && !m_mediaActive) {
+            double t = QDateTime::currentMSecsSinceEpoch() * 0.001;
+            m_audioBass = 0.45 + 0.45 * std::pow(0.5 + 0.5 * std::sin(t * 5.2), 2.0);
+            m_audioMid = 0.35 + 0.45 * (0.5 + 0.5 * std::sin(t * 7.8 + 1.1));
+            m_audioTreble = 0.25 + 0.45 * (0.5 + 0.5 * std::cos(t * 11.4 + 2.3));
+            emit audioSpectrumChanged();
         }
         QString cp = queryHyprCtlSocket("cursorpos").trimmed();
         int comma = cp.indexOf(',');
@@ -220,6 +228,8 @@ void WaybarManager::loadState() {
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
             else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
+            else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
+            else if (k == "media_wave_count") m_mediaWaveCount = std::clamp(v.toInt(), 20, 220);
             else if (k == "media_collapsed") m_mediaCollapsed = (v == "1" || v == "true");
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
             else if (k == "uniform_bar_spacing") m_uniformBarSpacing = (v == "1" || v == "true");
@@ -265,6 +275,8 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
         out << "media_wave_speed=" << QString::number(m_mediaWaveSpeed, 'f', 2) << "\n";
+        out << "media_wave_size=" << QString::number(m_mediaWaveSize, 'f', 1) << "\n";
+        out << "media_wave_count=" << m_mediaWaveCount << "\n";
         out << "media_collapsed=" << (m_mediaCollapsed ? "1" : "0") << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
         out << "uniform_bar_spacing=" << (m_uniformBarSpacing ? "1" : "0") << "\n";
@@ -997,6 +1009,85 @@ void WaybarManager::resetBarOrder() {
     m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     m_hiddenBarModules.clear();
     saveState(false);
+}
+
+void WaybarManager::updateAudioCaptureState() {
+    bool wantCap = m_mediaWaves && m_mediaActive && m_mediaPlaying;
+    if (!wantCap) {
+        if (m_audioCapProc) {
+            m_audioCapProc->kill();
+            m_audioCapProc->deleteLater();
+            m_audioCapProc = nullptr;
+        }
+        if (!m_mediaDemoMode && (m_audioBass > 0.01 || m_audioMid > 0.01 || m_audioTreble > 0.01)) {
+            m_audioBass = 0.0; m_audioMid = 0.0; m_audioTreble = 0.0;
+            emit audioSpectrumChanged();
+        }
+        return;
+    }
+    if (m_audioCapProc && m_audioCapProc->state() != QProcess::NotRunning) return;
+    if (m_audioCapProc) {
+        m_audioCapProc->deleteLater();
+        m_audioCapProc = nullptr;
+    }
+
+    m_audioCapProc = new QProcess(this);
+    connect(m_audioCapProc, &QProcess::readyReadStandardOutput, this, [this]() {
+        if (!m_audioCapProc) return;
+        QByteArray buf = m_audioCapProc->readAllStandardOutput();
+        int nSamples = buf.size() / 2;
+        if (nSamples < 16) return;
+        const int16_t *pcm = reinterpret_cast<const int16_t *>(buf.constData());
+
+        static double s_lp1 = 0.0;
+        static double s_lp2 = 0.0;
+        double sumBass = 0.0, sumMid = 0.0, sumTreb = 0.0;
+        int step = std::max(1, nSamples / 256);
+        int count = 0;
+        for (int i = 0; i < nSamples; i += step) {
+            double x = double(pcm[i]) / 32768.0;
+            // Разделение на НЧ (бас), СЧ и ВЧ фильтрами 1-го порядка
+            s_lp1 += 0.08 * (x - s_lp1);
+            s_lp2 += 0.32 * (x - s_lp2);
+            double b = s_lp1;
+            double m = s_lp2 - s_lp1;
+            double tr = x - s_lp2;
+            sumBass += b * b;
+            sumMid  += m * m;
+            sumTreb += tr * tr;
+            ++count;
+        }
+        if (count > 0) {
+            double rmsB = std::sqrt(sumBass / count) * 4.8;
+            double rmsM = std::sqrt(sumMid  / count) * 5.6;
+            double rmsT = std::sqrt(sumTreb / count) * 6.5;
+            double targetB = std::clamp( std::pow(rmsB, 0.72), 0.0, 1.55);
+            double targetM = std::clamp( std::pow(rmsM, 0.75), 0.0, 1.50);
+            double targetT = std::clamp( std::pow(rmsT, 0.78), 0.0, 1.45);
+            // Быстрая атака на удар баса (0.55) и плавное затухание (0.22)
+            m_audioBass   = (targetB > m_audioBass)   ? (m_audioBass * 0.45 + targetB * 0.55)   : (m_audioBass * 0.78 + targetB * 0.22);
+            m_audioMid    = (targetM > m_audioMid)    ? (m_audioMid * 0.45 + targetM * 0.55)    : (m_audioMid * 0.78 + targetM * 0.22);
+            m_audioTreble = (targetT > m_audioTreble) ? (m_audioTreble * 0.45 + targetT * 0.55) : (m_audioTreble * 0.78 + targetT * 0.22);
+            emit audioSpectrumChanged();
+        }
+    });
+    m_audioCapProc->start("parec", {"--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=22", "-d", "@DEFAULT_MONITOR@"});
+}
+
+void WaybarManager::setMediaWaveSize(qreal v) {
+    v = std::clamp(v, 4.0, 24.0);
+    if (!qFuzzyCompare(m_mediaWaveSize, v)) {
+        m_mediaWaveSize = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::setMediaWaveCount(int v) {
+    v = std::clamp(v, 20, 220);
+    if (m_mediaWaveCount != v) {
+        m_mediaWaveCount = v;
+        saveState(false);
+    }
 }
 
 void WaybarManager::setMediaWaveSpeed(qreal v) {

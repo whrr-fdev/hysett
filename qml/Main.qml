@@ -1328,7 +1328,7 @@ ApplicationWindow {
 
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
 
-                                // Режим 1: Столбики, скачущие внутри самой пилюли музыки (во всю ширину пилюли до боков)
+                                // Режим 1: Плавные VSync столбики внутри пилюли музыки с отступами по краям и приглушением при открытии настроек
                                 Row {
                                     id: insidePillEqRow
                                     z: 1
@@ -1366,7 +1366,6 @@ ApplicationWindow {
                                             color: Qt.darker(baseCol, 1.0 + 0.35 * topBarContainer.settingsOpenWeight)
                                         }
                                     }
-                                }
                                 }
 
                                 // Свернутый режим (клик ЛКМ разворачивает, ПКМ пауза/играть)

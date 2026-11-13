@@ -140,6 +140,17 @@ def download_track_list(tracks, folder_name, token, db_set, db_obj):
                 added += 1
         except Exception:
             pass
+    try:
+        m3u_lines = ["#EXTM3U"]
+        for tr in tracks:
+            _, fn = format_track_meta(tr)
+            if os.path.exists(os.path.join(dest_dir, f"{fn}.mp3")):
+                m3u_lines.append(f"{fn}.mp3")
+        if len(m3u_lines) > 1:
+            with open(os.path.join(dest_dir, f"{safe_filename(folder_name)}.m3u8"), "w", encoding="utf-8") as mf:
+                mf.write("\n".join(m3u_lines) + "\n")
+    except Exception:
+        pass
     return added
 
 def sync_all_playlists():

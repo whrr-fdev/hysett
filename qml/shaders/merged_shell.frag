@@ -251,8 +251,8 @@ void main() {
     float bigSettingsMix = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
     vec3 darkBgRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix);
 
-    // Прозрачность самой панели может опускаться ровно в 0.0, а выпадающие окошки и настройки остаются видимыми!
-    float popupOrSettingsAlpha = mix(max(0.92, u_bg_color.a), u_bg_color.a, bigSettingsMix);
+    // Компактные выпадающие окошки имеют точно такую же прозрачность u_bar_alpha, как и сама панель задач
+    float popupOrSettingsAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
     float effAlpha = mix(u_bar_alpha, popupOrSettingsAlpha, drwBlend);
     float outlineVis = clamp(effAlpha * 3.0, 0.0, 1.0);
 

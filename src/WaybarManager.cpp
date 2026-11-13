@@ -2737,12 +2737,10 @@ void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     QFile qf(qPath);
     if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         QTextStream out(&qf);
-        out << "#EXTM3U
-";
+        out << "#EXTM3U\n";
         for (const QVariant &tv : trs) {
             QString tp = tv.toMap()["path"].toString();
-            if (!tp.isEmpty()) out << tp << "
-";
+            if (!tp.isEmpty()) out << tp << "\n";
         }
         qf.close();
     }

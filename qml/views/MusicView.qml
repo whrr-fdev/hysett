@@ -208,7 +208,7 @@ ScrollView {
                         SegmentedButton {
                             Layout.fillWidth: true
                             implicitHeight: 28
-                            options: ["Жидкие пики", "Внутри пилюли", "Дуга под панелью"]
+                            options: ["Жидкие пики", "Внутри пилюли"]
                             selectedIndex: Waybar ? Waybar.mediaWaveMode : 0
                             onSelected: (idx) => { if (Waybar) Waybar.mediaWaveMode = idx }
                         }
@@ -281,48 +281,6 @@ ScrollView {
                             Text { text: "Зазор между столбиками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                             StyledSlider { Layout.fillWidth: true; from: 1; to: 5; stepSize: 1; value: Waybar ? Waybar.pillWaveGap : 1; onMoved: if (Waybar) Waybar.pillWaveGap = Math.round(value) }
                             Text { text: (Waybar ? Waybar.pillWaveGap : 1) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
-                        }
-                    }
-
-                    // НАСТРОЙКИ ВАРИАНТА 2: ДУГА СТОЛБИКОВ ПОД ПАНЕЛЬЮ
-                    ColumnLayout {
-                        visible: Waybar ? (Waybar.mediaWaves && Waybar.mediaWaveMode === 2) : false
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            Text { text: "Скорость столбиков дуги:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 5.0; stepSize: 0.1; value: Waybar ? Waybar.arcWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.arcWaveSpeed = value }
-                            Text { text: (Waybar ? Waybar.arcWaveSpeed.toFixed(1) : "1.5") + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            Text { text: "Высота выступа столбиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 10.0; to: 80.0; stepSize: 2.0; value: Waybar ? Waybar.arcWaveSize : 38.0; onMoved: if (Waybar) Waybar.arcWaveSize = value }
-                            Text { text: Math.round(Waybar ? Waybar.arcWaveSize : 16) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            Text { text: "Толщина столбиков дуги:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 4; to: 36; stepSize: 1; value: Waybar ? Waybar.arcWaveWidth : 14; onMoved: if (Waybar) Waybar.arcWaveWidth = Math.round(value) }
-                            Text { text: (Waybar ? Waybar.arcWaveWidth : 2) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            Text { text: "Расстояние между столбиками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 2; to: 20; stepSize: 1; value: Waybar ? Waybar.arcWaveGap : 6; onMoved: if (Waybar) Waybar.arcWaveGap = Math.round(value) }
-                            Text { text: (Waybar ? Waybar.arcWaveGap : 1) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true; spacing: 8
-                            Text { text: "Изгиб дуги (посередине выше):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                            StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.05; value: Waybar ? Waybar.arcWaveCurve : 0.65; onMoved: if (Waybar) Waybar.arcWaveCurve = value }
-                            Text { text: Math.round((Waybar ? Waybar.arcWaveCurve : 0.65) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
                     }
 

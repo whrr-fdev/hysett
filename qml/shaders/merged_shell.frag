@@ -75,33 +75,6 @@ float ferroSpikeAmp(float k, float t) {
     return clamp(mix(procWave * 0.85, procWave * (0.20 + audioEnergy * 1.40), hasRealAudio), 0.0, 2.2);
 }
 
-float arcColumnMusicAmp(float k, float t) {
-    float h1 = fract(sin(k * 173.3 + 2.3) * 43758.5453);
-    float h2 = fract(sin(k * 317.7 + 5.7) * 28491.3719);
-    float h3 = fract(sin(k * 541.1 + 9.1) * 71933.8192);
-
-    float bass = u_music_wave2.y;
-    float mid  = u_music_wave2.z;
-    float treb = u_music_wave2.w;
-    float hasRealAudio = clamp((bass + mid + treb) * 1.8, 0.0, 1.0);
-
-    int bandIdx = int(mod(abs(k), 5.0));
-    float bandVal = 0.0;
-    if (bandIdx == 0) bandVal = pow(clamp(bass, 0.0, 1.5), 1.15) * 1.35;
-    else if (bandIdx == 1) bandVal = clamp(bass * 0.65 + mid * 0.60, 0.0, 1.6);
-    else if (bandIdx == 2) bandVal = pow(clamp(mid, 0.0, 1.5), 1.15) * 1.30;
-    else if (bandIdx == 3) bandVal = clamp(mid * 0.55 + treb * 0.70, 0.0, 1.6);
-    else bandVal = pow(clamp(treb, 0.0, 1.5), 1.10) * 1.35;
-
-    float osc1 = 0.5 + 0.5 * sin(t * (1.60 + h1 * 2.50) + h2 * 6.2831853 + k * 1.37);
-    float osc2 = 0.5 + 0.5 * cos(t * (2.80 + h2 * 2.90) - h3 * 6.2831853 + k * 2.41);
-    float osc3 = 0.5 + 0.5 * sin(t * (4.10 + h3 * 2.20) + h1 * 6.2831853 - k * 0.93);
-    float indivMove = pow(clamp(osc1 * 0.45 + osc2 * 0.35 + osc3 * 0.20, 0.0, 1.0), 1.40);
-
-    float musicDriven = clamp(bandVal * (0.40 + 0.95 * indivMove) + indivMove * 0.22 * (bass + mid + treb), 0.0, 1.45);
-    return clamp(mix(indivMove * 0.95, musicDriven, hasRealAudio), 0.04, 1.45);
-}
-
 float ferroToothProfile(float distFromCenter, float sharpness, float needleMix) {
     float d = clamp(distFromCenter, 0.0, 1.0);
     float drop = 1.0 / (1.0 + d * d * sharpness);
@@ -176,65 +149,13 @@ float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, 
     return ampPx * edgeFade * clamp(liquidProfile, 0.0, 2.2);
 }
 
-float evalUnderBarArcColumns(vec2 p) {
-    if (u_music_wave.x < 1.5 || u_music_wave.z <= 0.1 || u_bar_rect.z <= u_bar_rect.w * 1.2) return 0.0;
-
-    float startX = max(2.0, u_bar_rect.x - 12.0);
-    float endX   = min(u_resolution.x - 2.0, u_bar_rect.x + u_bar_rect.z + 12.0);
-    if (p.x < startX || p.x > endX || p.y < 0.0) return 0.0;
-
-    float packed = u_music_wave2.x;
-    float colW = clamp(floor(packed / 100.0), 4.0, 48.0);
-    float gapW = clamp(mod(packed, 100.0), 2.0, 32.0);
-    float stepW = colW + gapW;
-
-    float spanW = max(1.0, endX - startX);
-    float numCols = max(5.0, floor((spanW + gapW) / stepW));
-    float totalGridW = numCols * stepW - gapW;
-    float gridStartX = startX + 0.5 * (spanW - totalGridW);
-    if (p.x < gridStartX || p.x > gridStartX + totalGridW) return 0.0;
-
-    float relX = p.x - gridStartX;
-    float k = floor(relX / stepW);
-    float lx = mod(relX, stepW);
-    if (lx > colW) return 0.0;
-
-    float edgeAlpha = smoothstep(0.0, 0.85, lx) * smoothstep(colW, colW - 0.85, lx);
-
-    float colCenterNormX = clamp((k + 0.5) / max(1.0, numCols), 0.0, 1.0);
-    float distFromCenter = abs(colCenterNormX - 0.5) * 2.0;
-
-    float archCurve = clamp(u_music_wave.y, 0.0, 1.0);
-    float arcLimit = 0.72;
-    float dome = 0.0;
-    if (distFromCenter < arcLimit) {
-        float u = distFromCenter / arcLimit;
-        dome = pow(clamp(cos(u * 1.5707963), 0.0, 1.0), 1.85);
-    }
-
-    float t = u_music_wave.w;
-    float musicAmp = arcColumnMusicAmp(k, t);
-
-    float maxH = u_music_wave.z;
-    float sideLowPx = 1.5 + (2.0 + maxH * 0.08) * musicAmp;
-    float arcDomePx = maxH * dome * (0.36 + 0.88 * musicAmp);
-    float curvedProtrude = sideLowPx + arcDomePx;
-    float flatProtrude   = maxH * (0.25 + 0.75 * musicAmp);
-    float protrudePx     = mix(flatProtrude, curvedProtrude, archCurve);
-
-    float colBottomY = u_bar_rect.y + u_bar_rect.w + protrudePx;
-    float vMask = 1.0 - smoothstep(colBottomY - 1.0, colBottomY + 0.6, p.y);
-    return edgeAlpha * vMask;
-}
-
-float sceneSdf(vec2 p, out float outNotifBlend, out float outDBar) {
+float sceneSdf(vec2 p, out float outNotifBlend) {
     outNotifBlend = 0.0;
     float waveStretch = computeFerroStretchForRect(p, u_bar_rect, u_music_wave.z, u_radius, true);
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);
     vec2 bHalf = 0.5 * bSize;
     vec2 bCenter = vec2(u_bar_rect.x + bHalf.x, u_bar_rect.y + bHalf.y);
     float dBar = sdRoundedBox(p - bCenter, bHalf, u_radius);
-    outDBar = dBar;
     float d = dBar;
 
     if (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) {
@@ -307,28 +228,22 @@ void main() {
     vec2 p = qt_TexCoord0 * res;
 
     float notifBlend = 0.0;
-    float dBar = 1000.0;
-    float d = sceneSdf(p, notifBlend, dBar);
+    float d = sceneSdf(p, notifBlend);
     float gradLen = clamp(length(vec2(dFdx(d), dFdy(d))), 1.0, 6.0);
     float trueD = d / gradLen;
     float mask = 1.0 - smoothstep(-0.75, 0.75, trueD);
-    float arcColMask = evalUnderBarArcColumns(p);
-    if (mask <= 0.001 && arcColMask <= 0.001) { fragColor = vec4(0.0); return; }
-    if (mask <= 0.001) {
-        float colA = arcColMask * 0.86 * qt_Opacity;
-        fragColor = vec4(u_glow_color * colA, colA);
-        return;
-    }
+    if (mask <= 0.001) { fragColor = vec4(0.0); return; }
 
     float distInward = max(0.0, -trueD);
     float outlineMask = exp(-distInward * 1.55);
 
+    // Темный оттенок RGB у стоящей панели и маленьких окошек, но прозрачность полностью подчиняется ползунку u_bar_alpha!
     float bigSettingsMix = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
-    vec3 darkBgRgb = u_bg_color.rgb * mix(0.46, 1.0, bigSettingsMix);
-    float darkBarAlpha = mix(max(u_bar_alpha, 0.93), u_bg_color.a, bigSettingsMix);
+    vec3 darkBgRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix);
+    float barAndPopupAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
 
-    vec4 shellFill = vec4(darkBgRgb, darkBarAlpha);
-    vec4 activeFill = mix(shellFill, vec4(u_notif_color.rgb * 0.55, max(u_notif_color.a, 0.93)), notifBlend);
+    vec4 shellFill = vec4(darkBgRgb, barAndPopupAlpha);
+    vec4 activeFill = mix(shellFill, vec4(u_notif_color.rgb * 0.50, u_notif_color.a), notifBlend);
 
     vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, outlineMask * u_outline_color.a);
     float baseAlpha = clamp(activeFill.a + outlineMask * 0.10, 0.05, 0.98);
@@ -367,12 +282,6 @@ void main() {
         }
     }
 
-    float belowBarMask = smoothstep(-1.2, 0.8, dBar);
-    if (arcColMask > 0.01) {
-        baseRgb = mix(baseRgb, u_glow_color, arcColMask * mix(0.18, 0.82, belowBarMask));
-        baseAlpha = max(baseAlpha, arcColMask * 0.86);
-    }
-    float finalAlpha = max(baseAlpha * mask, arcColMask * 0.86) * qt_Opacity;
-    vec3 finalRgb = mix(u_glow_color, baseRgb, mask);
-    fragColor = vec4(finalRgb * finalAlpha, finalAlpha);
+    float finalAlpha = baseAlpha * mask * qt_Opacity;
+    fragColor = vec4(baseRgb * finalAlpha, finalAlpha);
 }

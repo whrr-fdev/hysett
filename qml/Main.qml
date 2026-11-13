@@ -830,7 +830,7 @@ ApplicationWindow {
             readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : '#a8c7fa')
             property vector3d u_glow_color: Qt.vector3d(activeWaveTint.r, activeWaveTint.g, activeWaveTint.b)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
-            property real u_bar_alpha: Math.min(Waybar ? Waybar.barOpacity : 0.70, currentOpacity)
+            property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88
             property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13.0) : 0.0
             property real u_fillet: (Theme && Theme.isRounded) ? (Config ? Config.m3WindowRadius : 20.0) : 0.0
             property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0
@@ -1333,7 +1333,7 @@ ApplicationWindow {
                                     id: insidePillEqRow
                                     z: 1
                                     visible: opacity > 0.01
-                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? (0.48 - 0.28 * topBarContainer.settingsOpenWeight) : 0.0
+                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? (0.54 - 0.10 * topBarContainer.settingsOpenWeight) : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
                                     anchors.bottom: parent.bottom
                                     anchors.bottomMargin: 1
@@ -1363,7 +1363,7 @@ ApplicationWindow {
                                             readonly property real amp: Math.min(1.0, (0.16 + 0.84 * (s1 * 0.55 + s2 * 0.45)) * (0.32 + 0.88 * eMix)) * (0.45 + 0.55 * edgeTaper)
                                             height: Math.max(1.5, amp * (topBarContainer.pillHeight - 7) * 0.70 * insidePillEqRow.pMaxH)
                                             readonly property color baseCol: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : "#a8c7fa")
-                                            color: Qt.darker(baseCol, 1.0 + 0.35 * topBarContainer.settingsOpenWeight)
+                                            color: Qt.darker(baseCol, 1.0 + 0.10 * topBarContainer.settingsOpenWeight)
                                         }
                                     }
                                 }
@@ -1439,7 +1439,8 @@ ApplicationWindow {
                                     Item {
                                         id: mediaTitleBox
                                         readonly property string trackStr: Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер"
-                                        readonly property int maxTitleW: 90
+                                        readonly property int maxTitleW: (!root.hasWinTitle && !root.isFixedTitle) ? 210 : 90
+                                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                         readonly property bool needMarquee: mediaTrackMeasure.implicitWidth > maxTitleW
                                         readonly property real scrollStepW: mediaTrackMeasure.implicitWidth + mediaSepMeasure.implicitWidth
                                         width: Math.min(maxTitleW, Math.max(28, mediaTrackMeasure.implicitWidth))

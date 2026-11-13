@@ -212,7 +212,7 @@ void WaybarManager::loadState() {
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
-            else if (k == "media_wave_mode") m_mediaWaveMode = std::clamp(v.toInt(), 0, 2);
+            else if (k == "media_wave_mode") m_mediaWaveMode = std::clamp(v.toInt(), 0, 1);
             else if (k == "ym_wave_count") m_ymWaveCount = std::clamp(v.toInt(), 10, 500);
             else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 5.0);
             else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
@@ -1164,7 +1164,7 @@ void WaybarManager::setMediaWaveSpeed(qreal v) {
 }
 
 void WaybarManager::setMediaWaveMode(int v) {
-    v = std::clamp(v, 0, 2);
+    v = std::clamp(v, 0, 1);
     if (m_mediaWaveMode != v) {
         m_mediaWaveMode = v;
         saveState(false);

@@ -418,7 +418,7 @@ ApplicationWindow {
     readonly property real wingMix: Math.min(1.0, Math.pow(Math.max(0.0, drawerProgress), 0.42) * 1.15)
     readonly property real effDrawerW: isVertBar
                                        ? Math.max(0.0, animDrawerW * drawerProgress)
-                                       : (animDrawerW * root.drawerWidthScale)
+                                       : (drawerMode === "power" ? animDrawerW : (animDrawerW * root.drawerWidthScale))
     readonly property real effDrawerH: isVertBar
                                        ? (smoothTargetH * root.drawerWidthScale)
                                        : Math.min(root.height - ((barPos === 1) ? 8 : (barRectY + barH)) - 2, Math.max(0.0, smoothTargetH * drawerProgress))
@@ -436,8 +436,11 @@ ApplicationWindow {
     readonly property real drawerX: {
         if (barPos === 2) return barLeft + barW
         if (barPos === 3) return barLeft - effDrawerW
-        var minBound = isCompactPopup ? Math.max(fullBarLeft, barLeft + 4) : fullBarLeft
-        var maxBound = isCompactPopup ? Math.min(fullBarLeft + maxAvailBarW - effDrawerW, barLeft + barW - effDrawerW - 4) : (fullBarLeft + maxAvailBarW - effDrawerW)
+        if (drawerMode === "power") {
+            return (centerAnchorX < root.width * 0.5) ? barLeft : (barLeft + barW - effDrawerW)
+        }
+        var minBound = isCompactPopup ? Math.max(fullBarLeft, barLeft) : fullBarLeft
+        var maxBound = isCompactPopup ? Math.min(fullBarLeft + maxAvailBarW - effDrawerW, barLeft + barW - effDrawerW) : (fullBarLeft + maxAvailBarW - effDrawerW)
         return Math.max(minBound, Math.min(maxBound, centerAnchorX - effDrawerW * 0.5))
     }
     readonly property real drawerY: {

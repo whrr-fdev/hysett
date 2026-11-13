@@ -2727,7 +2727,6 @@ void WaybarManager::moveYmTrack(int playlistIdx, int fromIdx, int toIdx) {
     trs.move(fromIdx, toIdx);
     pl["tracks"] = trs;
     m_ymPlaylists[playlistIdx] = pl;
-    emit ymLibraryChanged();
 
     // Сохраняем новый порядок в .m3u8 плейлиста и в playlists_index.json
     QString folder = pl["folder"].toString();

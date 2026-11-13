@@ -10,6 +10,7 @@ Item {
     property var winObj: ApplicationWindow.window
     readonly property bool isM3: Theme && Theme.isRounded
     property string trackSearchQuery: ""
+    onTrackSearchQueryChanged: trackListContainer.rebuildTrackModel()
 
     // 0 = Плеер и плейлисты, 1 = Настройки и синхронизация
     property int subTab: (winObj && winObj.musicSubTab !== undefined) ? winObj.musicSubTab : 0
@@ -25,14 +26,23 @@ Item {
         }
     }
 
+    Connections {
+        target: Waybar
+        function onYmLibraryChanged() {
+            trackListContainer.rebuildTrackModel()
+        }
+    }
+
     Component.onCompleted: {
         if (visible) Qt.callLater(() => subSidebar.playStaircase())
         if (Waybar) Waybar.refreshYmLibrary()
+        trackListContainer.rebuildTrackModel()
     }
 
     onVisibleChanged: if (visible) {
         subSidebar.playStaircase()
         if (Waybar) Waybar.refreshYmLibrary()
+        trackListContainer.rebuildTrackModel()
     }
 
     component IconHeader: RowLayout {
@@ -67,7 +77,7 @@ Item {
     }
 
     // =========================================================================
-    // ЛЕВАЯ БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ МУЗЫКИ (В СТИЛЕ ВКЛАДКИ ВРЕМЯ)
+    // ЛЕВАЯ БОКОВАЯ ПАНЕЛЬ РАЗДЕЛОВ МУЗЫКИ
     // =========================================================================
     Rectangle {
         id: subSidebar
@@ -272,7 +282,6 @@ Item {
 
             Item { Layout.fillHeight: true }
 
-            // Быстрая кнопка запуска Моей волны прямо из боковой панели
             StyledButton {
                 Layout.fillWidth: true
                 allowFullWidth: true
@@ -360,7 +369,7 @@ Item {
                     }
                 }
 
-                // Карточка активного плеера с обложкой и выбором режима (Подряд / Вразнобой)
+                // Карточка активного плеера с обложкой
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
@@ -431,7 +440,7 @@ Item {
                                         font.pixelSize: Config.fontSize - 1
                                     }
                                     Text {
-                                        text: "•  " + ((Waybar && Waybar.ymShuffle) ? "󰒟 Вразнобой" : "󰒝 Подряд")
+                                        text: "•   " + ((Waybar && Waybar.ymShuffle) ? "󰒟  Вразнобой" : "󰒝  Подряд")
                                         color: "#888888"
                                         font.pixelSize: Config.fontSize - 1
                                     }
@@ -480,7 +489,7 @@ Item {
                     }
                 }
 
-                // Карточка плейлистов и треков с обложками, перетаскиванием и плавным наведением
+                // Карточка плейлистов и треков с обложками, анимированным перетаскиванием и плавным наведением
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
@@ -489,18 +498,17 @@ Item {
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 14
-                        spacing: 10
+                        spacing: 8
 
+                        // РЯД 1: ВКЛАДКИ ПЛЕЙЛИСТОВ (ВСЕГДА ПОЛНОСТЬЮ ВИДНЫ)
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
 
-                            // Переключатель плейлистов с плавно скользящей плашкой
                             Item {
                                 id: plTabBar
                                 Layout.fillWidth: true
-                                implicitHeight: 28
-                                clip: true
+                                implicitHeight: Math.max(28, plTabFlow.implicitHeight)
                                 property Item activeItem: null
                                 property Item hoveredItem: null
                                 property Item lastHoveredItem: null
@@ -509,14 +517,19 @@ Item {
                                     z: 1
                                     opacity: (plTabBar.hoveredItem && plTabBar.hoveredItem !== plTabBar.activeItem) ? 1.0 : 0.0
                                     x: plTabBar.lastHoveredItem ? plTabBar.lastHoveredItem.x : 0
-                                    y: 0
+                                    y: plTabBar.lastHoveredItem ? plTabBar.lastHoveredItem.y : 0
                                     width: plTabBar.lastHoveredItem ? plTabBar.lastHoveredItem.width : 90
                                     height: 28
                                     radius: musicRoot.isM3 ? 8 : 0
                                     color: musicRoot.isM3 && Config
                                            ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18)
                                            : Qt.rgba(1, 1, 1, 0.12)
+                                    border.width: 1
+                                    border.color: musicRoot.isM3 && Config
+                                                  ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.42)
+                                                  : Qt.rgba(1, 1, 1, 0.24)
                                     Behavior on x { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                    Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
                                     Behavior on width { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
                                     Behavior on opacity { NumberAnimation { duration: 110 } }
                                 }
@@ -525,24 +538,27 @@ Item {
                                     z: 2
                                     visible: plTabBar.activeItem !== null
                                     x: plTabBar.activeItem ? plTabBar.activeItem.x : 0
-                                    y: 0
+                                    y: plTabBar.activeItem ? plTabBar.activeItem.y : 0
                                     width: plTabBar.activeItem ? plTabBar.activeItem.width : 90
                                     height: 28
                                     radius: musicRoot.isM3 ? 8 : 0
                                     color: Config ? Config.m3Primary : "#ffffff"
                                     Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                    Behavior on y { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                     Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                 }
 
-                                Row {
-                                    id: plTabRow
+                                Flow {
+                                    id: plTabFlow
                                     z: 3
+                                    width: parent.width
                                     spacing: 6
+
                                     Repeater {
                                         model: Waybar ? Waybar.ymPlaylists : []
                                         delegate: Item {
                                             id: plBtn
-                                            width: plBtnTxt.implicitWidth + 22
+                                            width: plBtnRow.implicitWidth + 22
                                             height: 28
                                             readonly property bool isSel: Waybar ? (Waybar.ymSelectedPlaylist === index) : (index === 0)
                                             onIsSelChanged: if (isSel) plTabBar.activeItem = plBtn
@@ -552,16 +568,39 @@ Item {
                                                 anchors.fill: parent
                                                 z: -1
                                                 radius: musicRoot.isM3 ? 8 : 0
-                                                color: plBtn.isSel ? "transparent" : (musicRoot.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.40) : Qt.rgba(1, 1, 1, 0.06))
+                                                color: plBtn.isSel
+                                                       ? "transparent"
+                                                       : (musicRoot.isM3 && Config
+                                                          ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.42)
+                                                          : Qt.rgba(1, 1, 1, 0.06))
+                                                border.color: plBtn.isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.12)
+                                                border.width: musicRoot.isM3 ? 0 : 1
                                             }
 
-                                            Text {
-                                                id: plBtnTxt
+                                            Row {
+                                                id: plBtnRow
                                                 anchors.centerIn: parent
-                                                text: (modelData.title === "Скрытые" ? "󰈉 " : "") + modelData.title + " • " + modelData.count
-                                                font.pixelSize: Config.fontSize - 1
-                                                font.bold: plBtn.isSel
-                                                color: plBtn.isSel ? (Config ? Config.accentTextColor : "#000000") : "#e0e0e0"
+                                                spacing: 6
+
+                                                Text {
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: modelData.title === "Мне нравится"
+                                                          ? "cards-heart" in ({}) ? "󰐑" : "󰋑"
+                                                          : (modelData.title === "Моя волна" ? "󰓇" : (modelData.title === "Скрытые" ? "󰈉" : "󰲸"))
+                                                    font.pixelSize: Config.fontSize
+                                                    color: plBtnTxt.color
+                                                }
+
+                                                Text {
+                                                    id: plBtnTxt
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    text: modelData.title + " • " + modelData.count
+                                                    font.pixelSize: Config.fontSize - 1
+                                                    font.bold: plBtn.isSel
+                                                    color: plBtn.isSel
+                                                           ? (Config ? Config.accentTextColor : "#000000")
+                                                           : (musicRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
+                                                }
                                             }
 
                                             MouseArea {
@@ -570,29 +609,49 @@ Item {
                                                 cursorShape: Qt.PointingHandCursor
                                                 onEntered: { plTabBar.lastHoveredItem = plBtn; plTabBar.hoveredItem = plBtn }
                                                 onExited: if (plTabBar.hoveredItem === plBtn) plTabBar.hoveredItem = null
-                                                onPressed: if (Waybar) Waybar.ymSelectedPlaylist = index
+                                                onPressed: {
+                                                    if (Waybar) {
+                                                        Waybar.ymSelectedPlaylist = index
+                                                        trackListContainer.rebuildTrackModel()
+                                                    }
+                                                }
                                             }
                                         }
                                     }
                                 }
                             }
 
-                            // Переключатель режима: Подряд / Вразнобой
+                            StyledButton {
+                                text: "󰑐"
+                                isIconOnly: true
+                                implicitWidth: 28; implicitHeight: 28
+                                Layout.alignment: Qt.AlignTop
+                                onClicked: if (Waybar) Waybar.refreshYmLibrary()
+                            }
+                        }
+
+                        // РЯД 2: РЕЖИМ ВОСПРОИЗВЕДЕНИЯ (ПОДРЯД / ВРАЗНОБОЙ) И ПОИСК ТРЕКА
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
                             SegmentedButton {
-                                Layout.preferredWidth: 185
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 230
                                 implicitHeight: 28
-                                options: ["󰒝 Подряд", "󰒟 Вразнобой"]
+                                options: ["󰒝  Подряд", "󰒟  Вразнобой"]
                                 selectedIndex: (Waybar && Waybar.ymShuffle) ? 1 : 0
                                 onSelected: (idx) => { if (Waybar) Waybar.ymShuffle = (idx === 1) }
                             }
 
                             TextField {
                                 id: trSearchField
-                                Layout.preferredWidth: 165
+                                Layout.fillWidth: true
+                                Layout.preferredWidth: 260
                                 implicitHeight: 28
-                                leftPadding: 10; rightPadding: 22
+                                leftPadding: 10; rightPadding: 24
                                 color: "#ffffff"; font.pixelSize: 11
-                                placeholderText: "󰍉 Поиск трека..."
+                                placeholderText: "󰍉  Поиск трека в плейлисте..."
                                 placeholderTextColor: "#777777"
                                 text: musicRoot.trackSearchQuery
                                 onTextEdited: musicRoot.trackSearchQuery = text
@@ -613,16 +672,9 @@ Item {
                                     }
                                 }
                             }
-
-                            StyledButton {
-                                text: "󰑐"
-                                isIconOnly: true
-                                implicitWidth: 28; implicitHeight: 28
-                                onClicked: if (Waybar) Waybar.refreshYmLibrary()
-                            }
                         }
 
-                        // Список треков с плавно ездящим за мышкой блоком наведения, перетаскиванием и скрытием/восстановлением
+                        // Список треков с живым анимированным перетаскиванием (ListModel.move) и плавной плашкой наведения
                         Item {
                             id: trackListContainer
                             Layout.fillWidth: true
@@ -631,11 +683,16 @@ Item {
 
                             property bool isHovering: false
                             property int lastHoveredRow: 0
+                            property int draggingRow: -1
+
+                            ListModel {
+                                id: trackListModel
+                            }
 
                             Timer {
                                 id: trackHoverHold
                                 interval: 45
-                                onTriggered: trackListContainer.isHovering = false
+                                onTriggered: if (trackListContainer.draggingRow < 0) trackListContainer.isHovering = false
                             }
 
                             readonly property var currentPlaylistObj: {
@@ -646,54 +703,59 @@ Item {
 
                             readonly property bool isHiddenPlaylist: currentPlaylistObj ? (currentPlaylistObj.title === "Скрытые") : false
 
-                            readonly property var filteredTracks: {
-                                if (!currentPlaylistObj || !currentPlaylistObj.tracks) return []
+                            function rebuildTrackModel() {
+                                if (draggingRow >= 0) return
+                                var savedY = tracksListView.contentY
+                                trackListModel.clear()
+                                if (!currentPlaylistObj || !currentPlaylistObj.tracks) return
                                 var raw = currentPlaylistObj.tracks
                                 var q = musicRoot.trackSearchQuery.trim().toLowerCase()
-                                var out = []
                                 for (var i = 0; i < raw.length; ++i) {
                                     var t = raw[i]
                                     if (q.length > 0) {
                                         var ft = (t.fullTitle || "").toLowerCase()
                                         if (ft.indexOf(q) === -1) continue
                                     }
-                                    out.push({
+                                    trackListModel.append({
                                         realIdx: i,
-                                        title: t.title,
-                                        artist: t.artist,
-                                        fullTitle: t.fullTitle,
+                                        title: t.title || "",
+                                        artist: t.artist || "",
+                                        fullTitle: t.fullTitle || "",
                                         duration: t.duration || "",
-                                        path: t.path,
+                                        path: t.path || "",
                                         cover: t.cover || ""
                                     })
                                 }
-                                return out
+                                Qt.callLater(function() {
+                                    var maxY = Math.max(0, tracksListView.contentHeight - tracksListView.height)
+                                    tracksListView.contentY = Math.min(savedY, maxY)
+                                })
                             }
 
-                            // Плавно ездящая за мышкой плашка наведения (как в боковом меню)
+                            // Плавно ездящая за мышкой плашка наведения
                             Rectangle {
                                 id: trackHoverPill
                                 z: 1
-                                visible: trackListContainer.filteredTracks.length > 0
-                                opacity: trackListContainer.isHovering ? 1.0 : 0.0
+                                visible: trackListModel.count > 0
+                                opacity: (trackListContainer.isHovering || trackListContainer.draggingRow >= 0) ? 1.0 : 0.0
                                 x: 0
-                                y: trackListContainer.lastHoveredRow * 51 - tracksListView.contentY
+                                y: (trackListContainer.draggingRow >= 0 ? trackListContainer.draggingRow : trackListContainer.lastHoveredRow) * 51 - tracksListView.contentY
                                 width: tracksListView.width
                                 height: 46
                                 radius: musicRoot.isM3 ? 10 : 0
                                 color: musicRoot.isM3 && Config
-                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16)
-                                       : Qt.rgba(1, 1, 1, 0.10)
+                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, trackListContainer.draggingRow >= 0 ? 0.28 : 0.16)
+                                       : Qt.rgba(1, 1, 1, trackListContainer.draggingRow >= 0 ? 0.18 : 0.10)
                                 border.width: 1
                                 border.color: musicRoot.isM3 && Config
-                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.42)
-                                              : Qt.rgba(1, 1, 1, 0.22)
-                                Behavior on y { NumberAnimation { duration: 175; easing.type: Easing.OutQuint } }
+                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, trackListContainer.draggingRow >= 0 ? 0.75 : 0.42)
+                                              : Qt.rgba(1, 1, 1, 0.25)
+                                Behavior on y { NumberAnimation { duration: 165; easing.type: Easing.OutQuint } }
                                 Behavior on opacity { NumberAnimation { duration: 115 } }
                             }
 
                             Column {
-                                visible: trackListContainer.filteredTracks.length === 0
+                                visible: trackListModel.count === 0
                                 anchors.centerIn: parent
                                 spacing: 8
                                 Text {
@@ -728,24 +790,23 @@ Item {
                                 cacheBuffer: 600
                                 boundsBehavior: Flickable.StopAtBounds
                                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                                model: trackListContainer.filteredTracks
+                                model: trackListModel
 
-                                property real savedContentY: 0
-                                property int lastPlIdx: Waybar ? Waybar.ymSelectedPlaylist : 0
-                                onContentYChanged: if (!moving && contentY >= 0) savedContentY = contentY
-                                onModelChanged: {
-                                    var curPl = Waybar ? Waybar.ymSelectedPlaylist : 0
-                                    if (lastPlIdx !== curPl) {
-                                        lastPlIdx = curPl
-                                        savedContentY = 0
-                                        contentY = 0
-                                    } else if (savedContentY > 0) {
-                                        var restoreY = savedContentY
-                                        Qt.callLater(function() {
-                                            var maxY = Math.max(0, tracksListView.contentHeight - tracksListView.height)
-                                            tracksListView.contentY = Math.min(restoreY, maxY)
-                                        })
+                                // Плавная анимация перестановки треков при перетаскивании!
+                                move: Transition {
+                                    NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutQuint }
+                                }
+                                moveDisplaced: Transition {
+                                    NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutQuint }
+                                }
+                                remove: Transition {
+                                    ParallelAnimation {
+                                        NumberAnimation { property: "opacity"; to: 0.0; duration: 140 }
+                                        NumberAnimation { property: "scale"; to: 0.92; duration: 140 }
                                     }
+                                }
+                                removeDisplaced: Transition {
+                                    NumberAnimation { properties: "y"; duration: 180; easing.type: Easing.OutQuint }
                                 }
 
                                 property real targetY: 0
@@ -760,6 +821,7 @@ Item {
                                 WheelHandler {
                                     acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
                                     onWheel: (event) => {
+                                        if (trackListContainer.draggingRow >= 0) return
                                         var step = (event.angleDelta.y / 120.0) * 68.0
                                         if (step === 0 && event.pixelDelta.y !== 0) step = event.pixelDelta.y * 1.4
                                         var maxY = Math.max(0, tracksListView.contentHeight - tracksListView.height)
@@ -778,13 +840,22 @@ Item {
                                     id: trRow
                                     width: tracksListView.width
                                     height: 46
-                                    readonly property bool isCurPlaying: Waybar && (Waybar.currentLocalTrackPath === modelData.path || (Waybar.mediaTitle.length > 0 && modelData.fullTitle.indexOf(Waybar.mediaTitle.replace(" — ", " - ")) !== -1))
+                                    z: isBeingDragged ? 20 : 1
+                                    scale: isBeingDragged ? 1.012 : 1.0
+                                    Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                                    readonly property bool isBeingDragged: trackListContainer.draggingRow === index
+                                    readonly property bool isCurPlaying: Waybar && (Waybar.currentLocalTrackPath === model.path || (Waybar.mediaTitle.length > 0 && model.fullTitle.indexOf(Waybar.mediaTitle.replace(" — ", " - ")) !== -1))
                                     radius: musicRoot.isM3 ? 10 : 0
                                     color: isCurPlaying
                                            ? (Config ? Config.m3Primary : "#ffffff")
-                                           : (musicRoot.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.32) : Qt.rgba(1, 1, 1, 0.03))
-                                    border.width: isCurPlaying ? 0 : 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.08)
+                                           : (isBeingDragged
+                                              ? (musicRoot.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.14))
+                                              : (musicRoot.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.32) : Qt.rgba(1, 1, 1, 0.03)))
+                                    border.width: (isCurPlaying && !isBeingDragged) ? 0 : 1
+                                    border.color: isBeingDragged
+                                                  ? (Config ? Config.m3Primary : "#ffffff")
+                                                  : Qt.rgba(1, 1, 1, 0.08)
                                     Behavior on color { ColorAnimation { duration: 120 } }
 
                                     MouseArea {
@@ -805,7 +876,7 @@ Item {
                                         onExited: trackHoverHold.restart()
                                         onClicked: {
                                             if (Waybar) {
-                                                Waybar.playYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
+                                                Waybar.playYmTrack(Waybar.ymSelectedPlaylist, index)
                                             }
                                         }
                                     }
@@ -817,7 +888,6 @@ Item {
                                         anchors.rightMargin: 10
                                         spacing: 10
 
-                                        // Миниатюра обложки трека
                                         Rectangle {
                                             Layout.preferredWidth: 34
                                             Layout.preferredHeight: 34
@@ -828,8 +898,8 @@ Item {
                                             Image {
                                                 id: trThumb
                                                 anchors.fill: parent
-                                                visible: status === Image.Ready && modelData.cover.length > 0
-                                                source: modelData.cover.length > 0 ? ("file://" + modelData.cover) : ""
+                                                visible: status === Image.Ready && model.cover.length > 0
+                                                source: model.cover.length > 0 ? ("file://" + model.cover) : ""
                                                 sourceSize: Qt.size(68, 68)
                                                 fillMode: Image.PreserveAspectCrop
                                                 asynchronous: true
@@ -850,7 +920,7 @@ Item {
 
                                             Text {
                                                 Layout.fillWidth: true
-                                                text: modelData.title
+                                                text: model.title
                                                 color: trRow.isCurPlaying ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                                 font.pixelSize: Config.fontSize
                                                 font.bold: true
@@ -859,7 +929,7 @@ Item {
 
                                             Text {
                                                 Layout.fillWidth: true
-                                                text: modelData.artist
+                                                text: model.artist
                                                 color: trRow.isCurPlaying ? Qt.rgba(0, 0, 0, 0.72) : "#aaaaaa"
                                                 font.pixelSize: Config.fontSize - 1
                                                 elide: Text.ElideRight
@@ -867,18 +937,18 @@ Item {
                                         }
 
                                         Text {
-                                            visible: modelData.duration.length > 0
-                                            text: modelData.duration
+                                            visible: model.duration.length > 0
+                                            text: model.duration
                                             color: trRow.isCurPlaying ? (Config ? Config.accentTextColor : "#000000") : "#888888"
                                             font.pixelSize: Config.fontSize - 1
                                             font.features: { "tnum": 1 }
                                         }
 
-                                        // Ручка перетаскивания трека вверх/вниз в плейлисте (и прокрутки колесиком для сдвига)
+                                        // Ручка живого перетаскивания трека вверх/вниз с мгновенной анимацией ListModel.move()
                                         Item {
                                             visible: musicRoot.trackSearchQuery.trim().length === 0
-                                            Layout.preferredWidth: 24
-                                            Layout.preferredHeight: 26
+                                            Layout.preferredWidth: 26
+                                            Layout.preferredHeight: 28
 
                                             Rectangle {
                                                 anchors.fill: parent
@@ -891,7 +961,7 @@ Item {
                                             Text {
                                                 anchors.centerIn: parent
                                                 text: "󰍜"
-                                                font.pixelSize: 13
+                                                font.pixelSize: 14
                                                 color: dragHandleMa.pressed
                                                        ? (Config ? Config.accentTextColor : "#000000")
                                                        : (trRow.isCurPlaying ? (Config ? Config.accentTextColor : "#000000") : "#aaaaaa")
@@ -901,39 +971,65 @@ Item {
                                                 id: dragHandleMa
                                                 anchors.fill: parent
                                                 hoverEnabled: true
+                                                preventStealing: true
                                                 cursorShape: pressed ? Qt.ClosedHandCursor : Qt.SizeVerCursor
-                                                property real pressY: 0
                                                 onPressed: (mouse) => {
-                                                    pressY = mouse.y
+                                                    tracksListView.interactive = false
+                                                    trackListContainer.draggingRow = index
+                                                    trackListContainer.lastHoveredRow = index
+                                                    trackListContainer.isHovering = true
                                                     mouse.accepted = true
                                                 }
                                                 onPositionChanged: (mouse) => {
                                                     if (!pressed || !Waybar) return
-                                                    var dy = mouse.y - pressY
-                                                    if (dy < -26 && modelData.realIdx > 0) {
-                                                        Waybar.moveYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx, modelData.realIdx - 1)
-                                                    } else if (dy > 26 && modelData.realIdx + 1 < trackListContainer.filteredTracks.length) {
-                                                        Waybar.moveYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx, modelData.realIdx + 1)
+                                                    var posInList = dragHandleMa.mapToItem(tracksListView, 0, mouse.y).y + tracksListView.contentY
+                                                    var targetIdx = Math.max(0, Math.min(trackListModel.count - 1, Math.floor(posInList / 51)))
+                                                    if (targetIdx !== index) {
+                                                        var fromIdx = index
+                                                        trackListModel.move(fromIdx, targetIdx, 1)
+                                                        trackListContainer.draggingRow = targetIdx
+                                                        trackListContainer.lastHoveredRow = targetIdx
+                                                        Waybar.moveYmTrack(Waybar.ymSelectedPlaylist, fromIdx, targetIdx)
                                                     }
+                                                }
+                                                onReleased: {
+                                                    tracksListView.interactive = true
+                                                    trackListContainer.draggingRow = -1
+                                                }
+                                                onCanceled: {
+                                                    tracksListView.interactive = true
+                                                    trackListContainer.draggingRow = -1
                                                 }
                                             }
                                         }
 
-                                        // Кнопка возврата трека в родной плейлист (только во вкладке «Скрытые»)
+                                        // Кнопка возврата трека в родной плейлист (во вкладке «Скрытые»)
                                         StyledButton {
                                             visible: trackListContainer.isHiddenPlaylist
                                             text: "󰑐"
                                             isIconOnly: true
                                             implicitWidth: 26; implicitHeight: 24
-                                            onClicked: if (Waybar) Waybar.restoreYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
+                                            onClicked: {
+                                                if (Waybar) {
+                                                    var rIdx = index
+                                                    trackListModel.remove(rIdx, 1)
+                                                    Waybar.restoreYmTrack(Waybar.ymSelectedPlaylist, rIdx)
+                                                }
+                                            }
                                         }
 
-                                        // Кнопка удаления трека (перемещает в плейлист «Скрытые», а из «Скрытых» удаляет насовсем)
+                                        // Кнопка скрытия/удаления трека (плавно убирает строку и переносит в «Скрытые»)
                                         StyledButton {
                                             text: "󰅖"
                                             isIconOnly: true
                                             implicitWidth: 26; implicitHeight: 24
-                                            onClicked: if (Waybar) Waybar.deleteYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
+                                            onClicked: {
+                                                if (Waybar) {
+                                                    var dIdx = index
+                                                    trackListModel.remove(dIdx, 1)
+                                                    Waybar.deleteYmTrack(Waybar.ymSelectedPlaylist, dIdx)
+                                                }
+                                            }
                                         }
                                     }
                                 }

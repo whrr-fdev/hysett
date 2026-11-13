@@ -1114,6 +1114,28 @@ void WaybarManager::pollMediaState() {
 }
 
 void WaybarManager::pollFastState() {
+    {
+        static int s_btPollTick = 0;
+        if (s_btPollTick++ % 2 == 0) {
+            QProcess *btP = new QProcess(this);
+            connect(btP, &QProcess::finished, this, [this, btP]() {
+                QString out = QString::fromUtf8(btP->readAllStandardOutput());
+                btP->deleteLater();
+                int cnt = 0;
+                for (const QString &ln : out.split('\n', Qt::SkipEmptyParts)) {
+                    if (ln.trimmed().contains("Device ")) ++cnt;
+                }
+                bool conn = (cnt > 0);
+                if (m_btConnected != conn || m_btConnectedCount != cnt) {
+                    m_btConnected = conn;
+                    m_btConnectedCount = cnt;
+                    emit sysStatsChanged();
+                }
+            });
+            btP->start("bluetoothctl", {"devices", "Connected"});
+        }
+    }
+
     pollMediaState();
     QProcess *wp = new QProcess(this);
     connect(wp, &QProcess::finished, this, [this, wp]() {

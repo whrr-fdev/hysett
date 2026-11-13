@@ -1,17 +1,47 @@
 #include "BluetoothManager.h"
 #include <QProcess>
 #include <QTimer>
+#include <QRegularExpression>
+#include <QSet>
+#include <algorithm>
 
 BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
     refresh();
+}
+
+static QString stripAnsiCodes(QString s) {
+    static const QRegularExpression ansiRe("\x1b\\[[0-9;]*[a-zA-Z]");
+    return s.remove(ansiRe);
 }
 
 void BluetoothManager::refresh() {
     QProcess pShow;
     pShow.start("bluetoothctl", {"show"});
     pShow.waitForFinished(600);
-    QString outShow = QString::fromUtf8(pShow.readAllStandardOutput());
-    m_powered = outShow.contains("Powered: yes");
+    QString outShow = stripAnsiCodes(QString::fromUtf8(pShow.readAllStandardOutput()));
+
+    QProcess pConn;
+    pConn.start("bluetoothctl", {"devices", "Connected"});
+    pConn.waitForFinished(500);
+    QString outConn = stripAnsiCodes(QString::fromUtf8(pConn.readAllStandardOutput()));
+
+    QSet<QString> connectedMacs;
+    QMap<QString, QString> devNames;
+    for (const QString &line : outConn.split('\n', Qt::SkipEmptyParts)) {
+        QString trimmed = line.trimmed();
+        if (!trimmed.startsWith("Device ")) continue;
+        QStringList parts = trimmed.split(' ', Qt::SkipEmptyParts);
+        if (parts.size() >= 3) {
+            QString mac = parts[1].trimmed();
+            QString name = parts.mid(2).join(' ').trimmed();
+            connectedMacs.insert(mac);
+            devNames[mac] = name;
+        }
+    }
+
+    m_powered = outShow.contains("Powered: yes", Qt::CaseInsensitive) ||
+                outShow.contains("PowerState: on", Qt::CaseInsensitive) ||
+                !connectedMacs.isEmpty();
     emit stateChanged();
 
     if (!m_powered) {
@@ -23,30 +53,68 @@ void BluetoothManager::refresh() {
     QProcess pDevs;
     pDevs.start("bluetoothctl", {"devices"});
     pDevs.waitForFinished(600);
-    QString outDevs = QString::fromUtf8(pDevs.readAllStandardOutput());
+    QString outDevs = stripAnsiCodes(QString::fromUtf8(pDevs.readAllStandardOutput()));
 
-    m_devices.clear();
     for (const QString &line : outDevs.split('\n', Qt::SkipEmptyParts)) {
-        if (!line.startsWith("Device ")) continue;
-        QStringList parts = line.split(' ');
-        if (parts.size() < 3) continue;
-        QString mac = parts[1];
-        QString name = parts.mid(2).join(' ');
+        QString trimmed = line.trimmed();
+        if (!trimmed.startsWith("Device ")) continue;
+        QStringList parts = trimmed.split(' ', Qt::SkipEmptyParts);
+        if (parts.size() >= 3) {
+            QString mac = parts[1].trimmed();
+            QString name = parts.mid(2).join(' ').trimmed();
+            if (!devNames.contains(mac) || devNames[mac].isEmpty()) {
+                devNames[mac] = name;
+            }
+        }
+    }
+
+    static const QRegularExpression batRe("Battery Percentage:\\s*0x[0-9a-fA-F]+\\s*\\((\\d+)\\)");
+    QVariantList nextList;
+
+    for (auto it = devNames.constBegin(); it != devNames.constEnd(); ++it) {
+        const QString &mac = it.key();
+        const QString &name = it.value();
 
         QProcess pInfo;
         pInfo.start("bluetoothctl", {"info", mac});
-        pInfo.waitForFinished(300);
-        QString info = QString::fromUtf8(pInfo.readAllStandardOutput());
-        bool connected = info.contains("Connected: yes");
-        bool paired = info.contains("Paired: yes");
+        pInfo.waitForFinished(350);
+        QString info = stripAnsiCodes(QString::fromUtf8(pInfo.readAllStandardOutput()));
+
+        bool connected = connectedMacs.contains(mac) || info.contains("Connected: yes", Qt::CaseInsensitive);
+        bool paired = info.contains("Paired: yes", Qt::CaseInsensitive) || connected;
+        bool isAudio = info.contains("Audio", Qt::CaseInsensitive) ||
+                       info.contains("Headset", Qt::CaseInsensitive) ||
+                       info.contains("headphones", Qt::CaseInsensitive) ||
+                       name.contains("JBL", Qt::CaseInsensitive) ||
+                       name.contains("Buds", Qt::CaseInsensitive) ||
+                       name.contains("AirPods", Qt::CaseInsensitive);
+
+        int battery = -1;
+        QRegularExpressionMatch bm = batRe.match(info);
+        if (bm.hasMatch()) {
+            battery = bm.captured(1).toInt();
+        }
 
         QVariantMap d;
         d["mac"] = mac;
         d["name"] = name;
         d["connected"] = connected;
         d["paired"] = paired;
-        m_devices.append(d);
+        d["isAudio"] = isAudio;
+        d["battery"] = battery;
+        nextList.append(d);
     }
+
+    std::sort(nextList.begin(), nextList.end(), [](const QVariant &a, const QVariant &b) {
+        QVariantMap ma = a.toMap(), mb = b.toMap();
+        if (ma["connected"].toBool() != mb["connected"].toBool())
+            return ma["connected"].toBool() > mb["connected"].toBool();
+        if (ma["paired"].toBool() != mb["paired"].toBool())
+            return ma["paired"].toBool() > mb["paired"].toBool();
+        return ma["name"].toString().toLower() < mb["name"].toString().toLower();
+    });
+
+    m_devices = nextList;
     emit devicesChanged();
 }
 

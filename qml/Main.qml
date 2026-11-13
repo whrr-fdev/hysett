@@ -1630,7 +1630,8 @@ ApplicationWindow {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "sysinfo") return sysRow.implicitWidth + 24
                                 if (modKey === "tray") return Math.max(28, trayRow.implicitWidth + 22)
-                                if (modKey === "bluetooth" || modKey === "network" || modKey === "clipboard") return 16 + clusterEdgePad
+                                if (modKey === "bluetooth") return ((Waybar && Waybar.btConnectedCount > 0) ? (btPillInnerRow.implicitWidth + 14) : 16) + clusterEdgePad
+                                if (modKey === "network" || modKey === "clipboard") return 16 + clusterEdgePad
                                 if (modKey === "volume") return volInnerRow.implicitWidth + 6 + clusterEdgePad
                                 if (modKey === "language") return 21 + clusterEdgePad
                                 if (modKey === "clock") return barClockText.implicitWidth + 8 + clusterEdgePad
@@ -1743,7 +1744,49 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "bluetooth"
                                 anchors.fill: parent
-                                Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: "󰂯"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
+
+                                // Обычная иконка, когда ничего не подключено
+                                Text {
+                                    visible: !Waybar || Waybar.btConnectedCount <= 0
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: rightModBody.innerShiftX
+                                    text: "󰂯"
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                    font.pixelSize: 12
+                                }
+
+                                // Таблетка (в стиле VPN) с количеством подключенных устройств, когда btConnectedCount > 0
+                                Rectangle {
+                                    visible: Waybar ? (Waybar.btConnectedCount > 0) : false
+                                    width: btPillInnerRow.implicitWidth + 12
+                                    height: topBarContainer.pillHeight - 4
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: rightModBody.innerShiftX
+                                    radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                    border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                    border.width: 1
+
+                                    Row {
+                                        id: btPillInnerRow
+                                        anchors.centerIn: parent
+                                        spacing: 3
+                                        Text {
+                                            text: "󰂱"
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            font.pixelSize: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                        Text {
+                                            text: Waybar ? String(Waybar.btConnectedCount) : "1"
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                    }
+                                }
+
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 7) }
                             }
 

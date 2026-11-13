@@ -82,6 +82,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(QString recordingTimeText READ recordingTimeText NOTIFY recordingChanged)
     Q_PROPERTY(bool btConnected READ btConnected NOTIFY sysStatsChanged)
+    Q_PROPERTY(int btConnectedCount READ btConnectedCount NOTIFY sysStatsChanged)
     Q_PROPERTY(bool netConnected READ netConnected NOTIFY sysStatsChanged)
     Q_PROPERTY(QString netIcon READ netIcon NOTIFY sysStatsChanged)
     Q_PROPERTY(QString netType READ netType NOTIFY sysStatsChanged)
@@ -241,6 +242,7 @@ public:
     bool recording() const { return m_recording; }
     QString recordingTimeText() const { return m_recordingTimeText; }
     bool btConnected() const { return m_btConnected; }
+    int btConnectedCount() const { return m_btConnectedCount; }
     bool netConnected() const { return m_netConnected; }
     QString netIcon() const { return m_netIcon; }
     QString netType() const { return m_netType; }
@@ -459,6 +461,7 @@ private:
     qint64 m_recordingStartSec = 0;
     QString m_recordingTimeText = "00:00";
     bool m_btConnected = false;
+    int m_btConnectedCount = 0;
     bool m_netConnected = true;
     QString m_netIcon = "󰈀";
     QString m_netType = "ethernet";

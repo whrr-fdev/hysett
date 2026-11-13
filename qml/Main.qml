@@ -1000,8 +1000,7 @@ ApplicationWindow {
                             id: leftModBody
                             height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
-                            clip: modKey === "media" || modKey === "launcher"
-                            Behavior on width { enabled: modKey === "media"; NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                            clip: modKey === "launcher"
                             opacity: modKey === "launcher" ? (topBarContainer.launcherVis * topBarContainer.launcherVis) : 1.0
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
@@ -1372,7 +1371,8 @@ ApplicationWindow {
                                 visible: modKey === "media" && ((Waybar && Waybar.mediaActive) || topBarContainer.editMode)
                                 width: !visible ? 0 : ((Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
                                 height: topBarContainer.pillHeight
-                                anchors.right: parent.right
+                                x: (ymDownloadPillBox.visible && ymDownloadPillBox.width > 0.5) ? (ymDownloadPillBox.width + (Waybar ? Waybar.spacing : 4)) : 0
+                                Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                 anchors.verticalCenter: parent.verticalCenter
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 clip: true
@@ -3657,7 +3657,12 @@ ApplicationWindow {
                                                 Layout.fillWidth: true
                                                 from: 0; to: 100; stepSize: 1
                                                 Component.onCompleted: value = streamData.volume
-                                                onStreamDataChanged: if (!pressed) value = streamData.volume
+                                                Binding {
+                                                    target: appVolSlider
+                                                    property: "value"
+                                                    value: streamData.volume
+                                                    when: !appVolSlider.pressed
+                                                }
                                                 onPressedChanged: volumePopupBox.anyStreamSliderPressed = pressed
                                                 onMoved: if (Waybar && streamData.id >= 0) Waybar.setStreamVolume(streamData.id, Math.round(value))
                                             }

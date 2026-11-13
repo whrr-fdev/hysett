@@ -50,6 +50,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool mediaDemoMode READ mediaDemoMode WRITE setMediaDemoMode NOTIFY mediaChanged)
     Q_PROPERTY(int mediaHideTimeout READ mediaHideTimeout WRITE setMediaHideTimeout NOTIFY stateChanged)
     Q_PROPERTY(bool mediaWaves READ mediaWaves WRITE setMediaWaves NOTIFY stateChanged)
+    Q_PROPERTY(qreal mediaWaveSpeed READ mediaWaveSpeed WRITE setMediaWaveSpeed NOTIFY stateChanged)
+    Q_PROPERTY(QPointF globalCursorPos READ globalCursorPos NOTIFY cursorPosChanged)
     Q_PROPERTY(bool mediaCollapsed READ mediaCollapsed WRITE setMediaCollapsed NOTIFY stateChanged)
 
     // Разделители и режим редактирования панели задач (Drag & Drop)
@@ -196,6 +198,9 @@ public:
     int mediaHideTimeout() const { return m_mediaHideTimeout; }
     bool mediaWaves() const { return m_mediaWaves; }
     void setMediaWaves(bool v);
+    qreal mediaWaveSpeed() const { return m_mediaWaveSpeed; }
+    void setMediaWaveSpeed(qreal v);
+    QPointF globalCursorPos() const { return m_globalCursorPos; }
     bool mediaCollapsed() const { return m_mediaCollapsed; }
     void setMediaCollapsed(bool v);
     Q_INVOKABLE void toggleMediaCollapsed();
@@ -365,6 +370,7 @@ signals:
     void activeWindowChanged();
     void clipboardChanged();
     void mediaChanged();
+    void cursorPosChanged();
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
@@ -427,6 +433,9 @@ private:
     int m_realLenSec = 215;
     int m_mediaHideTimeout = 15;
     bool m_mediaWaves = true;
+    qreal m_mediaWaveSpeed = 1.5;
+    QPointF m_globalCursorPos = QPointF(-500, -500);
+    QTimer *m_cursorPollTimer = nullptr;
     bool m_mediaCollapsed = false;
     int m_mediaPausedSec = 0;
 

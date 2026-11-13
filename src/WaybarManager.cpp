@@ -119,6 +119,30 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     connect(m_fastTimer, &QTimer::timeout, this, &WaybarManager::pollFastState);
     m_fastTimer->start();
 
+    m_cursorPollTimer = new QTimer(this);
+    m_cursorPollTimer->setInterval(28);
+    connect(m_cursorPollTimer, &QTimer::timeout, this, [this]() {
+        if (!m_mediaWaves || !mediaActive() || !mediaPlaying()) {
+            if (m_globalCursorPos.x() > -100) {
+                m_globalCursorPos = QPointF(-500, -500);
+                emit cursorPosChanged();
+            }
+            return;
+        }
+        QString cp = queryHyprCtlSocket("cursorpos").trimmed();
+        int comma = cp.indexOf(',');
+        if (comma > 0) {
+            double cx = cp.left(comma).trimmed().toDouble();
+            double cy = cp.mid(comma + 1).trimmed().toDouble();
+            QPointF nextP(cx, cy);
+            if (std::abs(nextP.x() - m_globalCursorPos.x()) > 1.0 || std::abs(nextP.y() - m_globalCursorPos.y()) > 1.0) {
+                m_globalCursorPos = nextP;
+                emit cursorPosChanged();
+            }
+        }
+    });
+    m_cursorPollTimer->start();
+
     m_weatherTimer = new QTimer(this);
     m_weatherTimer->setInterval(600000);
     connect(m_weatherTimer, &QTimer::timeout, this, &WaybarManager::pollWeather);
@@ -195,6 +219,7 @@ void WaybarManager::loadState() {
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
+            else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
             else if (k == "media_collapsed") m_mediaCollapsed = (v == "1" || v == "true");
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
             else if (k == "uniform_bar_spacing") m_uniformBarSpacing = (v == "1" || v == "true");
@@ -239,6 +264,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
+        out << "media_wave_speed=" << QString::number(m_mediaWaveSpeed, 'f', 2) << "\n";
         out << "media_collapsed=" << (m_mediaCollapsed ? "1" : "0") << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
         out << "uniform_bar_spacing=" << (m_uniformBarSpacing ? "1" : "0") << "\n";
@@ -971,6 +997,14 @@ void WaybarManager::resetBarOrder() {
     m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     m_hiddenBarModules.clear();
     saveState(false);
+}
+
+void WaybarManager::setMediaWaveSpeed(qreal v) {
+    v = std::clamp(v, 0.2, 4.0);
+    if (!qFuzzyCompare(m_mediaWaveSpeed, v)) {
+        m_mediaWaveSpeed = v;
+        saveState(false);
+    }
 }
 
 void WaybarManager::setMediaWaves(bool v) {

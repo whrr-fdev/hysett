@@ -622,7 +622,7 @@ ApplicationWindow {
     Behavior on musicWaveAmp { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
     NumberAnimation on musicWavePhase {
         from: 0.0; to: 62.831853
-        duration: 38000
+        duration: Math.max(4000, Math.round(18000 / (Waybar ? Waybar.mediaWaveSpeed : 1.5)))
         loops: Animation.Infinite
         running: root.musicWaveAmp > 0.1
     }
@@ -814,7 +814,8 @@ ApplicationWindow {
             property vector2d u_mouse: Qt.vector2d(root.mousePos.x, root.mousePos.y)
             property vector2d u_trail1: Qt.vector2d(root.trail1.x, root.trail1.y)
             property vector2d u_trail2: Qt.vector2d(root.trail2.x, root.trail2.y)
-            property vector4d u_music_wave: Qt.vector4d(root.mediaPillCenterX, Math.max(26.0, root.mediaPillHalfW + 10.0), root.musicWaveAmp, root.musicWavePhase)
+            readonly property point effWaveMouse: (Waybar && Waybar.globalCursorPos.x > -100) ? Waybar.globalCursorPos : root.mousePos
+            property vector4d u_music_wave: Qt.vector4d(effWaveMouse.x, effWaveMouse.y, root.musicWaveAmp, root.musicWavePhase)
             fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
         }
 

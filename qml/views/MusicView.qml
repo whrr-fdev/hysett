@@ -196,6 +196,31 @@ ScrollView {
                     }
 
                     RowLayout {
+                        visible: Waybar ? Waybar.mediaWaves : true
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "Скорость волн на панели:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 230
+                        }
+                        StyledSlider {
+                            Layout.fillWidth: true
+                            from: 0.2; to: 4.0; stepSize: 0.1
+                            value: Waybar ? Waybar.mediaWaveSpeed : 1.5
+                            onMoved: if (Waybar) Waybar.mediaWaveSpeed = value
+                        }
+                        Text {
+                            text: (Waybar ? Waybar.mediaWaveSpeed.toFixed(1) : "1.5") + "x"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 58
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+
+                    RowLayout {
                         Layout.fillWidth: true
                         Text {
                             text: "Свернуть виджет музыки на панели (компактный вид):"

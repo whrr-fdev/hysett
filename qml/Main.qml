@@ -614,6 +614,18 @@ ApplicationWindow {
     property bool trailActive: false
     property point clickPos: Qt.point(-500, -500)
     property real liquidTime: 0.0
+    property real musicWavePhase: 0.0
+    property real mediaPillCenterX: 320.0
+    property real mediaPillHalfW: 95.0
+    readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !root.drawerOpen && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves && Waybar.isBarModuleVisible("media")
+    property real musicWaveAmp: musicWaveShouldRun ? 7.5 : 0.0
+    Behavior on musicWaveAmp { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+    NumberAnimation on musicWavePhase {
+        from: 0.0; to: 62.831853
+        duration: 9000
+        loops: Animation.Infinite
+        running: root.musicWaveAmp > 0.1
+    }
 
     function handleExternalTrigger() {
         if (!Config) return
@@ -802,6 +814,7 @@ ApplicationWindow {
             property vector2d u_mouse: Qt.vector2d(root.mousePos.x, root.mousePos.y)
             property vector2d u_trail1: Qt.vector2d(root.trail1.x, root.trail1.y)
             property vector2d u_trail2: Qt.vector2d(root.trail2.x, root.trail2.y)
+            property vector4d u_music_wave: Qt.vector4d(root.mediaPillCenterX, Math.max(26.0, root.mediaPillHalfW + 10.0), root.musicWaveAmp, root.musicWavePhase)
             fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
         }
 
@@ -944,7 +957,7 @@ ApplicationWindow {
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
                                 if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
-                                if (modKey === "media") return (Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 22)
+                                if (modKey === "media") return (Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 14) : (mediaInnerRow.implicitWidth + 18)
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
                                 return 0
                             }
@@ -1234,7 +1247,7 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
 
-                            // Контент: media (со сворачиванием и прыгающими сглаженными столбиками волн)
+                            // Контент: media (со сворачиванием по стрелочке и передачей координат для волны нижней границы панели)
                             Rectangle {
                                 id: mediaPillBox
                                 visible: modKey === "media"
@@ -1242,71 +1255,65 @@ ApplicationWindow {
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 clip: true
                                 readonly property bool isCollapsed: Waybar ? Waybar.mediaCollapsed : false
-                                readonly property bool wavesActive: Waybar ? (Waybar.mediaWaves && Waybar.mediaPlaying) : false
-                                property real eqPhase: 0.0
 
-                                NumberAnimation on eqPhase {
-                                    from: 0.0; to: 62.831853
-                                    duration: 10000
-                                    loops: Animation.Infinite
-                                    running: mediaPillBox.visible && mediaPillBox.wavesActive
+                                function syncWaveCoords() {
+                                    if (!visible || width <= 0) return
+                                    var gp = mediaPillBox.mapToItem(sceneRoot, width * 0.5, 0)
+                                    if (gp.x > 0) {
+                                        root.mediaPillCenterX = gp.x
+                                        root.mediaPillHalfW = width * 0.5
+                                    }
+                                }
+                                onWidthChanged: Qt.callLater(syncWaveCoords)
+                                onXChanged: Qt.callLater(syncWaveCoords)
+                                Component.onCompleted: Qt.callLater(syncWaveCoords)
+                                Connections {
+                                    target: leftModWrap
+                                    function onXChanged() { Qt.callLater(mediaPillBox.syncWaveCoords) }
+                                }
+                                Connections {
+                                    target: topBarContainer
+                                    function onXChanged() { Qt.callLater(mediaPillBox.syncWaveCoords) }
                                 }
 
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
 
-                                // Сглаженные прыгающие столбики снизу таблетки/панели
-                                Row {
-                                    id: mediaEqRow
-                                    z: 0
-                                    visible: opacity > 0.02
-                                    opacity: mediaPillBox.wavesActive ? 0.52 : 0.0
-                                    Behavior on opacity { NumberAnimation { duration: 220 } }
-                                    anchors.bottom: parent.bottom
-                                    anchors.bottomMargin: -1
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    spacing: 2
-
-                                    readonly property int barCount: Math.max(5, Math.min(34, Math.floor((mediaPillBox.width - 10) / 5)))
-
-                                    Repeater {
-                                        model: mediaEqRow.barCount
-                                        delegate: Rectangle {
-                                            width: 3
-                                            readonly property real normX: mediaEqRow.barCount > 1 ? (index / (mediaEqRow.barCount - 1)) : 0.5
-                                            readonly property real env: Math.sin(normX * Math.PI) * 0.75 + 0.25
-                                            readonly property real w1: Math.sin(mediaPillBox.eqPhase * 3.4 + index * 0.75) * 0.45
-                                            readonly property real w2: Math.sin(mediaPillBox.eqPhase * 5.8 - index * 0.52) * 0.35
-                                            readonly property real w3: Math.cos(mediaPillBox.eqPhase * 8.3 + index * 1.15) * 0.20
-                                            readonly property real amp: Math.max(0.12, Math.min(1.0, (0.5 + 0.5 * (w1 + w2 + w3)) * env))
-                                            height: Math.round(3 + amp * (topBarContainer.pillHeight * 0.62))
-                                            anchors.bottom: parent.bottom
-                                            radius: 1.5
-                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#a8c7fa"
-                                        }
-                                    }
-                                }
-
-                                // Свернутый режим (компактная иконка музыки; ЛКМ разворачивает, ПКМ пауза/играть)
+                                // Свернутый режим (клик ЛКМ разворачивает, ПКМ пауза/играть)
                                 Item {
-                                    z: 2
+                                    z: 10
                                     visible: mediaPillBox.isCollapsed
                                     anchors.fill: parent
-                                    Text {
+
+                                    Row {
                                         anchors.centerIn: parent
-                                        text: (Waybar && Waybar.mediaPlaying) ? "󰎆" : "󰐊"
-                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
-                                        font.pixelSize: 12
+                                        spacing: 3
+                                        Text {
+                                            text: (Waybar && Waybar.mediaPlaying) ? "󰎆" : "󰐊"
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            font.pixelSize: 11
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                        Text {
+                                            text: "›"
+                                            color: expandMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
                                     }
+
                                     MouseArea {
+                                        id: expandMediaMa
                                         enabled: !topBarContainer.editMode
                                         anchors.fill: parent
+                                        hoverEnabled: true
                                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                                         cursorShape: Qt.PointingHandCursor
                                         onClicked: (mouse) => {
                                             if (mouse.button === Qt.RightButton) {
                                                 if (Waybar) Waybar.mediaPlayPause()
                                             } else {
-                                                if (Waybar) Waybar.setMediaCollapsed(false)
+                                                if (Waybar) Waybar.toggleMediaCollapsed()
                                             }
                                         }
                                     }
@@ -1315,32 +1322,32 @@ ApplicationWindow {
                                 // Развернутый режим
                                 Row {
                                     id: mediaInnerRow
-                                    z: 2
+                                    z: 5
                                     visible: !mediaPillBox.isCollapsed
                                     height: topBarContainer.pillHeight
                                     anchors.centerIn: parent
-                                    spacing: 5
+                                    spacing: 4
 
                                     Item {
-                                        width: 13; height: topBarContainer.pillHeight
+                                        width: 14; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: "󰒮"; color: prevMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                                        MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
+                                        MouseArea { id: prevMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() }
                                     }
 
                                     Item {
-                                        width: 13; height: topBarContainer.pillHeight
+                                        width: 14; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"; color: playMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                                        MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
+                                        MouseArea { id: playMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPlayPause() }
                                     }
 
                                     Item {
-                                        width: 13; height: topBarContainer.pillHeight
+                                        width: 14; height: topBarContainer.pillHeight
                                         Text { anchors.centerIn: parent; text: "󰒭"; color: nextMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#ffffff"; font.pixelSize: 11 }
-                                        MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -2; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
+                                        MouseArea { id: nextMa; enabled: !topBarContainer.editMode; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaNext() }
                                     }
 
                                     Item {
-                                        width: Math.min(150, mediaTrackLbl.implicitWidth)
+                                        width: Math.min(145, Math.max(36, mediaTrackLbl.implicitWidth))
                                         height: topBarContainer.pillHeight
                                         Text {
                                             id: mediaTrackLbl
@@ -1357,10 +1364,9 @@ ApplicationWindow {
                                             anchors.fill: parent
                                             acceptedButtons: Qt.LeftButton | Qt.RightButton
                                             cursorShape: Qt.PointingHandCursor
-                                            anchors.margins: -4
                                             onClicked: (mouse) => {
                                                 if (mouse.button === Qt.RightButton) {
-                                                    if (Waybar) Waybar.setMediaCollapsed(true)
+                                                    if (Waybar) Waybar.toggleMediaCollapsed()
                                                 } else {
                                                     root.openDrawerWithMode("settings", 27)
                                                 }
@@ -1368,24 +1374,33 @@ ApplicationWindow {
                                         }
                                     }
 
-                                    // Кнопка сворачивания виджета музыки
+                                    // Кнопка сворачивания виджета музыки ‹
                                     Item {
-                                        width: 12; height: topBarContainer.pillHeight
+                                        z: 15
+                                        width: 16; height: topBarContainer.pillHeight
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            width: 14; height: 14
+                                            radius: 4
+                                            color: colMediaMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                                        }
                                         Text {
                                             anchors.centerIn: parent
                                             text: "‹"
-                                            color: colMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#aaaaaa"
-                                            font.pixelSize: 13
+                                            color: colMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"
+                                            font.pixelSize: 14
                                             font.bold: true
                                         }
                                         MouseArea {
                                             id: colMediaMa
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent
-                                            anchors.margins: -2
                                             hoverEnabled: true
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: if (Waybar) Waybar.setMediaCollapsed(true)
+                                            onPressed: (mouse) => {
+                                                mouse.accepted = true
+                                                if (Waybar) Waybar.toggleMediaCollapsed()
+                                            }
                                         }
                                     }
                                 }

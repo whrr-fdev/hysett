@@ -28,6 +28,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 u_mouse;
     vec2 u_trail1;
     vec2 u_trail2;
+    vec4 u_music_wave;
 };
 
 float sdRoundedBox(vec2 p, vec2 b, float r) {
@@ -52,8 +53,24 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
 
 float sceneSdf(vec2 p, out float outNotifBlend) {
     outNotifBlend = 0.0;
-    vec2 bHalf = 0.5 * u_bar_rect.zw;
-    vec2 bCenter = u_bar_rect.xy + bHalf;
+    float waveStretch = 0.0;
+    if (u_music_wave.z > 0.05 && u_bar_rect.z > u_bar_rect.w * 1.5) {
+        float dx = (p.x - u_music_wave.x) / max(16.0, u_music_wave.y);
+        if (abs(dx) < 1.0) {
+            float env = 0.5 + 0.5 * cos(dx * 3.14159265);
+            env *= env;
+            float t = u_music_wave.w;
+            float wx = (p.x - u_music_wave.x) * 0.13;
+            float w1 = 0.5 + 0.5 * sin(wx * 1.0 + t * 4.5);
+            float w2 = 0.5 + 0.5 * sin(wx * 2.15 - t * 6.8 + 1.2);
+            float w3 = 0.5 + 0.5 * cos(wx * 3.4 + t * 9.2 + 2.5);
+            float wProf = smoothstep(0.05, 0.95, w1 * 0.46 + w2 * 0.34 + w3 * 0.20);
+            waveStretch = u_music_wave.z * env * (0.15 + 0.85 * wProf);
+        }
+    }
+    vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);
+    vec2 bHalf = 0.5 * bSize;
+    vec2 bCenter = vec2(u_bar_rect.x + bHalf.x, u_bar_rect.y + bHalf.y);
     float dBar = sdRoundedBox(p - bCenter, bHalf, u_radius);
     float d = dBar;
 

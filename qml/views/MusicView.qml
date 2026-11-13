@@ -184,6 +184,34 @@ ScrollView {
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
+                            text: "Волны эквалайзера (прыгающие столбики снизу панели):"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.fillWidth: true
+                        }
+                        StyledSwitch {
+                            checked: Waybar ? Waybar.mediaWaves : true
+                            onToggled: if (Waybar) Waybar.mediaWaves = checked
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
+                            text: "Свернуть виджет музыки на панели (компактный вид):"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.fillWidth: true
+                        }
+                        StyledSwitch {
+                            checked: Waybar ? Waybar.mediaCollapsed : false
+                            onToggled: if (Waybar) Waybar.mediaCollapsed = checked
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Text {
                             text: "Показывать плеер на верхней панели:"
                             color: "#cccccc"
                             font.pixelSize: Config.fontSize

@@ -132,7 +132,8 @@ void main() {
     float distInward = max(0.0, -d);
     float outlineMask = exp(-distInward * 1.65);
 
-    vec4 shellFill = (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) ? u_bg_color : vec4(u_bg_color.rgb, u_bar_alpha);
+    float drwMix = clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 160.0, 0.0, 1.0);
+    vec4 shellFill = vec4(u_bg_color.rgb, mix(u_bar_alpha, u_bg_color.a, drwMix));
     vec4 activeFill = mix(shellFill, u_notif_color, notifBlend);
 
     vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, outlineMask * u_outline_color.a);

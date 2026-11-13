@@ -789,7 +789,7 @@ ApplicationWindow {
             property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
             property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
-            property real u_bar_alpha: Math.min(Waybar ? Waybar.barOpacity : 0.72, currentOpacity * 0.94)
+            property real u_bar_alpha: Math.min(Waybar ? Waybar.barOpacity : 0.70, currentOpacity)
             property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13.0) : 0.0
             property real u_fillet: (Theme && Theme.isRounded) ? (Config ? Config.m3WindowRadius : 20.0) : 0.0
             property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0

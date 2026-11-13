@@ -1429,11 +1429,13 @@ ApplicationWindow {
                                             readonly property real mLvl: root.smoothMid
                                             readonly property real tLvl: root.smoothTreb
                                             readonly property real eMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
-                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 1.8 + index * 0.85)
-                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 2.9 - index * 0.71)
-                                            readonly property real edgeTaper: Math.min(1.0, Math.min(index + 1, insidePillEqRow.barCnt - index) / 2.2)
-                                            readonly property real amp: Math.min(1.0, (0.16 + 0.84 * (s1 * 0.55 + s2 * 0.45)) * (0.32 + 0.88 * eMix)) * (0.45 + 0.55 * edgeTaper)
-                                            height: Math.max(1.5, amp * (topBarContainer.pillHeight - 7) * 0.70 * insidePillEqRow.pMaxH)
+                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 1.9 + index * 0.85)
+                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 3.1 - index * 0.71)
+                                            readonly property real waveOsc: Math.pow(s1 * 0.58 + s2 * 0.42, 0.78)
+                                            readonly property real audioBoost: Math.max(0.68, Math.min(1.35, 0.52 + eMix * 1.05))
+                                            readonly property real edgeTaper: Math.min(1.0, Math.min(index + 1, insidePillEqRow.barCnt - index) / 1.8)
+                                            readonly property real amp: Math.min(1.0, (0.24 + 0.76 * waveOsc) * audioBoost) * (0.60 + 0.40 * edgeTaper)
+                                            height: Math.max(2.0, amp * (topBarContainer.pillHeight - 2) * insidePillEqRow.pMaxH)
                                             readonly property color baseCol: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : "#a8c7fa")
                                             color: Qt.darker(baseCol, 1.0 + 0.10 * topBarContainer.settingsOpenWeight)
                                         }
@@ -3481,11 +3483,12 @@ ApplicationWindow {
                     id: volumePopupBox
                     anchors.fill: parent
                     visible: root.drawerMode === "volume"
+                    property bool anyStreamSliderPressed: false
 
                     Timer {
-                        interval: 1500
+                        interval: 1800
                         repeat: true
-                        running: root.drawerOpen && root.drawerMode === "volume"
+                        running: root.drawerOpen && root.drawerMode === "volume" && !volumePopupBox.anyStreamSliderPressed && !masterVolSlider.pressed
                         onTriggered: if (Waybar) Waybar.refreshAudioStreams()
                     }
 
@@ -3552,9 +3555,16 @@ ApplicationWindow {
                                         }
                                     }
                                     StyledSlider {
+                                        id: masterVolSlider
                                         Layout.fillWidth: true
                                         from: 0; to: 100; stepSize: 1
-                                        value: Waybar ? Waybar.volume : 50
+                                        Component.onCompleted: if (Waybar) value = Waybar.volume
+                                        Connections {
+                                            target: Waybar
+                                            function onAudioChanged() {
+                                                if (!masterVolSlider.pressed && Waybar) masterVolSlider.value = Waybar.volume
+                                            }
+                                        }
                                         onMoved: if (Waybar) Waybar.setVolumeExact(Math.round(value))
                                     }
                                 }
@@ -3596,9 +3606,12 @@ ApplicationWindow {
                                 spacing: 6
                                 visible: Waybar && Waybar.audioStreams.length > 0
                                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                                model: (root.drawerActive && root.drawerMode === "volume" && Waybar) ? Waybar.audioStreams : []
+                                model: (root.drawerActive && root.drawerMode === "volume" && Waybar) ? Waybar.audioStreams.length : 0
 
                                 delegate: GlassPanel {
+                                    readonly property var streamData: (Waybar && index < Waybar.audioStreams.length)
+                                                                      ? Waybar.audioStreams[index]
+                                                                      : ({ id: -1, name: "", subtitle: "", volume: 100, muted: false })
                                     width: ListView.view.width
                                     implicitHeight: 52
                                     height: 52
@@ -3611,11 +3624,11 @@ ApplicationWindow {
                                         spacing: 10
 
                                         StyledButton {
-                                            text: modelData.muted ? "󰝟" : "󰕾"
+                                            text: streamData.muted ? "󰝟" : "󰕾"
                                             isIconOnly: true
                                             implicitWidth: 28; implicitHeight: 28
-                                            isActive: !modelData.muted
-                                            onClicked: if (Waybar) Waybar.toggleStreamMute(modelData.id)
+                                            isActive: !streamData.muted
+                                            onClicked: if (Waybar && streamData.id >= 0) Waybar.toggleStreamMute(streamData.id)
                                         }
 
                                         ColumnLayout {
@@ -3625,7 +3638,7 @@ ApplicationWindow {
                                                 Layout.fillWidth: true
                                                 spacing: 6
                                                 Text {
-                                                    text: modelData.name + (modelData.subtitle && modelData.subtitle.length > 0 ? (" — " + modelData.subtitle) : "")
+                                                    text: streamData.name + (streamData.subtitle && streamData.subtitle.length > 0 ? (" — " + streamData.subtitle) : "")
                                                     color: "#ffffff"
                                                     font.pixelSize: 11
                                                     font.bold: true
@@ -3633,17 +3646,20 @@ ApplicationWindow {
                                                     Layout.fillWidth: true
                                                 }
                                                 Text {
-                                                    text: modelData.muted ? "Mute" : (modelData.volume + "%")
-                                                    color: modelData.muted ? "#ff6b6b" : (Config ? Config.m3Primary : "#cccccc")
+                                                    text: streamData.muted ? "Mute" : (Math.round(appVolSlider.value) + "%")
+                                                    color: streamData.muted ? "#ff6b6b" : (Config ? Config.m3Primary : "#cccccc")
                                                     font.pixelSize: 10
                                                     font.bold: true
                                                 }
                                             }
                                             StyledSlider {
+                                                id: appVolSlider
                                                 Layout.fillWidth: true
                                                 from: 0; to: 100; stepSize: 1
-                                                value: modelData.volume
-                                                onMoved: if (Waybar) Waybar.setStreamVolume(modelData.id, Math.round(value))
+                                                Component.onCompleted: value = streamData.volume
+                                                onStreamDataChanged: if (!pressed) value = streamData.volume
+                                                onPressedChanged: volumePopupBox.anyStreamSliderPressed = pressed
+                                                onMoved: if (Waybar && streamData.id >= 0) Waybar.setStreamVolume(streamData.id, Math.round(value))
                                             }
                                         }
                                     }

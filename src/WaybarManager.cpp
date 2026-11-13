@@ -74,6 +74,9 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     loadState();
 
     QProcess::startDetached("killall", {"-q", "waybar"});
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_mpv.sock"});
     // Сбрасываем старый ручной addreserved, чтобы панель не сдвигалась вниз (отступ держит strutWin!)
 
     m_weatherDetails = {{"temp", "+3°C"}, {"feels", "+1°C"}, {"wind", "3.0"}, {"humidity", "80"}, {"desc", "Пасмурно"}, {"icon", "☁️"}, {"isRain", false}, {"isSnow", false}};
@@ -331,7 +334,10 @@ void WaybarManager::resetSpec(int index) {
     if (index < 0 || index >= m_specs.size() || index >= m_defaults.size()) return;
     m_specs[index] = m_defaults[index].toMap(); saveState(false);
 }
-void WaybarManager::restartWaybar() { QProcess::startDetached("killall", {"-q", "waybar"}); emit stateChanged(); }
+void WaybarManager::restartWaybar() { QProcess::startDetached("killall", {"-q", "waybar"});
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_mpv.sock"}); emit stateChanged(); }
 
 void WaybarManager::connectHyprEventSocket() {
     QString runtimeDir = qEnvironmentVariable("XDG_RUNTIME_DIR");
@@ -2086,7 +2092,6 @@ void WaybarManager::setStreamVolume(int streamId, int percent) {
         if (m["id"].toInt() == streamId) {
             m["volume"] = percent;
             m_audioStreams[i] = m;
-            emit audioStreamsChanged();
             break;
         }
     }
@@ -2946,6 +2951,7 @@ void WaybarManager::startLocalQueueAt(int qIdx) {
         m_localMpvProc->deleteLater();
         m_localMpvProc = nullptr;
     }
+    QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
     QProcess::execute("pkill", {"-f", "mpv.*hysett_mpv.sock"});
     QFile::remove("/tmp/hysett_mpv.sock");
 
@@ -2977,6 +2983,7 @@ void WaybarManager::startLocalQueueAt(int qIdx) {
     m_localMpvProc->start("mpv", {
         "--no-video",
         "--really-quiet",
+        QString("--force-media-title=%1").arg(m_mediaTitle),
         "--input-ipc-server=/tmp/hysett_mpv.sock",
         chosenPath
     });

@@ -785,57 +785,55 @@ ApplicationWindow {
             }
         }
 
-        // РЕЖИМ 2: СТОЛБИКИ ОТ ВЕРХНЕЙ СТОРОНЫ ЭКРАНА ПОД ПАНЕЛЬЮ ЗАДАЧ ДУГОЙ (ПОСЕРЕДИНЕ ВЫШЕ)
+        // РЕЖИМ 2: ОБЫЧНЫЕ НЕСКРУГЛЕННЫЕ УЗКИЕ СТОЛБИКИ ОТ ВЕРХА ЭКРАНА ПОД ПАНЕЛЬЮ ДУГОЙ (ВЫХОДЯТ И ПО БОКАМ ПАНЕЛИ, ПОСЕРЕДИНЕ ВЫШЕ)
         Item {
             id: topArcBarsLayer
             z: 1
-            x: root.barLeft
+            x: Math.max(0, root.barLeft - 3)
             y: 0
-            width: root.barW
-            height: root.barRectY + root.actualBarH + 34
+            width: Math.min(root.width, root.barW + 6)
+            height: root.barRectY + root.actualBarH + 42
             visible: opacity > 0.01
-            opacity: (root.anyMusicWaveOn && root.waveMode === 2 && !(root.drawerOpen && root.drawerMode === "settings")) ? 0.88 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+            opacity: (root.anyMusicWaveOn && root.waveMode === 2 && !(root.drawerOpen && root.drawerMode === "settings")) ? 0.90 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 
-            readonly property int barCount: Waybar ? Math.max(24, Math.min(160, Waybar.mediaWaveCount)) : 80
-            readonly property real maxExtraDrop: Waybar ? Waybar.mediaWaveSize * 1.45 : 16.0
+            readonly property int barStepPx: 3
+            readonly property int barCount: Math.max(60, Math.floor(width / barStepPx))
+            readonly property real maxExtraDrop: Waybar ? Waybar.mediaWaveSize * 1.65 : 18.0
             readonly property real baseCoverH: root.barRectY + root.actualBarH
 
             Row {
                 anchors.top: parent.top
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: parent.width - 24
-                spacing: 2
+                anchors.left: parent.left
+                anchors.right: parent.right
+                spacing: 1
 
                 Repeater {
                     model: topArcBarsLayer.visible ? topArcBarsLayer.barCount : 0
                     delegate: Rectangle {
-                        readonly property real stepW: (topArcBarsLayer.width - 24) / Math.max(1, topArcBarsLayer.barCount)
-                        width: Math.max(2, stepW - 2)
+                        width: 2
+                        radius: 0
                         anchors.top: parent.top
 
-                        // Нормализованная координата 0..1 вдоль панели; посередине (0.5) дуга выше (короче свисает вниз), а к краям ниже!
+                        // Нормализованная координата 0..1 от левого до правого бока панели
                         readonly property real normX: topArcBarsLayer.barCount > 1 ? (index / (topArcBarsLayer.barCount - 1)) : 0.5
-                        readonly property real centerArch: Math.sin(normX * Math.PI) // 1.0 посередине, 0.0 по краям
-                        // Огибающая дуги (посередине выше — т.е. ближе к верху/своду арки, по краям ниже, с мягким скруглением у самых углов панели)
-                        readonly property real edgeCornerFade: Math.min(1.0, Math.min(normX, 1.0 - normX) * 10.0)
-                        readonly property real archFactor: (1.0 - 0.58 * centerArch) * edgeCornerFade
+                        // Дуга: посередине экрана (normX = 0.5) столбики выше/сильнее выступают, и по самым бокам панели тоже выходят (от 0.38 по бокам до 1.0 в центре)
+                        readonly property real archBell: Math.sin(normX * Math.PI)
+                        readonly property real archEnvelope: 0.38 + 0.62 * Math.pow(archBell, 0.85)
 
                         readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
                         readonly property real mLvl: Waybar ? Waybar.audioMid : 0.35
                         readonly property real tLvl: Waybar ? Waybar.audioTreble : 0.3
                         readonly property real audioMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
 
-                        readonly property real w1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.2 + index * 0.55)
-                        readonly property real w2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 3.7 - index * 0.85)
-                        readonly property real bounce: (0.25 + 0.75 * (w1 * 0.55 + w2 * 0.45)) * (0.35 + 0.85 * audioMix)
+                        readonly property real w1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.4 + index * 0.42)
+                        readonly property real w2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 3.9 - index * 0.71)
+                        readonly property real bounce: (0.22 + 0.78 * (w1 * 0.55 + w2 * 0.45)) * (0.35 + 0.85 * audioMix)
 
-                        height: Math.round(topArcBarsLayer.baseCoverH + topArcBarsLayer.maxExtraDrop * archFactor * bounce)
-                        bottomLeftRadius: width * 0.5
-                        bottomRightRadius: width * 0.5
+                        height: Math.round(topArcBarsLayer.baseCoverH + 2 + topArcBarsLayer.maxExtraDrop * archEnvelope * bounce)
                         color: (Theme && Theme.isRounded && Config)
-                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.72)
-                               : Qt.rgba(0.66, 0.78, 0.98, 0.72)
+                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.78)
+                               : Qt.rgba(0.66, 0.78, 0.98, 0.78)
                     }
                 }
             }
@@ -1357,33 +1355,35 @@ ApplicationWindow {
 
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
 
-                                // Режим 1: Столбики, скачущие внутри самой пилюли музыки
+                                // Режим 1: Столбики, скачущие внутри самой пилюли музыки (во всю ширину пилюли до боков)
                                 Row {
                                     id: insidePillEqRow
                                     z: 1
                                     visible: opacity > 0.01
-                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? 0.48 : 0.0
+                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? 0.50 : 0.0
                                     Behavior on opacity { NumberAnimation { duration: 200 } }
                                     anchors.bottom: parent.bottom
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                    spacing: 2
-                                    readonly property int barCnt: Math.max(4, Math.min(28, Math.floor((mediaPillBox.width - 8) / 4)))
+                                    anchors.left: parent.left
+                                    anchors.right: parent.right
+                                    anchors.leftMargin: 2
+                                    anchors.rightMargin: 2
+                                    spacing: 1
+                                    readonly property int barCnt: Math.max(6, Math.floor((mediaPillBox.width - 4) / 3))
 
                                     Repeater {
                                         model: insidePillEqRow.visible ? insidePillEqRow.barCnt : 0
                                         delegate: Rectangle {
-                                            width: 2.5
+                                            width: 2
+                                            radius: 0
                                             anchors.bottom: parent.bottom
-                                            topLeftRadius: 1.2
-                                            topRightRadius: 1.2
                                             readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
                                             readonly property real mLvl: Waybar ? Waybar.audioMid : 0.35
                                             readonly property real tLvl: Waybar ? Waybar.audioTreble : 0.3
                                             readonly property real eMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
-                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.8 + index * 0.9)
-                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 4.5 - index * 0.7)
+                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.8 + index * 0.75)
+                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 4.5 - index * 0.62)
                                             readonly property real amp: Math.min(1.0, (0.2 + 0.8 * (s1 * 0.55 + s2 * 0.45)) * (0.35 + 0.85 * eMix))
-                                            height: Math.max(2, Math.round(amp * (topBarContainer.pillHeight - 3)))
+                                            height: Math.max(2, Math.round(amp * (topBarContainer.pillHeight - 2)))
                                             color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#a8c7fa"
                                         }
                                     }
@@ -1651,28 +1651,33 @@ ApplicationWindow {
                 readonly property real leftEdge: leftBarRow.x + leftBarRow.width
                 readonly property real rightEdge: rightBarRow.x
                 readonly property real availGap: Math.max(0, rightEdge - leftEdge - 14)
+                readonly property real targetPillW: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode)
+                                                    ? Math.round(Math.min(availGap, Math.max(topBarContainer.editMode ? 110 : 0, root.winPillTargetW)))
+                                                    : 0
                 readonly property real minLeftX: leftEdge + 7
-                readonly property real maxRightX: Math.max(minLeftX, rightEdge - 7 - width)
-                readonly property real gapCenterX: leftEdge + (rightEdge - leftEdge - width) * 0.5
-                readonly property real trueCenterX: (parent.width - width) * 0.5
+                readonly property real maxRightX: Math.max(minLeftX, rightEdge - 7 - targetPillW)
+                readonly property real gapCenterX: leftEdge + (rightEdge - leftEdge - targetPillW) * 0.5
+                readonly property real trueCenterX: (parent.width - targetPillW) * 0.5
                 readonly property bool useBarCenter: Waybar ? Waybar.centerTitleOnBar : true
-                readonly property real targetCenterX: useBarCenter ? trueCenterX : gapCenterX
+                readonly property real targetCenterX: Math.round(Math.max(minLeftX, Math.min(maxRightX, useBarCenter ? trueCenterX : gapCenterX)))
+
                 visible: !root.isVertBar && !root.winInSideOrder && width > 0.5 && availGap > 24
                 opacity: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? 1.0 : 0.0
-                clip: !topBarContainer.editMode
-                width: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? Math.min(availGap, Math.max(topBarContainer.editMode ? 110 : 0, root.winPillTargetW)) : 0
+                clip: true
+                width: targetPillW
                 Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 160 } }
-                x: Math.round(Math.max(minLeftX, Math.min(maxRightX, targetCenterX)))
+                x: Math.round(targetCenterX + (targetPillW - width) * 0.5)
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
                 color: (root.hasWinTitle || topBarContainer.editMode) ? topBarContainer.pillColor : "transparent"
+
                 Text {
                     id: winLbl
-                    anchors.verticalCenter: parent.verticalCenter
-                    anchors.left: parent.left; anchors.right: parent.right
-                    anchors.leftMargin: 9; anchors.rightMargin: 9
+                    anchors.centerIn: parent
+                    // Фиксированная целевая ширина текста: elide считается ровно 1 раз при смене заголовка и не дергает текст во время анимации!
+                    width: Math.max(10, centerTitlePill.targetPillW - 18)
                     text: winTitleMeasure.text
                     color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"
                     font.pixelSize: 10

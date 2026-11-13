@@ -620,11 +620,16 @@ ApplicationWindow {
     readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !(root.drawerOpen && root.drawerMode === "settings") && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
     property real musicWaveAmp: musicWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
     Behavior on musicWaveAmp { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
+
+    readonly property bool drawerAnimSettled: root.drawerOpen && !openSeqAnim.running && !switchDrawerAnim.running && !closeSeqAnim.running && root.drawerProgress > 0.98
+    readonly property bool drawerWaveShouldRun: !root.isVertBar && root.barPos === 0 && drawerAnimSettled && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
+    property real drawerWaveAmp: drawerWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
+    Behavior on drawerWaveAmp { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
     NumberAnimation on musicWavePhase {
         from: 0.0; to: 62.831853
         duration: Math.max(4000, Math.round(18000 / (Waybar ? Waybar.mediaWaveSpeed : 1.5)))
         loops: Animation.Infinite
-        running: root.musicWaveAmp > 0.1
+        running: root.musicWaveAmp > 0.1 || root.drawerWaveAmp > 0.1
     }
 
     function handleExternalTrigger() {
@@ -817,6 +822,7 @@ ApplicationWindow {
             readonly property point effWaveMouse: (Waybar && Waybar.globalCursorPos.x > -100) ? Waybar.globalCursorPos : root.mousePos
             property vector4d u_music_wave: Qt.vector4d(effWaveMouse.x, effWaveMouse.y, root.musicWaveAmp, root.musicWavePhase)
             property vector4d u_music_wave2: Qt.vector4d(Waybar ? Waybar.mediaWaveCount : 95, Waybar ? Waybar.audioBass : 0.0, Waybar ? Waybar.audioMid : 0.0, Waybar ? Waybar.audioTreble : 0.0)
+            property real u_drawer_wave_amp: root.drawerWaveAmp
             fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
         }
 

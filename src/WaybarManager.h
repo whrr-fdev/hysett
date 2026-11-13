@@ -59,6 +59,10 @@ class WaybarManager : public QObject {
     Q_PROPERTY(qreal audioTreble READ audioTreble NOTIFY audioSpectrumChanged)
     Q_PROPERTY(QPointF globalCursorPos READ globalCursorPos NOTIFY cursorPosChanged)
     Q_PROPERTY(bool mediaCollapsed READ mediaCollapsed WRITE setMediaCollapsed NOTIFY stateChanged)
+    Q_PROPERTY(bool ymHasToken READ ymHasToken NOTIFY ymStateChanged)
+    Q_PROPERTY(bool ymBusy READ ymBusy NOTIFY ymStateChanged)
+    Q_PROPERTY(int ymProgress READ ymProgress NOTIFY ymStateChanged)
+    Q_PROPERTY(QString ymStatusText READ ymStatusText NOTIFY ymStateChanged)
 
     // Разделители и режим редактирования панели задач (Drag & Drop)
     Q_PROPERTY(bool barSeparators READ barSeparators WRITE setBarSeparators NOTIFY stateChanged)
@@ -217,6 +221,16 @@ public:
     bool mediaCollapsed() const { return m_mediaCollapsed; }
     void setMediaCollapsed(bool v);
     Q_INVOKABLE void toggleMediaCollapsed();
+    bool ymHasToken() const;
+    bool ymBusy() const { return m_ymBusy; }
+    int ymProgress() const { return m_ymProgress; }
+    QString ymStatusText() const { return m_ymStatusText; }
+    Q_INVOKABLE void saveYmToken(const QString &raw);
+    Q_INVOKABLE void openYmOAuth();
+    Q_INVOKABLE void syncYmPlaylists();
+    Q_INVOKABLE void downloadYmMyWave();
+    Q_INVOKABLE void stopYmSync();
+    Q_INVOKABLE void openYmMusicFolder();
     void setMediaHideTimeout(int sec);
     Q_INVOKABLE void toggleMediaDemo();
     Q_INVOKABLE void mediaPlayPause();
@@ -385,6 +399,7 @@ signals:
     void mediaChanged();
     void cursorPosChanged();
     void audioSpectrumChanged();
+    void ymStateChanged();
     void sysStatsChanged();
     void processesChanged();
     void audioChanged();
@@ -458,6 +473,9 @@ private:
     QPointF m_globalCursorPos = QPointF(-500, -500);
     QTimer *m_cursorPollTimer = nullptr;
     bool m_mediaCollapsed = false;
+    bool m_ymBusy = false;
+    int m_ymProgress = 0;
+    QString m_ymStatusText = "Готово к синхронизации (~/Music/YandexMusic)";
     int m_mediaPausedSec = 0;
 
     bool m_barSeparators = false;

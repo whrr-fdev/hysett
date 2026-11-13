@@ -30,6 +30,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 u_trail2;
     vec4 u_music_wave;
     vec4 u_music_wave2;
+    float u_drawer_wave_amp;
 };
 
 float sdRoundedBox(vec2 p, vec2 b, float r) {
@@ -52,19 +53,17 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
-// Вязкая ферромагнитная жидкость: реакция на реальные частоты музыки (Bass/Mid/Treble) + увеличение и растяжение под курсором
+// Вязкая ферромагнитная жидкость: реакция на реальные частоты музыки + точный фокус под курсором + волны снизу окна
 float ferroSpikeAmp(float k, float t, float magBoost) {
     float h1 = fract(sin(k * 127.1 + 1.9) * 43758.5453);
     float h2 = fract(sin(k * 269.5 + 7.3) * 18342.2317);
     float h3 = fract(sin(k * 419.2 + 3.1) * 91523.1143);
 
-    // Реальные уровни частот из PipeWire (Bass, Mid, Treble)
     float bass = u_music_wave2.y;
     float mid  = u_music_wave2.z;
     float treb = u_music_wave2.w;
     float hasRealAudio = clamp((bass + mid + treb) * 1.5, 0.0, 1.0);
 
-    // Каждая полоса k привязана к своей комбинации частот (НЧ бас / СЧ / ВЧ)
     float bandSelect = fract(k * 0.37 + h1);
     float audioEnergy = (bandSelect < 0.38)
                         ? (bass * 1.15 + mid * 0.25)
@@ -74,22 +73,17 @@ float ferroSpikeAmp(float k, float t, float magBoost) {
     float w2 = 0.5 + 0.5 * sin(t * (2.60 + h2 * 2.10) - h3 * 6.2831853);
     float procWave = pow(clamp(w1 * 0.54 + w2 * 0.46, 0.0, 1.0), 1.35);
 
-    // Когда идет реальный звук — высота пиков модулируется реальным басом и битом музыки!
     float musicMod = mix(procWave * 0.75, procWave * (0.18 + audioEnergy * 1.25), hasRealAudio);
-
-    // Под курсором мыши пики НЕ сдвигаются вбок, а сильно РАСТЯГИВАЮТСЯ вниз и увеличиваются!
-    float stretchedByMouse = mix(musicMod, max(musicMod, 0.65 + 0.35 * procWave), magBoost * 0.85) * (1.0 + magBoost * 1.35);
-    return clamp(stretchedByMouse, 0.0, 2.4);
+    // Симметричное увеличение от magBoost (evaluated strictly at the cell's own center)
+    return clamp(musicMod * (1.0 + magBoost * 0.95) + magBoost * 0.70, 0.0, 2.4);
 }
 
-// Профиль зубца: magBoost расширяет сам пик (делает его крупнее и шире), а в основании = 0
 float ferroToothProfile(float distFromCenter, float sharpness, float needleMix, float magBoost) {
-    // Под курсором мыши пик становится шире и массивнее (делим расстояние от центра на 1 + magBoost * 0.55)
-    float d = clamp(distFromCenter / (1.0 + magBoost * 0.55), 0.0, 1.0);
+    float d = clamp(distFromCenter / (1.0 + magBoost * 0.48), 0.0, 1.0);
     float drop = 1.0 / (1.0 + d * d * sharpness);
-    float needle = exp(-d * (4.6 + needleMix * 6.8));
+    float needle = exp(-d * (4.4 + needleMix * 6.2));
     float zeroAtBase = (1.0 - d * d) * (1.0 - d);
-    return clamp(mix(drop, needle, needleMix) * zeroAtBase * 1.16, 0.0, 1.0);
+    return clamp(mix(drop, needle, needleMix) * zeroAtBase * 1.14, 0.0, 1.0);
 }
 
 float smaxLiquid(float a, float b, float k) {
@@ -97,81 +91,98 @@ float smaxLiquid(float a, float b, float k) {
     return mix(b, a, h) + k * h * (1.0 - h);
 }
 
-float evalFerroCell(float k, float localF, float t, float magField) {
+float evalFerroCell(float k, float localF, float t, float cellMag) {
     float h1 = fract(sin(k * 91.7 + 0.3) * 19452.1);
     float h2 = fract(sin(k * 311.3 + 4.1) * 63819.7);
     float hSharp = fract(sin(k * 517.9 + 2.7) * 38192.3);
 
-    float amp = ferroSpikeAmp(k, t, magField);
-    float center = 0.5 + (h1 - 0.5) * 0.14 * sin(t * 1.2 + k);
+    float amp = ferroSpikeAmp(k, t, cellMag);
+    float center = 0.5 + (h1 - 0.5) * 0.12 * sin(t * 1.2 + k);
 
-    float needleMix = clamp(pow(hSharp, 0.75) * 0.88, 0.22, 0.96);
-    float sharpness = 13.0 + hSharp * 22.0;
+    float needleMix = clamp(pow(hSharp, 0.75) * 0.85, 0.22, 0.94);
+    float sharpness = 13.0 + hSharp * 20.0;
 
-    // Фаза раздваивания вершины (усиливается на ударах баса и при растяжении мышью)
     float bassHit = u_music_wave2.y;
-    float splitPhase = sin(t * (1.35 + h2 * 1.25) + h1 * 6.2831853) + bassHit * 0.45 + magField * 0.65;
-    float splitOffset = clamp((splitPhase - 0.18) * 0.26, 0.0, 0.21);
+    float splitPhase = sin(t * (1.35 + h2 * 1.25) + h1 * 6.2831853) + bassHit * 0.45 + cellMag * 0.60;
+    float splitOffset = clamp((splitPhase - 0.18) * 0.25, 0.0, 0.20);
 
     if (splitOffset > 0.015) {
         float dLeft  = abs(localF - (center - splitOffset)) * 2.15;
         float dRight = abs(localF - (center + splitOffset)) * 2.15;
-        float asym = 0.15 * sin(t * 2.5 + k * 1.9);
-        float pLeft  = amp * (0.94 + asym) * ferroToothProfile(dLeft, sharpness * 1.2, min(1.0, needleMix + 0.15), magField);
-        float pRight = amp * (0.94 - asym) * ferroToothProfile(dRight, sharpness * 1.2, min(1.0, needleMix + 0.15), magField);
+        float asym = 0.14 * sin(t * 2.5 + k * 1.9);
+        float pLeft  = amp * (0.94 + asym) * ferroToothProfile(dLeft, sharpness * 1.15, min(1.0, needleMix + 0.14), cellMag);
+        float pRight = amp * (0.94 - asym) * ferroToothProfile(dRight, sharpness * 1.15, min(1.0, needleMix + 0.14), cellMag);
         return smaxLiquid(pLeft, pRight, 0.08);
     } else {
         float dCenter = abs(localF - center) * 2.0;
-        return amp * ferroToothProfile(dCenter, sharpness, needleMix, magField);
+        return amp * ferroToothProfile(dCenter, sharpness, needleMix, cellMag);
     }
+}
+
+// Универсальная функция вычисления растяжения нижней границы для прямоугольника rect (панели задач или открытого окна)
+float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, bool maskDrawerOverlap) {
+    if (ampPx <= 0.05 || rect.z <= rect.w * 1.2) return 0.0;
+    // Растягиваем только нижнюю половину прямоугольника, чтобы верхние углы и стык оставались неподвижными
+    float bottomHalfMask = smoothstep(rect.y + rect.w * 0.35, rect.y + rect.w * 0.85, p.y);
+    if (bottomHalfMask <= 0.001) return 0.0;
+
+    float edgePad = max(14.0, edgeRad * 1.35);
+    float edgeFade = smoothstep(rect.x + edgePad * 0.4, rect.x + edgePad * 1.5, p.x) *
+                     smoothstep(rect.x + rect.z - edgePad * 0.4, rect.x + rect.z - edgePad * 1.5, p.x) * bottomHalfMask;
+
+    if (maskDrawerOverlap && u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0) {
+        float inDrwX = smoothstep(u_drawer_rect.x - 10.0, u_drawer_rect.x + 6.0, p.x) *
+                       smoothstep(u_drawer_rect.x + u_drawer_rect.z + 10.0, u_drawer_rect.x + u_drawer_rect.z - 6.0, p.x);
+        edgeFade *= (1.0 - inDrwX);
+    }
+    if (edgeFade <= 0.001) return 0.0;
+
+    float t = u_music_wave.w;
+    float bottomY = rect.y + rect.w;
+    vec2 mPos = u_music_wave.xy;
+
+    float totalCount = clamp(u_music_wave2.x, 20.0, 220.0);
+    float step1 = max(6.0, 1904.0 / totalCount);
+
+    // Без горизонтального сдвига от sin(), чтобы координаты пиков совпадали с экранным курсором мыши 1:1!
+    float relX1 = (p.x - rect.x) / step1;
+    float k1 = floor(relX1);
+    float f1 = fract(relX1);
+
+    float vertReach = 0.0;
+    if (mPos.x > 0.0 && mPos.y > -20.0) {
+        float dyM = abs(mPos.y - bottomY);
+        vertReach = exp(-(dyM * dyM) / (175.0 * 175.0));
+    }
+
+    // Вычисляем магнитное поле строго в центре каждой ячейки k, чтобы не было перекоса вправо!
+    float xCur  = rect.x + (k1 + 0.5) * step1;
+    float xPrev = rect.x + (k1 - 0.5) * step1;
+    float xNext = rect.x + (k1 + 1.5) * step1;
+
+    float magCur  = vertReach * exp(-((xCur  - mPos.x) * (xCur  - mPos.x)) / (52.0 * 52.0));
+    float magPrev = vertReach * exp(-((xPrev - mPos.x) * (xPrev - mPos.x)) / (52.0 * 52.0));
+    float magNext = vertReach * exp(-((xNext - mPos.x) * (xNext - mPos.x)) / (52.0 * 52.0));
+
+    float spikeCur  = evalFerroCell(k1, f1, t, magCur);
+    float spikePrev = evalFerroCell(k1 - 1.0, f1 + 1.0, t, magPrev);
+    float spikeNext = evalFerroCell(k1 + 1.0, f1 - 1.0, t, magNext);
+
+    float liquidProfile = smaxLiquid(spikeCur, max(spikePrev, spikeNext), 0.07);
+
+    // Центральный пик-аттрактор строго под кончиком курсора мыши (p.x == mPos.x), чтобы максимум всегда был ровно под курсором!
+    if (vertReach > 0.01) {
+        float dMouseCenter = abs(p.x - mPos.x) / (step1 * 0.68);
+        float cursorSpike = vertReach * 1.55 * ferroToothProfile(dMouseCenter, 16.0, 0.78, vertReach);
+        liquidProfile = smaxLiquid(liquidProfile, cursorSpike, 0.10);
+    }
+
+    return ampPx * edgeFade * clamp(liquidProfile, 0.0, 2.35);
 }
 
 float sceneSdf(vec2 p, out float outNotifBlend) {
     outNotifBlend = 0.0;
-    float waveStretch = 0.0;
-    if (u_music_wave.z > 0.05 && u_bar_rect.z > u_bar_rect.w * 1.5) {
-        float edgePad = max(14.0, u_radius * 1.35);
-        float edgeFade = smoothstep(u_bar_rect.x + edgePad * 0.4, u_bar_rect.x + edgePad * 1.5, p.x) *
-                         smoothstep(u_bar_rect.x + u_bar_rect.z - edgePad * 0.4, u_bar_rect.x + u_bar_rect.z - edgePad * 1.5, p.x);
-
-        float drawerOverlapMask = 1.0;
-        if (u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0) {
-            float inDrwX = smoothstep(u_drawer_rect.x - 10.0, u_drawer_rect.x + 6.0, p.x) *
-                           smoothstep(u_drawer_rect.x + u_drawer_rect.z + 10.0, u_drawer_rect.x + u_drawer_rect.z - 6.0, p.x);
-            drawerOverlapMask = 1.0 - inDrwX;
-        }
-        edgeFade *= drawerOverlapMask;
-
-        if (edgeFade > 0.001) {
-            float t = u_music_wave.w;
-            float barBottomY = u_bar_rect.y + u_bar_rect.w;
-
-            // Влияние курсора мыши: БЕЗ горизонтального сдвига/уплотнения, только увеличение и растяжение самих волн вниз!
-            vec2 mPos = u_music_wave.xy;
-            float magField = 0.0;
-            if (mPos.x > 0.0 && mPos.y > -20.0) {
-                float dxM = p.x - mPos.x;
-                float dyM = max(0.0, abs(mPos.y - barBottomY));
-                float vertReach = exp(-(dyM * dyM) / (175.0 * 175.0));
-                magField = exp(-(dxM * dxM) / (110.0 * 110.0)) * vertReach;
-            }
-
-            float waveCount = clamp(u_music_wave2.x, 20.0, 220.0);
-            float step1 = max(6.0, u_bar_rect.z / waveCount);
-            float xCoord = (p.x - u_bar_rect.x) + 2.2 * sin((p.x - u_bar_rect.x) * 0.018 + t * 0.75);
-
-            float relX1 = xCoord / step1;
-            float k1 = floor(relX1);
-            float f1 = fract(relX1);
-
-            float spikeCur  = evalFerroCell(k1, f1, t, magField);
-            float spikePrev = evalFerroCell(k1 - 1.0, f1 + 1.0, t, magField);
-            float spikeNext = evalFerroCell(k1 + 1.0, f1 - 1.0, t, magField);
-
-            float liquidProfile = smaxLiquid(spikeCur, max(spikePrev, spikeNext), 0.06);
-            waveStretch = u_music_wave.z * edgeFade * clamp(liquidProfile, 0.0, 2.35);
-        }
-    }
+    float waveStretch = computeFerroStretchForRect(p, u_bar_rect, u_music_wave.z, u_radius, true);
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);
     vec2 bHalf = 0.5 * bSize;
     vec2 bCenter = vec2(u_bar_rect.x + bHalf.x, u_bar_rect.y + bHalf.y);
@@ -179,9 +190,11 @@ float sceneSdf(vec2 p, out float outNotifBlend) {
     float d = dBar;
 
     if (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) {
-        vec2 dHalf = 0.5 * u_drawer_rect.zw;
-        vec2 dCenter = u_drawer_rect.xy + dHalf;
         float rDrw = u_radius * 1.35;
+        float drwWaveStretch = computeFerroStretchForRect(p, u_drawer_rect, u_drawer_wave_amp, rDrw, false);
+        vec2 dSize = vec2(u_drawer_rect.z, u_drawer_rect.w + drwWaveStretch);
+        vec2 dHalf = 0.5 * dSize;
+        vec2 dCenter = vec2(u_drawer_rect.x + dHalf.x, u_drawer_rect.y + dHalf.y);
         float dDrw = sdRoundedBox(p - dCenter, dHalf, rDrw);
 
         bool isVertBar = (u_bar_rect.w > u_bar_rect.z * 1.5);
@@ -247,11 +260,13 @@ void main() {
 
     float notifBlend = 0.0;
     float d = sceneSdf(p, notifBlend);
-    float mask = 1.0 - smoothstep(-0.6, 0.6, d);
+    float gradLen = clamp(length(vec2(dFdx(d), dFdy(d))), 1.0, 6.0);
+    float trueD = d / gradLen;
+    float mask = 1.0 - smoothstep(-0.75, 0.75, trueD);
     if (mask <= 0.001) { fragColor = vec4(0.0); return; }
 
-    float distInward = max(0.0, -d);
-    float outlineMask = exp(-distInward * 1.65);
+    float distInward = max(0.0, -trueD);
+    float outlineMask = exp(-distInward * 1.55);
 
     float drwMix = clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 160.0, 0.0, 1.0);
     vec4 shellFill = vec4(u_bg_color.rgb, mix(u_bar_alpha, u_bg_color.a, drwMix));

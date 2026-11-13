@@ -326,6 +326,129 @@ ScrollView {
                     }
                 }
             }
+
+            // Карточка синхронизации плейлистов Яндекс.Музыки и скачивания "Моей волны"
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
+                implicitHeight: ymCol.implicitHeight + 28
+
+                ColumnLayout {
+                    id: ymCol
+                    anchors.fill: parent
+                    anchors.margins: 14
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "󰓇  Синхронизация Яндекс.Музыки и «Моя волна»"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize + 1
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+                        StyledButton {
+                            text: "󰉋 Папка музыки"
+                            implicitHeight: 24
+                            onClicked: if (Waybar) Waybar.openYmMusicFolder()
+                        }
+                        StyledButton {
+                            text: "󰌇 Получить токен"
+                            implicitHeight: 24
+                            onClicked: if (Waybar) Waybar.openYmOAuth()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        TextField {
+                            id: ymTokenField
+                            Layout.fillWidth: true
+                            implicitHeight: 28
+                            leftPadding: 10; rightPadding: 10
+                            echoMode: TextInput.Password
+                            color: "#ffffff"
+                            font.pixelSize: 11
+                            placeholderText: (Waybar && Waybar.ymHasToken) ? "OAuth-токен сохранен (вставьте новый для замены)..." : "Вставьте OAuth-токен или ссылку после авторизации..."
+                            placeholderTextColor: (Waybar && Waybar.ymHasToken) ? "#69f0ae" : "#777777"
+                            background: Rectangle {
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.06)
+                                border.color: Qt.rgba(1, 1, 1, 0.16)
+                                border.width: (Theme && Theme.isRounded) ? 0 : 1
+                            }
+                        }
+                        StyledButton {
+                            text: "Сохранить"
+                            implicitHeight: 28
+                            onClicked: {
+                                if (Waybar && ymTokenField.text.trim().length > 0) {
+                                    Waybar.saveYmToken(ymTokenField.text.trim())
+                                    ymTokenField.text = ""
+                                }
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        StyledButton {
+                            Layout.fillWidth: true
+                            implicitHeight: 30
+                            isActive: Waybar && Waybar.ymBusy
+                            text: (Waybar && Waybar.ymBusy)
+                                  ? ("󰑐 Синхронизация... " + Waybar.ymProgress + "%")
+                                  : "󰑐 Синхронизировать плейлисты (новые треки)"
+                            enabled: !(Waybar && Waybar.ymBusy)
+                            onClicked: if (Waybar) Waybar.syncYmPlaylists()
+                        }
+
+                        StyledButton {
+                            Layout.fillWidth: true
+                            implicitHeight: 30
+                            text: "󰎆 Скачать пачку из «Моей волны» (20 тр.)"
+                            enabled: !(Waybar && Waybar.ymBusy)
+                            onClicked: if (Waybar) Waybar.downloadYmMyWave()
+                        }
+
+                        StyledButton {
+                            visible: Waybar && Waybar.ymBusy
+                            text: "󰅖 Стоп"
+                            implicitHeight: 30
+                            onClicked: if (Waybar) Waybar.stopYmSync()
+                        }
+                    }
+
+                    Rectangle {
+                        visible: Waybar && Waybar.ymBusy
+                        Layout.fillWidth: true
+                        height: 5
+                        radius: 2.5
+                        color: Qt.rgba(1, 1, 1, 0.10)
+                        clip: true
+                        Rectangle {
+                            width: parent.width * Math.max(0.05, Math.min(1.0, (Waybar ? Waybar.ymProgress : 0) / 100.0))
+                            height: parent.height
+                            radius: parent.radius
+                            color: Config ? Config.m3Primary : "#69f0ae"
+                            Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: Waybar ? Waybar.ymStatusText : ""
+                        color: "#aaaaaa"
+                        font.pixelSize: Config.fontSize - 1
+                        elide: Text.ElideRight
+                    }
+                }
+            }
         }
     }
 }

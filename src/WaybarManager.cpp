@@ -434,6 +434,22 @@ void WaybarManager::pollSysStats() {
             }
         }
     }
+    if (m_ymBusy) {
+        QFile ymf("/tmp/hysett_ym_progress.json");
+        if (ymf.open(QIODevice::ReadOnly)) {
+            QJsonObject yo = QJsonDocument::fromJson(ymf.readAll()).object();
+            ymf.close();
+            bool b = yo["busy"].toBool(m_ymBusy);
+            int p = yo["percent"].toInt(m_ymProgress);
+            QString t = yo["text"].toString(m_ymStatusText);
+            if (b != m_ymBusy || p != m_ymProgress || t != m_ymStatusText) {
+                m_ymBusy = b;
+                m_ymProgress = p;
+                m_ymStatusText = t;
+                emit ymStateChanged();
+            }
+        }
+    }
     if (m_vpnBusy) {
         QFile pf("/tmp/hysett_vpn_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1110,6 +1126,79 @@ void WaybarManager::setMediaCollapsed(bool v) {
         m_mediaCollapsed = v;
         saveState(false);
     }
+}
+
+bool WaybarManager::ymHasToken() const {
+    QFile f(QDir::homePath() + "/.config/hysett_ym_token.txt");
+    return f.exists() && f.size() > 8;
+}
+
+void WaybarManager::saveYmToken(const QString &raw) {
+    QProcess::execute("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "save_token", raw.trimmed()});
+    m_ymStatusText = ymHasToken() ? "Токен сохранен ✓ Нажмите «Синхронизировать» или «Моя волна»" : "Токен не задан";
+    emit ymStateChanged();
+}
+
+void WaybarManager::openYmOAuth() {
+    QProcess::startDetached("xdg-open", {"https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d"});
+}
+
+void WaybarManager::openYmMusicFolder() {
+    QString dir = QDir::homePath() + "/Music/YandexMusic";
+    QDir().mkpath(dir);
+    QProcess::startDetached("xdg-open", {dir});
+}
+
+void WaybarManager::syncYmPlaylists() {
+    if (m_ymBusy) return;
+    m_ymBusy = true;
+    m_ymProgress = 5;
+    m_ymStatusText = "Запуск синхронизации плейлистов Яндекс.Музыки...";
+    emit ymStateChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        p->deleteLater();
+        QFile ymf("/tmp/hysett_ym_progress.json");
+        if (ymf.open(QIODevice::ReadOnly)) {
+            QJsonObject yo = QJsonDocument::fromJson(ymf.readAll()).object();
+            m_ymStatusText = yo["text"].toString(m_ymStatusText);
+            m_ymProgress = yo["percent"].toInt(100);
+            ymf.close();
+        }
+        m_ymBusy = false;
+        emit ymStateChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "sync"});
+}
+
+void WaybarManager::downloadYmMyWave() {
+    if (m_ymBusy) return;
+    m_ymBusy = true;
+    m_ymProgress = 5;
+    m_ymStatusText = "Скачивание пачки треков из «Моей волны»...";
+    emit ymStateChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        p->deleteLater();
+        QFile ymf("/tmp/hysett_ym_progress.json");
+        if (ymf.open(QIODevice::ReadOnly)) {
+            QJsonObject yo = QJsonDocument::fromJson(ymf.readAll()).object();
+            m_ymStatusText = yo["text"].toString(m_ymStatusText);
+            m_ymProgress = yo["percent"].toInt(100);
+            ymf.close();
+        }
+        m_ymBusy = false;
+        emit ymStateChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "my_wave"});
+}
+
+void WaybarManager::stopYmSync() {
+    QProcess::execute("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "stop"});
+    QProcess::execute("pkill", {"-f", "ym_sync.py"});
+    m_ymBusy = false;
+    m_ymStatusText = "Синхронизация остановлена";
+    emit ymStateChanged();
 }
 
 void WaybarManager::toggleMediaCollapsed() {

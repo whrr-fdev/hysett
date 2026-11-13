@@ -153,6 +153,7 @@ def format_track_meta(tr):
 def rebuild_local_index():
     os.makedirs(MUSIC_DIR, exist_ok=True)
     os.makedirs(COVERS_DIR, exist_ok=True)
+    os.makedirs(os.path.join(MUSIC_DIR, "Открытые"), exist_ok=True)
     db_obj = load_db()
     tmeta = db_obj.get("track_meta", {})
 
@@ -168,8 +169,8 @@ def rebuild_local_index():
         if os.path.isdir(fp):
             dirs.append(d)
 
-    # Приоритетный порядок: Мне нравится, Моя волна, затем остальные
-    priority = {"Мне нравится": 0, "Моя волна": 1, "Скрытые": 999}
+    # Приоритетный порядок: Мне нравится, Открытые, затем остальные и Скрытые
+    priority = {"Мне нравится": 0, "Открытые": 1, "Скрытые": 999}
     dirs.sort(key=lambda x: (priority.get(x, 10), x.lower()))
 
     for d in dirs:
@@ -194,7 +195,7 @@ def rebuild_local_index():
                 ordered_files.append(f)
                 seen.add(f)
 
-        if not ordered_files:
+        if not ordered_files and d != "Открытые":
             continue
 
         tracks_out = []

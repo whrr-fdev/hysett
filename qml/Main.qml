@@ -1531,7 +1531,7 @@ ApplicationWindow {
 
                                     Item {
                                         id: mediaTitleBox
-                                        readonly property string trackStr: (Config && Config.musicPrivacyMode) ? "Скрыто" : (Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер")
+                                        readonly property string trackStr: ((Config && Config.musicPrivacyMode) && !(Waybar && Waybar.currentTrackPublic)) ? "Плеер" : (Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер")
                                         readonly property int maxTitleW: (!root.hasWinTitle && !root.isFixedTitle) ? 210 : 90
                                         property real trackAnimY: 0.0
                                         property real trackAnimOp: 1.0

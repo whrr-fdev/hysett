@@ -2827,6 +2827,8 @@ void WaybarManager::setYmSelectedPlaylist(int idx) {
 }
 
 void WaybarManager::loadYmIndexFromDisk() {
+    QString openDirPath = QDir::homePath() + "/Music/YandexMusic/Открытые";
+    QDir().mkpath(openDirPath);
     QVariantList nextPls;
     QFile f(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
     if (f.open(QIODevice::ReadOnly)) {
@@ -2869,6 +2871,22 @@ void WaybarManager::loadYmIndexFromDisk() {
                 nextPls.append(pm);
             }
         }
+    }
+    bool hasOpenPl = false;
+    int hiddenIdx = -1;
+    for (int i = 0; i < nextPls.size(); ++i) {
+        QString t = nextPls[i].toMap()["title"].toString();
+        if (t == "Открытые") hasOpenPl = true;
+        if (t == "Скрытые") hiddenIdx = i;
+    }
+    if (!hasOpenPl) {
+        QVariantMap op;
+        op["title"] = "Открытые";
+        op["folder"] = openDirPath;
+        op["count"] = 0;
+        op["tracks"] = QVariantList();
+        if (hiddenIdx >= 0) nextPls.insert(hiddenIdx, op);
+        else nextPls.append(op);
     }
     if (!nextPls.isEmpty() && m_ymPlaylists != nextPls) {
         m_ymPlaylists = nextPls;
@@ -3111,10 +3129,10 @@ void WaybarManager::deleteYmTrack(int playlistIdx, int trackIdx) {
     QString hiddenDir = QDir::homePath() + "/Music/YandexMusic/Скрытые";
     QString originsFile = hiddenDir + "/.origins.json";
 
-    if (plTitle == "Скрытые") {
-        // Если удаляем уже из «Скрытых» — удаляем файл с диска окончательно
+    if (plTitle == "Скрытые" || plTitle == "Открытые") {
+        // Из «Скрытые» и «Открытые» удаляем файл из соответствующей папки без переноса
         if (!srcPath.isEmpty() && QFile::exists(srcPath)) QFile::remove(srcPath);
-        if (trs.isEmpty()) {
+        if (plTitle == "Скрытые" && trs.isEmpty()) {
             m_ymPlaylists.removeAt(playlistIdx);
             if (m_ymSelectedPlaylist >= m_ymPlaylists.size())
                 m_ymSelectedPlaylist = std::max(0, int(m_ymPlaylists.size()) - 1);
@@ -3167,6 +3185,7 @@ void WaybarManager::deleteYmTrack(int playlistIdx, int trackIdx) {
 
     saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
     emit ymLibraryChanged();
+    emit mediaChanged();
 }
 
 void WaybarManager::restoreYmTrack(int playlistIdx, int trackIdx) {
@@ -3258,6 +3277,11 @@ bool WaybarManager::isTrackInPlaylist(const QString &fullTitle, const QString &p
         }
     }
     return false;
+}
+
+bool WaybarManager::isCurrentTrackPublic() const {
+    if (m_currentLocalTrackPath.contains("/Открытые/")) return true;
+    return isTrackInPlaylist(mediaTitle(), "Открытые");
 }
 
 void WaybarManager::copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle) {

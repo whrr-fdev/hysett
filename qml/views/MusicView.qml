@@ -10,14 +10,45 @@ Item {
     property var winObj: ApplicationWindow.window
     readonly property bool isM3: Theme && Theme.isRounded
     readonly property bool isPrivacyHidden: Config ? Config.musicPrivacyMode : false
-    onIsPrivacyHiddenChanged: {
-        if (isPrivacyHidden) addPlaylistPopupOpen = false
-        if (Waybar) {
-            curDispTitle = isPrivacyHidden ? "Музыка скрыта" : (Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»")
-            curDispArtist = isPrivacyHidden ? "" : Waybar.mediaTrackArtist
-            prevDispTitle = ""
-            prevDispArtist = ""
+    readonly property bool hideActiveTrack: isPrivacyHidden && !(Waybar && Waybar.currentTrackPublic)
+
+    function ensurePublicPlaylistSelected() {
+        if (!Waybar || !Waybar.ymPlaylists) return
+        if (isPrivacyHidden) {
+            for (var i = 0; i < Waybar.ymPlaylists.length; ++i) {
+                if (Waybar.ymPlaylists[i].title === "Открытые") {
+                    if (Waybar.ymSelectedPlaylist !== i) Waybar.ymSelectedPlaylist = i
+                    break
+                }
+            }
         }
+    }
+
+    function syncActiveTrackText() {
+        if (!Waybar) return
+        if (hideActiveTrack) {
+            curDispTitle = Waybar.mediaPlaying ? "Плеер" : "Выберите трек"
+            curDispArtist = ""
+        } else {
+            curDispTitle = Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек"
+            curDispArtist = Waybar.mediaTrackArtist
+        }
+    }
+
+    onIsPrivacyHiddenChanged: {
+        if (isPrivacyHidden) {
+            addPlaylistPopupOpen = false
+            ensurePublicPlaylistSelected()
+        }
+        prevDispTitle = ""
+        prevDispArtist = ""
+        syncActiveTrackText()
+        Qt.callLater(() => trackListContainer.rebuildTrackModel())
+    }
+    onHideActiveTrackChanged: {
+        prevDispTitle = ""
+        prevDispArtist = ""
+        syncActiveTrackText()
     }
     property string trackSearchQuery: ""
     onTrackSearchQueryChanged: trackListContainer.rebuildTrackModel()
@@ -78,6 +109,7 @@ Item {
         target: Waybar
         function onYmLibraryChanged() {
             musicRoot.libraryVersion++
+            musicRoot.ensurePublicPlaylistSelected()
             trackListContainer.rebuildTrackModel()
         }
         function onYmFavoritesChanged() {
@@ -89,8 +121,10 @@ Item {
         function onMediaChanged() {
             if (!Waybar) return
             var newKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
-            var newTitle = musicRoot.isPrivacyHidden ? "Музыка скрыта" : (Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»")
-            var newArtist = musicRoot.isPrivacyHidden ? "" : Waybar.mediaTrackArtist
+            var newTitle = musicRoot.hideActiveTrack
+                           ? (Waybar.mediaPlaying ? "Плеер" : "Выберите трек")
+                           : (Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек")
+            var newArtist = musicRoot.hideActiveTrack ? "" : Waybar.mediaTrackArtist
             if (musicRoot.lastAnimTrackKey === "") {
                 musicRoot.lastAnimTrackKey = newKey
                 musicRoot.curDispTitle = newTitle
@@ -115,8 +149,8 @@ Item {
         if (visible) Qt.callLater(() => subSidebar.playStaircase())
         if (Waybar) {
             lastAnimTrackKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
-            curDispTitle = Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»"
-            curDispArtist = Waybar.mediaTrackArtist
+            ensurePublicPlaylistSelected()
+            syncActiveTrackText()
             Waybar.refreshYmLibrary()
         }
         Qt.callLater(() => trackListContainer.rebuildTrackModel())
@@ -129,8 +163,8 @@ Item {
             if (Waybar && Waybar.ymPlaylists.length === 0) Waybar.refreshYmLibrary()
             else if (trackListModel.count === 0) Qt.callLater(() => trackListContainer.rebuildTrackModel())
             if (Waybar) {
-                curDispTitle = Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»"
-                curDispArtist = Waybar.mediaTrackArtist
+                ensurePublicPlaylistSelected()
+                syncActiveTrackText()
                 lastAnimTrackKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
             }
         }
@@ -456,12 +490,15 @@ Item {
                             titleText: "Музыкальный плеер и плейлисты"
                         }
                         StyledButton {
-                            text: musicRoot.isPrivacyHidden ? "󰈉 Показать" : "󰈈 Скрыть"
+                            text: musicRoot.isPrivacyHidden ? "󰈉" : "󰈈"
+                            isIconOnly: true
+                            implicitWidth: 28
                             implicitHeight: 26
                             isActive: musicRoot.isPrivacyHidden
                             onClicked: if (Config) Config.musicPrivacyMode = !Config.musicPrivacyMode
                         }
                         StyledButton {
+                            visible: !musicRoot.isPrivacyHidden
                             text: "󰓇 Моя волна"
                             implicitHeight: 26
                             onClicked: if (Waybar) Waybar.playYmMyWave()
@@ -513,7 +550,7 @@ Item {
                                         id: activeCoverImg
                                         anchors.fill: parent
                                         anchors.margins: 1
-                                        visible: !musicRoot.isPrivacyHidden && status === Image.Ready && (Waybar && Waybar.mediaCoverPath.length > 0)
+                                        visible: !musicRoot.hideActiveTrack && status === Image.Ready && (Waybar && Waybar.mediaCoverPath.length > 0)
                                         source: (Waybar && Waybar.mediaCoverPath.length > 0) ? ("file://" + Waybar.mediaCoverPath) : ""
                                         sourceSize: Qt.size(264, 264)
                                         fillMode: Image.PreserveAspectCrop
@@ -532,7 +569,7 @@ Item {
                                     Text {
                                         visible: !activeCoverImg.visible
                                         anchors.centerIn: parent
-                                        text: musicRoot.isPrivacyHidden ? "󰈉" : "󰎆"
+                                        text: "󰎆"
                                         font.pixelSize: 48
                                         color: Config ? Config.m3Primary : "#ffffff"
                                     }
@@ -593,11 +630,11 @@ Item {
                                     Text {
                                         Layout.fillWidth: true
                                         horizontalAlignment: Text.AlignHCenter
-                                        text: musicRoot.isPrivacyHidden
-                                              ? "Музыка скрыта"
+                                        text: musicRoot.hideActiveTrack
+                                              ? (Waybar && Waybar.mediaPlaying ? "Плеер" : "Выберите трек")
                                               : (musicRoot.curDispTitle.length > 0
                                                  ? musicRoot.curDispTitle
-                                                 : ((Waybar && Waybar.mediaTrackTitle.length > 0) ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»"))
+                                                 : ((Waybar && Waybar.mediaTrackTitle.length > 0) ? Waybar.mediaTrackTitle : "Выберите трек"))
                                         color: "#ffffff"
                                         font.pixelSize: Config.fontSize + 4
                                         font.bold: true
@@ -609,7 +646,7 @@ Item {
                                         spacing: 6
 
                                         Text {
-                                            visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTrackArtist.length > 0
+                                            visible: !musicRoot.hideActiveTrack && Waybar && Waybar.mediaTrackArtist.length > 0
                                             text: "󰀄"
                                             color: Config ? Config.m3Primary : "#cccccc"
                                             font.pixelSize: Config.fontSize
@@ -617,7 +654,7 @@ Item {
                                         }
 
                                         Text {
-                                            visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTrackArtist.length > 0
+                                            visible: !musicRoot.hideActiveTrack && Waybar && Waybar.mediaTrackArtist.length > 0
                                             text: Waybar ? Waybar.mediaTrackArtist : ""
                                             color: "#cccccc"
                                             font.pixelSize: Config.fontSize
@@ -629,7 +666,7 @@ Item {
                                         Text {
                                             text: {
                                                 if (!Waybar) return ""
-                                                var prefix = (!musicRoot.isPrivacyHidden && Waybar.mediaTrackArtist.length > 0) ? "•  " : ""
+                                                var prefix = (!musicRoot.hideActiveTrack && Waybar.mediaTrackArtist.length > 0) ? "•  " : ""
                                                 if (Waybar.mediaDemoMode && !Waybar.hasRealMedia) return prefix + "Демо-режим"
                                                 return prefix + (Waybar.mediaPlaying ? "Воспроизводится" : "На паузе")
                                             }
@@ -736,50 +773,10 @@ Item {
                         Layout.fillWidth: true
                         Layout.fillHeight: true
 
-                        // Заглушка приватного режима вместо списка треков и плейлистов
-                        ColumnLayout {
-                            anchors.centerIn: parent
-                            spacing: 10
-                            visible: opacity > 0.01
-                            opacity: musicRoot.isPrivacyHidden ? 1.0 : 0.0
-                            Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: "󰈉"
-                                font.pixelSize: 40
-                                color: Config ? Config.m3Primary : "#ffffff"
-                            }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: "Треки и плейлисты скрыты"
-                                color: "#ffffff"
-                                font.pixelSize: Config.fontSize + 2
-                                font.bold: true
-                            }
-                            Text {
-                                Layout.alignment: Qt.AlignHCenter
-                                text: "Включён приватный режим. Все названия и личные подборки спрятаны."
-                                color: "#888888"
-                                font.pixelSize: Config.fontSize - 1
-                            }
-                            StyledButton {
-                                Layout.alignment: Qt.AlignHCenter
-                                Layout.topMargin: 4
-                                text: "󰈈 Показать плейлисты"
-                                isActive: true
-                                onClicked: if (Config) Config.musicPrivacyMode = false
-                            }
-                        }
-
                         ColumnLayout {
                             anchors.fill: parent
                             anchors.margins: 14
                             spacing: 8
-                            visible: opacity > 0.01
-                            enabled: !musicRoot.isPrivacyHidden
-                            opacity: musicRoot.isPrivacyHidden ? 0.0 : 1.0
-                            Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -838,6 +835,7 @@ Item {
                                             model: Waybar ? Waybar.ymPlaylists : []
                                             delegate: Item {
                                                 id: plBtn
+                                                visible: !musicRoot.isPrivacyHidden || modelData.title === "Открытые"
                                                 width: plBtnRow.implicitWidth + 22
                                                 height: 28
                                                 readonly property bool isSel: Waybar ? (Waybar.ymSelectedPlaylist === index) : (index === 0)
@@ -1019,6 +1017,7 @@ Item {
                                     var savedY = tracksListView.contentY
                                     trackListModel.clear()
                                     if (!currentPlaylistObj || !currentPlaylistObj.tracks) return
+                                    if (musicRoot.isPrivacyHidden && currentPlaylistObj.title !== "Открытые") return
                                     var raw = currentPlaylistObj.tracks
                                     var q = musicRoot.trackSearchQuery.trim().toLowerCase()
                                     for (var i = 0; i < raw.length; ++i) {
@@ -1077,14 +1076,16 @@ Item {
                                         spacing: 8
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: (Waybar && Waybar.ymPlaylists.length === 0)
-                                                  ? "Плейлисты еще не загружены в ~/Music/YandexMusic"
-                                                  : "Треки по запросу не найдены"
+                                            text: (trackListContainer.currentPlaylistObj && trackListContainer.currentPlaylistObj.count === 0 && musicRoot.trackSearchQuery.trim().length === 0)
+                                                  ? ("Плейлист «" + trackListContainer.currentPlaylistObj.title + "» пока пуст")
+                                                  : ((Waybar && Waybar.ymPlaylists.length === 0)
+                                                     ? "Плейлисты еще не загружены в ~/Music/YandexMusic"
+                                                     : "Треки по запросу не найдены")
                                             color: "#888888"
                                             font.pixelSize: Config.fontSize
                                         }
                                         Row {
-                                            visible: Waybar && Waybar.ymPlaylists.length === 0
+                                            visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.ymPlaylists.length === 0
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             spacing: 8
                                             StyledButton {
@@ -1280,7 +1281,7 @@ Item {
 
                                                 // Сердечко:  (пустое) для не в избранном,  (залитое) для избранного
                                                 StyledButton {
-                                                    visible: !trackListContainer.isHiddenPlaylist
+                                                    visible: !musicRoot.isPrivacyHidden && !trackListContainer.isHiddenPlaylist
                                                     text: trRow.isInFav ? "󰋑" : "󰋕"
                                                     isIconOnly: true
                                                     isActive: trRow.isInFav
@@ -1298,7 +1299,7 @@ Item {
 
                                                 // Кнопка «Добавить в плейлист»
                                                 StyledButton {
-                                                    visible: !trackListContainer.isHiddenPlaylist
+                                                    visible: !musicRoot.isPrivacyHidden && !trackListContainer.isHiddenPlaylist
                                                     text: "󰲸"
                                                     isIconOnly: true
                                                     implicitWidth: 26; implicitHeight: 24
@@ -1550,7 +1551,7 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "Скрыть треки, плейлисты и названия (приватный режим):"
+                                        text: "Показывать только плейлист «Открытые»:"
                                         color: "#cccccc"
                                         font.pixelSize: Config.fontSize
                                         Layout.fillWidth: true
@@ -1823,7 +1824,7 @@ Item {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: musicRoot.isPrivacyHidden ? "Статус загрузки скрыт (приватный режим)" : (Waybar ? Waybar.ymStatusText : "")
+                                    text: musicRoot.isPrivacyHidden ? "Готово" : (Waybar ? Waybar.ymStatusText : "")
                                     color: "#aaaaaa"
                                     font.pixelSize: Config.fontSize - 1
                                     elide: Text.ElideRight

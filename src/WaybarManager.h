@@ -86,6 +86,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool ymShuffle READ ymShuffle WRITE setYmShuffle NOTIFY stateChanged)
     Q_PROPERTY(QString mediaCoverPath READ mediaCoverPath NOTIFY mediaChanged)
     Q_PROPERTY(QString currentLocalTrackPath READ currentLocalTrackPath NOTIFY mediaChanged)
+    Q_PROPERTY(bool currentTrackPublic READ isCurrentTrackPublic NOTIFY mediaChanged)
 
     // Разделители и режим редактирования панели задач (Drag & Drop)
     Q_PROPERTY(bool barSeparators READ barSeparators WRITE setBarSeparators NOTIFY stateChanged)
@@ -297,6 +298,7 @@ public:
     Q_INVOKABLE void copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle);
     Q_INVOKABLE bool toggleYmFavorite(const QString &trackPath, const QString &fullTitle);
     Q_INVOKABLE bool isTrackInPlaylist(const QString &fullTitle, const QString &playlistTitle) const;
+    Q_INVOKABLE bool isCurrentTrackPublic() const;
     Q_INVOKABLE void playYmMyWave();
     Q_INVOKABLE void saveYmToken(const QString &raw);
     Q_INVOKABLE void openYmOAuth();

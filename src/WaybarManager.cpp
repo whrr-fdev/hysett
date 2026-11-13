@@ -1,3 +1,4 @@
+static qint64 m_vpnStartGraceUntilMs = 0;
 #include <QPointer>
 #include "WaybarManager.h"
 #include <QDir>
@@ -1571,6 +1572,9 @@ void WaybarManager::pollFastState() {
         QString out = QString::fromUtf8(vp->readAllStandardOutput()).trimmed();
         vp->deleteLater();
         bool isVpnOn = (code == 0 && !out.isEmpty());
+        if (!isVpnOn && m_vpnWantedEnabled && QDateTime::currentMSecsSinceEpoch() < m_vpnStartGraceUntilMs) {
+            isVpnOn = true;
+        }
         if (m_vpnActive != isVpnOn) {
             m_vpnActive = isVpnOn;
             emit sysStatsChanged();
@@ -2139,11 +2143,13 @@ void WaybarManager::toggleVpnForMode(bool isWl) {
     QString script = QDir::homePath() + "/hysett/scripts/hysett_vpn.py";
     if (m_vpnActive && m_vpnActiveIsWl == isWl) {
         m_vpnWantedEnabled = false;
+        m_vpnStartGraceUntilMs = 0;
         m_vpnActive = false;
         QProcess::startDetached("/usr/bin/python3", {script, "stop"});
         QProcess::startDetached("pkill", {"-f", "sing-box.*singbox_vpn.json"});
     } else {
         m_vpnWantedEnabled = true;
+        m_vpnStartGraceUntilMs = QDateTime::currentMSecsSinceEpoch() + 6000;
         m_vpnActive = true;
         m_vpnActiveIsWl = isWl;
         m_vpnWhitelistMode = isWl;
@@ -2373,6 +2379,7 @@ void WaybarManager::selectVpnServer(int idx) {
     emit sysStatsChanged();
 
     if (m_vpnActive && m_vpnActiveIsWl == isWl) {
+        m_vpnStartGraceUntilMs = QDateTime::currentMSecsSinceEpoch() + 5000;
         m_vpnIpCheckState = 1;
         m_vpnIpCheckText = "Подключение и проверка на 2ip.io...";
         QFile icf("/tmp/hysett_vpn_ipcheck.json");

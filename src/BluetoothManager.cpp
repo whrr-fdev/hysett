@@ -69,7 +69,7 @@ void BluetoothManager::setAutoConnect(bool v) {
 }
 
 void BluetoothManager::pollAutoConnect() {
-    if (!m_autoConnect || m_scanning || m_autoConnectBusy) return;
+    if (m_scanning || m_autoConnectBusy) return;
 
     m_autoConnectBusy = true;
     QProcess *pShow = new QProcess(this);
@@ -77,73 +77,13 @@ void BluetoothManager::pollAutoConnect() {
         QString outShow = stripAnsiCodes(QString::fromUtf8(pShow->readAllStandardOutput()));
         pShow->deleteLater();
 
-        bool isOn = outShow.contains("Powered: yes", Qt::CaseInsensitive) ||
-                    outShow.contains("PowerState: on", Qt::CaseInsensitive);
+        bool isOn = outShow.contains("PowerState: on", Qt::CaseInsensitive) ||
+                    (outShow.contains("Powered: yes", Qt::CaseInsensitive) && !outShow.contains("PowerState: off", Qt::CaseInsensitive));
         if (m_powered != isOn && QDateTime::currentMSecsSinceEpoch() >= m_powerTransitionUntilMs) {
             m_powered = isOn;
             emit stateChanged();
         }
-        if (!isOn) {
-            m_autoConnectBusy = false;
-            return;
-        }
-
-        QProcess *pConn = new QProcess(this);
-        connect(pConn, &QProcess::finished, this, [this, pConn]() {
-            QString outConn = stripAnsiCodes(QString::fromUtf8(pConn->readAllStandardOutput()));
-            pConn->deleteLater();
-
-            for (const QString &ln : outConn.split('\n', Qt::SkipEmptyParts)) {
-                if (ln.trimmed().startsWith("Device ")) {
-                    m_autoConnectBusy = false;
-                    return;
-                }
-            }
-
-            QProcess *pDevs = new QProcess(this);
-            connect(pDevs, &QProcess::finished, this, [this, pDevs]() {
-                QString outDevs = stripAnsiCodes(QString::fromUtf8(pDevs->readAllStandardOutput()));
-                pDevs->deleteLater();
-
-                QString targetMac;
-                QString fallbackMac;
-                for (const QString &line : outDevs.split('\n', Qt::SkipEmptyParts)) {
-                    QString trimmed = line.trimmed();
-                    if (!trimmed.startsWith("Device ")) continue;
-                    QStringList parts = trimmed.split(' ', Qt::SkipEmptyParts);
-                    if (parts.size() < 3) continue;
-                    QString mac = parts[1].trimmed();
-                    QString name = parts.mid(2).join(' ').trimmed();
-                    if (m_manuallyDisconnectedMacs.contains(mac)) continue;
-
-                    if (isLikelyAudioName(name)) {
-                        targetMac = mac;
-                        break;
-                    }
-                    if (fallbackMac.isEmpty()) fallbackMac = mac;
-                }
-
-                if (targetMac.isEmpty()) targetMac = fallbackMac;
-                if (targetMac.isEmpty()) {
-                    m_autoConnectBusy = false;
-                    return;
-                }
-
-                QProcess::startDetached("bluetoothctl", {"trust", targetMac});
-                QProcess *pTry = new QProcess(this);
-                connect(pTry, &QProcess::finished, this, [this, pTry]() {
-                    QString res = stripAnsiCodes(QString::fromUtf8(pTry->readAllStandardOutput()));
-                    pTry->deleteLater();
-                    m_autoConnectBusy = false;
-                    if (res.contains("Connection successful", Qt::CaseInsensitive)) {
-                        refresh();
-                    }
-                });
-                pTry->start("bluetoothctl", {"connect", targetMac});
-            });
-            pDevs->start("bluetoothctl", {"devices"});
-        });
-        pConn->start("bluetoothctl", {"devices", "Connected"});
+        m_autoConnectBusy = false;
     });
     pShow->start("bluetoothctl", {"show"});
 }
@@ -173,9 +113,9 @@ void BluetoothManager::refresh() {
         }
     }
 
-    bool hwPowered = outShow.contains("Powered: yes", Qt::CaseInsensitive) ||
-                     outShow.contains("PowerState: on", Qt::CaseInsensitive) ||
+    bool hwPowered = outShow.contains("PowerState: on", Qt::CaseInsensitive) ||
                      outShow.contains("PowerState: off-enabling", Qt::CaseInsensitive) ||
+                     (outShow.contains("Powered: yes", Qt::CaseInsensitive) && !outShow.contains("PowerState: off", Qt::CaseInsensitive)) ||
                      !connectedMacs.isEmpty();
     if (QDateTime::currentMSecsSinceEpoch() >= m_powerTransitionUntilMs || hwPowered == m_powered) {
         m_powered = hwPowered;
@@ -262,15 +202,27 @@ void BluetoothManager::setPowered(bool v) {
     emit stateChanged();
 
     QProcess *proc = new QProcess(this);
-    connect(proc, &QProcess::finished, this, [this, proc]() {
+    connect(proc, &QProcess::finished, this, [this, proc, v]() {
         proc->deleteLater();
-        QTimer::singleShot(300, this, &BluetoothManager::refresh);
-        QTimer::singleShot(1200, this, &BluetoothManager::refresh);
+        QTimer::singleShot(400, this, &BluetoothManager::refresh);
+        if (v && m_autoConnect) {
+            QTimer::singleShot(1400, this, [this]() {
+                for (const QVariant &dv : m_devices) {
+                    QVariantMap dm = dv.toMap();
+                    QString mac = dm["mac"].toString();
+                    if (dm["paired"].toBool() && !dm["connected"].toBool() && !m_manuallyDisconnectedMacs.contains(mac)) {
+                        QProcess::startDetached("bluetoothctl", {"connect", mac});
+                        break;
+                    }
+                }
+                QTimer::singleShot(1800, this, &BluetoothManager::refresh);
+            });
+        }
     });
     if (v) {
         proc->start("sh", {"-c",
             "rfkill unblock bluetooth 2>/dev/null; "
-            "if ! bluetoothctl show 2>/dev/null | grep -q 'Controller'; then "
+            "if ! bluetoothctl show 2>/dev/null | grep -q 'PowerState: on'; then "
             "  sudo -n /usr/local/bin/hysett-bt-revive >/dev/null 2>&1; "
             "else "
             "  bluetoothctl power on >/dev/null 2>&1 || sudo -n /usr/local/bin/hysett-bt-revive >/dev/null 2>&1; "

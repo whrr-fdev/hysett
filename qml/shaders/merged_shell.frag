@@ -51,14 +51,26 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
-float barBounce(float k, float t) {
+// Вязкая ферромагнитная жидкость: плавные скорости и вытянутые жидкие пики с вогнутыми менисками
+float ferroSpikeAmp(float k, float t) {
     float h1 = fract(sin(k * 127.1 + 1.9) * 43758.5453);
     float h2 = fract(sin(k * 269.5 + 7.3) * 18342.2317);
     float h3 = fract(sin(k * 419.2 + 3.1) * 91523.1143);
-    float p1 = pow(max(0.0, sin(t * (3.8 + h1 * 5.2) + h2 * 6.2831853)), 2.4);
-    float p2 = pow(max(0.0, sin(t * (7.4 + h2 * 6.5) + h3 * 6.2831853)), 3.2);
-    float groupBeat = pow(0.5 + 0.5 * sin(t * 5.8 + floor(k * 0.18) * 1.1), 2.2);
-    return clamp((p1 * 0.58 + p2 * 0.42) * (0.30 + 0.70 * groupBeat), 0.0, 1.0);
+    // Медленное, вязкое дыхание каждого пика (в 7 раз медленнее прежнего)
+    float w1 = 0.5 + 0.5 * sin(t * (0.55 + h1 * 0.65) + h2 * 6.2831853);
+    float w2 = 0.5 + 0.5 * sin(t * (1.10 + h2 * 0.85) - h3 * 6.2831853);
+    float slowWave = 0.5 + 0.5 * sin(k * 0.42 - t * 0.75 + sin(k * 0.18 + t * 0.45));
+    float raw = (w1 * 0.52 + w2 * 0.48) * (0.45 + 0.55 * slowWave);
+    return pow(clamp(raw, 0.0, 1.0), 1.45);
+}
+
+// Профиль одного жидкого магнитного шипа: узкий вытянутый пик с каплевидным кончиком и широким вогнутым мениском у основания
+float ferroToothProfile(float distFromCenter) {
+    float d = clamp(distFromCenter, 0.0, 1.0);
+    // Вблизи d=0 скругленный кончик капли, дальше резкий вогнутый спад (как натянутая магнитом жидкость)
+    float core = 1.0 / (1.0 + d * d * 9.5);
+    float baseFade = (1.0 - d * d);
+    return clamp(core * baseFade * 1.08, 0.0, 1.0);
 }
 
 float sceneSdf(vec2 p, out float outNotifBlend) {
@@ -66,24 +78,69 @@ float sceneSdf(vec2 p, out float outNotifBlend) {
     float waveStretch = 0.0;
     if (u_music_wave.z > 0.05 && u_bar_rect.z > u_bar_rect.w * 1.5) {
         float edgePad = max(14.0, u_radius * 1.35);
-        float edgeFade = smoothstep(u_bar_rect.x + edgePad * 0.5, u_bar_rect.x + edgePad * 1.6, p.x) *
-                         smoothstep(u_bar_rect.x + u_bar_rect.z - edgePad * 0.5, u_bar_rect.x + u_bar_rect.z - edgePad * 1.6, p.x);
+        float edgeFade = smoothstep(u_bar_rect.x + edgePad * 0.4, u_bar_rect.x + edgePad * 1.5, p.x) *
+                         smoothstep(u_bar_rect.x + u_bar_rect.z - edgePad * 0.4, u_bar_rect.x + u_bar_rect.z - edgePad * 1.5, p.x);
+
+        // Если открыто выпадающее окошко, плавно гасим зубцы только внутри ширины стыка самого окошка, оставляя их на всей остальной панели
+        float drawerOverlapMask = 1.0;
+        if (u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0) {
+            float inDrwX = smoothstep(u_drawer_rect.x - 10.0, u_drawer_rect.x + 6.0, p.x) *
+                           smoothstep(u_drawer_rect.x + u_drawer_rect.z + 10.0, u_drawer_rect.x + u_drawer_rect.z - 6.0, p.x);
+            drawerOverlapMask = 1.0 - inDrwX;
+        }
+        edgeFade *= drawerOverlapMask;
+
         if (edgeFade > 0.001) {
-            float barStep = 14.0;
-            float relX = (p.x - u_bar_rect.x) / barStep;
-            float k = floor(relX);
-            float f = fract(relX);
             float t = u_music_wave.w;
+            float barBottomY = u_bar_rect.y + u_bar_rect.w;
 
-            // Каждый столбик k стоит на своем месте и подпрыгивает вертикально; форма столбика — гладкая косинусная волна
-            float aPrev = barBounce(k - 1.0, t);
-            float aCur  = barBounce(k, t);
-            float aNext = barBounce(k + 1.0, t);
+            // Реакция на мышь (курсор работает как магнит, стягивающий и вытягивающий пики ферромагнитной жидкости)
+            float magField = 0.0;
+            float magPullX = 0.0;
+            if (u_mouse.x > 0.0 && u_mouse.y > -20.0) {
+                float dxM = p.x - u_mouse.x;
+                float dyM = max(0.0, abs(u_mouse.y - barBottomY));
+                float vertReach = exp(-(dyM * dyM) / (150.0 * 150.0));
+                magField = exp(-(dxM * dxM) / (95.0 * 95.0)) * vertReach;
+                // Стягивание гребней жидкости к полюсу магнита (курсору)
+                magPullX = clamp(dxM / 85.0, -1.0, 1.0) * magField * 9.5;
+            }
 
-            float dome = 0.5 - 0.5 * cos(f * 6.2831853);
-            float bridge = mix(aPrev, aNext, smoothstep(0.0, 1.0, f)) * 0.26;
-            float wProf = max(aCur * dome, bridge * (0.35 + 0.65 * dome));
-            waveStretch = u_music_wave.z * edgeFade * wProf;
+            // Плавный вязкий дрейф жидкости + магнитное смещение к мыши
+            float liquidDrift = 4.5 * sin((p.x - u_bar_rect.x) * 0.018 + t * 0.45);
+            float xCoord = (p.x - u_bar_rect.x) - magPullX + liquidDrift;
+
+            // Слой 1: основные ферромагнитные шипы
+            float step1 = 19.0;
+            float relX1 = xCoord / step1;
+            float k1 = floor(relX1);
+            float f1 = fract(relX1);
+
+            float hShift = (fract(sin(k1 * 91.7) * 19452.1) - 0.5) * 0.22 * sin(t * 0.6 + k1);
+            float dCenter1 = abs(f1 - (0.5 + hShift)) * 2.0;
+
+            float ampPrev = ferroSpikeAmp(k1 - 1.0, t);
+            float ampCur  = ferroSpikeAmp(k1, t);
+            float ampNext = ferroSpikeAmp(k1 + 1.0, t);
+
+            // Усиливаем высоту шипов рядом с магнитом-курсором
+            float localMagBoost = 1.0 + magField * 0.85;
+            float spikeMain = ampCur * ferroToothProfile(dCenter1);
+
+            // Вогнутый жидкостный мениск между соседними пиками
+            float neighborSpike = (f1 < 0.5)
+                                  ? (ampPrev * ferroToothProfile((0.5 + f1) * 1.4))
+                                  : (ampNext * ferroToothProfile((1.5 - f1) * 1.4));
+
+            // Гладкое жидкостное слияние соседних пиков (мениск поверхностного натяжения)
+            float hDiff = spikeMain - neighborSpike;
+            float kMeniscus = 0.14;
+            float hm = clamp(0.5 + 0.5 * hDiff / kMeniscus, 0.0, 1.0);
+            float liquidProfile = mix(neighborSpike, spikeMain, hm) + kMeniscus * hm * (1.0 - hm);
+
+            // Базовая тонкая пленка магнитной жидкости, поднимающаяся под курсором мыши
+            float baseFilm = 0.08 + magField * 0.28;
+            waveStretch = u_music_wave.z * edgeFade * clamp((baseFilm + liquidProfile * 0.92) * localMagBoost, 0.0, 1.65);
         }
     }
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);

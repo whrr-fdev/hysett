@@ -617,12 +617,12 @@ ApplicationWindow {
     property real musicWavePhase: 0.0
     property real mediaPillCenterX: 320.0
     property real mediaPillHalfW: 95.0
-    readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !root.drawerOpen && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
-    property real musicWaveAmp: musicWaveShouldRun ? 9.5 : 0.0
-    Behavior on musicWaveAmp { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+    readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !(root.drawerOpen && root.drawerMode === "settings") && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
+    property real musicWaveAmp: musicWaveShouldRun ? 10.5 : 0.0
+    Behavior on musicWaveAmp { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
     NumberAnimation on musicWavePhase {
         from: 0.0; to: 62.831853
-        duration: 9000
+        duration: 38000
         loops: Animation.Infinite
         running: root.musicWaveAmp > 0.1
     }
@@ -823,6 +823,19 @@ ApplicationWindow {
         // =====================================================================
         Item {
             id: topBarContainer
+            HoverHandler {
+                id: barMagnetHover
+                onPointChanged: {
+                    if (barMagnetHover.hovered) {
+                        root.mousePos = Qt.point(topBarContainer.x + barMagnetHover.point.position.x, topBarContainer.y + barMagnetHover.point.position.y)
+                    }
+                }
+                onHoveredChanged: {
+                    if (!barMagnetHover.hovered && !root.drawerOpen) {
+                        root.mousePos = Qt.point(-500, -500)
+                    }
+                }
+            }
             x: root.barLeft; y: root.barRectY; width: root.barW; height: root.actualBarH; z: 10
             readonly property int vPad: (Theme && Theme.isRounded) ? 8 : 4
             property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
@@ -3023,7 +3036,7 @@ ApplicationWindow {
                     }
                 }
 
-                // 2. БУФЕР ОБМЕНА
+                // 2. БУФЕР ОБМЕНА (С ПЛАВНОЙ СКОЛЬЗЯЩЕЙ ПЛАШКОЙ НАВЕДЕНИЯ)
                 Item {
                     anchors.fill: parent
                     visible: root.drawerMode === "clipboard"
@@ -3041,39 +3054,112 @@ ApplicationWindow {
                             onTextChanged: root.clipSearchQuery = text.toLowerCase()
                             background: GlassPanel { radius: (Theme && Theme.isRounded) ? 10 : 0 }
                         }
-                        ListView {
-                            Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 5
-                            cacheBuffer: 120
-                            model: (root.drawerActive && root.drawerMode === "clipboard" && Waybar) ? Waybar.clipboardItems : []
-                            delegate: Rectangle {
-                                property bool matches: root.clipSearchQuery.length === 0 || modelData.label.toLowerCase().indexOf(root.clipSearchQuery) !== -1
-                                width: ListView.view.width
-                                height: matches ? (modelData.isImage ? 54 : 32) : 0
-                                visible: matches
-                                radius: (Theme && Theme.isRounded) ? 8 : 0
-                                color: clipItemMouse.containsMouse ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
-                                border.color: clipItemMouse.containsMouse ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.16)
-                                border.width: 1
-                                RowLayout {
-                                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
-                                    Text {
-                                        text: modelData.label
-                                        color: clipItemMouse.containsMouse ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                        font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true
-                                    }
-                                    Image {
-                                        visible: modelData.isImage && modelData.thumb.length > 0
-                                        source: visible ? ("file://" + modelData.thumb) : ""
-                                        asynchronous: true
-                                        Layout.preferredWidth: 44; Layout.preferredHeight: 44
-                                        fillMode: Image.PreserveAspectCrop
-                                    }
+                        Item {
+                            id: clipListArea
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            clip: true
+
+                            property bool isHovering: false
+                            property int hoveredIndex: -1
+                            property real hovY: 0
+                            property real hovH: 32
+
+                            Timer {
+                                id: clipHoverHold
+                                interval: 45
+                                onTriggered: {
+                                    clipListArea.isHovering = false
+                                    clipListArea.hoveredIndex = -1
                                 }
-                                MouseArea {
-                                    id: clipItemMouse; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (Waybar) Waybar.selectClipboardItem(modelData.index)
-                                        root.drawerOpen = false
+                            }
+
+                            // Плавно скользящая за мышью плашка наведения
+                            Rectangle {
+                                id: clipSlidePill
+                                z: 1
+                                opacity: clipListArea.isHovering ? 1.0 : 0.0
+                                x: 0
+                                y: clipListArea.hovY - clipPopupList.contentY
+                                width: clipPopupList.width
+                                height: clipListArea.hovH
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                Behavior on y { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                Behavior on height { NumberAnimation { duration: 190; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 120 } }
+                            }
+
+                            ListView {
+                                id: clipPopupList
+                                z: 2
+                                anchors.fill: parent
+                                clip: true
+                                spacing: 5
+                                cacheBuffer: 160
+                                boundsBehavior: Flickable.StopAtBounds
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                model: {
+                                    if (!root.drawerActive || root.drawerMode !== "clipboard" || !Waybar) return []
+                                    var raw = Waybar.clipboardItems || []
+                                    var q = root.clipSearchQuery.trim()
+                                    if (q.length === 0) return raw
+                                    var filtered = []
+                                    for (var i = 0; i < raw.length; ++i) {
+                                        if ((raw[i].label || "").toLowerCase().indexOf(q) !== -1) filtered.push(raw[i])
+                                    }
+                                    return filtered
+                                }
+
+                                delegate: Rectangle {
+                                    id: clipDelRect
+                                    readonly property bool isHov: clipListArea.isHovering && clipListArea.hoveredIndex === index
+                                    width: ListView.view.width
+                                    height: modelData.isImage ? 54 : 32
+                                    radius: (Theme && Theme.isRounded) ? 8 : 0
+                                    color: "transparent"
+                                    border.color: isHov ? "transparent" : Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: 1
+
+                                    RowLayout {
+                                        anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
+                                        Text {
+                                            text: modelData.label
+                                            color: clipDelRect.isHov ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                            Behavior on color { ColorAnimation { duration: 110 } }
+                                            font.pixelSize: 11
+                                            font.bold: clipDelRect.isHov
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+                                        Image {
+                                            visible: modelData.isImage && modelData.thumb.length > 0
+                                            source: visible ? ("file://" + modelData.thumb) : ""
+                                            asynchronous: true
+                                            Layout.preferredWidth: 44; Layout.preferredHeight: 44
+                                            fillMode: Image.PreserveAspectCrop
+                                        }
+                                    }
+
+                                    MouseArea {
+                                        id: clipItemMouse
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        function syncHover() {
+                                            clipHoverHold.stop()
+                                            clipListArea.hovY = clipDelRect.y
+                                            clipListArea.hovH = clipDelRect.height
+                                            clipListArea.hoveredIndex = index
+                                            clipListArea.isHovering = true
+                                        }
+                                        onEntered: syncHover()
+                                        onPositionChanged: syncHover()
+                                        onExited: clipHoverHold.restart()
+                                        onClicked: {
+                                            if (Waybar) Waybar.selectClipboardItem(modelData.index)
+                                            root.drawerOpen = false
+                                        }
                                     }
                                 }
                             }

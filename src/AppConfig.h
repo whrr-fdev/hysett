@@ -29,6 +29,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString windowOpenAnimType READ windowOpenAnimType WRITE setWindowOpenAnimType NOTIFY windowOpenAnimTypeChanged)
     Q_PROPERTY(int animDuration READ animDuration WRITE setAnimDuration NOTIFY animDurationChanged)
     Q_PROPERTY(bool rememberLastTab READ rememberLastTab WRITE setRememberLastTab NOTIFY rememberLastTabChanged)
+    Q_PROPERTY(bool musicPrivacyMode READ musicPrivacyMode WRITE setMusicPrivacyMode NOTIFY musicPrivacyModeChanged)
     Q_PROPERTY(QString hiddenSidebarTabs READ hiddenSidebarTabs WRITE setHiddenSidebarTabs NOTIFY hiddenSidebarTabsChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
 
@@ -128,6 +129,8 @@ public:
     void setAnimDuration(int v);
     bool rememberLastTab() const { return m_rememberLastTab; }
     void setRememberLastTab(bool v);
+    bool musicPrivacyMode() const { return m_musicPrivacyMode; }
+    void setMusicPrivacyMode(bool v);
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);
@@ -246,6 +249,7 @@ signals:
     void windowOpenAnimTypeChanged();
     void animDurationChanged();
     void rememberLastTabChanged();
+    void musicPrivacyModeChanged();
     void hiddenSidebarTabsChanged();
     void languageChanged();
     void borderGlowEnabledChanged();
@@ -290,6 +294,7 @@ private:
     QString m_windowOpenAnimType = "spring";
     int m_animDuration = 150;
     bool m_rememberLastTab = false;
+    bool m_musicPrivacyMode = false;
     QString m_hiddenSidebarTabs = "";
     QString m_language = "ru";
 

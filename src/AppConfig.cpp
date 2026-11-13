@@ -467,6 +467,7 @@ void AppConfig::load() {
             else if (key == "welcome_anim_type") m_welcomeAnimType = val;
             else if (key == "anim_duration") m_animDuration = std::clamp(val.toInt(), 0, 1000);
             else if (key == "remember_last_tab") m_rememberLastTab = (val == "1" || val == "true");
+            else if (key == "music_privacy_mode") m_musicPrivacyMode = (val == "1" || val == "true");
             else if (key == "hidden_sidebar_tabs") m_hiddenSidebarTabs = val;
             else if (key == "language") m_language = (val == "en" ? "en" : "ru");
             else if (key == "border_glow_enabled") m_borderGlowEnabled = (val == "1" || val == "true");
@@ -542,6 +543,7 @@ void AppConfig::save() {
             extra["welcome_anim_type"] = m_welcomeAnimType;
             extra["anim_duration"] = QString::number(m_animDuration);
             extra["remember_last_tab"] = m_rememberLastTab ? "1" : "0";
+            extra["music_privacy_mode"] = m_musicPrivacyMode ? "1" : "0";
             extra["hidden_sidebar_tabs"] = m_hiddenSidebarTabs;
             extra["language"] = m_language;
             extra["border_glow_enabled"] = m_borderGlowEnabled ? "1" : "0";
@@ -638,6 +640,7 @@ void AppConfig::setAnimType(const QString &v) { if (m_animType != v) { m_animTyp
 void AppConfig::setWelcomeAnimType(const QString &v) { if (m_welcomeAnimType != v) { m_welcomeAnimType = v; emit welcomeAnimTypeChanged(); save(); } }
 void AppConfig::setAnimDuration(int v) { v = std::clamp(v, 0, 1000); if (m_animDuration != v) { m_animDuration = v; emit animDurationChanged(); save(); } }
 void AppConfig::setRememberLastTab(bool v) { if (m_rememberLastTab != v) { m_rememberLastTab = v; emit rememberLastTabChanged(); save(); } }
+void AppConfig::setMusicPrivacyMode(bool v) { if (m_musicPrivacyMode != v) { m_musicPrivacyMode = v; emit musicPrivacyModeChanged(); save(); } }
 void AppConfig::setBorderGlowEnabled(bool v) { if (m_borderGlowEnabled != v) { m_borderGlowEnabled = v; emit borderGlowEnabledChanged(); save(); } }
 void AppConfig::setBorderGlowAllPages(bool v) { if (m_borderGlowAllPages != v) { m_borderGlowAllPages = v; emit borderGlowAllPagesChanged(); save(); } }
 void AppConfig::setBorderGlowIntensity(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzzyCompare(m_borderGlowIntensity, v)) { m_borderGlowIntensity = v; emit borderGlowIntensityChanged(); save(); } }

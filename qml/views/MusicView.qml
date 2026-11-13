@@ -12,14 +12,20 @@ Item {
     readonly property bool isPrivacyHidden: Config ? Config.musicPrivacyMode : false
     readonly property bool hideActiveTrack: isPrivacyHidden && !(Waybar && Waybar.currentTrackPublic)
 
+    function isPublicPlaylistTitle(t) {
+        return t === "Открытые" || t === "exe"
+    }
+
     function ensurePublicPlaylistSelected() {
-        if (!Waybar || !Waybar.ymPlaylists) return
-        if (isPrivacyHidden) {
-            for (var i = 0; i < Waybar.ymPlaylists.length; ++i) {
-                if (Waybar.ymPlaylists[i].title === "Открытые") {
-                    if (Waybar.ymSelectedPlaylist !== i) Waybar.ymSelectedPlaylist = i
-                    break
-                }
+        if (!Waybar || !Waybar.ymPlaylists || !isPrivacyHidden) return
+        var curIdx = Waybar.ymSelectedPlaylist
+        if (curIdx >= 0 && curIdx < Waybar.ymPlaylists.length && isPublicPlaylistTitle(Waybar.ymPlaylists[curIdx].title)) {
+            return
+        }
+        for (var i = 0; i < Waybar.ymPlaylists.length; ++i) {
+            if (isPublicPlaylistTitle(Waybar.ymPlaylists[i].title)) {
+                if (Waybar.ymSelectedPlaylist !== i) Waybar.ymSelectedPlaylist = i
+                break
             }
         }
     }
@@ -862,7 +868,7 @@ Item {
                                             model: Waybar ? Waybar.ymPlaylists : []
                                             delegate: Item {
                                                 id: plBtn
-                                                visible: !musicRoot.isPrivacyHidden || modelData.title === "Открытые"
+                                                visible: !musicRoot.isPrivacyHidden || musicRoot.isPublicPlaylistTitle(modelData.title)
                                                 width: plBtnRow.implicitWidth + 22
                                                 height: 28
                                                 readonly property bool isSel: Waybar ? (Waybar.ymSelectedPlaylist === index) : (index === 0)
@@ -1048,7 +1054,7 @@ Item {
                                         lastModelSig = ""
                                         return
                                     }
-                                    if (musicRoot.isPrivacyHidden && currentPlaylistObj.title !== "Открытые") {
+                                    if (musicRoot.isPrivacyHidden && !musicRoot.isPublicPlaylistTitle(currentPlaylistObj.title)) {
                                         if (trackListModel.count > 0) trackListModel.clear()
                                         lastModelSig = ""
                                         return
@@ -1574,7 +1580,7 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "Показывать только плейлист «Открытые»:"
+                                        text: "Показывать только плейлисты «Открытые» и «exe»:"
                                         color: "#cccccc"
                                         font.pixelSize: Config.fontSize
                                         Layout.fillWidth: true
@@ -1847,7 +1853,7 @@ Item {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: musicRoot.isPrivacyHidden ? "Готово" : (Waybar ? Waybar.ymStatusText : "")
+                                    text: musicRoot.isPrivacyHidden ? (Waybar && Waybar.ymBusy ? ("Синхронизация... " + Waybar.ymProgress + "%") : "Готово") : (Waybar ? Waybar.ymStatusText : "")
                                     color: "#aaaaaa"
                                     font.pixelSize: Config.fontSize - 1
                                     elide: Text.ElideRight

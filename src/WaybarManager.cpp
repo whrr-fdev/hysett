@@ -3319,8 +3319,8 @@ bool WaybarManager::isTrackInPlaylist(const QString &fullTitle, const QString &p
 }
 
 bool WaybarManager::isCurrentTrackPublic() const {
-    if (m_currentLocalTrackPath.contains("/Открытые/")) return true;
-    return isTrackInPlaylist(mediaTitle(), "Открытые");
+    if (m_currentLocalTrackPath.contains("/Открытые/") || m_currentLocalTrackPath.contains("/exe/")) return true;
+    return isTrackInPlaylist(mediaTitle(), "Открытые") || isTrackInPlaylist(mediaTitle(), "exe");
 }
 
 void WaybarManager::copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle) {

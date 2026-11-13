@@ -170,7 +170,7 @@ def rebuild_local_index():
             dirs.append(d)
 
     # Приоритетный порядок: Мне нравится, Открытые, затем остальные и Скрытые
-    priority = {"Мне нравится": 0, "Открытые": 1, "Скрытые": 999}
+    priority = {"Мне нравится": 0, "Открытые": 1, "exe": 2, "Скрытые": 999}
     dirs.sort(key=lambda x: (priority.get(x, 10), x.lower()))
 
     for d in dirs:

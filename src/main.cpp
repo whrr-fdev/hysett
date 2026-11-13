@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
     }
     qputenv("QSG_TRANSIENT_IMAGES", "1");
     qputenv("QML_DISK_CACHE", "aot");
-    QPixmapCache::setCacheLimit(4096);
+    QPixmapCache::setCacheLimit(2048);
     QQuickStyle::setStyle("Basic");
 
     QLoggingCategory::setFilterRules(
@@ -100,7 +100,7 @@ int main(int argc, char *argv[]) {
     QQuickWindow::setDefaultAlphaBuffer(true);
     QGuiApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
-    QPixmapCache::setCacheLimit(4096);
+    QPixmapCache::setCacheLimit(2048);
     app.setApplicationName("com.whrr.HyprSettings");
     app.setDesktopFileName("com.whrr.HyprSettings");
     app.setOrganizationName("whrr");

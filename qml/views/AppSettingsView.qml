@@ -827,22 +827,23 @@ RowLayout {
                             id: colSideTabs; anchors.fill: parent; anchors.margins: 14; spacing: 10
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Отображаемые пункты в боковом меню"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
+                                Text { text: "Отображаемые разделы (меню и приветствие)"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true; Layout.fillWidth: true }
                                 StyledButton { text: "Показать все"; visible: Config.hiddenSidebarTabs.length > 0; onClicked: Config.hiddenSidebarTabs = "" }
                             }
                             GridLayout {
                                 Layout.fillWidth: true; columns: 3; columnSpacing: 12; rowSpacing: 8
                                 Repeater {
                                     model: [
-                                        { title: "󰍉  Поиск", idx: 16 }, { title: "󰖙  Погода", idx: 20 }, { title: "   Монитор", idx: 21 },
-                                        { title: "󱑂  Время", idx: 22 }, { title: "󰅌  Буфер", idx: 23 }, { title: "󰖲  Окна", idx: 1 },
-                                        { title: "󱐌  Анимации", idx: 2 }, { title: "󰆿  Курсор", idx: 3 }, { title: "󰍹   Мониторы", idx: 4 },
-                                        { title: "󰌌  Устройства", idx: 5 }, { title: "󰖩  Сеть", idx: 6 }, { title: "󰂯  Блютуз", idx: 7 },
-                                        { title: "󱓞   Панель", idx: 8 }, { title: "󰂚   Уведомления", idx: 18 }, { title: "󰒲   Автозапуск", idx: 9 },
-                                        { title: "⌨  Бинды", idx: 10 }, { title: "󰘳  Правила окон", idx: 11 }, { title: "󰀻  Приложения", idx: 12 },
-                                        { title: "󰏘  Шейдеры", idx: 13 }, { title: "󰸉  Обои", idx: 14 }, { title: "󰕰  Виджеты", idx: 15 },
-                                        { title: "󰎆  Музыка", idx: 27 }, { title: "󰌌  Язык", idx: 25 }, { title: "⏻  Питание", idx: 24 },
-                                        { title: "󰦝  VPN", idx: 26 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "✕  Кнопка Закрыть", idx: 99 }
+                                        { title: "󰍉  Поиск", idx: 16 }, { title: "󰖙  Погода", idx: 20 }, { title: "󰎆  Музыка", idx: 27 },
+                                        { title: "  Монитор", idx: 21 }, { title: "󱑂  Время", idx: 22 }, { title: "󰅌  Буфер", idx: 23 },
+                                        { title: "󰌌  Язык", idx: 25 }, { title: "⏻  Питание", idx: 24 }, { title: "󰖲  Окна", idx: 1 },
+                                        { title: "󱐌  Анимации", idx: 2 }, { title: "󰆿  Курсор", idx: 3 }, { title: "󰍹  Мониторы", idx: 4 },
+                                        { title: "󰌌  Устройства", idx: 5 }, { title: "󰖩  Сеть", idx: 6 }, { title: "󰦝  VPN", idx: 26 },
+                                        { title: "󰂯  Блютуз", idx: 7 }, { title: "󱓞  Панель", idx: 8 }, { title: "󰂚  Уведомления", idx: 18 },
+                                        { title: "󰒲  Автозапуск", idx: 9 }, { title: "⌨  Бинды", idx: 10 }, { title: "󰘳  Правила окон", idx: 11 },
+                                        { title: "󰀻  Приложения", idx: 12 }, { title: "󰏘  Шейдеры", idx: 13 }, { title: "󰸉  Обои", idx: 14 },
+                                        { title: "󰕰  Виджеты", idx: 15 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "󰒓  Настройки (главная)", idx: 17 },
+                                        { title: "✕  Кнопка Закрыть", idx: 99 }
                                     ]
                                     StyledCheckBox {
                                         text: modelData.title

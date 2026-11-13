@@ -430,8 +430,8 @@ ApplicationWindow {
         return root.width * 0.5
     }
     Behavior on centerAnchorX { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-    Behavior on animDrawerW { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
-    Behavior on smoothTargetH { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on animDrawerW { enabled: root.drawerProgress > 0.95; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on smoothTargetH { enabled: root.drawerProgress > 0.95; NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
 
     readonly property real drawerX: {
         if (barPos === 2) return barLeft + barW
@@ -844,7 +844,7 @@ ApplicationWindow {
             property real u_glow_mode: Config ? Config.borderGlowColorMode : 4
             property real u_glow_dir: Config ? Config.borderGlowDirection : 0
             property real u_cursor_strength: Config ? Config.cursorGlowIntensity : 0.65
-            property vector2d u_mouse: Qt.vector2d(root.mousePos.x, root.mousePos.y)
+            property vector2d u_mouse: root.drawerActive ? Qt.vector2d(root.mousePos.x, root.mousePos.y) : Qt.vector2d(-500, -500)
             property vector2d u_trail1: Qt.vector2d(root.trail1.x, root.trail1.y)
             property vector2d u_trail2: Qt.vector2d(root.trail2.x, root.trail2.y)
             readonly property real modeParamY: (root.waveMode === 2)
@@ -866,8 +866,9 @@ ApplicationWindow {
             id: topBarContainer
             HoverHandler {
                 id: barMagnetHover
+                enabled: root.drawerActive
                 onPointChanged: {
-                    if (barMagnetHover.hovered) {
+                    if (root.drawerActive && barMagnetHover.hovered) {
                         root.mousePos = Qt.point(topBarContainer.x + barMagnetHover.point.position.x, topBarContainer.y + barMagnetHover.point.position.y)
                     }
                 }
@@ -973,7 +974,7 @@ ApplicationWindow {
                             var _m = Waybar ? Waybar.mediaActive : false
                             if (modKey === "sep") return true
                             if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
-                            if (modKey === "media") return (Waybar ? (Waybar.mediaActive || Waybar.ymBusy) : false) || topBarContainer.editMode
+                            if (modKey === "media") return (Waybar ? (Waybar.mediaActive || Waybar.ymBusy) : false) || topBarContainer.editMode || mediaPillBox.width > 0.5
                             return true
                         }
                         visible: modVis
@@ -1011,10 +1012,9 @@ ApplicationWindow {
                                 if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
                                 if (modKey === "media") {
-                                    var dlW = (Waybar && Waybar.ymBusy) ? (ymDlRow.implicitWidth + 16) : 0
-                                    var plVis = (Waybar && Waybar.mediaActive) || topBarContainer.editMode
-                                    var plW = !plVis ? 0 : ((Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
-                                    var gapW = (dlW > 0 && plW > 0) ? (Waybar ? Waybar.spacing : 4) : 0
+                                    var dlW = ymDownloadPillBox.width
+                                    var plW = mediaPillBox.width
+                                    var gapW = (dlW > 0.5 && plW > 0.5) ? (Waybar ? Waybar.spacing : 4) : 0
                                     return dlW + gapW + plW
                                 }
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
@@ -1368,18 +1368,24 @@ ApplicationWindow {
                                 }
                             }
 
-                            // Контент: media (со сворачиванием по стрелочке и передачей координат для волны нижней границы панели)
+                            // Контент: media (с плавной анимацией сворачивания/разворачивания и передачей координат для волны)
                             Rectangle {
                                 id: mediaPillBox
-                                visible: modKey === "media" && ((Waybar && Waybar.mediaActive) || topBarContainer.editMode)
-                                width: !visible ? 0 : ((Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
+                                readonly property bool wantsVisible: modKey === "media" && ((Waybar && Waybar.mediaActive) || topBarContainer.editMode)
+                                readonly property bool isCollapsed: Waybar ? Waybar.mediaCollapsed : false
+                                readonly property real targetPillW: !wantsVisible ? 0.0 : (isCollapsed ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
+                                property real animPillW: targetPillW
+                                Behavior on animPillW { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
+                                visible: modKey === "media" && animPillW > 0.5
+                                width: animPillW
                                 height: topBarContainer.pillHeight
+                                opacity: wantsVisible ? 1.0 : 0.0
+                                Behavior on opacity { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                                 x: (ymDownloadPillBox.visible && ymDownloadPillBox.width > 0.5) ? (ymDownloadPillBox.width + (Waybar ? Waybar.spacing : 4)) : 0
                                 Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                 anchors.verticalCenter: parent.verticalCenter
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 clip: true
-                                readonly property bool isCollapsed: Waybar ? Waybar.mediaCollapsed : false
 
                                 function syncWaveCoords() {
                                     if (!visible || width <= 0) return
@@ -1448,8 +1454,12 @@ ApplicationWindow {
                                 // Свернутый режим (клик ЛКМ разворачивает, ПКМ пауза/играть)
                                 Item {
                                     z: 10
-                                    visible: mediaPillBox.isCollapsed
                                     anchors.fill: parent
+                                    opacity: mediaPillBox.isCollapsed ? 1.0 : 0.0
+                                    scale: mediaPillBox.isCollapsed ? 1.0 : 0.72
+                                    visible: opacity > 0.01
+                                    Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
 
                                     Row {
                                         anchors.centerIn: parent
@@ -1490,9 +1500,15 @@ ApplicationWindow {
                                 Row {
                                     id: mediaInnerRow
                                     z: 5
-                                    visible: !mediaPillBox.isCollapsed
                                     height: topBarContainer.pillHeight
-                                    anchors.centerIn: parent
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 6
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    opacity: !mediaPillBox.isCollapsed ? 1.0 : 0.0
+                                    scale: !mediaPillBox.isCollapsed ? 1.0 : 0.92
+                                    visible: opacity > 0.01
+                                    Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
+                                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                                     spacing: 2
 
                                     Item {
@@ -1517,6 +1533,18 @@ ApplicationWindow {
                                         id: mediaTitleBox
                                         readonly property string trackStr: Waybar ? (Waybar.mediaTitle.length > 0 ? Waybar.mediaTitle : "Плеер") : "Плеер"
                                         readonly property int maxTitleW: (!root.hasWinTitle && !root.isFixedTitle) ? 210 : 90
+                                        property real trackAnimY: 0.0
+                                        property real trackAnimOp: 1.0
+                                        ParallelAnimation {
+                                            id: pillTrackChangeAnim
+                                            NumberAnimation { target: mediaTitleBox; property: "trackAnimY"; from: 11.0; to: 0.0; duration: 220; easing.type: Easing.OutQuint }
+                                            NumberAnimation { target: mediaTitleBox; property: "trackAnimOp"; from: 0.0; to: 1.0; duration: 180; easing.type: Easing.OutCubic }
+                                        }
+                                        onTrackStrChanged: {
+                                            if (mediaPillBox.visible && !mediaPillBox.isCollapsed) {
+                                                pillTrackChangeAnim.restart()
+                                            }
+                                        }
                                         Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                         readonly property bool needMarquee: mediaTrackMeasure.implicitWidth > maxTitleW
                                         readonly property real scrollStepW: mediaTrackMeasure.implicitWidth + mediaSepMeasure.implicitWidth
@@ -1543,6 +1571,8 @@ ApplicationWindow {
                                         Text {
                                             visible: !mediaTitleBox.needMarquee
                                             anchors.verticalCenter: parent.verticalCenter
+                                            opacity: mediaTitleBox.trackAnimOp
+                                            transform: Translate { y: mediaTitleBox.trackAnimY }
                                             text: mediaTitleBox.trackStr
                                             color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
                                             font.pixelSize: 10
@@ -1555,6 +1585,8 @@ ApplicationWindow {
                                             visible: mediaTitleBox.needMarquee
                                             height: parent.height
                                             x: 0
+                                            opacity: mediaTitleBox.trackAnimOp
+                                            transform: Translate { y: mediaTitleBox.trackAnimY }
 
                                             onVisibleChanged: {
                                                 marqueeAnim.stop()
@@ -2150,7 +2182,7 @@ ApplicationWindow {
                                                 anchors.centerIn: parent
                                                 width: 16; height: 16
                                                 source: visible ? ("image://appicon/mono:" + modelData.icon + "?tint=" + topBarContainer.trayTintHex) : ""
-                                                cache: false
+                                                cache: true
                                                 sourceSize: Qt.size(16, 16)
                                                 smooth: true
                                             }
@@ -2264,7 +2296,7 @@ ApplicationWindow {
                                            ? (Config ? Config.m3Primary : "#a8c7fa")
                                            : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
                                     font.pixelSize: 10; font.bold: true
-                                    Timer { interval: 1000; running: modKey === "clock"; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") }
+                                    Timer { interval: 5000; running: modKey === "clock"; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") }
                                 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
@@ -2956,7 +2988,7 @@ ApplicationWindow {
                                         font.pixelSize: 10; font.bold: true
                                     }
                                     Timer {
-                                        interval: 1000; running: root.isVertBar; repeat: true
+                                        interval: 5000; running: root.isVertBar; repeat: true
                                         onTriggered: {
                                             var d = new Date()
                                             vClockH.text = Qt.formatDateTime(d, "hh")

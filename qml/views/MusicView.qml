@@ -16,6 +16,31 @@ Item {
     property string pendingTrackPath: ""
     property string pendingTrackTitle: ""
     property int libraryVersion: 0
+    property int trackSwitchDir: 1
+    property string lastAnimTrackKey: ""
+    property string curDispTitle: ""
+    property string curDispArtist: ""
+    property string prevDispTitle: ""
+    property string prevDispArtist: ""
+    property real coverAnimX: 0.0
+    property real coverAnimScale: 1.0
+    property real coverAnimOp: 1.0
+    property real metaCurX: 0.0
+    property real metaCurOp: 1.0
+    property real metaPrevX: 0.0
+    property real metaPrevOp: 0.0
+
+    ParallelAnimation {
+        id: trackSwitchAnim
+        NumberAnimation { target: musicRoot; property: "coverAnimX"; from: musicRoot.trackSwitchDir * 32.0; to: 0.0; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+        NumberAnimation { target: musicRoot; property: "coverAnimScale"; from: 0.85; to: 1.0; duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
+        NumberAnimation { target: musicRoot; property: "coverAnimOp"; from: 0.2; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+
+        NumberAnimation { target: musicRoot; property: "metaPrevX"; from: 0.0; to: -musicRoot.trackSwitchDir * 44.0; duration: 160; easing.type: Easing.InCubic }
+        NumberAnimation { target: musicRoot; property: "metaPrevOp"; from: 1.0; to: 0.0; duration: 140; easing.type: Easing.OutCubic }
+        NumberAnimation { target: musicRoot; property: "metaCurX"; from: musicRoot.trackSwitchDir * 44.0; to: 0.0; duration: 250; easing.type: Easing.OutQuint }
+        NumberAnimation { target: musicRoot; property: "metaCurOp"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+    }
 
     function openAddTrackModal(trPath, trTitle) {
         pendingTrackPath = trPath || ""
@@ -51,11 +76,39 @@ Item {
                 trackListContainer.rebuildTrackModel()
             }
         }
+        function onMediaChanged() {
+            if (!Waybar) return
+            var newKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
+            var newTitle = Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»"
+            var newArtist = Waybar.mediaTrackArtist
+            if (musicRoot.lastAnimTrackKey === "") {
+                musicRoot.lastAnimTrackKey = newKey
+                musicRoot.curDispTitle = newTitle
+                musicRoot.curDispArtist = newArtist
+                return
+            }
+            if (newKey !== musicRoot.lastAnimTrackKey && newKey.length > 0) {
+                musicRoot.prevDispTitle = musicRoot.curDispTitle
+                musicRoot.prevDispArtist = musicRoot.curDispArtist
+                musicRoot.curDispTitle = newTitle
+                musicRoot.curDispArtist = newArtist
+                musicRoot.lastAnimTrackKey = newKey
+                if (musicRoot.visible) trackSwitchAnim.restart()
+            } else {
+                musicRoot.curDispTitle = newTitle
+                musicRoot.curDispArtist = newArtist
+            }
+        }
     }
 
     Component.onCompleted: {
         if (visible) Qt.callLater(() => subSidebar.playStaircase())
-        if (Waybar) Waybar.refreshYmLibrary()
+        if (Waybar) {
+            lastAnimTrackKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
+            curDispTitle = Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»"
+            curDispArtist = Waybar.mediaTrackArtist
+            Waybar.refreshYmLibrary()
+        }
         Qt.callLater(() => trackListContainer.rebuildTrackModel())
     }
 
@@ -64,7 +117,12 @@ Item {
         if (visible) {
             subSidebar.playStaircase()
             if (Waybar && Waybar.ymPlaylists.length === 0) Waybar.refreshYmLibrary()
-            Qt.callLater(() => trackListContainer.rebuildTrackModel())
+            else if (trackListModel.count === 0) Qt.callLater(() => trackListContainer.rebuildTrackModel())
+            if (Waybar) {
+                curDispTitle = Waybar.mediaTrackTitle.length > 0 ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»"
+                curDispArtist = Waybar.mediaTrackArtist
+                lastAnimTrackKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
+            }
         }
     }
 
@@ -423,88 +481,144 @@ Item {
                                 Layout.alignment: Qt.AlignHCenter
                                 Layout.preferredWidth: 132
                                 Layout.preferredHeight: 132
+                                clip: true
                                 radius: musicRoot.isM3 ? 18 : 0
                                 color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18) : Qt.rgba(1, 1, 1, 0.12)
                                 border.color: Config ? Config.m3Primary : "#ffffff"
                                 border.width: 1
 
-                                Image {
-                                    id: activeCoverImg
+                                Item {
                                     anchors.fill: parent
-                                    anchors.margins: 1
-                                    visible: status === Image.Ready && (Waybar && Waybar.mediaCoverPath.length > 0)
-                                    source: (Waybar && Waybar.mediaCoverPath.length > 0) ? ("file://" + Waybar.mediaCoverPath) : ""
-                                    fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true
-                                    smooth: true
-                                    layer.enabled: visible && musicRoot.isM3
-                                    layer.smooth: true
-                                    layer.effect: ShaderEffect {
-                                        property vector2d u_resolution: Qt.vector2d(activeCoverImg.width, activeCoverImg.height)
-                                        property real u_radius: 17.0
-                                        fragmentShader: "qrc:/shaders/qml/shaders/round_clip.frag.qsb"
-                                    }
-                                }
+                                    scale: musicRoot.coverAnimScale
+                                    opacity: musicRoot.coverAnimOp
+                                    transform: Translate { x: musicRoot.coverAnimX }
 
-                                Text {
-                                    visible: !activeCoverImg.visible
-                                    anchors.centerIn: parent
-                                    text: "󰎆"
-                                    font.pixelSize: 48
-                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    Image {
+                                        id: activeCoverImg
+                                        anchors.fill: parent
+                                        anchors.margins: 1
+                                        visible: status === Image.Ready && (Waybar && Waybar.mediaCoverPath.length > 0)
+                                        source: (Waybar && Waybar.mediaCoverPath.length > 0) ? ("file://" + Waybar.mediaCoverPath) : ""
+                                        sourceSize: Qt.size(264, 264)
+                                        fillMode: Image.PreserveAspectCrop
+                                        asynchronous: true
+                                        smooth: true
+                                        layer.enabled: visible && musicRoot.isM3
+                                        layer.smooth: true
+                                        layer.textureSize: Qt.size(264, 264)
+                                        layer.effect: ShaderEffect {
+                                            property vector2d u_resolution: Qt.vector2d(activeCoverImg.width, activeCoverImg.height)
+                                            property real u_radius: 17.0
+                                            fragmentShader: "qrc:/shaders/qml/shaders/round_clip.frag.qsb"
+                                        }
+                                    }
+
+                                    Text {
+                                        visible: !activeCoverImg.visible
+                                        anchors.centerIn: parent
+                                        text: "󰎆"
+                                        font.pixelSize: 48
+                                        color: Config ? Config.m3Primary : "#ffffff"
+                                    }
                                 }
                             }
 
-                            // 2. Крупное название трека сверху и автор с иконкой человека под ним (по центру)
-                            ColumnLayout {
+                            // 2. Крупное название трека сверху и автор с иконкой человека под ним (с анимацией смены трека)
+                            Item {
                                 Layout.fillWidth: true
                                 Layout.alignment: Qt.AlignHCenter
-                                spacing: 2
+                                implicitHeight: curMetaCol.implicitHeight
+                                clip: true
 
-                                Text {
-                                    Layout.fillWidth: true
-                                    horizontalAlignment: Text.AlignHCenter
-                                    text: (Waybar && Waybar.mediaTrackTitle.length > 0)
-                                          ? Waybar.mediaTrackTitle
-                                          : "Выберите трек или нажмите «Моя волна»"
-                                    color: "#ffffff"
-                                    font.pixelSize: Config.fontSize + 4
-                                    font.bold: true
-                                    elide: Text.ElideRight
-                                }
-
-                                RowLayout {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    spacing: 6
+                                ColumnLayout {
+                                    width: parent.width
+                                    spacing: 2
+                                    visible: musicRoot.metaPrevOp > 0.01
+                                    opacity: musicRoot.metaPrevOp
+                                    transform: Translate { x: musicRoot.metaPrevX }
 
                                     Text {
-                                        visible: Waybar && Waybar.mediaTrackArtist.length > 0
-                                        text: "󰀄"
-                                        color: Config ? Config.m3Primary : "#cccccc"
-                                        font.pixelSize: Config.fontSize
-                                        Layout.alignment: Qt.AlignVCenter
-                                    }
-
-                                    Text {
-                                        visible: Waybar && Waybar.mediaTrackArtist.length > 0
-                                        text: Waybar ? Waybar.mediaTrackArtist : ""
-                                        color: "#cccccc"
-                                        font.pixelSize: Config.fontSize
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: musicRoot.prevDispTitle
+                                        color: "#ffffff"
+                                        font.pixelSize: Config.fontSize + 4
                                         font.bold: true
                                         elide: Text.ElideRight
-                                        Layout.alignment: Qt.AlignVCenter
                                     }
 
-                                    Text {
-                                        text: {
-                                            if (!Waybar) return ""
-                                            var prefix = (Waybar.mediaTrackArtist.length > 0) ? "•  " : ""
-                                            if (Waybar.mediaDemoMode && !Waybar.hasRealMedia) return prefix + "Демо-режим"
-                                            return prefix + (Waybar.mediaPlaying ? "Воспроизводится" : "На паузе")
+                                    RowLayout {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        spacing: 6
+                                        Text {
+                                            visible: musicRoot.prevDispArtist.length > 0
+                                            text: "󰀄"
+                                            color: Config ? Config.m3Primary : "#cccccc"
+                                            font.pixelSize: Config.fontSize
                                         }
-                                        color: Waybar && Waybar.mediaPlaying ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
-                                        font.pixelSize: Config.fontSize - 1
-                                        Layout.alignment: Qt.AlignVCenter
+                                        Text {
+                                            visible: musicRoot.prevDispArtist.length > 0
+                                            text: musicRoot.prevDispArtist
+                                            color: "#cccccc"
+                                            font.pixelSize: Config.fontSize
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                        }
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    id: curMetaCol
+                                    width: parent.width
+                                    spacing: 2
+                                    opacity: musicRoot.metaCurOp
+                                    transform: Translate { x: musicRoot.metaCurX }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        text: musicRoot.curDispTitle.length > 0
+                                              ? musicRoot.curDispTitle
+                                              : ((Waybar && Waybar.mediaTrackTitle.length > 0) ? Waybar.mediaTrackTitle : "Выберите трек или нажмите «Моя волна»")
+                                        color: "#ffffff"
+                                        font.pixelSize: Config.fontSize + 4
+                                        font.bold: true
+                                        elide: Text.ElideRight
+                                    }
+
+                                    RowLayout {
+                                        Layout.alignment: Qt.AlignHCenter
+                                        spacing: 6
+
+                                        Text {
+                                            visible: Waybar && Waybar.mediaTrackArtist.length > 0
+                                            text: "󰀄"
+                                            color: Config ? Config.m3Primary : "#cccccc"
+                                            font.pixelSize: Config.fontSize
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+
+                                        Text {
+                                            visible: Waybar && Waybar.mediaTrackArtist.length > 0
+                                            text: Waybar ? Waybar.mediaTrackArtist : ""
+                                            color: "#cccccc"
+                                            font.pixelSize: Config.fontSize
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
+
+                                        Text {
+                                            text: {
+                                                if (!Waybar) return ""
+                                                var prefix = (Waybar.mediaTrackArtist.length > 0) ? "•  " : ""
+                                                if (Waybar.mediaDemoMode && !Waybar.hasRealMedia) return prefix + "Демо-режим"
+                                                return prefix + (Waybar.mediaPlaying ? "Воспроизводится" : "На паузе")
+                                            }
+                                            color: Waybar && Waybar.mediaPlaying ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                                            font.pixelSize: Config.fontSize - 1
+                                            Layout.alignment: Qt.AlignVCenter
+                                        }
                                     }
                                 }
                             }
@@ -549,7 +663,7 @@ Item {
                                     text: "󰒮"
                                     isIconOnly: true
                                     implicitWidth: 34; implicitHeight: 30
-                                    onClicked: if (Waybar) Waybar.mediaPrev()
+                                    onClicked: { musicRoot.trackSwitchDir = -1; if (Waybar) Waybar.mediaPrev() }
                                 }
 
                                 StyledButton {
@@ -564,7 +678,7 @@ Item {
                                     text: "󰒭"
                                     isIconOnly: true
                                     implicitWidth: 34; implicitHeight: 30
-                                    onClicked: if (Waybar) Waybar.mediaNext()
+                                    onClicked: { musicRoot.trackSwitchDir = 1; if (Waybar) Waybar.mediaNext() }
                                 }
                             }
 
@@ -934,7 +1048,7 @@ Item {
                                         anchors.rightMargin: 4
                                         clip: false
                                         spacing: 5
-                                        cacheBuffer: 600
+                                        cacheBuffer: 180
                                         boundsBehavior: Flickable.StopAtBounds
                                         ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                                         model: trackListModel
@@ -1052,8 +1166,9 @@ Item {
                                                         sourceSize: Qt.size(68, 68)
                                                         fillMode: Image.PreserveAspectCrop
                                                         asynchronous: true
-                                                        layer.enabled: visible && musicRoot.isM3
+                                                        layer.enabled: status === Image.Ready && visible && musicRoot.isM3
                                                         layer.smooth: true
+                                                        layer.textureSize: Qt.size(68, 68)
                                                         layer.effect: ShaderEffect {
                                                             property vector2d u_resolution: Qt.vector2d(trThumb.width, trThumb.height)
                                                             property real u_radius: 7.0

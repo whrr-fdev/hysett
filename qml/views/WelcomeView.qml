@@ -372,7 +372,7 @@ Item {
 
                             property bool matchesFilter: {
                                 var _ = Config ? Config.hiddenSidebarTabs : ""
-                                var allowed = (modelData.idx === 17) ? true : (Config ? Config.isTabVisible(modelData.idx) : true)
+                                var allowed = Config ? Config.isTabVisible(modelData.idx) : true
                                 if (!allowed) return false
                                 var q = welcomeRoot.settingsSearchQuery
                                 if (q.length === 0) return true
@@ -388,15 +388,14 @@ Item {
                             width: targetW
                             height: welcomeRoot.cardHeight
                             opacity: matchesFilter ? 1.0 : 0.0
-                            scale: matchesFilter ? welcomeRoot.maxPulseScale : 0.88
+                            scale: matchesFilter ? 1.0 : 0.88
                             visible: opacity > 0.01
                             enabled: matchesFilter
                             flat: true
 
-                            Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.32 } }
-                            Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.32 } }
-                            Behavior on width { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
-                            Behavior on height { NumberAnimation { duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                            Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                            Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                            Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
                             Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
                             Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
 

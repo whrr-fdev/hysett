@@ -197,14 +197,26 @@ Item {
                                                     font.pixelSize: Config.fontSize + 1
                                                     font.bold: isSel
                                                 }
-                                                Text {
+                                                RowLayout {
                                                     Layout.fillWidth: true
-                                                    horizontalAlignment: Text.AlignLeft
-                                                    elide: Text.ElideRight
-                                                    text: (isSel ? "󰄬 Основной маршрут интернета  •  " : "Доступно  •  ") + "IPv4: " + connItem.ip
-                                                    color: isSel ? "#69f0ae" : "#999999"
-                                                    font.pixelSize: Config.fontSize - 1
-                                                    Behavior on color { ColorAnimation { duration: 160 } }
+                                                    spacing: 6
+                                                    Text {
+                                                        visible: isSel
+                                                        text: "󰄬"
+                                                        color: "#69f0ae"
+                                                        font.pixelSize: Config.fontSize - 1
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                    }
+                                                    Text {
+                                                        Layout.fillWidth: true
+                                                        horizontalAlignment: Text.AlignLeft
+                                                        elide: Text.ElideRight
+                                                        text: (isSel ? "Основной маршрут интернета  •  " : "Доступно  •  ") + "IPv4: " + connItem.ip
+                                                        color: isSel ? "#69f0ae" : "#999999"
+                                                        font.pixelSize: Config.fontSize - 1
+                                                        Layout.alignment: Qt.AlignVCenter
+                                                        Behavior on color { ColorAnimation { duration: 160 } }
+                                                    }
                                                 }
                                             }
 
@@ -308,12 +320,17 @@ Item {
                             ColumnLayout {
                                 spacing: 1
                                 Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
                                 Text {
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
                                     text: modelData.ssid
                                     color: "#ffffff"
                                     font.pixelSize: Config.fontSize
                                 }
                                 Text {
+                                    Layout.fillWidth: true
+                                    elide: Text.ElideRight
                                     text: "Сигнал: " + modelData.signal + "%  •  " + modelData.security
                                     color: "#777777"
                                     font.pixelSize: Config.fontSize - 2
@@ -321,6 +338,10 @@ Item {
                             }
 
                             StyledButton {
+                                Layout.fillWidth: false
+                                Layout.preferredWidth: 112
+                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                implicitWidth: 112
                                 text: modelData.connected ? "Отключить" : "Подключить"
                                 onClicked: {
                                     if (modelData.connected) {

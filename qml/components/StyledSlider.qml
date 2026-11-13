@@ -33,13 +33,15 @@ Slider {
     property real wavePhase: 0.0
 
     Timer {
-        interval: 20
+        readonly property bool isInteractive: control.hovered || control.pressed
+        interval: isInteractive ? 16 : 33
         repeat: true
         running: control.visible && control.isM3 && control.waveSpeed > 0.02 && control.waveAmp > 0.08 && control.animPos > 0.01 &&
                  (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
         onTriggered: {
             var boost = control.pressed ? 1.30 : (control.hovered ? 1.10 : 1.0)
-            control.wavePhase = (control.wavePhase + 0.085 * control.waveSpeed * boost) % (Math.PI * 2.0)
+            var step = isInteractive ? 0.068 : 0.14
+            control.wavePhase = (control.wavePhase + step * control.waveSpeed * boost) % (Math.PI * 2.0)
             trackCanvas.requestPaint()
         }
     }
@@ -71,6 +73,7 @@ Slider {
             id: trackCanvas
             anchors.fill: parent
             antialiasing: true
+            renderStrategy: Canvas.Cooperative
             onWidthChanged: requestPaint()
             onHeightChanged: requestPaint()
 
@@ -117,7 +120,7 @@ Slider {
                         ctx.lineTo(activeEnd, cy)
                     } else {
                         var taper = Math.max(6.0, Math.min(22.0, span * 0.35))
-                        var steps = Math.max(24, Math.ceil(span / 1.5))
+                        var steps = Math.max(12, Math.min(48, Math.ceil(span / 3.0)))
                         var prevX = padX
                         var prevY = cy
                         ctx.moveTo(padX, cy)

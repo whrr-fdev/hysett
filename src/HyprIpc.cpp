@@ -11,12 +11,15 @@
 #include <QTimer>
 #include <malloc.h>
 
-static void performMemoryTrim(QQmlApplicationEngine *mainEngine) {
+static void performMemoryTrim(QQmlApplicationEngine *mainEngine, bool trimComponents) {
     QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
     QPixmapCache::clear();
 
     if (mainEngine) {
         mainEngine->collectGarbage();
+        if (trimComponents) {
+            mainEngine->trimComponentCache();
+        }
     }
 
     for (QWindow *w : QGuiApplication::topLevelWindows()) {
@@ -48,10 +51,10 @@ QString HyprIpc::getActiveWorkspace() {
 
 void HyprIpc::trimMemory() {
     QQmlApplicationEngine *eng = m_engine;
-    QTimer::singleShot(180, [eng]() { performMemoryTrim(eng); });
+    QTimer::singleShot(180, [eng]() { performMemoryTrim(eng, false); });
 }
 
 void HyprIpc::deepCleanMemory() {
     QQmlApplicationEngine *eng = m_engine;
-    QTimer::singleShot(220, [eng]() { performMemoryTrim(eng); });
+    QTimer::singleShot(220, [eng]() { performMemoryTrim(eng, true); });
 }

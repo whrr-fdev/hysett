@@ -53,7 +53,6 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
-// Вязкая ферромагнитная жидкость (Режим 0) и Дуга прямоугольных столбиков под панелью (Режим 2) в чистом GLSL
 float ferroSpikeAmp(float k, float t) {
     float h1 = fract(sin(k * 127.1 + 1.9) * 43758.5453);
     float h2 = fract(sin(k * 269.5 + 7.3) * 18342.2317);
@@ -62,18 +61,46 @@ float ferroSpikeAmp(float k, float t) {
     float bass = u_music_wave2.y;
     float mid  = u_music_wave2.z;
     float treb = u_music_wave2.w;
-    float hasRealAudio = clamp((bass + mid + treb) * 1.5, 0.0, 1.0);
+    float hasRealAudio = clamp((bass + mid + treb) * 1.6, 0.0, 1.0);
 
     float bandSelect = fract(k * 0.37 + h1);
-    float audioEnergy = (bandSelect < 0.38)
-                        ? (bass * 1.15 + mid * 0.25)
-                        : ((bandSelect < 0.72) ? (mid * 1.10 + bass * 0.30) : (treb * 1.15 + mid * 0.30));
+    float audioEnergy = (bandSelect < 0.36)
+                        ? (bass * 1.35 + mid * 0.15)
+                        : ((bandSelect < 0.70) ? (mid * 1.30 + treb * 0.20) : (treb * 1.35 + bass * 0.15));
 
-    float w1 = 0.5 + 0.5 * sin(t * (1.45 + h1 * 1.65) + h2 * 6.2831853);
-    float w2 = 0.5 + 0.5 * sin(t * (2.60 + h2 * 2.10) - h3 * 6.2831853);
-    float procWave = pow(clamp(w1 * 0.54 + w2 * 0.46, 0.0, 1.0), 1.35);
+    float w1 = 0.5 + 0.5 * sin(t * (1.25 + h1 * 1.85) + h2 * 6.2831853);
+    float w2 = 0.5 + 0.5 * sin(t * (2.30 + h2 * 2.20) - h3 * 6.2831853);
+    float procWave = pow(clamp(w1 * 0.54 + w2 * 0.46, 0.0, 1.0), 1.30);
 
-    return clamp(mix(procWave * 0.75, procWave * (0.18 + audioEnergy * 1.25), hasRealAudio), 0.0, 2.2);
+    return clamp(mix(procWave * 0.78, procWave * (0.16 + audioEnergy * 1.35), hasRealAudio), 0.0, 2.2);
+}
+
+// Индивидуальная реакция каждого большого столбика дуги на свою полосу частот (Bass / Mid / Treble)
+float arcColumnMusicAmp(float k, float t) {
+    float h1 = fract(sin(k * 173.3 + 2.3) * 43758.5453);
+    float h2 = fract(sin(k * 317.7 + 5.7) * 28491.3719);
+    float h3 = fract(sin(k * 541.1 + 9.1) * 71933.8192);
+
+    float bass = u_music_wave2.y;
+    float mid  = u_music_wave2.z;
+    float treb = u_music_wave2.w;
+    float hasRealAudio = clamp((bass + mid + treb) * 1.8, 0.0, 1.0);
+
+    int bandIdx = int(mod(abs(k), 5.0));
+    float bandVal = 0.0;
+    if (bandIdx == 0) bandVal = pow(clamp(bass, 0.0, 1.5), 1.15) * 1.30;
+    else if (bandIdx == 1) bandVal = clamp(bass * 0.65 + mid * 0.60, 0.0, 1.6);
+    else if (bandIdx == 2) bandVal = pow(clamp(mid, 0.0, 1.5), 1.15) * 1.25;
+    else if (bandIdx == 3) bandVal = clamp(mid * 0.55 + treb * 0.70, 0.0, 1.6);
+    else bandVal = pow(clamp(treb, 0.0, 1.5), 1.10) * 1.30;
+
+    float osc1 = 0.5 + 0.5 * sin(t * (1.10 + h1 * 2.10) + h2 * 6.2831853 + k * 1.17);
+    float osc2 = 0.5 + 0.5 * cos(t * (2.05 + h2 * 2.45) - h3 * 6.2831853 + k * 2.31);
+    float osc3 = 0.5 + 0.5 * sin(t * (3.20 + h3 * 1.80) + h1 * 6.2831853 - k * 0.83);
+    float indivMove = pow(clamp(osc1 * 0.45 + osc2 * 0.35 + osc3 * 0.20, 0.0, 1.0), 1.45);
+
+    float musicDriven = clamp(bandVal * (0.42 + 0.95 * indivMove) + indivMove * 0.22 * (bass + mid + treb), 0.0, 1.45);
+    return clamp(mix(indivMove * 0.95, musicDriven, hasRealAudio), 0.04, 1.45);
 }
 
 float ferroToothProfile(float distFromCenter, float sharpness, float needleMix) {
@@ -118,7 +145,6 @@ float evalFerroCell(float k, float localF, float t, float sharpCfg) {
 }
 
 float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, bool maskDrawerOverlap) {
-    // Режим 0 (u_music_wave.x < 0.5) — Жидкие пики
     if (u_music_wave.x > 0.5 || ampPx <= 0.05 || rect.z <= rect.w * 1.2) return 0.0;
     float bottomHalfMask = smoothstep(rect.y + rect.w * 0.35, rect.y + rect.w * 0.85, p.y);
     if (bottomHalfMask <= 0.001) return 0.0;
@@ -151,40 +177,71 @@ float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, 
     return ampPx * edgeFade * clamp(liquidProfile, 0.0, 2.2);
 }
 
-// Режим 2 (u_music_wave.x > 1.5): Обычные нескругленные прямоугольные столбики от верха экрана под панелью задач дугой (выходят и по бокам панели!)
-float evalUnderBarArcColumns(vec2 p) {
-    if (u_music_wave.x < 1.5 || u_music_wave.z <= 0.05 || u_bar_rect.z <= u_bar_rect.w * 1.5) return 0.0;
-    float startX = max(0.0, u_bar_rect.x - 4.0);
-    float endX   = min(u_resolution.x, u_bar_rect.x + u_bar_rect.z + 4.0);
-    if (p.x < startX || p.x > endX || p.y < 0.0) return 0.0;
+// Вспомогательная отрисовка дуги крупных столбиков для заданного прямоугольника (панели или открытого окна)
+float evalArcForBox(vec2 p, vec4 rect, float ampPx, bool isBarRect) {
+    if (ampPx <= 0.1 || rect.z <= rect.w * 1.2) return 0.0;
 
-    // Если открыто окно, не рисуем столбики внутри ширины открытого окна
-    if (u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0) {
-        if (p.x >= u_drawer_rect.x && p.x <= u_drawer_rect.x + u_drawer_rect.z) return 0.0;
+    // Расширяем область по краям, чтобы столбики заметно вылезали и по бокам панели
+    float sideOut = isBarRect ? 14.0 : 4.0;
+    float startX = max(0.0, rect.x - sideOut);
+    float endX   = min(u_resolution.x, rect.x + rect.z + sideOut);
+    float topY   = isBarRect ? 0.0 : (rect.y + rect.w - 4.0);
+    if (p.x < startX || p.x > endX || p.y < topY) return 0.0;
+
+    // Для верхней панели не рисуем внутри ширины открытого окна (там дуга идет снизу самого окна)
+    if (isBarRect && u_drawer_rect.w > 2.0 && u_drawer_rect.z > 2.0) {
+        if (p.x > u_drawer_rect.x + 2.0 && p.x < u_drawer_rect.x + u_drawer_rect.z - 2.0) {
+            return 0.0;
+        }
     }
 
     float packed = u_music_wave2.x;
-    float colW = clamp(floor(packed / 100.0), 1.0, 8.0);
-    float gapW = clamp(mod(packed, 100.0), 1.0, 8.0);
+    float colW = clamp(floor(packed / 100.0), 4.0, 48.0);
+    float gapW = clamp(mod(packed, 100.0), 2.0, 32.0);
     float stepW = colW + gapW;
 
-    float relX = p.x - startX;
+    float spanW = max(1.0, endX - startX);
+    float numCols = max(3.0, floor((spanW + gapW) / stepW));
+    float totalGridW = numCols * stepW - gapW;
+    float gridStartX = startX + 0.5 * (spanW - totalGridW);
+    if (p.x < gridStartX || p.x > gridStartX + totalGridW) return 0.0;
+
+    float relX = p.x - gridStartX;
     float k = floor(relX / stepW);
     float lx = mod(relX, stepW);
-    if (lx > colW) return 0.0; // Пустой зазор между прямоугольными столбиками
+    if (lx > colW) return 0.0;
 
-    float normX = clamp((p.x - startX) / max(1.0, endX - startX), 0.0, 1.0);
+    float edgeAlpha = smoothstep(0.0, 0.9, lx) * smoothstep(colW, colW - 0.9, lx);
+
+    float colCenterNormX = clamp((k + 0.5) / max(1.0, numCols), 0.0, 1.0);
     float archCurve = clamp(u_music_wave.y, 0.0, 1.0);
-    // Дуга: посередине выше (сильнее выступает), и по самым бокам панели тоже выходит
-    float archBell = sin(normX * 3.14159265);
-    float archEnv = mix(1.0, 0.36 + 0.64 * pow(archBell, 0.85), archCurve);
+
+    // Четкая форма дуги (купол посередине + уверенный выступ по краям панели!)
+    float archSin = sin(colCenterNormX * 3.14159265);
+    float domeShape = pow(clamp(archSin, 0.0, 1.0), 1.35);
+    // На самых краях панели множитель 0.45 (чтобы хорошо вылезали по краям), а к центру плавно растет до 1.35!
+    float archScale = mix(1.0, 0.45 + 0.90 * domeShape, archCurve);
+    // Дополнительный структурный изгиб дуги, чтобы даже при разной высоте столбиков читалась форма дуги
+    float structuralArcPx = ampPx * 0.42 * archCurve * domeShape;
 
     float t = u_music_wave.w;
-    float amp = ferroSpikeAmp(k, t) * 0.72;
-    float colBottomY = u_bar_rect.y + u_bar_rect.w + 2.0 + u_music_wave.z * archEnv * amp;
+    float musicAmp = arcColumnMusicAmp(k + (isBarRect ? 0.0 : 37.0), t);
 
-    // Нескругленный прямоугольный столбик от y=0 до colBottomY
-    return 1.0 - smoothstep(colBottomY - 0.8, colBottomY + 0.5, p.y);
+    float baseBottomY = rect.y + rect.w;
+    float protrudePx = 4.0 + structuralArcPx + ampPx * archScale * (0.22 + 0.88 * musicAmp);
+    float colBottomY = baseBottomY + protrudePx;
+
+    float vMask = 1.0 - smoothstep(colBottomY - 1.0, colBottomY + 0.6, p.y);
+    return edgeAlpha * vMask;
+}
+
+float evalUnderBarArcColumns(vec2 p) {
+    if (u_music_wave.x < 1.5) return 0.0;
+    float mBar = evalArcForBox(p, u_bar_rect, u_music_wave.z, true);
+    float mDrw = (u_drawer_rect.w > 10.0 && u_drawer_wave_amp > 0.5)
+                 ? evalArcForBox(p, u_drawer_rect, u_drawer_wave_amp * 0.85, false)
+                 : 0.0;
+    return max(mBar, mDrw);
 }
 
 float sceneSdf(vec2 p, out float outNotifBlend) {
@@ -273,7 +330,7 @@ void main() {
     float arcColMask = evalUnderBarArcColumns(p);
     if (mask <= 0.001 && arcColMask <= 0.001) { fragColor = vec4(0.0); return; }
     if (mask <= 0.001) {
-        float colA = arcColMask * 0.78 * qt_Opacity;
+        float colA = arcColMask * 0.85 * qt_Opacity;
         fragColor = vec4(u_glow_color * colA, colA);
         return;
     }
@@ -325,7 +382,7 @@ void main() {
     if (arcColMask > 0.01) {
         baseRgb = mix(baseRgb, u_glow_color, arcColMask * 0.22);
     }
-    float finalAlpha = max(baseAlpha * mask, arcColMask * 0.78) * qt_Opacity;
+    float finalAlpha = max(baseAlpha * mask, arcColMask * 0.85) * qt_Opacity;
     vec3 finalRgb = mix(u_glow_color, baseRgb, mask);
     fragColor = vec4(finalRgb * finalAlpha, finalAlpha);
 }

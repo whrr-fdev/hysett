@@ -302,17 +302,47 @@ def write_url_list(path, urls):
             f.write(u + "\n")
     os.chmod(path, 0o600)
 
+SUB_BACKUP_FILE = os.path.join(CONF_DIR, "hysett_vpn_sub.bak")
+WL_SUB_BACKUP_FILE = os.path.join(CONF_DIR, "hysett_vpn_wl_sub.bak")
+
 def read_sub_urls():
-    return read_url_list(SUB_FILE)
+    urls = read_url_list(SUB_FILE)
+    if os.path.exists(SUB_BACKUP_FILE):
+        for u in read_url_list(SUB_BACKUP_FILE):
+            if u not in urls:
+                urls.append(u)
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as sf:
+                sd = json.load(sf)
+            for u in list((sd.get("sub_cache") or {}).keys()):
+                u = (u or "").strip()
+                if u and u not in urls:
+                    urls.append(u)
+        except Exception:
+            pass
+    if urls:
+        if not os.path.exists(SUB_FILE) or read_url_list(SUB_FILE) != urls:
+            write_url_list(SUB_FILE, urls)
+        if not os.path.exists(SUB_BACKUP_FILE):
+            write_url_list(SUB_BACKUP_FILE, urls)
+    return urls
 
 def write_sub_urls(urls):
     write_url_list(SUB_FILE, urls)
+    write_url_list(SUB_BACKUP_FILE, urls)
 
 def read_wl_sub_urls():
-    return read_url_list(WL_SUB_FILE)
+    urls = read_url_list(WL_SUB_FILE)
+    if os.path.exists(WL_SUB_BACKUP_FILE):
+        for u in read_url_list(WL_SUB_BACKUP_FILE):
+            if u not in urls:
+                urls.append(u)
+    return urls
 
 def write_wl_sub_urls(urls):
     write_url_list(WL_SUB_FILE, urls)
+    write_url_list(WL_SUB_BACKUP_FILE, urls)
 
 def clean_server_title(text, fallback_host=""):
     raw = text or ""
@@ -395,9 +425,25 @@ def load_state():
             st[k] = []
     return st
 
-def save_state(st):
+def save_state(st, allow_sub_delete=False):
     os.makedirs(CONF_DIR, exist_ok=True)
     st.pop("url", None)
+    if not allow_sub_delete and os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as rf:
+                disk_st = json.load(rf)
+            for ck in ("sub_cache", "wl_sub_cache"):
+                disk_c = disk_st.get(ck)
+                mem_c = st.get(ck)
+                if isinstance(disk_c, dict):
+                    if not isinstance(mem_c, dict):
+                        mem_c = {}
+                    for k, v in disk_c.items():
+                        if k not in mem_c or (not mem_c[k].get("servers") and v.get("servers")):
+                            mem_c[k] = v
+                    st[ck] = mem_c
+        except Exception:
+            pass
     for ck in ("ping_cache", "country_cache"):
         d = st.get(ck)
         if isinstance(d, dict) and len(d) > 350:
@@ -2048,7 +2094,12 @@ def sync_active_server_list(st, allow_network_probe=False):
     country_cache = st.setdefault("country_cache", {})
 
     urls = read_sub_urls()
-    sub_cache = st.get("sub_cache", {})
+    sub_cache = st.setdefault("sub_cache", {})
+    for idx_u, u_item in enumerate(urls):
+        if u_item not in sub_cache or not sub_cache.get(u_item, {}).get("servers"):
+            t_u, parsed_u = fetch_single_url(u_item)
+            if parsed_u:
+                sub_cache[u_item] = {"title": short_sub_title(u_item, idx_u, t_u), "servers": parsed_u}
 
     sub_srvs, _ = rebuild_sub_servers_from_cache(
         urls, sub_cache, frozen_set,
@@ -2777,8 +2828,9 @@ if __name__ == "__main__":
             urls = read_wl_sub_urls() if is_wl else read_sub_urls()
             for part in raw_in.split():
                 u = part.strip()
-                if u and u not in urls:
-                    urls.append(u)
+                if u:
+                    if u not in urls:
+                        urls.append(u)
                     if is_wl:
                         write_wl_sub_urls(urls)
                     else:
@@ -2810,7 +2862,7 @@ if __name__ == "__main__":
                 if is_wl and st.get("whitelist_file") == "my_wl_subs":
                     st["wl_servers"] = load_whitelist_servers(st, "my_wl_subs", allow_network_probe=False)
                 st = sync_active_server_list(st, allow_network_probe=False)
-                save_state(st)
+                save_state(st, allow_sub_delete=True)
         dump_status_json()
     elif cmd == "select_server":
         if len(sys.argv) > 2:

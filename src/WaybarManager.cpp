@@ -120,7 +120,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     m_fastTimer->start();
 
     m_cursorPollTimer = new QTimer(this);
-    m_cursorPollTimer->setInterval(32);
+    m_cursorPollTimer->setInterval(16);
     connect(m_cursorPollTimer, &QTimer::timeout, this, [this]() {
         updateAudioCaptureState();
         if (!m_mediaWaves || !mediaActive() || !mediaPlaying()) return;
@@ -213,18 +213,18 @@ void WaybarManager::loadState() {
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
             else if (k == "media_wave_mode") m_mediaWaveMode = std::clamp(v.toInt(), 0, 2);
             else if (k == "ym_wave_count") m_ymWaveCount = std::clamp(v.toInt(), 10, 500);
-            else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
+            else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 5.0);
             else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
             else if (k == "media_wave_count") m_mediaWaveCount = std::clamp(v.toInt(), 20, 220);
             else if (k == "media_wave_sharpness") m_mediaWaveSharpness = std::clamp(v.toDouble(), 0.1, 1.0);
-            else if (k == "pill_wave_speed") m_pillWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
+            else if (k == "pill_wave_speed") m_pillWaveSpeed = std::clamp(v.toDouble(), 0.2, 5.0);
             else if (k == "pill_wave_height") m_pillWaveHeight = std::clamp(v.toInt(), 20, 100);
             else if (k == "pill_wave_width") m_pillWaveWidth = std::clamp(v.toInt(), 1, 5);
             else if (k == "pill_wave_gap") m_pillWaveGap = std::clamp(v.toInt(), 1, 5);
-            else if (k == "arc_wave_speed") m_arcWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
-            else if (k == "arc_wave_size") m_arcWaveSize = std::clamp(v.toDouble(), 4.0, 32.0);
-            else if (k == "arc_wave_width") m_arcWaveWidth = std::clamp(v.toInt(), 1, 6);
-            else if (k == "arc_wave_gap") m_arcWaveGap = std::clamp(v.toInt(), 1, 6);
+            else if (k == "arc_wave_speed") m_arcWaveSpeed = std::clamp(v.toDouble(), 0.2, 5.0);
+            else if (k == "arc_wave_size") { double av = v.toDouble(); m_arcWaveSize = (av <= 18.0) ? 38.0 : std::clamp(av, 10.0, 80.0); }
+            else if (k == "arc_wave_width") { int aw = v.toInt(); m_arcWaveWidth = (aw <= 3) ? 14 : std::clamp(aw, 4, 36); }
+            else if (k == "arc_wave_gap") { int ag = v.toInt(); m_arcWaveGap = (ag <= 1) ? 6 : std::clamp(ag, 2, 20); }
             else if (k == "arc_wave_curve") m_arcWaveCurve = std::clamp(v.toDouble(), 0.0, 1.0);
             else if (k == "media_collapsed") m_mediaCollapsed = (v == "1" || v == "true");
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
@@ -1055,7 +1055,7 @@ void WaybarManager::updateAudioCaptureState() {
             m_audioCapProc = nullptr;
         }
         m_audioCapProc = new QProcess(this);
-        m_audioCapProc->start("parec", {"--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=35", "-d", "@DEFAULT_MONITOR@"});
+        m_audioCapProc->start("parec", {"--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=18", "-d", "@DEFAULT_MONITOR@"});
         return;
     }
 
@@ -1087,10 +1087,10 @@ void WaybarManager::updateAudioCaptureState() {
         double targetB = std::clamp(std::pow(std::sqrt(sumBass / count) * 4.8, 0.72), 0.0, 1.50);
         double targetM = std::clamp(std::pow(std::sqrt(sumMid  / count) * 5.6, 0.75), 0.0, 1.45);
         double targetT = std::clamp(std::pow(std::sqrt(sumTreb / count) * 6.5, 0.78), 0.0, 1.40);
-        double nextB = (targetB > m_audioBass)   ? (m_audioBass * 0.45 + targetB * 0.55)   : (m_audioBass * 0.78 + targetB * 0.22);
-        double nextM = (targetM > m_audioMid)    ? (m_audioMid * 0.45 + targetM * 0.55)    : (m_audioMid * 0.78 + targetM * 0.22);
-        double nextT = (targetT > m_audioTreble) ? (m_audioTreble * 0.45 + targetT * 0.55) : (m_audioTreble * 0.78 + targetT * 0.22);
-        if (std::abs(nextB - m_audioBass) > 0.015 || std::abs(nextM - m_audioMid) > 0.015 || std::abs(nextT - m_audioTreble) > 0.015) {
+        double nextB = (targetB > m_audioBass)   ? (m_audioBass * 0.28 + targetB * 0.72)   : (m_audioBass * 0.62 + targetB * 0.38);
+        double nextM = (targetM > m_audioMid)    ? (m_audioMid * 0.28 + targetM * 0.72)    : (m_audioMid * 0.62 + targetM * 0.38);
+        double nextT = (targetT > m_audioTreble) ? (m_audioTreble * 0.28 + targetT * 0.72) : (m_audioTreble * 0.62 + targetT * 0.38);
+        if (std::abs(nextB - m_audioBass) > 0.006 || std::abs(nextM - m_audioMid) > 0.006 || std::abs(nextT - m_audioTreble) > 0.006) {
             m_audioBass = nextB; m_audioMid = nextM; m_audioTreble = nextT;
             emit audioSpectrumChanged();
         }
@@ -1102,7 +1102,7 @@ void WaybarManager::setMediaWaveSharpness(qreal v) {
     if (!qFuzzyCompare(m_mediaWaveSharpness, v)) { m_mediaWaveSharpness = v; saveState(false); }
 }
 void WaybarManager::setPillWaveSpeed(qreal v) {
-    v = std::clamp(v, 0.2, 4.0);
+    v = std::clamp(v, 0.2, 5.0);
     if (!qFuzzyCompare(m_pillWaveSpeed, v)) { m_pillWaveSpeed = v; saveState(false); }
 }
 void WaybarManager::setPillWaveHeight(int v) {
@@ -1118,19 +1118,19 @@ void WaybarManager::setPillWaveGap(int v) {
     if (m_pillWaveGap != v) { m_pillWaveGap = v; saveState(false); }
 }
 void WaybarManager::setArcWaveSpeed(qreal v) {
-    v = std::clamp(v, 0.2, 4.0);
+    v = std::clamp(v, 0.2, 5.0);
     if (!qFuzzyCompare(m_arcWaveSpeed, v)) { m_arcWaveSpeed = v; saveState(false); }
 }
 void WaybarManager::setArcWaveSize(qreal v) {
-    v = std::clamp(v, 4.0, 32.0);
+    v = std::clamp(v, 10.0, 80.0);
     if (!qFuzzyCompare(m_arcWaveSize, v)) { m_arcWaveSize = v; saveState(false); }
 }
 void WaybarManager::setArcWaveWidth(int v) {
-    v = std::clamp(v, 1, 6);
+    v = std::clamp(v, 4, 36);
     if (m_arcWaveWidth != v) { m_arcWaveWidth = v; saveState(false); }
 }
 void WaybarManager::setArcWaveGap(int v) {
-    v = std::clamp(v, 1, 6);
+    v = std::clamp(v, 2, 20);
     if (m_arcWaveGap != v) { m_arcWaveGap = v; saveState(false); }
 }
 void WaybarManager::setArcWaveCurve(qreal v) {
@@ -1155,7 +1155,7 @@ void WaybarManager::setMediaWaveCount(int v) {
 }
 
 void WaybarManager::setMediaWaveSpeed(qreal v) {
-    v = std::clamp(v, 0.2, 4.0);
+    v = std::clamp(v, 0.2, 5.0);
     if (!qFuzzyCompare(m_mediaWaveSpeed, v)) {
         m_mediaWaveSpeed = v;
         saveState(false);

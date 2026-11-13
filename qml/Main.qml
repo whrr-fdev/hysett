@@ -216,7 +216,7 @@ ApplicationWindow {
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     from: 1.0
-                    to: root.openFxMode === "smooth" ? 1.0 : 1.05
+                    to: (root.openFxMode === "smooth" || (Waybar && !Waybar.windowSideStretch)) ? 1.0 : 1.05
                     duration: Math.round(root.openFxDuration * 0.55)
                     easing.type: Easing.OutQuad
                 }
@@ -315,7 +315,7 @@ ApplicationWindow {
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     from: 1.0
-                    to: root.openFxMode === "smooth" ? 1.0 : 1.045
+                    to: (root.openFxMode === "smooth" || (Waybar && !Waybar.windowSideStretch)) ? 1.0 : 1.045
                     duration: Math.round(root.openFxDuration * 0.55)
                     easing.type: Easing.OutQuad
                 }
@@ -3656,15 +3656,24 @@ ApplicationWindow {
                                                 id: appVolSlider
                                                 Layout.fillWidth: true
                                                 from: 0; to: 100; stepSize: 1
+                                                property double lastUserMoveMs: 0
                                                 Component.onCompleted: value = streamData.volume
-                                                Binding {
-                                                    target: appVolSlider
-                                                    property: "value"
-                                                    value: streamData.volume
-                                                    when: !appVolSlider.pressed
+                                                Connections {
+                                                    target: Waybar
+                                                    function onAudioStreamsChanged() {
+                                                        if (!appVolSlider.pressed && (Date.now() - appVolSlider.lastUserMoveMs > 900)) {
+                                                            appVolSlider.value = streamData.volume
+                                                        }
+                                                    }
                                                 }
-                                                onPressedChanged: volumePopupBox.anyStreamSliderPressed = pressed
-                                                onMoved: if (Waybar && streamData.id >= 0) Waybar.setStreamVolume(streamData.id, Math.round(value))
+                                                onPressedChanged: {
+                                                    volumePopupBox.anyStreamSliderPressed = pressed
+                                                    if (!pressed) lastUserMoveMs = Date.now()
+                                                }
+                                                onMoved: {
+                                                    lastUserMoveMs = Date.now()
+                                                    if (Waybar && streamData.id >= 0) Waybar.setStreamVolume(streamData.id, Math.round(value))
+                                                }
                                             }
                                         }
                                     }

@@ -129,6 +129,17 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     m_cursorPollTimer = new QTimer(this);
     m_cursorPollTimer->setInterval(16);
     connect(m_cursorPollTimer, &QTimer::timeout, this, [this]() {
+        if (QFile::exists("/tmp/hysett_media_cmd")) {
+            QFile mcf("/tmp/hysett_media_cmd");
+            if (mcf.open(QIODevice::ReadOnly)) {
+                QString mcmd = QString::fromUtf8(mcf.readAll()).trimmed();
+                mcf.close();
+                QFile::remove("/tmp/hysett_media_cmd");
+                if (mcmd == "next") mediaNext();
+                else if (mcmd == "previous") mediaPrev();
+                else if (mcmd == "play-pause") mediaPlayPause();
+            }
+        }
         updateAudioCaptureState();
         if (!m_mediaWaves || !mediaActive() || !mediaPlaying()) return;
         if (m_mediaDemoMode && !m_mediaActive) {
@@ -216,6 +227,7 @@ void WaybarManager::loadState() {
             else if (k == "fixed_title_width") m_fixedTitleWidth = (v == "1" || v == "true");
             else if (k == "fixed_title_size") m_fixedTitleSize = std::clamp(v.toInt(), 60, 450);
             else if (k == "center_title_on_bar") m_centerTitleOnBar = (v == "1" || v == "true");
+            else if (k == "window_side_stretch") m_windowSideStretch = (v == "1" || v == "true");
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
@@ -279,6 +291,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "fixed_title_width=" << (m_fixedTitleWidth ? "1" : "0") << "\n";
         out << "fixed_title_size=" << m_fixedTitleSize << "\n";
         out << "center_title_on_bar=" << (m_centerTitleOnBar ? "1" : "0") << "\n";
+        out << "window_side_stretch=" << (m_windowSideStretch ? "1" : "0") << "\n";
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
@@ -326,6 +339,7 @@ void WaybarManager::setWorkspaceDotSize(int v) { v = std::clamp(v, 3, 12); if (m
 void WaybarManager::setFixedTitleWidth(bool v) { if (m_fixedTitleWidth != v) { m_fixedTitleWidth = v; saveState(false); } }
 void WaybarManager::setFixedTitleSize(int v) { v = std::clamp(v, 60, 450); if (m_fixedTitleSize != v) { m_fixedTitleSize = v; saveState(false); } }
 void WaybarManager::setCenterTitleOnBar(bool v) { if (m_centerTitleOnBar != v) { m_centerTitleOnBar = v; saveState(false); } }
+void WaybarManager::setWindowSideStretch(bool v) { if (m_windowSideStretch != v) { m_windowSideStretch = v; saveState(false); } }
 void WaybarManager::setSpecValue(int index, qreal val) {
     if (index < 0 || index >= m_specs.size()) return;
     QVariantMap m = m_specs[index].toMap(); m["value"] = val; m_specs[index] = m; saveState(false);
@@ -2095,7 +2109,22 @@ void WaybarManager::setStreamVolume(int streamId, int percent) {
             break;
         }
     }
-    QProcess::startDetached("pactl", {"set-sink-input-volume", QString::number(streamId), QString::number(percent) + "%"});
+    m_pendingStreamVols[streamId] = percent;
+    if (!m_streamVolTimer) {
+        m_streamVolTimer = new QTimer(this);
+        m_streamVolTimer->setSingleShot(true);
+        m_streamVolTimer->setInterval(30);
+        connect(m_streamVolTimer, &QTimer::timeout, this, [this]() {
+            auto pending = std::move(m_pendingStreamVols);
+            m_pendingStreamVols.clear();
+            for (auto it = pending.constBegin(); it != pending.constEnd(); ++it) {
+                QProcess::startDetached("pactl", {"set-sink-input-volume", QString::number(it.key()), QString::number(it.value()) + "%"});
+            }
+        });
+    }
+    if (!m_streamVolTimer->isActive()) {
+        m_streamVolTimer->start();
+    }
 }
 
 void WaybarManager::toggleStreamMute(int streamId) {
@@ -2803,7 +2832,9 @@ void WaybarManager::loadYmIndexFromDisk() {
     if (f.open(QIODevice::ReadOnly)) {
         QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
         f.close();
-        nextPls = o["playlists"].toArray().toVariantList();
+        for (const QVariant &pv : o["playlists"].toArray().toVariantList()) {
+            if (pv.toMap()["title"].toString() != "Моя волна") nextPls.append(pv);
+        }
     }
     // Если индекс пустой или еще не создан — мгновенно сканируем папки ~/Music/YandexMusic напрямую в C++
     if (nextPls.isEmpty()) {
@@ -2811,7 +2842,7 @@ void WaybarManager::loadYmIndexFromDisk() {
         if (baseDir.exists()) {
             QStringList dirs = baseDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
             for (const QString &d : dirs) {
-                if (d.startsWith('.')) continue;
+                if (d.startsWith('.') || d == "Моя волна") continue;
                 QDir plDir(baseDir.filePath(d));
                 QStringList mp3s = plDir.entryList({"*.mp3"}, QDir::Files, QDir::Time);
                 if (mp3s.isEmpty()) continue;
@@ -2899,27 +2930,45 @@ void WaybarManager::moveYmTrack(int playlistIdx, int fromIdx, int toIdx) {
 }
 
 void WaybarManager::playYmMyWave() {
-    int wavePlIdx = -1;
-    for (int i = 0; i < m_ymPlaylists.size(); ++i) {
-        if (m_ymPlaylists[i].toMap()["title"].toString() == "Моя волна") {
-            wavePlIdx = i;
-            break;
+    QDir baseDir(QDir::homePath() + "/Music/YandexMusic");
+    QDir waveDir(baseDir.filePath("Моя волна"));
+    auto collectWaveTracks = [&]() -> QVariantList {
+        QVariantList list;
+        if (!waveDir.exists()) return list;
+        QStringList mp3s = waveDir.entryList({"*.mp3"}, QDir::Files, QDir::Time);
+        for (const QString &fn : mp3s) {
+            QString base = fn.left(fn.length() - 4);
+            QString art = base.contains(" - ") ? base.section(" - ", 0, 0) : "Моя волна";
+            QString tit = base.contains(" - ") ? base.section(" - ", 1) : base;
+            QString cov = baseDir.filePath(".covers/" + base + ".jpg");
+            QFileInfo fi(waveDir.filePath(fn));
+            int estSec = std::max(1, int(fi.size() / 24000));
+            QString dur = QString("%1:%2").arg(estSec / 60, 2, 10, QChar('0')).arg(estSec % 60, 2, 10, QChar('0'));
+            QVariantMap tm;
+            tm["title"] = tit;
+            tm["artist"] = art;
+            tm["fullTitle"] = base;
+            tm["duration"] = dur;
+            tm["path"] = fi.absoluteFilePath();
+            tm["cover"] = QFile::exists(cov) ? cov : "";
+            list.append(tm);
         }
+        return list;
+    };
+
+    QVariantList waveTrs = collectWaveTracks();
+    if (!waveTrs.isEmpty()) {
+        std::mt19937 rng(uint32_t(QDateTime::currentMSecsSinceEpoch()));
+        std::shuffle(waveTrs.begin(), waveTrs.end(), rng);
+        m_localQueue = waveTrs;
+        startLocalQueueAt(0);
+        return;
     }
-    if (wavePlIdx >= 0) {
-        QVariantList trs = m_ymPlaylists[wavePlIdx].toMap()["tracks"].toList();
-        if (!trs.isEmpty()) {
-            setYmSelectedPlaylist(wavePlIdx);
-            int startIdx = m_ymShuffle ? (std::rand() % trs.size()) : 0;
-            playYmTrack(wavePlIdx, startIdx);
-            return;
-        }
-    }
-    // Если треков «Моей волны» еще нет локально — скачиваем быструю пачку и сразу запускаем!
+
     if (m_ymBusy) return;
     m_ymBusy = true;
     m_ymProgress = 10;
-    m_ymStatusText = "Запуск «Моей волны» (подгрузка треков)...";
+    m_ymStatusText = "Запуск потока «Моей волны»...";
     emit ymStateChanged();
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
@@ -2927,13 +2976,7 @@ void WaybarManager::playYmMyWave() {
         m_ymBusy = false;
         loadYmIndexFromDisk();
         emit ymStateChanged();
-        for (int i = 0; i < m_ymPlaylists.size(); ++i) {
-            if (m_ymPlaylists[i].toMap()["title"].toString() == "Моя волна") {
-                setYmSelectedPlaylist(i);
-                playYmTrack(i, 0);
-                break;
-            }
-        }
+        playYmMyWave();
     });
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "play_wave_init", "15"});
 }

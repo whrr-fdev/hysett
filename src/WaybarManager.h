@@ -18,6 +18,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool fixedTitleWidth READ fixedTitleWidth WRITE setFixedTitleWidth NOTIFY stateChanged)
     Q_PROPERTY(int fixedTitleSize READ fixedTitleSize WRITE setFixedTitleSize NOTIFY stateChanged)
     Q_PROPERTY(bool centerTitleOnBar READ centerTitleOnBar WRITE setCenterTitleOnBar NOTIFY stateChanged)
+    Q_PROPERTY(bool windowSideStretch READ windowSideStretch WRITE setWindowSideStretch NOTIFY stateChanged)
     Q_PROPERTY(QVariantList specs READ specs NOTIFY stateChanged)
 
     Q_PROPERTY(int barWidth READ barWidth NOTIFY stateChanged)
@@ -193,6 +194,8 @@ public:
     void setFixedTitleSize(int v);
     bool centerTitleOnBar() const { return m_centerTitleOnBar; }
     void setCenterTitleOnBar(bool v);
+    bool windowSideStretch() const { return m_windowSideStretch; }
+    void setWindowSideStretch(bool v);
     QVariantList specs() const { return m_specs; }
 
     int barWidth() const;
@@ -503,6 +506,7 @@ private:
     bool m_fixedTitleWidth = false;
     int m_fixedTitleSize = 100;
     bool m_centerTitleOnBar = true;
+    bool m_windowSideStretch = true;
     QVariantList m_specs;
     QVariantList m_defaults;
 
@@ -623,6 +627,8 @@ private:
     int m_volume = 50;
     bool m_muted = false;
     QVariantList m_audioStreams;
+    QHash<int, int> m_pendingStreamVols;
+    QTimer *m_streamVolTimer = nullptr;
     QString m_kbLayout = "RU";
     bool m_recording = false;
     qint64 m_recordingStartSec = 0;

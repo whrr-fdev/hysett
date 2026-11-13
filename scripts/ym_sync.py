@@ -162,7 +162,7 @@ def rebuild_local_index():
 
     dirs = []
     for d in sorted(os.listdir(MUSIC_DIR)):
-        if d.startswith("."):
+        if d.startswith(".") or d == "Моя волна":
             continue
         fp = os.path.join(MUSIC_DIR, d)
         if os.path.isdir(fp):
@@ -213,7 +213,7 @@ def rebuild_local_index():
                 "title": meta.get("title") or tit_fb,
                 "artist": meta.get("artist") or art_fb,
                 "fullTitle": base,
-                "duration": meta.get("duration") or "",
+                "duration": meta.get("duration") or (lambda sz: f"{max(1, sz // 24000) // 60:02d}:{max(1, sz // 24000) % 60:02d}" if sz > 0 else "")(os.path.getsize(full_p) if os.path.exists(full_p) else 0),
                 "path": full_p,
                 "cover": cov_p
             })

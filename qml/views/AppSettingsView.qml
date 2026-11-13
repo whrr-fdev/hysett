@@ -560,20 +560,20 @@ RowLayout {
                                         return 0
                                     }
                                     onSelected: (idx) => { if (Config) Config.windowOpenAnimType = ["spring", "elastic", "bounce", "zoom_spring", "smooth"][idx] }
+                                }
+                            }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Text {
-                            text: "Эффект растягивания окна в бока при открытии:"
-                            color: "#cccccc"
-                            font.pixelSize: Config.fontSize
-                            Layout.fillWidth: true
-                        }
-                        StyledSwitch {
-                            checked: Waybar ? Waybar.windowSideStretch : true
-                            onToggled: if (Waybar) Waybar.windowSideStretch = checked
-                        }
-                    }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Пружинистое растягивание окна в бока при открытии:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Waybar ? Waybar.windowSideStretch : true
+                                    onToggled: if (Waybar) Waybar.windowSideStretch = checked
                                 }
                             }
 

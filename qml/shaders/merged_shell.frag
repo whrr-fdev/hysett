@@ -51,28 +51,63 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
-// Вязкая ферромагнитная жидкость: острые жидкие пики с вогнутыми менисками и реакцией самих волн на мышь
+// Вязкая ферромагнитная жидкость: острые иглы, раздваивание вершин (бифуркация) и стягивание к магниту-мыши
 float ferroSpikeAmp(float k, float t, float magBoost) {
     float h1 = fract(sin(k * 127.1 + 1.9) * 43758.5453);
     float h2 = fract(sin(k * 269.5 + 7.3) * 18342.2317);
     float h3 = fract(sin(k * 419.2 + 3.1) * 91523.1143);
-    // Рядом с мышью частота колебаний самих пиков ускоряется
-    float tLoc = t * (1.0 + magBoost * 0.45);
-    float w1 = 0.5 + 0.5 * sin(tLoc * (1.45 + h1 * 1.65) + h2 * 6.2831853);
-    float w2 = 0.5 + 0.5 * sin(tLoc * (2.60 + h2 * 2.10) - h3 * 6.2831853);
-    float groupBeat = 0.5 + 0.5 * sin(k * 0.45 - t * 1.85 + sin(k * 0.22 + t * 1.1));
-    float baseAmp = pow(clamp((w1 * 0.54 + w2 * 0.46) * (0.38 + 0.62 * groupBeat), 0.0, 1.0), 1.55);
-    // Под магнитом-мышью даже спящие пики возбуждаются и начинают активно пульсировать
-    float excitedAmp = 0.55 + 0.45 * sin(t * 3.8 + k * 1.35 + h1 * 6.28);
-    return mix(baseAmp, max(baseAmp, excitedAmp), magBoost * 0.85) * (1.0 + magBoost * 0.75);
+    float tLoc = t * (1.0 + magBoost * 0.55);
+    float w1 = 0.5 + 0.5 * sin(tLoc * (1.55 + h1 * 1.75) + h2 * 6.2831853);
+    float w2 = 0.5 + 0.5 * sin(tLoc * (2.80 + h2 * 2.25) - h3 * 6.2831853);
+    float groupBeat = 0.5 + 0.5 * sin(k * 0.45 - t * 1.95 + sin(k * 0.22 + t * 1.15));
+    float baseAmp = pow(clamp((w1 * 0.54 + w2 * 0.46) * (0.36 + 0.64 * groupBeat), 0.0, 1.0), 1.45);
+    float excitedAmp = 0.60 + 0.40 * sin(t * 4.2 + k * 1.55 + h1 * 6.28);
+    return mix(baseAmp, max(baseAmp, excitedAmp), magBoost * 0.90) * (1.0 + magBoost * 0.85);
 }
 
-// Профиль жидкого магнитного шипа: в ложбине (d=1) строго 0.0 (панель НЕ расширяется!), а к центру — острый каплевидный пик
-float ferroToothProfile(float distFromCenter, float sharpness) {
+// Профиль зубца с управляемой остротой (needleMix -> 1 дает острую иглу exp(-|d|*k), в основании = 0)
+float ferroToothProfile(float distFromCenter, float sharpness, float needleMix) {
     float d = clamp(distFromCenter, 0.0, 1.0);
-    float core = 1.0 / (1.0 + d * d * sharpness);
+    float drop = 1.0 / (1.0 + d * d * sharpness);
+    float needle = exp(-d * (4.8 + needleMix * 7.2));
     float zeroAtBase = (1.0 - d * d) * (1.0 - d);
-    return clamp(core * zeroAtBase * 1.12, 0.0, 1.0);
+    return clamp(mix(drop, needle, needleMix) * zeroAtBase * 1.16, 0.0, 1.0);
+}
+
+// Жидкий максимум (smax) для гладкого вогнутого мениска между раздвоенными вершинами
+float smaxLiquid(float a, float b, float k) {
+    float h = clamp(0.5 + 0.5 * (a - b) / max(0.001, k), 0.0, 1.0);
+    return mix(b, a, h) + k * h * (1.0 - h);
+}
+
+// Вычисление одного (или раздвоенного на два рожка) ферромагнитного пика ячейки k
+float evalFerroCell(float k, float localF, float t, float magField) {
+    float h1 = fract(sin(k * 91.7 + 0.3) * 19452.1);
+    float h2 = fract(sin(k * 311.3 + 4.1) * 63819.7);
+    float hSharp = fract(sin(k * 517.9 + 2.7) * 38192.3);
+
+    float amp = ferroSpikeAmp(k, t, magField);
+    float center = 0.5 + (h1 - 0.5) * 0.16 * sin(t * 1.3 + k);
+
+    // Коэффициент остроты: часть пиков — умеренно острые, а часть (и под мышью) — острые иглы
+    float needleMix = clamp(pow(hSharp, 0.75) * 0.85 + magField * 0.45, 0.20, 0.98);
+    float sharpness = 14.0 + hSharp * 22.0 + magField * 14.0;
+
+    // Фаза раздваивания вершины (бифуркация пика на два острых зубца)
+    float splitPhase = sin(t * (1.4 + h2 * 1.3) + h1 * 6.2831853) + magField * 0.75;
+    float splitOffset = clamp((splitPhase - 0.12) * 0.28, 0.0, 0.22);
+
+    if (splitOffset > 0.015) {
+        float dLeft  = abs(localF - (center - splitOffset)) * (2.1 + splitOffset * 2.5);
+        float dRight = abs(localF - (center + splitOffset)) * (2.1 + splitOffset * 2.5);
+        float asym = 0.16 * sin(t * 2.7 + k * 1.9);
+        float pLeft  = amp * (0.92 + asym) * ferroToothProfile(dLeft, sharpness * 1.25, min(1.0, needleMix + 0.18));
+        float pRight = amp * (0.92 - asym) * ferroToothProfile(dRight, sharpness * 1.25, min(1.0, needleMix + 0.18));
+        return smaxLiquid(pLeft, pRight, 0.08);
+    } else {
+        float dCenter = abs(localF - center) * 2.0;
+        return amp * ferroToothProfile(dCenter, sharpness, needleMix);
+    }
 }
 
 float sceneSdf(vec2 p, out float outNotifBlend) {
@@ -95,43 +130,33 @@ float sceneSdf(vec2 p, out float outNotifBlend) {
             float t = u_music_wave.w;
             float barBottomY = u_bar_rect.y + u_bar_rect.w;
 
-            // Магнитное поле от курсора мыши (u_music_wave.xy передает глобальный курсор мыши!)
+            // Магнитное поле от курсора мыши: +atan(...) СТЯГИВАЕТ пики к курсору мыши (уплотняет их под мышью!)
             vec2 mPos = u_music_wave.xy;
             float magField = 0.0;
             float magWarpX = 0.0;
             if (mPos.x > 0.0 && mPos.y > -20.0) {
                 float dxM = p.x - mPos.x;
                 float dyM = max(0.0, abs(mPos.y - barBottomY));
-                float vertReach = exp(-(dyM * dyM) / (165.0 * 165.0));
+                float vertReach = exp(-(dyM * dyM) / (170.0 * 170.0));
                 magField = exp(-(dxM * dxM) / (115.0 * 115.0)) * vertReach;
-                // Сгущаем и стягиваем сами волны-пики к курсору мыши (под мышью шаг пиков становится плотнее!)
-                magWarpX = -atan(dxM * 0.028) * 18.0 * magField;
+                // Положительный знак +atan сжимает координатную сетку к точке курсора (пики сбегаются к мыши!)
+                magWarpX = atan(dxM * 0.032) * 20.0 * magField;
             }
 
-            float liquidDrift = 3.2 * sin((p.x - u_bar_rect.x) * 0.022 + t * 0.9);
+            float liquidDrift = 2.8 * sin((p.x - u_bar_rect.x) * 0.020 + t * 0.85);
             float xCoord = (p.x - u_bar_rect.x) + magWarpX + liquidDrift;
 
-            float step1 = 16.0;
+            float step1 = 18.0;
             float relX1 = xCoord / step1;
             float k1 = floor(relX1);
             float f1 = fract(relX1);
 
-            float hShift = (fract(sin(k1 * 91.7) * 19452.1) - 0.5) * 0.20 * sin(t * 1.2 + k1);
-            float dCenter1 = abs(f1 - (0.5 + hShift)) * 2.0;
+            float spikeCur  = evalFerroCell(k1, f1, t, magField);
+            float spikePrev = evalFerroCell(k1 - 1.0, f1 + 1.0, t, magField);
+            float spikeNext = evalFerroCell(k1 + 1.0, f1 - 1.0, t, magField);
 
-            float sharpness = 11.5 + magField * 8.0;
-            float ampPrev = ferroSpikeAmp(k1 - 1.0, t, magField);
-            float ampCur  = ferroSpikeAmp(k1, t, magField);
-            float ampNext = ferroSpikeAmp(k1 + 1.0, t, magField);
-
-            float spikeMain = ampCur * ferroToothProfile(dCenter1, sharpness);
-            float neighborSpike = (f1 < 0.5)
-                                  ? (ampPrev * ferroToothProfile((0.5 + f1) * 1.45, sharpness))
-                                  : (ampNext * ferroToothProfile((1.5 - f1) * 1.45, sharpness));
-
-            // Жидкостный мениск между самими пиками (при этом в ложбинах = 0, сама панель НЕ расширяется!)
-            float liquidProfile = max(spikeMain, neighborSpike);
-            waveStretch = u_music_wave.z * edgeFade * clamp(liquidProfile, 0.0, 1.85);
+            float liquidProfile = smaxLiquid(spikeCur, max(spikePrev, spikeNext), 0.06);
+            waveStretch = u_music_wave.z * edgeFade * clamp(liquidProfile, 0.0, 1.95);
         }
     }
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);

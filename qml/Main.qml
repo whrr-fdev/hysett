@@ -960,7 +960,7 @@ ApplicationWindow {
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
-                                readonly property real maxIconMix: (root.drawerMode === "settings") ? root.drawerProgress : 0.0
+                                property real maxIconMix: (root.drawerMode === "settings") ? root.drawerProgress : 0.0
                                 Behavior on maxIconMix { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
                                 Rectangle {

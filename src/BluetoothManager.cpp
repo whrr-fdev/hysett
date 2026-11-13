@@ -46,7 +46,7 @@ BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
     refresh();
 
     m_autoTimer = new QTimer(this);
-    m_autoTimer->setInterval(6000);
+    m_autoTimer->setInterval(12000);
     connect(m_autoTimer, &QTimer::timeout, this, &BluetoothManager::pollAutoConnect);
     m_autoTimer->start();
     QTimer::singleShot(1500, this, &BluetoothManager::pollAutoConnect);
@@ -69,7 +69,7 @@ void BluetoothManager::setAutoConnect(bool v) {
 }
 
 void BluetoothManager::pollAutoConnect() {
-    if (!m_autoConnect || m_scanning || m_autoConnectBusy) return;
+    if (!m_powered || !m_autoConnect || m_scanning || m_autoConnectBusy) return;
 
     m_autoConnectBusy = true;
     QProcess *pConn = new QProcess(this);
@@ -252,7 +252,16 @@ void BluetoothManager::setPowered(bool v) {
         QTimer::singleShot(1100, this, &BluetoothManager::refresh);
     });
     if (v) {
-        proc->start("sh", {"-c", "rfkill unblock bluetooth 2>/dev/null; bluetoothctl power on"});
+        proc->start("sh", {"-c",
+            "rfkill unblock bluetooth 2>/dev/null; "
+            "for d in /sys/bus/usb/devices/*; do "
+            "  if [ -f "$d/bDeviceClass" ] && grep -qiE 'e0|ef' "$d/bDeviceClass" 2>/dev/null; then "
+            "    echo on > "$d/power/control" 2>/dev/null || true; "
+            "  fi; "
+            "done; "
+            "hciconfig hci0 up 2>/dev/null || true; "
+            "bluetoothctl power on"
+        });
     } else {
         proc->start("bluetoothctl", {"power", "off"});
     }

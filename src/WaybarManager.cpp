@@ -24,6 +24,7 @@ static qint64 m_vpnStartGraceUntilMs = 0;
 #include <fcntl.h>
 #include <cmath>
 #include <algorithm>
+#include <random>
 #ifdef HAVE_LAYERSHELLQT
 #include <LayerShellQt/Window>
 #endif
@@ -215,6 +216,7 @@ void WaybarManager::loadState() {
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
             else if (k == "media_wave_mode") m_mediaWaveMode = std::clamp(v.toInt(), 0, 1);
             else if (k == "ym_wave_count") m_ymWaveCount = std::clamp(v.toInt(), 10, 500);
+            else if (k == "ym_shuffle") m_ymShuffle = (v == "1" || v == "true");
             else if (k == "ym_auto_sync_playlists") m_ymAutoSyncPlaylists = (v == "1" || v == "true");
             else if (k == "ym_auto_sync_my_wave") m_ymAutoSyncMyWave = (v == "1" || v == "true");
             else if (k == "ym_auto_sync_delay") m_ymAutoSyncDelay = std::clamp(v.toInt(), 15, 300);
@@ -277,6 +279,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
         out << "media_wave_mode=" << m_mediaWaveMode << "\n";
         out << "ym_wave_count=" << m_ymWaveCount << "\n";
+        out << "ym_shuffle=" << (m_ymShuffle ? "1" : "0") << "\n";
         out << "ym_auto_sync_playlists=" << (m_ymAutoSyncPlaylists ? "1" : "0") << "\n";
         out << "ym_auto_sync_my_wave=" << (m_ymAutoSyncMyWave ? "1" : "0") << "\n";
         out << "ym_auto_sync_delay=" << m_ymAutoSyncDelay << "\n";
@@ -2708,6 +2711,89 @@ void WaybarManager::refreshYmLibrary() {
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "scan_local"});
 }
 
+void WaybarManager::setYmShuffle(bool v) {
+    if (m_ymShuffle != v) {
+        m_ymShuffle = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::moveYmTrack(int playlistIdx, int fromIdx, int toIdx) {
+    if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
+    QVariantMap pl = m_ymPlaylists[playlistIdx].toMap();
+    QVariantList trs = pl["tracks"].toList();
+    if (fromIdx < 0 || fromIdx >= trs.size() || toIdx < 0 || toIdx >= trs.size() || fromIdx == toIdx) return;
+
+    trs.move(fromIdx, toIdx);
+    pl["tracks"] = trs;
+    m_ymPlaylists[playlistIdx] = pl;
+    emit ymLibraryChanged();
+
+    // Сохраняем новый порядок в .m3u8 плейлиста и в playlists_index.json
+    QString folder = pl["folder"].toString();
+    QString title = pl["title"].toString();
+    if (!folder.isEmpty() && !title.isEmpty()) {
+        QFile mf(folder + "/" + title + ".m3u8");
+        if (mf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+            QTextStream out(&mf);
+            out << "#EXTM3U\n";
+            for (const QVariant &tv : trs) {
+                QFileInfo fi(tv.toMap()["path"].toString());
+                if (!fi.fileName().isEmpty()) out << fi.fileName() << "\n";
+            }
+            mf.close();
+        }
+    }
+    QFile idxF(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
+    if (idxF.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QJsonObject rootObj;
+        rootObj["playlists"] = QJsonArray::fromVariantList(m_ymPlaylists);
+        rootObj["ts"] = QDateTime::currentSecsSinceEpoch();
+        idxF.write(QJsonDocument(rootObj).toJson(QJsonDocument::Compact));
+        idxF.close();
+    }
+}
+
+void WaybarManager::playYmMyWave() {
+    int wavePlIdx = -1;
+    for (int i = 0; i < m_ymPlaylists.size(); ++i) {
+        if (m_ymPlaylists[i].toMap()["title"].toString() == "Моя волна") {
+            wavePlIdx = i;
+            break;
+        }
+    }
+    if (wavePlIdx >= 0) {
+        QVariantList trs = m_ymPlaylists[wavePlIdx].toMap()["tracks"].toList();
+        if (!trs.isEmpty()) {
+            setYmSelectedPlaylist(wavePlIdx);
+            int startIdx = m_ymShuffle ? (std::rand() % trs.size()) : 0;
+            playYmTrack(wavePlIdx, startIdx);
+            return;
+        }
+    }
+    // Если треков «Моей волны» еще нет локально — скачиваем быструю пачку и сразу запускаем!
+    if (m_ymBusy) return;
+    m_ymBusy = true;
+    m_ymProgress = 10;
+    m_ymStatusText = "Запуск «Моей волны» (подгрузка треков)...";
+    emit ymStateChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        p->deleteLater();
+        m_ymBusy = false;
+        loadYmIndexFromDisk();
+        emit ymStateChanged();
+        for (int i = 0; i < m_ymPlaylists.size(); ++i) {
+            if (m_ymPlaylists[i].toMap()["title"].toString() == "Моя волна") {
+                setYmSelectedPlaylist(i);
+                playYmTrack(i, 0);
+                break;
+            }
+        }
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "play_wave_init", "15"});
+}
+
 void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
     QVariantMap pl = m_ymPlaylists[playlistIdx].toMap();
@@ -2718,7 +2804,6 @@ void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     QString chosenPath = chosen["path"].toString();
     if (chosenPath.isEmpty() || !QFile::exists(chosenPath)) return;
 
-    // Если кликнули по уже играющему треку — ставим на паузу / продолжаем
     if (m_currentLocalTrackPath == chosenPath && m_mediaActive) {
         mediaPlayPause();
         return;
@@ -2732,25 +2817,219 @@ void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     m_mediaPausedSec = 0;
     emit mediaChanged();
 
-    // Формируем очередь воспроизведения .m3u8 со всеми треками выбранного плейлиста
+    QStringList queuePaths;
+    if (m_ymShuffle && trs.size() > 1) {
+        queuePaths.append(chosenPath);
+        QStringList rest;
+        for (int i = 0; i < trs.size(); ++i) {
+            if (i == trackIdx) continue;
+            QString tp = trs[i].toMap()["path"].toString();
+            if (!tp.isEmpty()) rest.append(tp);
+        }
+        std::mt19937 rng(uint32_t(QDateTime::currentMSecsSinceEpoch()));
+        std::shuffle(rest.begin(), rest.end(), rng);
+        queuePaths.append(rest);
+    } else {
+        for (const QVariant &tv : trs) {
+            QString tp = tv.toMap()["path"].toString();
+            if (!tp.isEmpty()) queuePaths.append(tp);
+        }
+    }
+
     QString qPath = "/tmp/hysett_ym_queue.m3u8";
     QFile qf(qPath);
     if (qf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
         QTextStream out(&qf);
         out << "#EXTM3U\n";
-        for (const QVariant &tv : trs) {
-            QString tp = tv.toMap()["path"].toString();
-            if (!tp.isEmpty()) out << tp << "\n";
+        for (const QString &tp : queuePaths) {
+            out << tp << "\n";
         }
         qf.close();
     }
 
+    int startPos = m_ymShuffle ? 0 : trackIdx;
     QProcess::execute("pkill", {"-f", "mpv.*hysett_ym_queue.m3u8"});
     QProcess::startDetached("mpv", {
         "--no-video",
         "--really-quiet",
         QString("--playlist=%1").arg(qPath),
-        QString("--playlist-start=%1").arg(trackIdx)
+        QString("--playlist-start=%1").arg(startPos)
     });
     QTimer::singleShot(350, this, &WaybarManager::pollMediaState);
+}
+
+
+static void saveYmPlaylistsIndexAndM3u(const QVariantList &playlists) {
+    for (const QVariant &pv : playlists) {
+        QVariantMap pl = pv.toMap();
+        QString folder = pl["folder"].toString();
+        QString title = pl["title"].toString();
+        QVariantList trs = pl["tracks"].toList();
+        if (!folder.isEmpty() && !title.isEmpty() && QDir(folder).exists()) {
+            QFile mf(folder + "/" + title + ".m3u8");
+            if (mf.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+                QTextStream out(&mf);
+                out << "#EXTM3U\n";
+                for (const QVariant &tv : trs) {
+                    QFileInfo fi(tv.toMap()["path"].toString());
+                    if (!fi.fileName().isEmpty()) out << fi.fileName() << "\n";
+                }
+                mf.close();
+            }
+        }
+    }
+    QFile idxF(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
+    if (idxF.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        QJsonObject rootObj;
+        rootObj["playlists"] = QJsonArray::fromVariantList(playlists);
+        rootObj["ts"] = QDateTime::currentSecsSinceEpoch();
+        idxF.write(QJsonDocument(rootObj).toJson(QJsonDocument::Compact));
+        idxF.close();
+    }
+}
+
+void WaybarManager::deleteYmTrack(int playlistIdx, int trackIdx) {
+    if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
+    QVariantMap pl = m_ymPlaylists[playlistIdx].toMap();
+    QString plTitle = pl["title"].toString();
+    QVariantList trs = pl["tracks"].toList();
+    if (trackIdx < 0 || trackIdx >= trs.size()) return;
+
+    QVariantMap tr = trs.takeAt(trackIdx).toMap();
+    QString srcPath = tr["path"].toString();
+    QFileInfo fi(srcPath);
+
+    pl["tracks"] = trs;
+    pl["count"] = trs.size();
+    m_ymPlaylists[playlistIdx] = pl;
+
+    QString hiddenDir = QDir::homePath() + "/Music/YandexMusic/Скрытые";
+    QString originsFile = hiddenDir + "/.origins.json";
+
+    if (plTitle == "Скрытые") {
+        // Если удаляем уже из «Скрытых» — удаляем файл с диска окончательно
+        if (!srcPath.isEmpty() && QFile::exists(srcPath)) QFile::remove(srcPath);
+        if (trs.isEmpty()) {
+            m_ymPlaylists.removeAt(playlistIdx);
+            if (m_ymSelectedPlaylist >= m_ymPlaylists.size())
+                m_ymSelectedPlaylist = std::max(0, int(m_ymPlaylists.size()) - 1);
+        }
+    } else {
+        // Перемещаем трек в папку «Скрытые» и запоминаем исходный плейлист для возврата
+        QDir().mkpath(hiddenDir);
+        QString dstPath = hiddenDir + "/" + fi.fileName();
+        if (!srcPath.isEmpty() && QFile::exists(srcPath)) {
+            if (QFile::exists(dstPath)) QFile::remove(dstPath);
+            QFile::rename(srcPath, dstPath);
+        }
+
+        QJsonObject origins;
+        QFile of(originsFile);
+        if (of.open(QIODevice::ReadOnly)) {
+            origins = QJsonDocument::fromJson(of.readAll()).object();
+            of.close();
+        }
+        origins[fi.fileName()] = plTitle;
+        if (of.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            of.write(QJsonDocument(origins).toJson(QJsonDocument::Compact));
+            of.close();
+        }
+
+        tr["path"] = dstPath;
+        int hidIdx = -1;
+        for (int i = 0; i < m_ymPlaylists.size(); ++i) {
+            if (m_ymPlaylists[i].toMap()["title"].toString() == "Скрытые") {
+                hidIdx = i;
+                break;
+            }
+        }
+        if (hidIdx >= 0) {
+            QVariantMap hpl = m_ymPlaylists[hidIdx].toMap();
+            QVariantList htrs = hpl["tracks"].toList();
+            htrs.prepend(tr);
+            hpl["tracks"] = htrs;
+            hpl["count"] = htrs.size();
+            m_ymPlaylists[hidIdx] = hpl;
+        } else {
+            QVariantMap hpl;
+            hpl["title"] = "Скрытые";
+            hpl["folder"] = hiddenDir;
+            hpl["count"] = 1;
+            hpl["tracks"] = QVariantList{tr};
+            m_ymPlaylists.append(hpl);
+        }
+    }
+
+    saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
+    emit ymLibraryChanged();
+}
+
+void WaybarManager::restoreYmTrack(int playlistIdx, int trackIdx) {
+    if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
+    QVariantMap pl = m_ymPlaylists[playlistIdx].toMap();
+    if (pl["title"].toString() != "Скрытые") return;
+
+    QVariantList trs = pl["tracks"].toList();
+    if (trackIdx < 0 || trackIdx >= trs.size()) return;
+
+    QVariantMap tr = trs.takeAt(trackIdx).toMap();
+    QString srcPath = tr["path"].toString();
+    QFileInfo fi(srcPath);
+
+    QString hiddenDir = QDir::homePath() + "/Music/YandexMusic/Скрытые";
+    QString originsFile = hiddenDir + "/.origins.json";
+    QString targetPlTitle = "Мне нравится";
+    QFile of(originsFile);
+    if (of.open(QIODevice::ReadOnly)) {
+        QJsonObject origins = QJsonDocument::fromJson(of.readAll()).object();
+        of.close();
+        if (origins.contains(fi.fileName())) {
+            targetPlTitle = origins[fi.fileName()].toString("Мне нравится");
+        }
+    }
+
+    QString targetDir = QDir::homePath() + "/Music/YandexMusic/" + targetPlTitle;
+    QDir().mkpath(targetDir);
+    QString dstPath = targetDir + "/" + fi.fileName();
+    if (!srcPath.isEmpty() && QFile::exists(srcPath)) {
+        if (QFile::exists(dstPath)) QFile::remove(dstPath);
+        QFile::rename(srcPath, dstPath);
+    }
+    tr["path"] = dstPath;
+
+    pl["tracks"] = trs;
+    pl["count"] = trs.size();
+    if (trs.isEmpty()) {
+        m_ymPlaylists.removeAt(playlistIdx);
+        if (m_ymSelectedPlaylist >= m_ymPlaylists.size())
+            m_ymSelectedPlaylist = std::max(0, int(m_ymPlaylists.size()) - 1);
+    } else {
+        m_ymPlaylists[playlistIdx] = pl;
+    }
+
+    int destIdx = -1;
+    for (int i = 0; i < m_ymPlaylists.size(); ++i) {
+        if (m_ymPlaylists[i].toMap()["title"].toString() == targetPlTitle) {
+            destIdx = i;
+            break;
+        }
+    }
+    if (destIdx >= 0) {
+        QVariantMap dpl = m_ymPlaylists[destIdx].toMap();
+        QVariantList dtrs = dpl["tracks"].toList();
+        dtrs.prepend(tr);
+        dpl["tracks"] = dtrs;
+        dpl["count"] = dtrs.size();
+        m_ymPlaylists[destIdx] = dpl;
+    } else {
+        QVariantMap dpl;
+        dpl["title"] = targetPlTitle;
+        dpl["folder"] = targetDir;
+        dpl["count"] = 1;
+        dpl["tracks"] = QVariantList{tr};
+        m_ymPlaylists.prepend(dpl);
+    }
+
+    saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
+    emit ymLibraryChanged();
 }

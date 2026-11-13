@@ -272,6 +272,15 @@ Item {
 
             Item { Layout.fillHeight: true }
 
+            // Быстрая кнопка запуска Моей волны прямо из боковой панели
+            StyledButton {
+                Layout.fillWidth: true
+                allowFullWidth: true
+                implicitHeight: 30
+                text: "󰓇 Включить волну"
+                onClicked: if (Waybar) Waybar.playYmMyWave()
+            }
+
             GlassPanel {
                 visible: Waybar && Waybar.ymBusy
                 Layout.fillWidth: true
@@ -327,11 +336,16 @@ Item {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    spacing: 8
                     IconHeader {
                         Layout.fillWidth: true
                         iconGlyph: "󰎆"
-                        titleText: "Музыкальный плеер и библиотека"
+                        titleText: "Музыкальный плеер и плейлисты"
+                    }
+                    StyledButton {
+                        text: "󰓇 Моя волна"
+                        implicitHeight: 26
+                        onClicked: if (Waybar) Waybar.playYmMyWave()
                     }
                     StyledButton {
                         text: "󰉋 Папка"
@@ -339,14 +353,14 @@ Item {
                         onClicked: if (Waybar) Waybar.openYmMusicFolder()
                     }
                     StyledButton {
-                        text: (Waybar && Waybar.mediaDemoMode) ? "󰎆 Скрыть демо" : "󰎆 Пример трека"
+                        text: (Waybar && Waybar.mediaDemoMode) ? "󰎆 Скрыть демо" : "󰎆 Пример"
                         implicitHeight: 26
                         isActive: Waybar ? Waybar.mediaDemoMode : false
                         onClicked: if (Waybar) Waybar.toggleMediaDemo()
                     }
                 }
 
-                // Карточка активного плеера с обложкой
+                // Карточка активного плеера с обложкой и выбором режима (Подряд / Вразнобой)
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
@@ -398,22 +412,29 @@ Item {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: (Waybar && Waybar.mediaTitle.length > 0) ? Waybar.mediaTitle : "Выберите трек из плейлиста ниже"
+                                    text: (Waybar && Waybar.mediaTitle.length > 0) ? Waybar.mediaTitle : "Выберите трек или нажмите «Моя волна»"
                                     color: "#ffffff"
                                     font.pixelSize: Config.fontSize + 2
                                     font.bold: true
                                     elide: Text.ElideRight
                                 }
 
-                                Text {
-                                    Layout.fillWidth: true
-                                    text: {
-                                        if (!Waybar) return ""
-                                        if (Waybar.mediaDemoMode && !Waybar.hasRealMedia) return "Демо-режим • Пример трека"
-                                        return Waybar.mediaPlaying ? "Воспроизводится" : "На паузе"
+                                RowLayout {
+                                    spacing: 8
+                                    Text {
+                                        text: {
+                                            if (!Waybar) return ""
+                                            if (Waybar.mediaDemoMode && !Waybar.hasRealMedia) return "Демо-режим"
+                                            return Waybar.mediaPlaying ? "Воспроизводится" : "На паузе"
+                                        }
+                                        color: Waybar && Waybar.mediaPlaying ? (Config ? Config.m3Primary : "#69f0ae") : "#999999"
+                                        font.pixelSize: Config.fontSize - 1
                                     }
-                                    color: Waybar && Waybar.mediaPlaying ? (Config ? Config.m3Primary : "#69f0ae") : "#999999"
-                                    font.pixelSize: Config.fontSize - 1
+                                    Text {
+                                        text: "•  " + ((Waybar && Waybar.ymShuffle) ? "󰒟 Вразнобой" : "󰒝 Подряд")
+                                        color: "#888888"
+                                        font.pixelSize: Config.fontSize - 1
+                                    }
                                 }
                             }
 
@@ -459,7 +480,7 @@ Item {
                     }
                 }
 
-                // Карточка плейлистов и треков с обложками и плавной прокруткой
+                // Карточка плейлистов и треков с обложками, перетаскиванием и плавным наведением
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
@@ -537,7 +558,7 @@ Item {
                                             Text {
                                                 id: plBtnTxt
                                                 anchors.centerIn: parent
-                                                text: modelData.title + " • " + modelData.count
+                                                text: (modelData.title === "Скрытые" ? "󰈉 " : "") + modelData.title + " • " + modelData.count
                                                 font.pixelSize: Config.fontSize - 1
                                                 font.bold: plBtn.isSel
                                                 color: plBtn.isSel ? (Config ? Config.accentTextColor : "#000000") : "#e0e0e0"
@@ -556,9 +577,18 @@ Item {
                                 }
                             }
 
+                            // Переключатель режима: Подряд / Вразнобой
+                            SegmentedButton {
+                                Layout.preferredWidth: 185
+                                implicitHeight: 28
+                                options: ["󰒝 Подряд", "󰒟 Вразнобой"]
+                                selectedIndex: (Waybar && Waybar.ymShuffle) ? 1 : 0
+                                onSelected: (idx) => { if (Waybar) Waybar.ymShuffle = (idx === 1) }
+                            }
+
                             TextField {
                                 id: trSearchField
-                                Layout.preferredWidth: 185
+                                Layout.preferredWidth: 165
                                 implicitHeight: 28
                                 leftPadding: 10; rightPadding: 22
                                 color: "#ffffff"; font.pixelSize: 11
@@ -592,18 +622,29 @@ Item {
                             }
                         }
 
-                        // Список треков с миниатюрами и плавным скроллом
+                        // Список треков с плавно ездящим за мышкой блоком наведения, перетаскиванием и скрытием/восстановлением
                         Item {
                             id: trackListContainer
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true
 
+                            property bool isHovering: false
+                            property int lastHoveredRow: 0
+
+                            Timer {
+                                id: trackHoverHold
+                                interval: 45
+                                onTriggered: trackListContainer.isHovering = false
+                            }
+
                             readonly property var currentPlaylistObj: {
                                 if (!Waybar || Waybar.ymPlaylists.length === 0) return null
                                 var idx = Math.max(0, Math.min(Waybar.ymPlaylists.length - 1, Waybar.ymSelectedPlaylist))
                                 return Waybar.ymPlaylists[idx]
                             }
+
+                            readonly property bool isHiddenPlaylist: currentPlaylistObj ? (currentPlaylistObj.title === "Скрытые") : false
 
                             readonly property var filteredTracks: {
                                 if (!currentPlaylistObj || !currentPlaylistObj.tracks) return []
@@ -629,6 +670,28 @@ Item {
                                 return out
                             }
 
+                            // Плавно ездящая за мышкой плашка наведения (как в боковом меню)
+                            Rectangle {
+                                id: trackHoverPill
+                                z: 1
+                                visible: trackListContainer.filteredTracks.length > 0
+                                opacity: trackListContainer.isHovering ? 1.0 : 0.0
+                                x: 0
+                                y: trackListContainer.lastHoveredRow * 51 - tracksListView.contentY
+                                width: tracksListView.width
+                                height: 46
+                                radius: musicRoot.isM3 ? 10 : 0
+                                color: musicRoot.isM3 && Config
+                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16)
+                                       : Qt.rgba(1, 1, 1, 0.10)
+                                border.width: 1
+                                border.color: musicRoot.isM3 && Config
+                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.42)
+                                              : Qt.rgba(1, 1, 1, 0.22)
+                                Behavior on y { NumberAnimation { duration: 175; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 115 } }
+                            }
+
                             Column {
                                 visible: trackListContainer.filteredTracks.length === 0
                                 anchors.centerIn: parent
@@ -641,23 +704,49 @@ Item {
                                     color: "#888888"
                                     font.pixelSize: Config.fontSize
                                 }
-                                StyledButton {
+                                Row {
                                     visible: Waybar && Waybar.ymPlaylists.length === 0
                                     anchors.horizontalCenter: parent.horizontalCenter
-                                    text: "󰒓 Перейти к синхронизации Яндекс.Музыки"
-                                    onClicked: musicRoot.subTab = 1
+                                    spacing: 8
+                                    StyledButton {
+                                        text: "󰓇 Запустить «Мою волну»"
+                                        onClicked: if (Waybar) Waybar.playYmMyWave()
+                                    }
+                                    StyledButton {
+                                        text: "󰒓 Настроить токен и плейлисты"
+                                        onClicked: musicRoot.subTab = 1
+                                    }
                                 }
                             }
 
                             ListView {
                                 id: tracksListView
+                                z: 2
                                 anchors.fill: parent
                                 clip: true
                                 spacing: 5
-                                cacheBuffer: 500
+                                cacheBuffer: 600
                                 boundsBehavior: Flickable.StopAtBounds
                                 ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                                 model: trackListContainer.filteredTracks
+
+                                property real savedContentY: 0
+                                property int lastPlIdx: Waybar ? Waybar.ymSelectedPlaylist : 0
+                                onContentYChanged: if (!moving && contentY >= 0) savedContentY = contentY
+                                onModelChanged: {
+                                    var curPl = Waybar ? Waybar.ymSelectedPlaylist : 0
+                                    if (lastPlIdx !== curPl) {
+                                        lastPlIdx = curPl
+                                        savedContentY = 0
+                                        contentY = 0
+                                    } else if (savedContentY > 0) {
+                                        var restoreY = savedContentY
+                                        Qt.callLater(function() {
+                                            var maxY = Math.max(0, tracksListView.contentHeight - tracksListView.height)
+                                            tracksListView.contentY = Math.min(restoreY, maxY)
+                                        })
+                                    }
+                                }
 
                                 property real targetY: 0
                                 NumberAnimation {
@@ -690,21 +779,42 @@ Item {
                                     width: tracksListView.width
                                     height: 46
                                     readonly property bool isCurPlaying: Waybar && (Waybar.currentLocalTrackPath === modelData.path || (Waybar.mediaTitle.length > 0 && modelData.fullTitle.indexOf(Waybar.mediaTitle.replace(" — ", " - ")) !== -1))
-                                    readonly property bool isHov: trRowMa.containsMouse
                                     radius: musicRoot.isM3 ? 10 : 0
                                     color: isCurPlaying
                                            ? (Config ? Config.m3Primary : "#ffffff")
-                                           : (isHov
-                                              ? (musicRoot.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.10))
-                                              : (musicRoot.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.35) : Qt.rgba(1, 1, 1, 0.03)))
+                                           : (musicRoot.isM3 && Config ? Qt.rgba(Config.m3SecondaryContainer.r, Config.m3SecondaryContainer.g, Config.m3SecondaryContainer.b, 0.32) : Qt.rgba(1, 1, 1, 0.03))
                                     border.width: isCurPlaying ? 0 : 1
-                                    border.color: Qt.rgba(1, 1, 1, isHov ? 0.18 : 0.08)
+                                    border.color: Qt.rgba(1, 1, 1, 0.08)
                                     Behavior on color { ColorAnimation { duration: 120 } }
 
+                                    MouseArea {
+                                        id: trRowMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: {
+                                            trackHoverHold.stop()
+                                            trackListContainer.lastHoveredRow = index
+                                            trackListContainer.isHovering = true
+                                        }
+                                        onPositionChanged: {
+                                            trackHoverHold.stop()
+                                            trackListContainer.lastHoveredRow = index
+                                            trackListContainer.isHovering = true
+                                        }
+                                        onExited: trackHoverHold.restart()
+                                        onClicked: {
+                                            if (Waybar) {
+                                                Waybar.playYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
+                                            }
+                                        }
+                                    }
+
                                     RowLayout {
+                                        z: 5
                                         anchors.fill: parent
                                         anchors.leftMargin: 8
-                                        anchors.rightMargin: 12
+                                        anchors.rightMargin: 10
                                         spacing: 10
 
                                         // Миниатюра обложки трека
@@ -764,22 +874,66 @@ Item {
                                             font.features: { "tnum": 1 }
                                         }
 
-                                        Text {
-                                            text: (trRow.isCurPlaying && Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"
-                                            color: trRow.isCurPlaying ? (Config ? Config.accentTextColor : "#000000") : (Config ? Config.m3Primary : "#ffffff")
-                                            font.pixelSize: 13
-                                        }
-                                    }
+                                        // Ручка перетаскивания трека вверх/вниз в плейлисте (и прокрутки колесиком для сдвига)
+                                        Item {
+                                            visible: musicRoot.trackSearchQuery.trim().length === 0
+                                            Layout.preferredWidth: 24
+                                            Layout.preferredHeight: 26
 
-                                    MouseArea {
-                                        id: trRowMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (Waybar) {
-                                                Waybar.playYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
+                                            Rectangle {
+                                                anchors.fill: parent
+                                                radius: musicRoot.isM3 ? 6 : 0
+                                                color: dragHandleMa.pressed
+                                                       ? (Config ? Config.m3Primary : "#ffffff")
+                                                       : (dragHandleMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent")
                                             }
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󰍜"
+                                                font.pixelSize: 13
+                                                color: dragHandleMa.pressed
+                                                       ? (Config ? Config.accentTextColor : "#000000")
+                                                       : (trRow.isCurPlaying ? (Config ? Config.accentTextColor : "#000000") : "#aaaaaa")
+                                            }
+
+                                            MouseArea {
+                                                id: dragHandleMa
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: pressed ? Qt.ClosedHandCursor : Qt.SizeVerCursor
+                                                property real pressY: 0
+                                                onPressed: (mouse) => {
+                                                    pressY = mouse.y
+                                                    mouse.accepted = true
+                                                }
+                                                onPositionChanged: (mouse) => {
+                                                    if (!pressed || !Waybar) return
+                                                    var dy = mouse.y - pressY
+                                                    if (dy < -26 && modelData.realIdx > 0) {
+                                                        Waybar.moveYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx, modelData.realIdx - 1)
+                                                    } else if (dy > 26 && modelData.realIdx + 1 < trackListContainer.filteredTracks.length) {
+                                                        Waybar.moveYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx, modelData.realIdx + 1)
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        // Кнопка возврата трека в родной плейлист (только во вкладке «Скрытые»)
+                                        StyledButton {
+                                            visible: trackListContainer.isHiddenPlaylist
+                                            text: "󰑐"
+                                            isIconOnly: true
+                                            implicitWidth: 26; implicitHeight: 24
+                                            onClicked: if (Waybar) Waybar.restoreYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
+                                        }
+
+                                        // Кнопка удаления трека (перемещает в плейлист «Скрытые», а из «Скрытых» удаляет насовсем)
+                                        StyledButton {
+                                            text: "󰅖"
+                                            isIconOnly: true
+                                            implicitWidth: 26; implicitHeight: 24
+                                            onClicked: if (Waybar) Waybar.deleteYmTrack(Waybar.ymSelectedPlaylist, modelData.realIdx)
                                         }
                                     }
                                 }
@@ -818,7 +972,6 @@ Item {
                         titleText: "Настройки виджета музыки и автозагрузки"
                     }
 
-                    // Карточка настроек волн и поведения на панели задач
                     GlassPanel {
                         objectName: "atmoObstacle"
                         Layout.fillWidth: true
@@ -870,7 +1023,6 @@ Item {
                                 }
                             }
 
-                            // НАСТРОЙКИ ВАРИАНТА 0: ЖИДКИЕ ПИКИ
                             ColumnLayout {
                                 visible: Waybar ? (Waybar.mediaWaves && Waybar.mediaWaveMode === 0) : true
                                 Layout.fillWidth: true
@@ -905,7 +1057,6 @@ Item {
                                 }
                             }
 
-                            // НАСТРОЙКИ ВАРИАНТА 1: СТОЛБИКИ ВНУТРИ ПИЛЮЛИ
                             ColumnLayout {
                                 visible: Waybar ? (Waybar.mediaWaves && Waybar.mediaWaveMode === 1) : false
                                 Layout.fillWidth: true
@@ -997,7 +1148,6 @@ Item {
                         }
                     }
 
-                    // Карточка Яндекс.Музыки, Моей волны и автозагрузки при появлении интернета
                     GlassPanel {
                         objectName: "atmoObstacle"
                         Layout.fillWidth: true

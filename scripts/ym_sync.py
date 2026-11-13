@@ -169,7 +169,7 @@ def rebuild_local_index():
             dirs.append(d)
 
     # Приоритетный порядок: Мне нравится, Моя волна, затем остальные
-    priority = {"Мне нравится": 0, "Моя волна": 1}
+    priority = {"Мне нравится": 0, "Моя волна": 1, "Скрытые": 999}
     dirs.sort(key=lambda x: (priority.get(x, 10), x.lower()))
 
     for d in dirs:
@@ -249,6 +249,9 @@ def download_track_list(tracks, folder_name, token, db_set, db_obj):
         tmeta[fname] = {"id": tid, "artist": artist_str, "title": title_str, "duration": dur_str}
         out_path = os.path.join(dest_dir, f"{fname}.mp3")
         key = f"{folder_name}:{tid}"
+        hidden_path = os.path.join(MUSIC_DIR, "Скрытые", f"{fname}.mp3")
+        if os.path.exists(hidden_path) and os.path.getsize(hidden_path) > 32768:
+            continue
         if key in db_set and os.path.exists(out_path) and os.path.getsize(out_path) > 32768:
             # Докачиваем обложку, если трек уже был скачан ранее без обложки
             ensure_cover_downloaded(tr, fname)
@@ -441,6 +444,9 @@ if __name__ == "__main__":
             tot += download_my_wave(w_cnt)
         if not os.path.exists(STOP_FILE):
             write_prog(False, 100, f"Автообновление завершено ✓ Новых треков: {tot}")
+    elif cmd == "play_wave_init":
+        cnt = int(sys.argv[2]) if len(sys.argv) > 2 else 30
+        download_my_wave(min(cnt, 15))
     elif cmd == "stop":
         open(STOP_FILE, "w").write("1")
         write_prog(False, 0, "Синхронизация остановлена")

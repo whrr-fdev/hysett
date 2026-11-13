@@ -80,6 +80,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int ymAutoSyncDelay READ ymAutoSyncDelay WRITE setYmAutoSyncDelay NOTIFY stateChanged)
     Q_PROPERTY(QVariantList ymPlaylists READ ymPlaylists NOTIFY ymLibraryChanged)
     Q_PROPERTY(int ymSelectedPlaylist READ ymSelectedPlaylist WRITE setYmSelectedPlaylist NOTIFY ymLibraryChanged)
+    Q_PROPERTY(bool ymShuffle READ ymShuffle WRITE setYmShuffle NOTIFY stateChanged)
     Q_PROPERTY(QString mediaCoverPath READ mediaCoverPath NOTIFY mediaChanged)
     Q_PROPERTY(QString currentLocalTrackPath READ currentLocalTrackPath NOTIFY mediaChanged)
 
@@ -280,7 +281,13 @@ public:
     QString mediaCoverPath() const { return m_mediaCoverPath; }
     QString currentLocalTrackPath() const { return m_currentLocalTrackPath; }
     Q_INVOKABLE void refreshYmLibrary();
+    bool ymShuffle() const { return m_ymShuffle; }
+    void setYmShuffle(bool v);
     Q_INVOKABLE void playYmTrack(int playlistIdx, int trackIdx);
+    Q_INVOKABLE void moveYmTrack(int playlistIdx, int fromIdx, int toIdx);
+    Q_INVOKABLE void deleteYmTrack(int playlistIdx, int trackIdx);
+    Q_INVOKABLE void restoreYmTrack(int playlistIdx, int trackIdx);
+    Q_INVOKABLE void playYmMyWave();
     Q_INVOKABLE void saveYmToken(const QString &raw);
     Q_INVOKABLE void openYmOAuth();
     Q_INVOKABLE void syncYmPlaylists();
@@ -551,6 +558,7 @@ private:
     qint64 m_netOnlineSinceMs = 0;
     QVariantList m_ymPlaylists;
     int m_ymSelectedPlaylist = 0;
+    bool m_ymShuffle = false;
     QString m_mediaCoverPath;
     QString m_currentLocalTrackPath;
     void loadYmIndexFromDisk();

@@ -146,27 +146,54 @@ Item {
     }
 
     Component.onCompleted: {
-        if (visible) Qt.callLater(() => subSidebar.playStaircase())
         if (Waybar) {
             lastAnimTrackKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
             ensurePublicPlaylistSelected()
             syncActiveTrackText()
-            Waybar.refreshYmLibrary()
+            if (Waybar.ymPlaylists.length === 0) Waybar.refreshYmLibrary()
         }
-        Qt.callLater(() => trackListContainer.rebuildTrackModel())
+        trackListContainer.rebuildTrackModel()
     }
 
     onVisibleChanged: {
         if (!visible) addPlaylistPopupOpen = false
         if (visible) {
             subSidebar.playStaircase()
-            if (Waybar && Waybar.ymPlaylists.length === 0) Waybar.refreshYmLibrary()
-            else if (trackListModel.count === 0) Qt.callLater(() => trackListContainer.rebuildTrackModel())
             if (Waybar) {
                 ensurePublicPlaylistSelected()
                 syncActiveTrackText()
                 lastAnimTrackKey = Waybar.currentLocalTrackPath.length > 0 ? Waybar.currentLocalTrackPath : Waybar.mediaTitle
+                if (Waybar.ymPlaylists.length === 0) Waybar.refreshYmLibrary()
             }
+            if (trackListModel.count === 0) trackListContainer.rebuildTrackModel()
+        }
+    }
+
+    component RowActionBtn: Rectangle {
+        id: rBtn
+        property string symbol: ""
+        property bool isActive: false
+        signal triggered()
+        width: 26
+        height: 24
+        radius: musicRoot.isM3 ? 6 : 0
+        color: rBtn.isActive
+               ? (Config ? Config.m3Primary : "#ffffff")
+               : (rBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.16) : Qt.rgba(1, 1, 1, 0.06))
+        Text {
+            anchors.centerIn: parent
+            text: rBtn.symbol
+            font.pixelSize: Config ? Config.fontSize : 11
+            color: rBtn.isActive
+                   ? (Config ? Config.accentTextColor : "#000000")
+                   : (rBtnMa.containsMouse ? "#ffffff" : "#cccccc")
+        }
+        MouseArea {
+            id: rBtnMa
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: rBtn.triggered()
         }
     }
 
@@ -1012,14 +1039,27 @@ Item {
 
                                 readonly property bool isHiddenPlaylist: currentPlaylistObj ? (currentPlaylistObj.title === "Скрытые") : false
 
+                                property string lastModelSig: ""
+
                                 function rebuildTrackModel() {
                                     if (draggingRow >= 0) return
-                                    var savedY = tracksListView.contentY
-                                    trackListModel.clear()
-                                    if (!currentPlaylistObj || !currentPlaylistObj.tracks) return
-                                    if (musicRoot.isPrivacyHidden && currentPlaylistObj.title !== "Открытые") return
+                                    if (!currentPlaylistObj || !currentPlaylistObj.tracks) {
+                                        if (trackListModel.count > 0) trackListModel.clear()
+                                        lastModelSig = ""
+                                        return
+                                    }
+                                    if (musicRoot.isPrivacyHidden && currentPlaylistObj.title !== "Открытые") {
+                                        if (trackListModel.count > 0) trackListModel.clear()
+                                        lastModelSig = ""
+                                        return
+                                    }
                                     var raw = currentPlaylistObj.tracks
                                     var q = musicRoot.trackSearchQuery.trim().toLowerCase()
+                                    var sig = currentPlaylistObj.title + "|" + raw.length + "|" + q + "|" + musicRoot.libraryVersion
+                                    if (sig === lastModelSig && trackListModel.count > 0) return
+                                    lastModelSig = sig
+                                    var savedY = tracksListView.contentY
+                                    trackListModel.clear()
                                     for (var i = 0; i < raw.length; ++i) {
                                         var t = raw[i]
                                         if (q.length > 0) {
@@ -1199,7 +1239,7 @@ Item {
                                                 onExited: trackHoverHold.restart()
                                                 onClicked: {
                                                     if (Waybar) {
-                                                        Waybar.playYmTrack(Waybar.ymSelectedPlaylist, index)
+                                                        Waybar.playYmTrack(Waybar.ymSelectedPlaylist, model.realIdx)
                                                     }
                                                 }
                                             }
@@ -1225,14 +1265,7 @@ Item {
                                                         sourceSize: Qt.size(68, 68)
                                                         fillMode: Image.PreserveAspectCrop
                                                         asynchronous: true
-                                                        layer.enabled: status === Image.Ready && visible && musicRoot.isM3
-                                                        layer.smooth: true
-                                                        layer.textureSize: Qt.size(68, 68)
-                                                        layer.effect: ShaderEffect {
-                                                            property vector2d u_resolution: Qt.vector2d(trThumb.width, trThumb.height)
-                                                            property real u_radius: 7.0
-                                                            fragmentShader: "qrc:/shaders/qml/shaders/round_clip.frag.qsb"
-                                                        }
+
                                                     }
 
                                                     Text {
@@ -1279,14 +1312,11 @@ Item {
                                                     font.features: { "tnum": 1 }
                                                 }
 
-                                                // Сердечко:  (пустое) для не в избранном,  (залитое) для избранного
-                                                StyledButton {
+                                                RowActionBtn {
                                                     visible: !musicRoot.isPrivacyHidden && !trackListContainer.isHiddenPlaylist
-                                                    text: trRow.isInFav ? "󰋑" : "󰋕"
-                                                    isIconOnly: true
+                                                    symbol: trRow.isInFav ? "󰋑" : "󰋕"
                                                     isActive: trRow.isInFav
-                                                    implicitWidth: 26; implicitHeight: 24
-                                                    onClicked: {
+                                                    onTriggered: {
                                                         if (!Waybar) return
                                                         var pPath = model.path
                                                         var pFull = model.fullTitle
@@ -1297,13 +1327,10 @@ Item {
                                                     }
                                                 }
 
-                                                // Кнопка «Добавить в плейлист»
-                                                StyledButton {
+                                                RowActionBtn {
                                                     visible: !musicRoot.isPrivacyHidden && !trackListContainer.isHiddenPlaylist
-                                                    text: "󰲸"
-                                                    isIconOnly: true
-                                                    implicitWidth: 26; implicitHeight: 24
-                                                    onClicked: musicRoot.openAddTrackModal(model.path, model.fullTitle)
+                                                    symbol: "󰲸"
+                                                    onTriggered: musicRoot.openAddTrackModal(model.path, model.fullTitle)
                                                 }
 
                                                 // Ручка живого перетаскивания трека вверх/вниз
@@ -1365,28 +1392,24 @@ Item {
                                                     }
                                                 }
 
-                                                StyledButton {
+                                                RowActionBtn {
                                                     visible: trackListContainer.isHiddenPlaylist
-                                                    text: "󰑐"
-                                                    isIconOnly: true
-                                                    implicitWidth: 26; implicitHeight: 24
-                                                    onClicked: {
+                                                    symbol: "󰑐"
+                                                    onTriggered: {
                                                         if (Waybar) {
-                                                            var rIdx = index
-                                                            trackListModel.remove(rIdx, 1)
+                                                            var rIdx = model.realIdx
+                                                            trackListModel.remove(index, 1)
                                                             Waybar.restoreYmTrack(Waybar.ymSelectedPlaylist, rIdx)
                                                         }
                                                     }
                                                 }
 
-                                                StyledButton {
-                                                    text: "󰅖"
-                                                    isIconOnly: true
-                                                    implicitWidth: 26; implicitHeight: 24
-                                                    onClicked: {
+                                                RowActionBtn {
+                                                    symbol: "󰅖"
+                                                    onTriggered: {
                                                         if (Waybar) {
-                                                            var dIdx = index
-                                                            trackListModel.remove(dIdx, 1)
+                                                            var dIdx = model.realIdx
+                                                            trackListModel.remove(index, 1)
                                                             Waybar.deleteYmTrack(Waybar.ymSelectedPlaylist, dIdx)
                                                         }
                                                     }

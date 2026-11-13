@@ -1347,41 +1347,68 @@ void WaybarManager::pollLocalMpvTime() {
     int flags = ::fcntl(fd, F_GETFL, 0);
     ::fcntl(fd, F_SETFL, flags | O_NONBLOCK);
     if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
-        const char *q = "{\"command\":[\"get_property\",\"time-pos\"],\"request_id\":1}\n{\"command\":[\"get_property\",\"duration\"],\"request_id\":2}\n";
+        const char *q = "{\"command\":[\"get_property\",\"time-pos\"],\"request_id\":1}\n{\"command\":[\"get_property\",\"duration\"],\"request_id\":2}\n{\"command\":[\"get_property\",\"pause\"],\"request_id\":3}\n";
         ::write(fd, q, std::strlen(q));
         usleep(6000);
         char buf[1024];
         ssize_t n = ::read(fd, buf, sizeof(buf) - 1);
         if (n > 0) {
             buf[n] = '\0';
+            bool gotPauseProp = false;
+            bool isMpvPaused = !m_localPlayerPlaying;
+            int posCand = -1;
             for (const QByteArray &ln : QByteArray(buf, n).split('\n')) {
                 if (ln.trimmed().isEmpty()) continue;
                 QJsonObject o = QJsonDocument::fromJson(ln).object();
                 if (o["request_id"].toInt() == 1 && o.contains("data")) {
-                    m_realPosSec = std::max(0, qRound(o["data"].toDouble()));
+                    posCand = std::max(0, qRound(o["data"].toDouble()));
                 } else if (o["request_id"].toInt() == 2 && o.contains("data")) {
                     int d = qRound(o["data"].toDouble());
                     if (d > 0) m_realLenSec = d;
+                } else if (o["request_id"].toInt() == 3 && o.contains("data")) {
+                    gotPauseProp = true;
+                    isMpvPaused = o["data"].toBool();
                 }
+            }
+            if (gotPauseProp) {
+                m_localPlayerPlaying = !isMpvPaused;
+                m_mediaPlaying = m_localPlayerPlaying;
+            }
+            if (posCand >= 0 && m_localPlayerPlaying) {
+                m_realPosSec = posCand;
             }
         }
     }
     ::close(fd);
 }
 
+static int s_pendingResumeSec = 0;
+
 void WaybarManager::mediaPlayPause() {
-    if (m_localPlayerActive && m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
-        m_localPlayerPlaying = !m_localPlayerPlaying;
-        m_mediaPlaying = m_localPlayerPlaying;
-        if (m_localPlayerPlaying) m_mediaPausedSec = 0;
-        QByteArray cmd = m_localPlayerPlaying
-                         ? "{\"command\":[\"set_property\",\"pause\",false]}\n"
-                         : "{\"command\":[\"set_property\",\"pause\",true]}\n";
-        if (!sendMpvIpcCommand(cmd)) {
-            ::kill(m_localMpvProc->processId(), m_localPlayerPlaying ? SIGCONT : SIGSTOP);
+    if (m_localPlayerActive) {
+        if (m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
+            m_localPlayerPlaying = !m_localPlayerPlaying;
+            m_mediaPlaying = m_localPlayerPlaying;
+            if (m_localPlayerPlaying) {
+                m_mediaPausedSec = 0;
+                if (m_localMpvProc->processId() > 0) ::kill(m_localMpvProc->processId(), SIGCONT);
+                if (!sendMpvIpcCommand("{\"command\":[\"set_property\",\"pause\",false]}\n")) {
+                    s_pendingResumeSec = std::max(0, m_realPosSec);
+                    startLocalQueueAt(m_localQueuePos);
+                    return;
+                }
+            } else {
+                if (!sendMpvIpcCommand("{\"command\":[\"set_property\",\"pause\",true]}\n")) {
+                    if (m_localMpvProc->processId() > 0) ::kill(m_localMpvProc->processId(), SIGSTOP);
+                }
+            }
+            emit mediaChanged();
+            return;
+        } else if (!m_localQueue.isEmpty()) {
+            s_pendingResumeSec = std::max(0, m_realPosSec);
+            startLocalQueueAt(m_localQueuePos);
+            return;
         }
-        emit mediaChanged();
-        return;
     }
     if (m_mediaDemoMode && !m_mediaActive) {
         m_demoPlaying = !m_demoPlaying;
@@ -1526,12 +1553,14 @@ void WaybarManager::pollMediaState() {
 
     bool nextActive = !foundService.isEmpty();
     if (nextActive && !foundService.isEmpty()) {
-        QDBusMessage posMsg = QDBusMessage::createMethodCall(foundService, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get");
-        posMsg << "org.mpris.MediaPlayer2.Player" << "Position";
-        QDBusMessage posRep = QDBusConnection::sessionBus().call(posMsg, QDBus::Block, 20);
-        if (posRep.type() == QDBusMessage::ReplyMessage && !posRep.arguments().isEmpty()) {
-            qlonglong us = posRep.arguments().first().value<QDBusVariant>().variant().toLongLong();
-            m_realPosSec = int(std::max(0LL, us / 1000000LL));
+        if (isPlaying || m_activeMprisService != foundService) {
+            QDBusMessage posMsg = QDBusMessage::createMethodCall(foundService, "/org/mpris/MediaPlayer2", "org.freedesktop.DBus.Properties", "Get");
+            posMsg << "org.mpris.MediaPlayer2.Player" << "Position";
+            QDBusMessage posRep = QDBusConnection::sessionBus().call(posMsg, QDBus::Block, 20);
+            if (posRep.type() == QDBusMessage::ReplyMessage && !posRep.arguments().isEmpty()) {
+                qlonglong us = posRep.arguments().first().value<QDBusVariant>().variant().toLongLong();
+                m_realPosSec = int(std::max(0LL, us / 1000000LL));
+            }
         }
     } else if (m_mediaDemoMode && m_demoPlaying) {
         m_demoPosSec = (m_demoPosSec + 1) % 215;
@@ -3023,8 +3052,10 @@ void WaybarManager::startLocalQueueAt(int qIdx) {
     m_mediaTitle = chosen["artist"].toString() + " — " + chosen["title"].toString();
     m_mediaActive = true;
     m_mediaPlaying = true;
+    int resumeSec = s_pendingResumeSec;
+    s_pendingResumeSec = 0;
     m_mediaPausedSec = 0;
-    m_realPosSec = 0;
+    m_realPosSec = resumeSec;
 
     QString durStr = chosen["duration"].toString();
     if (durStr.contains(':')) {
@@ -3036,18 +3067,22 @@ void WaybarManager::startLocalQueueAt(int qIdx) {
 
     m_localMpvProc = new QProcess(this);
     connect(m_localMpvProc, &QProcess::finished, this, [this](int code, QProcess::ExitStatus status) {
-        if (m_localPlayerActive && status == QProcess::NormalExit && code == 0 && !m_localQueue.isEmpty()) {
+        if (m_localPlayerActive && m_localPlayerPlaying && status == QProcess::NormalExit && code == 0 && !m_localQueue.isEmpty()) {
             int nextIdx = (m_localQueuePos + 1) % m_localQueue.size();
             startLocalQueueAt(nextIdx);
         }
     });
-    m_localMpvProc->start("mpv", {
+    QStringList mpvArgs = {
+        "--no-config",
         "--no-video",
         "--really-quiet",
+        "--idle=no",
         QString("--force-media-title=%1").arg(m_mediaTitle),
-        "--input-ipc-server=/tmp/hysett_mpv.sock",
-        chosenPath
-    });
+        "--input-ipc-server=/tmp/hysett_mpv.sock"
+    };
+    if (resumeSec > 0) mpvArgs << QString("--start=+%1").arg(resumeSec);
+    mpvArgs << chosenPath;
+    m_localMpvProc->start("mpv", mpvArgs);
 }
 
 void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
@@ -3060,10 +3095,14 @@ void WaybarManager::playYmTrack(int playlistIdx, int trackIdx) {
     QString chosenPath = chosen["path"].toString();
     if (chosenPath.isEmpty() || !QFile::exists(chosenPath)) return;
 
-    if (m_localPlayerActive && m_currentLocalTrackPath == chosenPath && m_localMpvProc && m_localMpvProc->state() != QProcess::NotRunning) {
+    bool sameTrack = !m_currentLocalTrackPath.isEmpty() &&
+                     (m_currentLocalTrackPath == chosenPath ||
+                      QFileInfo(m_currentLocalTrackPath).fileName() == QFileInfo(chosenPath).fileName());
+    if (m_localPlayerActive && sameTrack) {
         mediaPlayPause();
         return;
     }
+    s_pendingResumeSec = 0;
 
     m_localQueue.clear();
     if (m_ymShuffle && trs.size() > 1) {

@@ -417,13 +417,13 @@ Item {
                             anchors.margins: 12
                             spacing: 8
 
-                            // 1. Обложка посередине с SDF-скруглением
+                            // 1. Крупная обложка посередине с SDF-скруглением
                             Rectangle {
                                 id: mainCoverBox
                                 Layout.alignment: Qt.AlignHCenter
-                                Layout.preferredWidth: 74
-                                Layout.preferredHeight: 74
-                                radius: musicRoot.isM3 ? 14 : 0
+                                Layout.preferredWidth: 132
+                                Layout.preferredHeight: 132
+                                radius: musicRoot.isM3 ? 18 : 0
                                 color: Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18) : Qt.rgba(1, 1, 1, 0.12)
                                 border.color: Config ? Config.m3Primary : "#ffffff"
                                 border.width: 1
@@ -441,7 +441,7 @@ Item {
                                     layer.smooth: true
                                     layer.effect: ShaderEffect {
                                         property vector2d u_resolution: Qt.vector2d(activeCoverImg.width, activeCoverImg.height)
-                                        property real u_radius: 13.0
+                                        property real u_radius: 17.0
                                         fragmentShader: "qrc:/shaders/qml/shaders/round_clip.frag.qsb"
                                     }
                                 }
@@ -450,7 +450,7 @@ Item {
                                     visible: !activeCoverImg.visible
                                     anchors.centerIn: parent
                                     text: "󰎆"
-                                    font.pixelSize: 30
+                                    font.pixelSize: 48
                                     color: Config ? Config.m3Primary : "#ffffff"
                                 }
                             }
@@ -521,7 +521,7 @@ Item {
                                         var _ = musicRoot.libraryVersion
                                         return Waybar ? Waybar.isTrackInPlaylist(Waybar.mediaTitle, "Мне нравится") : false
                                     }
-                                    text: inFav ? "" : ""
+                                    text: inFav ? "󰋑" : "󰋕"
                                     isIconOnly: true
                                     isActive: inFav
                                     implicitWidth: 32; implicitHeight: 30
@@ -568,9 +568,11 @@ Item {
                                 }
                             }
 
-                            // 4. Снизу: шкала длительности и перемотки
+                            // 4. Снизу: компактная шкала длительности и перемотки по центру
                             RowLayout {
-                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignHCenter
+                                Layout.preferredWidth: Math.min(playerCardCol.width - 24, 420)
+                                Layout.maximumWidth: 420
                                 spacing: 10
                                 Text {
                                     text: Waybar ? Waybar.mediaPositionText : "00:00"
@@ -691,7 +693,7 @@ Item {
                                                     Text {
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         text: modelData.title === "Мне нравится"
-                                                              ? ""
+                                                              ? "󰋑"
                                                               : (modelData.title === "Скрытые" ? "󰈉" : "󰲸")
                                                         font.pixelSize: Config.fontSize - 1
                                                         color: plBtnTxt.color
@@ -1106,7 +1108,7 @@ Item {
                                                 // Сердечко:  (пустое) для не в избранном,  (залитое) для избранного
                                                 StyledButton {
                                                     visible: !trackListContainer.isHiddenPlaylist
-                                                    text: trRow.isInFav ? "" : ""
+                                                    text: trRow.isInFav ? "󰋑" : "󰋕"
                                                     isIconOnly: true
                                                     isActive: trRow.isInFav
                                                     implicitWidth: 26; implicitHeight: 24

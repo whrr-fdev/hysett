@@ -1,17 +1,134 @@
 #include "BluetoothManager.h"
 #include <QProcess>
-#include <QTimer>
 #include <QRegularExpression>
-#include <QSet>
+#include <QDir>
+#include <QFile>
+#include <QTextStream>
 #include <algorithm>
 
-BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
-    refresh();
+static QString btAutoConfPath() {
+    return QDir::homePath() + "/.config/hypr/scripts/bt_autoconnect.conf";
 }
 
 static QString stripAnsiCodes(QString s) {
     static const QRegularExpression ansiRe("\x1b\\[[0-9;]*[a-zA-Z]");
     return s.remove(ansiRe);
+}
+
+static bool isLikelyAudioName(const QString &name, const QString &info = QString()) {
+    return info.contains("Audio", Qt::CaseInsensitive) ||
+           info.contains("Headset", Qt::CaseInsensitive) ||
+           info.contains("Headphones", Qt::CaseInsensitive) ||
+           info.contains("0000110b", Qt::CaseInsensitive) ||
+           info.contains("0000110e", Qt::CaseInsensitive) ||
+           name.contains("JBL", Qt::CaseInsensitive) ||
+           name.contains("TUNE", Qt::CaseInsensitive) ||
+           name.contains("Buds", Qt::CaseInsensitive) ||
+           name.contains("AirPods", Qt::CaseInsensitive) ||
+           name.contains("Sony", Qt::CaseInsensitive) ||
+           name.contains("WH-", Qt::CaseInsensitive) ||
+           name.contains("WF-", Qt::CaseInsensitive) ||
+           name.contains("Marshall", Qt::CaseInsensitive) ||
+           name.contains("Soundcore", Qt::CaseInsensitive) ||
+           name.contains("Headphone", Qt::CaseInsensitive) ||
+           name.contains("Earbuds", Qt::CaseInsensitive);
+}
+
+BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
+    QFile cf(btAutoConfPath());
+    if (cf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString val = QString::fromUtf8(cf.readAll()).trimmed();
+        m_autoConnect = (val != "0" && val.compare("false", Qt::CaseInsensitive) != 0);
+        cf.close();
+    }
+
+    refresh();
+
+    m_autoTimer = new QTimer(this);
+    m_autoTimer->setInterval(6000);
+    connect(m_autoTimer, &QTimer::timeout, this, &BluetoothManager::pollAutoConnect);
+    m_autoTimer->start();
+    QTimer::singleShot(1500, this, &BluetoothManager::pollAutoConnect);
+}
+
+void BluetoothManager::setAutoConnect(bool v) {
+    if (m_autoConnect != v) {
+        m_autoConnect = v;
+        QFile cf(btAutoConfPath());
+        if (cf.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+            QTextStream(&cf) << (v ? "1\n" : "0\n");
+            cf.close();
+        }
+        emit stateChanged();
+        if (v) {
+            m_manuallyDisconnectedMacs.clear();
+            pollAutoConnect();
+        }
+    }
+}
+
+void BluetoothManager::pollAutoConnect() {
+    if (!m_autoConnect || m_scanning || m_autoConnectBusy) return;
+
+    m_autoConnectBusy = true;
+    QProcess *pConn = new QProcess(this);
+    connect(pConn, &QProcess::finished, this, [this, pConn]() {
+        QString outConn = stripAnsiCodes(QString::fromUtf8(pConn->readAllStandardOutput()));
+        pConn->deleteLater();
+
+        for (const QString &ln : outConn.split('\n', Qt::SkipEmptyParts)) {
+            if (ln.trimmed().startsWith("Device ")) {
+                // Уже есть подключенное устройство — ничего не делаем
+                m_autoConnectBusy = false;
+                return;
+            }
+        }
+
+        // Если ничего не подключено — ищем сопряженные наушники и подключаемся к ним
+        QProcess *pDevs = new QProcess(this);
+        connect(pDevs, &QProcess::finished, this, [this, pDevs]() {
+            QString outDevs = stripAnsiCodes(QString::fromUtf8(pDevs->readAllStandardOutput()));
+            pDevs->deleteLater();
+
+            QString targetMac;
+            QString fallbackMac;
+            for (const QString &line : outDevs.split('\n', Qt::SkipEmptyParts)) {
+                QString trimmed = line.trimmed();
+                if (!trimmed.startsWith("Device ")) continue;
+                QStringList parts = trimmed.split(' ', Qt::SkipEmptyParts);
+                if (parts.size() < 3) continue;
+                QString mac = parts[1].trimmed();
+                QString name = parts.mid(2).join(' ').trimmed();
+                if (m_manuallyDisconnectedMacs.contains(mac)) continue;
+
+                if (isLikelyAudioName(name)) {
+                    targetMac = mac;
+                    break;
+                }
+                if (fallbackMac.isEmpty()) fallbackMac = mac;
+            }
+
+            if (targetMac.isEmpty()) targetMac = fallbackMac;
+            if (targetMac.isEmpty()) {
+                m_autoConnectBusy = false;
+                return;
+            }
+
+            QProcess::startDetached("bluetoothctl", {"trust", targetMac});
+            QProcess *pTry = new QProcess(this);
+            connect(pTry, &QProcess::finished, this, [this, pTry]() {
+                QString res = stripAnsiCodes(QString::fromUtf8(pTry->readAllStandardOutput()));
+                pTry->deleteLater();
+                m_autoConnectBusy = false;
+                if (res.contains("Connection successful", Qt::CaseInsensitive)) {
+                    refresh();
+                }
+            });
+            pTry->start("bluetoothctl", {"connect", targetMac});
+        });
+        pDevs->start("bluetoothctl", {"devices", "Paired"});
+    });
+    pConn->start("bluetoothctl", {"devices", "Connected"});
 }
 
 void BluetoothManager::refresh() {
@@ -82,12 +199,12 @@ void BluetoothManager::refresh() {
 
         bool connected = connectedMacs.contains(mac) || info.contains("Connected: yes", Qt::CaseInsensitive);
         bool paired = info.contains("Paired: yes", Qt::CaseInsensitive) || connected;
-        bool isAudio = info.contains("Audio", Qt::CaseInsensitive) ||
-                       info.contains("Headset", Qt::CaseInsensitive) ||
-                       info.contains("headphones", Qt::CaseInsensitive) ||
-                       name.contains("JBL", Qt::CaseInsensitive) ||
-                       name.contains("Buds", Qt::CaseInsensitive) ||
-                       name.contains("AirPods", Qt::CaseInsensitive);
+        bool trusted = info.contains("Trusted: yes", Qt::CaseInsensitive);
+        bool isAudio = isLikelyAudioName(name, info);
+
+        if (paired && isAudio && !trusted) {
+            QProcess::startDetached("bluetoothctl", {"trust", mac});
+        }
 
         int battery = -1;
         QRegularExpressionMatch bm = batRe.match(info);
@@ -139,6 +256,12 @@ void BluetoothManager::scanDevices() {
 }
 
 void BluetoothManager::toggleConnect(const QString &mac, bool isConnected) {
+    if (isConnected) {
+        m_manuallyDisconnectedMacs.insert(mac);
+    } else {
+        m_manuallyDisconnectedMacs.remove(mac);
+        QProcess::startDetached("bluetoothctl", {"trust", mac});
+    }
     QProcess *proc = new QProcess(this);
     connect(proc, &QProcess::finished, this, [this, proc]() {
         proc->deleteLater();
@@ -148,6 +271,7 @@ void BluetoothManager::toggleConnect(const QString &mac, bool isConnected) {
 }
 
 void BluetoothManager::removeDevice(const QString &mac) {
+    m_manuallyDisconnectedMacs.remove(mac);
     QProcess::execute("bluetoothctl", {"remove", mac});
     refresh();
 }

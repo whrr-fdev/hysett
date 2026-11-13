@@ -107,6 +107,46 @@ ScrollView {
                 }
             }
 
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
+                implicitHeight: 48
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 14
+                    anchors.rightMargin: 14
+                    spacing: 12
+
+                    Text {
+                        text: "󰋋"
+                        color: Bluetooth.autoConnect ? (Config ? Config.m3Primary : "#ffffff") : "#777777"
+                        font.pixelSize: 16
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 1
+                        Text {
+                            text: Config ? (Config.language, Config.trAuto("Автоподключение к наушникам")) : "Автоподключение к наушникам"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            font.bold: true
+                        }
+                        Text {
+                            text: "Автоматически подключать сопряженные наушники при их включении"
+                            color: "#888888"
+                            font.pixelSize: Config.fontSize - 2
+                        }
+                    }
+
+                    StyledSwitch {
+                        checked: Bluetooth.autoConnect
+                        onToggled: Bluetooth.autoConnect = checked
+                    }
+                }
+            }
+
             Text {
                 visible: Bluetooth.powered
                 text: (Config ? (Config.language, Config.trAuto("Устройства Bluetooth")) : "Устройства Bluetooth") + " • " + (Bluetooth ? Bluetooth.devices.length : 0)

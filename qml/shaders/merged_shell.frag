@@ -51,21 +51,39 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
+float barBounce(float k, float t) {
+    float h1 = fract(sin(k * 127.1 + 1.9) * 43758.5453);
+    float h2 = fract(sin(k * 269.5 + 7.3) * 18342.2317);
+    float h3 = fract(sin(k * 419.2 + 3.1) * 91523.1143);
+    float p1 = pow(max(0.0, sin(t * (3.8 + h1 * 5.2) + h2 * 6.2831853)), 2.4);
+    float p2 = pow(max(0.0, sin(t * (7.4 + h2 * 6.5) + h3 * 6.2831853)), 3.2);
+    float groupBeat = pow(0.5 + 0.5 * sin(t * 5.8 + floor(k * 0.18) * 1.1), 2.2);
+    return clamp((p1 * 0.58 + p2 * 0.42) * (0.30 + 0.70 * groupBeat), 0.0, 1.0);
+}
+
 float sceneSdf(vec2 p, out float outNotifBlend) {
     outNotifBlend = 0.0;
     float waveStretch = 0.0;
     if (u_music_wave.z > 0.05 && u_bar_rect.z > u_bar_rect.w * 1.5) {
-        float dx = (p.x - u_music_wave.x) / max(16.0, u_music_wave.y);
-        if (abs(dx) < 1.0) {
-            float env = 0.5 + 0.5 * cos(dx * 3.14159265);
-            env *= env;
+        float edgePad = max(14.0, u_radius * 1.35);
+        float edgeFade = smoothstep(u_bar_rect.x + edgePad * 0.5, u_bar_rect.x + edgePad * 1.6, p.x) *
+                         smoothstep(u_bar_rect.x + u_bar_rect.z - edgePad * 0.5, u_bar_rect.x + u_bar_rect.z - edgePad * 1.6, p.x);
+        if (edgeFade > 0.001) {
+            float barStep = 14.0;
+            float relX = (p.x - u_bar_rect.x) / barStep;
+            float k = floor(relX);
+            float f = fract(relX);
             float t = u_music_wave.w;
-            float wx = (p.x - u_music_wave.x) * 0.13;
-            float w1 = 0.5 + 0.5 * sin(wx * 1.0 + t * 4.5);
-            float w2 = 0.5 + 0.5 * sin(wx * 2.15 - t * 6.8 + 1.2);
-            float w3 = 0.5 + 0.5 * cos(wx * 3.4 + t * 9.2 + 2.5);
-            float wProf = smoothstep(0.05, 0.95, w1 * 0.46 + w2 * 0.34 + w3 * 0.20);
-            waveStretch = u_music_wave.z * env * (0.15 + 0.85 * wProf);
+
+            // Каждый столбик k стоит на своем месте и подпрыгивает вертикально; форма столбика — гладкая косинусная волна
+            float aPrev = barBounce(k - 1.0, t);
+            float aCur  = barBounce(k, t);
+            float aNext = barBounce(k + 1.0, t);
+
+            float dome = 0.5 - 0.5 * cos(f * 6.2831853);
+            float bridge = mix(aPrev, aNext, smoothstep(0.0, 1.0, f)) * 0.26;
+            float wProf = max(aCur * dome, bridge * (0.35 + 0.65 * dome));
+            waveStretch = u_music_wave.z * edgeFade * wProf;
         }
     }
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);

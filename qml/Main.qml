@@ -617,8 +617,8 @@ ApplicationWindow {
     property real musicWavePhase: 0.0
     property real mediaPillCenterX: 320.0
     property real mediaPillHalfW: 95.0
-    readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !root.drawerOpen && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves && Waybar.isBarModuleVisible("media")
-    property real musicWaveAmp: musicWaveShouldRun ? 7.5 : 0.0
+    readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !root.drawerOpen && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
+    property real musicWaveAmp: musicWaveShouldRun ? 9.5 : 0.0
     Behavior on musicWaveAmp { NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
     NumberAnimation on musicWavePhase {
         from: 0.0; to: 62.831853

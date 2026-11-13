@@ -214,78 +214,115 @@ ScrollView {
                         }
                     }
 
-                    RowLayout {
-                        visible: Waybar ? Waybar.mediaWaves : true
+                                        // НАСТРОЙКИ ВАРИАНТА 0: ЖИДКИЕ ПИКИ
+                    ColumnLayout {
+                        visible: Waybar ? (Waybar.mediaWaves && Waybar.mediaWaveMode === 0) : true
                         Layout.fillWidth: true
                         spacing: 8
-                        Text {
-                            text: "Скорость волн на панели:"
-                            color: "#cccccc"
-                            font.pixelSize: Config.fontSize
-                            Layout.preferredWidth: 230
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Скорость жидких пиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 4.0; stepSize: 0.1; value: Waybar ? Waybar.mediaWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.mediaWaveSpeed = value }
+                            Text { text: (Waybar ? Waybar.mediaWaveSpeed.toFixed(1) : "1.5") + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
-                        StyledSlider {
-                            Layout.fillWidth: true
-                            from: 0.2; to: 4.0; stepSize: 0.1
-                            value: Waybar ? Waybar.mediaWaveSpeed : 1.5
-                            onMoved: if (Waybar) Waybar.mediaWaveSpeed = value
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Размер (высота) пиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 4.0; to: 26.0; stepSize: 0.5; value: Waybar ? Waybar.mediaWaveSize : 11.0; onMoved: if (Waybar) Waybar.mediaWaveSize = value }
+                            Text { text: Math.round(Waybar ? Waybar.mediaWaveSize : 11) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
-                        Text {
-                            text: (Waybar ? Waybar.mediaWaveSpeed.toFixed(1) : "1.5") + "x"
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize
-                            Layout.preferredWidth: 58
-                            horizontalAlignment: Text.AlignRight
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Количество пиков на панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 20; to: 200; stepSize: 5; value: Waybar ? Waybar.mediaWaveCount : 95; onMoved: if (Waybar) Waybar.mediaWaveCount = Math.round(value) }
+                            Text { text: String(Waybar ? Waybar.mediaWaveCount : 95); color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Острота и раздваивание пиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 0.1; to: 1.0; stepSize: 0.05; value: Waybar ? Waybar.mediaWaveSharpness : 0.70; onMoved: if (Waybar) Waybar.mediaWaveSharpness = value }
+                            Text { text: Math.round((Waybar ? Waybar.mediaWaveSharpness : 0.70) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
                     }
 
-                    RowLayout {
-                        visible: Waybar ? Waybar.mediaWaves : true
+                    // НАСТРОЙКИ ВАРИАНТА 1: СТОЛБИКИ ВНУТРИ ПИЛЮЛИ
+                    ColumnLayout {
+                        visible: Waybar ? (Waybar.mediaWaves && Waybar.mediaWaveMode === 1) : false
                         Layout.fillWidth: true
                         spacing: 8
-                        Text {
-                            text: "Размер (высота) волн:"
-                            color: "#cccccc"
-                            font.pixelSize: Config.fontSize
-                            Layout.preferredWidth: 230
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Скорость столбиков в пилюле:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 4.0; stepSize: 0.1; value: Waybar ? Waybar.pillWaveSpeed : 1.6; onMoved: if (Waybar) Waybar.pillWaveSpeed = value }
+                            Text { text: (Waybar ? Waybar.pillWaveSpeed.toFixed(1) : "1.6") + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
-                        StyledSlider {
-                            Layout.fillWidth: true
-                            from: 4.0; to: 24.0; stepSize: 0.5
-                            value: Waybar ? Waybar.mediaWaveSize : 11.0
-                            onMoved: if (Waybar) Waybar.mediaWaveSize = value
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Высота столбиков в пилюле:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 20; to: 100; stepSize: 5; value: Waybar ? Waybar.pillWaveHeight : 85; onMoved: if (Waybar) Waybar.pillWaveHeight = Math.round(value) }
+                            Text { text: (Waybar ? Waybar.pillWaveHeight : 85) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
-                        Text {
-                            text: Math.round(Waybar ? Waybar.mediaWaveSize : 11) + " px"
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize
-                            Layout.preferredWidth: 58
-                            horizontalAlignment: Text.AlignRight
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Толщина столбиков в пилюле:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 1; to: 5; stepSize: 1; value: Waybar ? Waybar.pillWaveWidth : 2; onMoved: if (Waybar) Waybar.pillWaveWidth = Math.round(value) }
+                            Text { text: (Waybar ? Waybar.pillWaveWidth : 2) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Зазор между столбиками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 1; to: 5; stepSize: 1; value: Waybar ? Waybar.pillWaveGap : 1; onMoved: if (Waybar) Waybar.pillWaveGap = Math.round(value) }
+                            Text { text: (Waybar ? Waybar.pillWaveGap : 1) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
                     }
 
-                    RowLayout {
-                        visible: Waybar ? Waybar.mediaWaves : true
+                    // НАСТРОЙКИ ВАРИАНТА 2: ДУГА СТОЛБИКОВ ПОД ПАНЕЛЬЮ
+                    ColumnLayout {
+                        visible: Waybar ? (Waybar.mediaWaves && Waybar.mediaWaveMode === 2) : false
                         Layout.fillWidth: true
                         spacing: 8
-                        Text {
-                            text: "Количество волн на панели:"
-                            color: "#cccccc"
-                            font.pixelSize: Config.fontSize
-                            Layout.preferredWidth: 230
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Скорость столбиков дуги:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 0.2; to: 4.0; stepSize: 0.1; value: Waybar ? Waybar.arcWaveSpeed : 1.5; onMoved: if (Waybar) Waybar.arcWaveSpeed = value }
+                            Text { text: (Waybar ? Waybar.arcWaveSpeed.toFixed(1) : "1.5") + "x"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
-                        StyledSlider {
-                            Layout.fillWidth: true
-                            from: 20; to: 200; stepSize: 5
-                            value: Waybar ? Waybar.mediaWaveCount : 95
-                            onMoved: if (Waybar) Waybar.mediaWaveCount = Math.round(value)
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Высота выступа столбиков:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 4.0; to: 32.0; stepSize: 1.0; value: Waybar ? Waybar.arcWaveSize : 16.0; onMoved: if (Waybar) Waybar.arcWaveSize = value }
+                            Text { text: Math.round(Waybar ? Waybar.arcWaveSize : 16) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
-                        Text {
-                            text: String(Waybar ? Waybar.mediaWaveCount : 95)
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize
-                            Layout.preferredWidth: 58
-                            horizontalAlignment: Text.AlignRight
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Толщина столбиков дуги:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 1; to: 6; stepSize: 1; value: Waybar ? Waybar.arcWaveWidth : 2; onMoved: if (Waybar) Waybar.arcWaveWidth = Math.round(value) }
+                            Text { text: (Waybar ? Waybar.arcWaveWidth : 2) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Расстояние между столбиками:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 1; to: 6; stepSize: 1; value: Waybar ? Waybar.arcWaveGap : 1; onMoved: if (Waybar) Waybar.arcWaveGap = Math.round(value) }
+                            Text { text: (Waybar ? Waybar.arcWaveGap : 1) + " px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true; spacing: 8
+                            Text { text: "Изгиб дуги (посередине выше):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                            StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.05; value: Waybar ? Waybar.arcWaveCurve : 0.65; onMoved: if (Waybar) Waybar.arcWaveCurve = value }
+                            Text { text: Math.round((Waybar ? Waybar.arcWaveCurve : 0.65) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 58; horizontalAlignment: Text.AlignRight }
                         }
                     }
 

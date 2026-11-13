@@ -619,19 +619,30 @@ ApplicationWindow {
     property real mediaPillHalfW: 95.0
     readonly property int waveMode: Waybar ? Waybar.mediaWaveMode : 0
     readonly property bool anyMusicWaveOn: !root.isVertBar && root.barPos === 0 && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
-    readonly property bool musicWaveShouldRun: anyMusicWaveOn && waveMode === 0 && !(root.drawerOpen && root.drawerMode === "settings")
-    property real musicWaveAmp: musicWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
-    Behavior on musicWaveAmp { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
+    readonly property bool barShaderWaveRun: anyMusicWaveOn && (waveMode === 0 || waveMode === 2) && !(root.drawerOpen && root.drawerMode === "settings")
+    readonly property real targetBarWaveAmp: !barShaderWaveRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 16.0) : (Waybar ? Waybar.mediaWaveSize : 11.0))
+    property real musicWaveAmp: targetBarWaveAmp
+    Behavior on musicWaveAmp { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
     readonly property bool drawerAnimSettled: root.drawerOpen && !openSeqAnim.running && !switchDrawerAnim.running && !closeSeqAnim.running && root.drawerProgress > 0.98
     readonly property bool drawerWaveShouldRun: anyMusicWaveOn && waveMode === 0 && drawerAnimSettled
     property real drawerWaveAmp: drawerWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
-    Behavior on drawerWaveAmp { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
-    NumberAnimation on musicWavePhase {
-        from: 0.0; to: 62.831853
-        duration: Math.max(4000, Math.round(18000 / (Waybar ? Waybar.mediaWaveSpeed : 1.5)))
-        loops: Animation.Infinite
+    Behavior on drawerWaveAmp { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
+
+    // Легкий 30-FPS таймер фазы волн вместо 160-FPS NumberAnimation (снижает нагрузку на композитор Hyprland в 5 раз!)
+    Timer {
+        interval: 33
+        repeat: true
         running: root.anyMusicWaveOn
+        onTriggered: {
+            var spd = 1.5
+            if (Waybar) {
+                if (root.waveMode === 1) spd = Waybar.pillWaveSpeed
+                else if (root.waveMode === 2) spd = Waybar.arcWaveSpeed
+                else spd = Waybar.mediaWaveSpeed
+            }
+            root.musicWavePhase = (root.musicWavePhase + 0.012 * spd) % 628.31853
+        }
     }
 
     function handleExternalTrigger() {
@@ -785,64 +796,14 @@ ApplicationWindow {
             }
         }
 
-        // РЕЖИМ 2: ОБЫЧНЫЕ НЕСКРУГЛЕННЫЕ УЗКИЕ СТОЛБИКИ ОТ ВЕРХА ЭКРАНА ПОД ПАНЕЛЬЮ ДУГОЙ (ВЫХОДЯТ И ПО БОКАМ ПАНЕЛИ, ПОСЕРЕДИНЕ ВЫШЕ)
-        Item {
-            id: topArcBarsLayer
-            z: 1
-            x: Math.max(0, root.barLeft - 3)
-            y: 0
-            width: Math.min(root.width, root.barW + 6)
-            height: root.barRectY + root.actualBarH + 42
-            visible: opacity > 0.01
-            opacity: (root.anyMusicWaveOn && root.waveMode === 2 && !(root.drawerOpen && root.drawerMode === "settings")) ? 0.90 : 0.0
-            Behavior on opacity { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
-
-            readonly property int barStepPx: 3
-            readonly property int barCount: Math.max(60, Math.floor(width / barStepPx))
-            readonly property real maxExtraDrop: Waybar ? Waybar.mediaWaveSize * 1.65 : 18.0
-            readonly property real baseCoverH: root.barRectY + root.actualBarH
-
-            Row {
-                anchors.top: parent.top
-                anchors.left: parent.left
-                anchors.right: parent.right
-                spacing: 1
-
-                Repeater {
-                    model: topArcBarsLayer.visible ? topArcBarsLayer.barCount : 0
-                    delegate: Rectangle {
-                        width: 2
-                        radius: 0
-                        anchors.top: parent.top
-
-                        // Нормализованная координата 0..1 от левого до правого бока панели
-                        readonly property real normX: topArcBarsLayer.barCount > 1 ? (index / (topArcBarsLayer.barCount - 1)) : 0.5
-                        // Дуга: посередине экрана (normX = 0.5) столбики выше/сильнее выступают, и по самым бокам панели тоже выходят (от 0.38 по бокам до 1.0 в центре)
-                        readonly property real archBell: Math.sin(normX * Math.PI)
-                        readonly property real archEnvelope: 0.38 + 0.62 * Math.pow(archBell, 0.85)
-
-                        readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
-                        readonly property real mLvl: Waybar ? Waybar.audioMid : 0.35
-                        readonly property real tLvl: Waybar ? Waybar.audioTreble : 0.3
-                        readonly property real audioMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
-
-                        readonly property real w1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.4 + index * 0.42)
-                        readonly property real w2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 3.9 - index * 0.71)
-                        readonly property real bounce: (0.22 + 0.78 * (w1 * 0.55 + w2 * 0.45)) * (0.35 + 0.85 * audioMix)
-
-                        height: Math.round(topArcBarsLayer.baseCoverH + 2 + topArcBarsLayer.maxExtraDrop * archEnvelope * bounce)
-                        color: (Theme && Theme.isRounded && Config)
-                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.78)
-                               : Qt.rgba(0.66, 0.78, 0.98, 0.78)
-                    }
-                }
-            }
-        }
-
         // ЕДИНЫЙ GLSL-ШЕЙДЕР (ПАНЕЛЬ + ОКНО + УВЕДОМЛЕНИЯ + СВЕТ КУРСОРА)
         ShaderEffect {
             id: mergedShellBg
-            anchors.fill: parent
+            x: 0; y: 0
+            width: parent.width
+            height: (root.drawerActive || root.notifActive || root.isVertBar || root.barPos !== 0)
+                    ? parent.height
+                    : Math.min(parent.height, root.barRectY + root.actualBarH + 46)
             z: 2
             property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
@@ -875,9 +836,14 @@ ApplicationWindow {
             property vector2d u_mouse: Qt.vector2d(root.mousePos.x, root.mousePos.y)
             property vector2d u_trail1: Qt.vector2d(root.trail1.x, root.trail1.y)
             property vector2d u_trail2: Qt.vector2d(root.trail2.x, root.trail2.y)
-            readonly property point effWaveMouse: (Waybar && Waybar.globalCursorPos.x > -100) ? Waybar.globalCursorPos : root.mousePos
-            property vector4d u_music_wave: Qt.vector4d(effWaveMouse.x, effWaveMouse.y, root.musicWaveAmp, root.musicWavePhase)
-            property vector4d u_music_wave2: Qt.vector4d(Waybar ? Waybar.mediaWaveCount : 95, Waybar ? Waybar.audioBass : 0.0, Waybar ? Waybar.audioMid : 0.0, Waybar ? Waybar.audioTreble : 0.0)
+            readonly property real modeParamY: (root.waveMode === 2)
+                                               ? (Waybar ? Waybar.arcWaveCurve : 0.65)
+                                               : (Waybar ? Waybar.mediaWaveSharpness : 0.70)
+            readonly property real modeParamCountOrPack: (root.waveMode === 2)
+                                                         ? ((Waybar ? Waybar.arcWaveWidth : 2) * 100.0 + (Waybar ? Waybar.arcWaveGap : 1))
+                                                         : (Waybar ? Waybar.mediaWaveCount : 95)
+            property vector4d u_music_wave: Qt.vector4d(root.waveMode, modeParamY, root.musicWaveAmp, root.musicWavePhase)
+            property vector4d u_music_wave2: Qt.vector4d(modeParamCountOrPack, Waybar ? Waybar.audioBass : 0.0, Waybar ? Waybar.audioMid : 0.0, Waybar ? Waybar.audioTreble : 0.0)
             property real u_drawer_wave_amp: root.drawerWaveAmp
             fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
         }
@@ -1367,13 +1333,16 @@ ApplicationWindow {
                                     anchors.right: parent.right
                                     anchors.leftMargin: 2
                                     anchors.rightMargin: 2
-                                    spacing: 1
-                                    readonly property int barCnt: Math.max(6, Math.floor((mediaPillBox.width - 4) / 3))
+                                    readonly property int pBarW: Waybar ? Waybar.pillWaveWidth : 2
+                                    readonly property int pGapW: Waybar ? Waybar.pillWaveGap : 1
+                                    readonly property real pMaxH: (Waybar ? Waybar.pillWaveHeight : 85) / 100.0
+                                    spacing: pGapW
+                                    readonly property int barCnt: Math.max(4, Math.floor((mediaPillBox.width - 4) / Math.max(2, pBarW + pGapW)))
 
                                     Repeater {
                                         model: insidePillEqRow.visible ? insidePillEqRow.barCnt : 0
                                         delegate: Rectangle {
-                                            width: 2
+                                            width: insidePillEqRow.pBarW
                                             radius: 0
                                             anchors.bottom: parent.bottom
                                             readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
@@ -1383,7 +1352,7 @@ ApplicationWindow {
                                             readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.8 + index * 0.75)
                                             readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 4.5 - index * 0.62)
                                             readonly property real amp: Math.min(1.0, (0.2 + 0.8 * (s1 * 0.55 + s2 * 0.45)) * (0.35 + 0.85 * eMix))
-                                            height: Math.max(2, Math.round(amp * (topBarContainer.pillHeight - 2)))
+                                            height: Math.max(2, Math.round(amp * (topBarContainer.pillHeight - 2) * insidePillEqRow.pMaxH))
                                             color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#a8c7fa"
                                         }
                                     }

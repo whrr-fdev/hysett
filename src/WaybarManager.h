@@ -56,6 +56,16 @@ class WaybarManager : public QObject {
     Q_PROPERTY(qreal mediaWaveSpeed READ mediaWaveSpeed WRITE setMediaWaveSpeed NOTIFY stateChanged)
     Q_PROPERTY(qreal mediaWaveSize READ mediaWaveSize WRITE setMediaWaveSize NOTIFY stateChanged)
     Q_PROPERTY(int mediaWaveCount READ mediaWaveCount WRITE setMediaWaveCount NOTIFY stateChanged)
+    Q_PROPERTY(qreal mediaWaveSharpness READ mediaWaveSharpness WRITE setMediaWaveSharpness NOTIFY stateChanged)
+    Q_PROPERTY(qreal pillWaveSpeed READ pillWaveSpeed WRITE setPillWaveSpeed NOTIFY stateChanged)
+    Q_PROPERTY(int pillWaveHeight READ pillWaveHeight WRITE setPillWaveHeight NOTIFY stateChanged)
+    Q_PROPERTY(int pillWaveWidth READ pillWaveWidth WRITE setPillWaveWidth NOTIFY stateChanged)
+    Q_PROPERTY(int pillWaveGap READ pillWaveGap WRITE setPillWaveGap NOTIFY stateChanged)
+    Q_PROPERTY(qreal arcWaveSpeed READ arcWaveSpeed WRITE setArcWaveSpeed NOTIFY stateChanged)
+    Q_PROPERTY(qreal arcWaveSize READ arcWaveSize WRITE setArcWaveSize NOTIFY stateChanged)
+    Q_PROPERTY(int arcWaveWidth READ arcWaveWidth WRITE setArcWaveWidth NOTIFY stateChanged)
+    Q_PROPERTY(int arcWaveGap READ arcWaveGap WRITE setArcWaveGap NOTIFY stateChanged)
+    Q_PROPERTY(qreal arcWaveCurve READ arcWaveCurve WRITE setArcWaveCurve NOTIFY stateChanged)
     Q_PROPERTY(qreal audioBass READ audioBass NOTIFY audioSpectrumChanged)
     Q_PROPERTY(qreal audioMid READ audioMid NOTIFY audioSpectrumChanged)
     Q_PROPERTY(qreal audioTreble READ audioTreble NOTIFY audioSpectrumChanged)
@@ -220,6 +230,26 @@ public:
     void setMediaWaveSize(qreal v);
     int mediaWaveCount() const { return m_mediaWaveCount; }
     void setMediaWaveCount(int v);
+    qreal mediaWaveSharpness() const { return m_mediaWaveSharpness; }
+    void setMediaWaveSharpness(qreal v);
+    qreal pillWaveSpeed() const { return m_pillWaveSpeed; }
+    void setPillWaveSpeed(qreal v);
+    int pillWaveHeight() const { return m_pillWaveHeight; }
+    void setPillWaveHeight(int v);
+    int pillWaveWidth() const { return m_pillWaveWidth; }
+    void setPillWaveWidth(int v);
+    int pillWaveGap() const { return m_pillWaveGap; }
+    void setPillWaveGap(int v);
+    qreal arcWaveSpeed() const { return m_arcWaveSpeed; }
+    void setArcWaveSpeed(qreal v);
+    qreal arcWaveSize() const { return m_arcWaveSize; }
+    void setArcWaveSize(qreal v);
+    int arcWaveWidth() const { return m_arcWaveWidth; }
+    void setArcWaveWidth(int v);
+    int arcWaveGap() const { return m_arcWaveGap; }
+    void setArcWaveGap(int v);
+    qreal arcWaveCurve() const { return m_arcWaveCurve; }
+    void setArcWaveCurve(qreal v);
     qreal audioBass() const { return m_audioBass; }
     qreal audioMid() const { return m_audioMid; }
     qreal audioTreble() const { return m_audioTreble; }
@@ -473,6 +503,16 @@ private:
     qreal m_mediaWaveSpeed = 1.5;
     qreal m_mediaWaveSize = 11.0;
     int m_mediaWaveCount = 95;
+    qreal m_mediaWaveSharpness = 0.70;
+    qreal m_pillWaveSpeed = 1.6;
+    int m_pillWaveHeight = 85;
+    int m_pillWaveWidth = 2;
+    int m_pillWaveGap = 1;
+    qreal m_arcWaveSpeed = 1.5;
+    qreal m_arcWaveSize = 16.0;
+    int m_arcWaveWidth = 2;
+    int m_arcWaveGap = 1;
+    qreal m_arcWaveCurve = 0.65;
     qreal m_audioBass = 0.0;
     qreal m_audioMid = 0.0;
     qreal m_audioTreble = 0.0;

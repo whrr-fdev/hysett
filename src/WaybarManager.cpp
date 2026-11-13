@@ -146,6 +146,7 @@ WaybarManager::~WaybarManager() {
         delete m_hyprNotifier;
     }
     if (m_hyprEventFd >= 0) ::close(m_hyprEventFd);
+    if (m_audioCapProc) { m_audioCapProc->kill(); delete m_audioCapProc; m_audioCapProc = nullptr; }
 }
 
 void WaybarManager::initSpecs() {
@@ -215,6 +216,16 @@ void WaybarManager::loadState() {
             else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
             else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
             else if (k == "media_wave_count") m_mediaWaveCount = std::clamp(v.toInt(), 20, 220);
+            else if (k == "media_wave_sharpness") m_mediaWaveSharpness = std::clamp(v.toDouble(), 0.1, 1.0);
+            else if (k == "pill_wave_speed") m_pillWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
+            else if (k == "pill_wave_height") m_pillWaveHeight = std::clamp(v.toInt(), 20, 100);
+            else if (k == "pill_wave_width") m_pillWaveWidth = std::clamp(v.toInt(), 1, 5);
+            else if (k == "pill_wave_gap") m_pillWaveGap = std::clamp(v.toInt(), 1, 5);
+            else if (k == "arc_wave_speed") m_arcWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
+            else if (k == "arc_wave_size") m_arcWaveSize = std::clamp(v.toDouble(), 4.0, 32.0);
+            else if (k == "arc_wave_width") m_arcWaveWidth = std::clamp(v.toInt(), 1, 6);
+            else if (k == "arc_wave_gap") m_arcWaveGap = std::clamp(v.toInt(), 1, 6);
+            else if (k == "arc_wave_curve") m_arcWaveCurve = std::clamp(v.toDouble(), 0.0, 1.0);
             else if (k == "media_collapsed") m_mediaCollapsed = (v == "1" || v == "true");
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
             else if (k == "uniform_bar_spacing") m_uniformBarSpacing = (v == "1" || v == "true");
@@ -264,6 +275,16 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_wave_speed=" << QString::number(m_mediaWaveSpeed, 'f', 2) << "\n";
         out << "media_wave_size=" << QString::number(m_mediaWaveSize, 'f', 1) << "\n";
         out << "media_wave_count=" << m_mediaWaveCount << "\n";
+        out << "media_wave_sharpness=" << QString::number(m_mediaWaveSharpness, 'f', 2) << "\n";
+        out << "pill_wave_speed=" << QString::number(m_pillWaveSpeed, 'f', 2) << "\n";
+        out << "pill_wave_height=" << m_pillWaveHeight << "\n";
+        out << "pill_wave_width=" << m_pillWaveWidth << "\n";
+        out << "pill_wave_gap=" << m_pillWaveGap << "\n";
+        out << "arc_wave_speed=" << QString::number(m_arcWaveSpeed, 'f', 2) << "\n";
+        out << "arc_wave_size=" << QString::number(m_arcWaveSize, 'f', 1) << "\n";
+        out << "arc_wave_width=" << m_arcWaveWidth << "\n";
+        out << "arc_wave_gap=" << m_arcWaveGap << "\n";
+        out << "arc_wave_curve=" << QString::number(m_arcWaveCurve, 'f', 2) << "\n";
         out << "media_collapsed=" << (m_mediaCollapsed ? "1" : "0") << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
         out << "uniform_bar_spacing=" << (m_uniformBarSpacing ? "1" : "0") << "\n";
@@ -1028,53 +1049,93 @@ void WaybarManager::updateAudioCaptureState() {
         }
         return;
     }
-    if (m_audioCapProc && m_audioCapProc->state() != QProcess::NotRunning) return;
-    if (m_audioCapProc) {
-        m_audioCapProc->deleteLater();
-        m_audioCapProc = nullptr;
+    if (!m_audioCapProc || m_audioCapProc->state() == QProcess::NotRunning) {
+        if (m_audioCapProc) {
+            m_audioCapProc->deleteLater();
+            m_audioCapProc = nullptr;
+        }
+        m_audioCapProc = new QProcess(this);
+        m_audioCapProc->start("parec", {"--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=35", "-d", "@DEFAULT_MONITOR@"});
+        return;
     }
 
-    m_audioCapProc = new QProcess(this);
-    connect(m_audioCapProc, &QProcess::readyReadStandardOutput, this, [this]() {
-        if (!m_audioCapProc) return;
-        QByteArray buf = m_audioCapProc->readAllStandardOutput();
-        int nSamples = buf.size() / 2;
-        if (nSamples < 16) return;
-        const int16_t *pcm = reinterpret_cast<const int16_t *>(buf.constData());
+    // Читаем накопленный буфер строго по таймеру (раз в 35 мс, без лавины сигналов readyRead!)
+    QByteArray buf = m_audioCapProc->readAllStandardOutput();
+    if (buf.size() > 8192) buf = buf.right(4096);
+    int nSamples = buf.size() / 2;
+    if (nSamples < 16) return;
+    const int16_t *pcm = reinterpret_cast<const int16_t *>(buf.constData());
 
-        static double s_lp1 = 0.0;
-        static double s_lp2 = 0.0;
-        double sumBass = 0.0, sumMid = 0.0, sumTreb = 0.0;
-        int step = std::max(1, nSamples / 256);
-        int count = 0;
-        for (int i = 0; i < nSamples; i += step) {
-            double x = double(pcm[i]) / 32768.0;
-            // Разделение на НЧ (бас), СЧ и ВЧ фильтрами 1-го порядка
-            s_lp1 += 0.08 * (x - s_lp1);
-            s_lp2 += 0.32 * (x - s_lp2);
-            double b = s_lp1;
-            double m = s_lp2 - s_lp1;
-            double tr = x - s_lp2;
-            sumBass += b * b;
-            sumMid  += m * m;
-            sumTreb += tr * tr;
-            ++count;
-        }
-        if (count > 0) {
-            double rmsB = std::sqrt(sumBass / count) * 4.8;
-            double rmsM = std::sqrt(sumMid  / count) * 5.6;
-            double rmsT = std::sqrt(sumTreb / count) * 6.5;
-            double targetB = std::clamp( std::pow(rmsB, 0.72), 0.0, 1.55);
-            double targetM = std::clamp( std::pow(rmsM, 0.75), 0.0, 1.50);
-            double targetT = std::clamp( std::pow(rmsT, 0.78), 0.0, 1.45);
-            // Быстрая атака на удар баса (0.55) и плавное затухание (0.22)
-            m_audioBass   = (targetB > m_audioBass)   ? (m_audioBass * 0.45 + targetB * 0.55)   : (m_audioBass * 0.78 + targetB * 0.22);
-            m_audioMid    = (targetM > m_audioMid)    ? (m_audioMid * 0.45 + targetM * 0.55)    : (m_audioMid * 0.78 + targetM * 0.22);
-            m_audioTreble = (targetT > m_audioTreble) ? (m_audioTreble * 0.45 + targetT * 0.55) : (m_audioTreble * 0.78 + targetT * 0.22);
+    static double s_lp1 = 0.0;
+    static double s_lp2 = 0.0;
+    double sumBass = 0.0, sumMid = 0.0, sumTreb = 0.0;
+    int step = std::max(1, nSamples / 128);
+    int count = 0;
+    for (int i = 0; i < nSamples; i += step) {
+        double x = double(pcm[i]) / 32768.0;
+        s_lp1 += 0.08 * (x - s_lp1);
+        s_lp2 += 0.32 * (x - s_lp2);
+        double b = s_lp1;
+        double m = s_lp2 - s_lp1;
+        double tr = x - s_lp2;
+        sumBass += b * b;
+        sumMid  += m * m;
+        sumTreb += tr * tr;
+        ++count;
+    }
+    if (count > 0) {
+        double targetB = std::clamp(std::pow(std::sqrt(sumBass / count) * 4.8, 0.72), 0.0, 1.50);
+        double targetM = std::clamp(std::pow(std::sqrt(sumMid  / count) * 5.6, 0.75), 0.0, 1.45);
+        double targetT = std::clamp(std::pow(std::sqrt(sumTreb / count) * 6.5, 0.78), 0.0, 1.40);
+        double nextB = (targetB > m_audioBass)   ? (m_audioBass * 0.45 + targetB * 0.55)   : (m_audioBass * 0.78 + targetB * 0.22);
+        double nextM = (targetM > m_audioMid)    ? (m_audioMid * 0.45 + targetM * 0.55)    : (m_audioMid * 0.78 + targetM * 0.22);
+        double nextT = (targetT > m_audioTreble) ? (m_audioTreble * 0.45 + targetT * 0.55) : (m_audioTreble * 0.78 + targetT * 0.22);
+        if (std::abs(nextB - m_audioBass) > 0.015 || std::abs(nextM - m_audioMid) > 0.015 || std::abs(nextT - m_audioTreble) > 0.015) {
+            m_audioBass = nextB; m_audioMid = nextM; m_audioTreble = nextT;
             emit audioSpectrumChanged();
         }
-    });
-    m_audioCapProc->start("parec", {"--format=s16le", "--rate=16000", "--channels=1", "--latency-msec=22", "-d", "@DEFAULT_MONITOR@"});
+    }
+}
+
+void WaybarManager::setMediaWaveSharpness(qreal v) {
+    v = std::clamp(v, 0.1, 1.0);
+    if (!qFuzzyCompare(m_mediaWaveSharpness, v)) { m_mediaWaveSharpness = v; saveState(false); }
+}
+void WaybarManager::setPillWaveSpeed(qreal v) {
+    v = std::clamp(v, 0.2, 4.0);
+    if (!qFuzzyCompare(m_pillWaveSpeed, v)) { m_pillWaveSpeed = v; saveState(false); }
+}
+void WaybarManager::setPillWaveHeight(int v) {
+    v = std::clamp(v, 20, 100);
+    if (m_pillWaveHeight != v) { m_pillWaveHeight = v; saveState(false); }
+}
+void WaybarManager::setPillWaveWidth(int v) {
+    v = std::clamp(v, 1, 5);
+    if (m_pillWaveWidth != v) { m_pillWaveWidth = v; saveState(false); }
+}
+void WaybarManager::setPillWaveGap(int v) {
+    v = std::clamp(v, 1, 5);
+    if (m_pillWaveGap != v) { m_pillWaveGap = v; saveState(false); }
+}
+void WaybarManager::setArcWaveSpeed(qreal v) {
+    v = std::clamp(v, 0.2, 4.0);
+    if (!qFuzzyCompare(m_arcWaveSpeed, v)) { m_arcWaveSpeed = v; saveState(false); }
+}
+void WaybarManager::setArcWaveSize(qreal v) {
+    v = std::clamp(v, 4.0, 32.0);
+    if (!qFuzzyCompare(m_arcWaveSize, v)) { m_arcWaveSize = v; saveState(false); }
+}
+void WaybarManager::setArcWaveWidth(int v) {
+    v = std::clamp(v, 1, 6);
+    if (m_arcWaveWidth != v) { m_arcWaveWidth = v; saveState(false); }
+}
+void WaybarManager::setArcWaveGap(int v) {
+    v = std::clamp(v, 1, 6);
+    if (m_arcWaveGap != v) { m_arcWaveGap = v; saveState(false); }
+}
+void WaybarManager::setArcWaveCurve(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (!qFuzzyCompare(m_arcWaveCurve, v)) { m_arcWaveCurve = v; saveState(false); }
 }
 
 void WaybarManager::setMediaWaveSize(qreal v) {

@@ -184,7 +184,7 @@ ScrollView {
                     RowLayout {
                         Layout.fillWidth: true
                         Text {
-                            text: "Волны эквалайзера (прыгающие столбики снизу панели):"
+                            text: "Анимация волн музыки на панели задач:"
                             color: "#cccccc"
                             font.pixelSize: Config.fontSize
                             Layout.fillWidth: true
@@ -192,6 +192,25 @@ ScrollView {
                         StyledSwitch {
                             checked: Waybar ? Waybar.mediaWaves : true
                             onToggled: if (Waybar) Waybar.mediaWaves = checked
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Waybar ? Waybar.mediaWaves : true
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "Режим отображения волн:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize
+                            Layout.preferredWidth: 185
+                        }
+                        SegmentedButton {
+                            Layout.fillWidth: true
+                            implicitHeight: 28
+                            options: ["Жидкие пики", "Внутри пилюли", "Дуга под панелью"]
+                            selectedIndex: Waybar ? Waybar.mediaWaveMode : 0
+                            onSelected: (idx) => { if (Waybar) Waybar.mediaWaveMode = idx }
                         }
                     }
 
@@ -411,7 +430,7 @@ ScrollView {
                         StyledButton {
                             Layout.fillWidth: true
                             implicitHeight: 30
-                            text: "󰎆 Скачать пачку из «Моей волны» (20 тр.)"
+                            text: "󰎆 Скачать «Мою волну» (" + (Waybar ? Waybar.ymWaveCount : 100) + " тр.)"
                             enabled: !(Waybar && Waybar.ymBusy)
                             onClicked: if (Waybar) Waybar.downloadYmMyWave()
                         }
@@ -421,6 +440,31 @@ ScrollView {
                             text: "󰅖 Стоп"
                             implicitHeight: 30
                             onClicked: if (Waybar) Waybar.stopYmSync()
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "Количество треков «Моей волны» за раз:"
+                            color: "#cccccc"
+                            font.pixelSize: Config.fontSize - 1
+                            Layout.preferredWidth: 240
+                        }
+                        StyledSlider {
+                            Layout.fillWidth: true
+                            from: 10; to: 500; stepSize: 10
+                            value: Waybar ? Waybar.ymWaveCount : 100
+                            onMoved: if (Waybar) Waybar.ymWaveCount = Math.round(value)
+                        }
+                        Text {
+                            text: (Waybar ? Waybar.ymWaveCount : 100) + " тр."
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize - 1
+                            font.bold: true
+                            Layout.preferredWidth: 54
+                            horizontalAlignment: Text.AlignRight
                         }
                     }
 

@@ -51,6 +51,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool mediaDemoMode READ mediaDemoMode WRITE setMediaDemoMode NOTIFY mediaChanged)
     Q_PROPERTY(int mediaHideTimeout READ mediaHideTimeout WRITE setMediaHideTimeout NOTIFY stateChanged)
     Q_PROPERTY(bool mediaWaves READ mediaWaves WRITE setMediaWaves NOTIFY stateChanged)
+    Q_PROPERTY(int mediaWaveMode READ mediaWaveMode WRITE setMediaWaveMode NOTIFY stateChanged)
+    Q_PROPERTY(int ymWaveCount READ ymWaveCount WRITE setYmWaveCount NOTIFY ymStateChanged)
     Q_PROPERTY(qreal mediaWaveSpeed READ mediaWaveSpeed WRITE setMediaWaveSpeed NOTIFY stateChanged)
     Q_PROPERTY(qreal mediaWaveSize READ mediaWaveSize WRITE setMediaWaveSize NOTIFY stateChanged)
     Q_PROPERTY(int mediaWaveCount READ mediaWaveCount WRITE setMediaWaveCount NOTIFY stateChanged)
@@ -208,6 +210,10 @@ public:
     int mediaHideTimeout() const { return m_mediaHideTimeout; }
     bool mediaWaves() const { return m_mediaWaves; }
     void setMediaWaves(bool v);
+    int mediaWaveMode() const { return m_mediaWaveMode; }
+    void setMediaWaveMode(int v);
+    int ymWaveCount() const { return m_ymWaveCount; }
+    void setYmWaveCount(int v);
     qreal mediaWaveSpeed() const { return m_mediaWaveSpeed; }
     void setMediaWaveSpeed(qreal v);
     qreal mediaWaveSize() const { return m_mediaWaveSize; }
@@ -462,6 +468,8 @@ private:
     int m_realLenSec = 215;
     int m_mediaHideTimeout = 15;
     bool m_mediaWaves = true;
+    int m_mediaWaveMode = 0;
+    int m_ymWaveCount = 100;
     qreal m_mediaWaveSpeed = 1.5;
     qreal m_mediaWaveSize = 11.0;
     int m_mediaWaveCount = 95;

@@ -351,7 +351,7 @@ ApplicationWindow {
     readonly property bool isFixedTitle: Waybar ? Waybar.fixedTitleWidth : false
     readonly property bool winInSideOrder: Waybar ? (Waybar.leftBarOrder.indexOf("window") !== -1 || Waybar.rightBarOrder.indexOf("window") !== -1) : false
     readonly property bool hasWinTitle: winModVis && Waybar && (Waybar.activeWindowTitle.length > 0 || Waybar.barEditMode)
-    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? (Waybar ? Waybar.fixedTitleSize : 100) : (hasWinTitle ? Math.min(240, winLbl.implicitWidth + 24) : 0))
+    readonly property real winPillTargetW: !winModVis ? 0 : (isFixedTitle ? (Waybar ? Waybar.fixedTitleSize : 100) : (hasWinTitle ? Math.min(240, Math.ceil(winTitleMeasure.implicitWidth / 2) * 2 + 24) : 0))
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
@@ -617,19 +617,21 @@ ApplicationWindow {
     property real musicWavePhase: 0.0
     property real mediaPillCenterX: 320.0
     property real mediaPillHalfW: 95.0
-    readonly property bool musicWaveShouldRun: !root.isVertBar && root.barPos === 0 && !(root.drawerOpen && root.drawerMode === "settings") && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
+    readonly property int waveMode: Waybar ? Waybar.mediaWaveMode : 0
+    readonly property bool anyMusicWaveOn: !root.isVertBar && root.barPos === 0 && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
+    readonly property bool musicWaveShouldRun: anyMusicWaveOn && waveMode === 0 && !(root.drawerOpen && root.drawerMode === "settings")
     property real musicWaveAmp: musicWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
     Behavior on musicWaveAmp { NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
 
     readonly property bool drawerAnimSettled: root.drawerOpen && !openSeqAnim.running && !switchDrawerAnim.running && !closeSeqAnim.running && root.drawerProgress > 0.98
-    readonly property bool drawerWaveShouldRun: !root.isVertBar && root.barPos === 0 && drawerAnimSettled && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
+    readonly property bool drawerWaveShouldRun: anyMusicWaveOn && waveMode === 0 && drawerAnimSettled
     property real drawerWaveAmp: drawerWaveShouldRun ? (Waybar ? Waybar.mediaWaveSize : 11.0) : 0.0
     Behavior on drawerWaveAmp { NumberAnimation { duration: 340; easing.type: Easing.OutQuint } }
     NumberAnimation on musicWavePhase {
         from: 0.0; to: 62.831853
         duration: Math.max(4000, Math.round(18000 / (Waybar ? Waybar.mediaWaveSpeed : 1.5)))
         loops: Animation.Infinite
-        running: root.musicWaveAmp > 0.1 || root.drawerWaveAmp > 0.1
+        running: root.anyMusicWaveOn
     }
 
     function handleExternalTrigger() {
@@ -779,6 +781,62 @@ ApplicationWindow {
                     root.requestCloseDrawer()
                 } else {
                     mouse.accepted = false
+                }
+            }
+        }
+
+        // РЕЖИМ 2: СТОЛБИКИ ОТ ВЕРХНЕЙ СТОРОНЫ ЭКРАНА ПОД ПАНЕЛЬЮ ЗАДАЧ ДУГОЙ (ПОСЕРЕДИНЕ ВЫШЕ)
+        Item {
+            id: topArcBarsLayer
+            z: 1
+            x: root.barLeft
+            y: 0
+            width: root.barW
+            height: root.barRectY + root.actualBarH + 34
+            visible: opacity > 0.01
+            opacity: (root.anyMusicWaveOn && root.waveMode === 2 && !(root.drawerOpen && root.drawerMode === "settings")) ? 0.88 : 0.0
+            Behavior on opacity { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+
+            readonly property int barCount: Waybar ? Math.max(24, Math.min(160, Waybar.mediaWaveCount)) : 80
+            readonly property real maxExtraDrop: Waybar ? Waybar.mediaWaveSize * 1.45 : 16.0
+            readonly property real baseCoverH: root.barRectY + root.actualBarH
+
+            Row {
+                anchors.top: parent.top
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: parent.width - 24
+                spacing: 2
+
+                Repeater {
+                    model: topArcBarsLayer.visible ? topArcBarsLayer.barCount : 0
+                    delegate: Rectangle {
+                        readonly property real stepW: (topArcBarsLayer.width - 24) / Math.max(1, topArcBarsLayer.barCount)
+                        width: Math.max(2, stepW - 2)
+                        anchors.top: parent.top
+
+                        // Нормализованная координата 0..1 вдоль панели; посередине (0.5) дуга выше (короче свисает вниз), а к краям ниже!
+                        readonly property real normX: topArcBarsLayer.barCount > 1 ? (index / (topArcBarsLayer.barCount - 1)) : 0.5
+                        readonly property real centerArch: Math.sin(normX * Math.PI) // 1.0 посередине, 0.0 по краям
+                        // Огибающая дуги (посередине выше — т.е. ближе к верху/своду арки, по краям ниже, с мягким скруглением у самых углов панели)
+                        readonly property real edgeCornerFade: Math.min(1.0, Math.min(normX, 1.0 - normX) * 10.0)
+                        readonly property real archFactor: (1.0 - 0.58 * centerArch) * edgeCornerFade
+
+                        readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
+                        readonly property real mLvl: Waybar ? Waybar.audioMid : 0.35
+                        readonly property real tLvl: Waybar ? Waybar.audioTreble : 0.3
+                        readonly property real audioMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
+
+                        readonly property real w1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.2 + index * 0.55)
+                        readonly property real w2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 3.7 - index * 0.85)
+                        readonly property real bounce: (0.25 + 0.75 * (w1 * 0.55 + w2 * 0.45)) * (0.35 + 0.85 * audioMix)
+
+                        height: Math.round(topArcBarsLayer.baseCoverH + topArcBarsLayer.maxExtraDrop * archFactor * bounce)
+                        bottomLeftRadius: width * 0.5
+                        bottomRightRadius: width * 0.5
+                        color: (Theme && Theme.isRounded && Config)
+                               ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.72)
+                               : Qt.rgba(0.66, 0.78, 0.98, 0.72)
+                    }
                 }
             }
         }
@@ -1299,6 +1357,38 @@ ApplicationWindow {
 
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
 
+                                // Режим 1: Столбики, скачущие внутри самой пилюли музыки
+                                Row {
+                                    id: insidePillEqRow
+                                    z: 1
+                                    visible: opacity > 0.01
+                                    opacity: (root.anyMusicWaveOn && root.waveMode === 1) ? 0.48 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 200 } }
+                                    anchors.bottom: parent.bottom
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    spacing: 2
+                                    readonly property int barCnt: Math.max(4, Math.min(28, Math.floor((mediaPillBox.width - 8) / 4)))
+
+                                    Repeater {
+                                        model: insidePillEqRow.visible ? insidePillEqRow.barCnt : 0
+                                        delegate: Rectangle {
+                                            width: 2.5
+                                            anchors.bottom: parent.bottom
+                                            topLeftRadius: 1.2
+                                            topRightRadius: 1.2
+                                            readonly property real bLvl: Waybar ? Waybar.audioBass : 0.4
+                                            readonly property real mLvl: Waybar ? Waybar.audioMid : 0.35
+                                            readonly property real tLvl: Waybar ? Waybar.audioTreble : 0.3
+                                            readonly property real eMix: (index % 3 === 0) ? bLvl : ((index % 3 === 1) ? mLvl : tLvl)
+                                            readonly property real s1: 0.5 + 0.5 * Math.sin(root.musicWavePhase * 2.8 + index * 0.9)
+                                            readonly property real s2: 0.5 + 0.5 * Math.cos(root.musicWavePhase * 4.5 - index * 0.7)
+                                            readonly property real amp: Math.min(1.0, (0.2 + 0.8 * (s1 * 0.55 + s2 * 0.45)) * (0.35 + 0.85 * eMix))
+                                            height: Math.max(2, Math.round(amp * (topBarContainer.pillHeight - 3)))
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#a8c7fa"
+                                        }
+                                    }
+                                }
+
                                 // Свернутый режим (клик ЛКМ разворачивает, ПКМ пауза/играть)
                                 Item {
                                     z: 10
@@ -1548,6 +1638,14 @@ ApplicationWindow {
                 }
             }
 
+            Text {
+                id: winTitleMeasure
+                visible: false
+                text: (Waybar && Waybar.activeWindowTitle.length > 0) ? Waybar.activeWindowTitle : (topBarContainer.editMode ? "Заголовок окна" : "")
+                font.pixelSize: 10
+                font.bold: (Theme && Theme.isRounded)
+            }
+
             Rectangle {
                 id: centerTitlePill; z: 5
                 readonly property real leftEdge: leftBarRow.x + leftBarRow.width
@@ -1555,22 +1653,33 @@ ApplicationWindow {
                 readonly property real availGap: Math.max(0, rightEdge - leftEdge - 14)
                 readonly property real minLeftX: leftEdge + 7
                 readonly property real maxRightX: Math.max(minLeftX, rightEdge - 7 - width)
-                readonly property real gapCenterX: Math.round(leftEdge + (rightEdge - leftEdge - width) * 0.5)
-                readonly property real trueCenterX: Math.round((parent.width - width) * 0.5)
+                readonly property real gapCenterX: leftEdge + (rightEdge - leftEdge - width) * 0.5
+                readonly property real trueCenterX: (parent.width - width) * 0.5
                 readonly property bool useBarCenter: Waybar ? Waybar.centerTitleOnBar : true
                 readonly property real targetCenterX: useBarCenter ? trueCenterX : gapCenterX
                 visible: !root.isVertBar && !root.winInSideOrder && width > 0.5 && availGap > 24
                 opacity: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? 1.0 : 0.0
                 clip: !topBarContainer.editMode
                 width: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? Math.min(availGap, Math.max(topBarContainer.editMode ? 110 : 0, root.winPillTargetW)) : 0
-                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                 Behavior on opacity { NumberAnimation { duration: 160 } }
-                x: Math.max(minLeftX, Math.min(maxRightX, targetCenterX))
+                x: Math.round(Math.max(minLeftX, Math.min(maxRightX, targetCenterX)))
                 anchors.verticalCenter: parent.verticalCenter
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
                 color: (root.hasWinTitle || topBarContainer.editMode) ? topBarContainer.pillColor : "transparent"
-                Text { id: winLbl; anchors.centerIn: parent; width: Math.min(Math.max(0, parent.width - 18), implicitWidth); text: (Waybar && Waybar.activeWindowTitle.length > 0) ? Waybar.activeWindowTitle : (topBarContainer.editMode ? "Заголовок окна" : ""); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"; font.pixelSize: 10; font.bold: (Theme && Theme.isRounded); elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter }
+                Text {
+                    id: winLbl
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left; anchors.right: parent.right
+                    anchors.leftMargin: 9; anchors.rightMargin: 9
+                    text: winTitleMeasure.text
+                    color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ececec"
+                    font.pixelSize: 10
+                    font.bold: (Theme && Theme.isRounded)
+                    elide: Text.ElideRight
+                    horizontalAlignment: Text.AlignHCenter
+                }
                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings") }
 
                 Rectangle {

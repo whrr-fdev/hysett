@@ -120,33 +120,16 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     m_fastTimer->start();
 
     m_cursorPollTimer = new QTimer(this);
-    m_cursorPollTimer->setInterval(28);
+    m_cursorPollTimer->setInterval(32);
     connect(m_cursorPollTimer, &QTimer::timeout, this, [this]() {
         updateAudioCaptureState();
-        if (!m_mediaWaves || !mediaActive() || !mediaPlaying()) {
-            if (m_globalCursorPos.x() > -100) {
-                m_globalCursorPos = QPointF(-500, -500);
-                emit cursorPosChanged();
-            }
-            return;
-        }
+        if (!m_mediaWaves || !mediaActive() || !mediaPlaying()) return;
         if (m_mediaDemoMode && !m_mediaActive) {
             double t = QDateTime::currentMSecsSinceEpoch() * 0.001;
             m_audioBass = 0.45 + 0.45 * std::pow(0.5 + 0.5 * std::sin(t * 5.2), 2.0);
             m_audioMid = 0.35 + 0.45 * (0.5 + 0.5 * std::sin(t * 7.8 + 1.1));
             m_audioTreble = 0.25 + 0.45 * (0.5 + 0.5 * std::cos(t * 11.4 + 2.3));
             emit audioSpectrumChanged();
-        }
-        QString cp = queryHyprCtlSocket("cursorpos").trimmed();
-        int comma = cp.indexOf(',');
-        if (comma > 0) {
-            double cx = cp.left(comma).trimmed().toDouble();
-            double cy = cp.mid(comma + 1).trimmed().toDouble();
-            QPointF nextP(cx, cy);
-            if (std::abs(nextP.x() - m_globalCursorPos.x()) > 1.0 || std::abs(nextP.y() - m_globalCursorPos.y()) > 1.0) {
-                m_globalCursorPos = nextP;
-                emit cursorPosChanged();
-            }
         }
     });
     m_cursorPollTimer->start();
@@ -227,6 +210,8 @@ void WaybarManager::loadState() {
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
+            else if (k == "media_wave_mode") m_mediaWaveMode = std::clamp(v.toInt(), 0, 2);
+            else if (k == "ym_wave_count") m_ymWaveCount = std::clamp(v.toInt(), 10, 500);
             else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 4.0);
             else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
             else if (k == "media_wave_count") m_mediaWaveCount = std::clamp(v.toInt(), 20, 220);
@@ -274,6 +259,8 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
+        out << "media_wave_mode=" << m_mediaWaveMode << "\n";
+        out << "ym_wave_count=" << m_ymWaveCount << "\n";
         out << "media_wave_speed=" << QString::number(m_mediaWaveSpeed, 'f', 2) << "\n";
         out << "media_wave_size=" << QString::number(m_mediaWaveSize, 'f', 1) << "\n";
         out << "media_wave_count=" << m_mediaWaveCount << "\n";
@@ -1114,6 +1101,23 @@ void WaybarManager::setMediaWaveSpeed(qreal v) {
     }
 }
 
+void WaybarManager::setMediaWaveMode(int v) {
+    v = std::clamp(v, 0, 2);
+    if (m_mediaWaveMode != v) {
+        m_mediaWaveMode = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::setYmWaveCount(int v) {
+    v = std::clamp(v, 10, 500);
+    if (m_ymWaveCount != v) {
+        m_ymWaveCount = v;
+        saveState(false);
+        emit ymStateChanged();
+    }
+}
+
 void WaybarManager::setMediaWaves(bool v) {
     if (m_mediaWaves != v) {
         m_mediaWaves = v;
@@ -1190,7 +1194,7 @@ void WaybarManager::downloadYmMyWave() {
         m_ymBusy = false;
         emit ymStateChanged();
     });
-    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "my_wave"});
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "my_wave", QString::number(m_ymWaveCount)});
 }
 
 void WaybarManager::stopYmSync() {

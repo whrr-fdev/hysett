@@ -215,20 +215,22 @@ def sync_all_playlists():
     else:
         write_prog(False, 100, f"Синхронизировано ✓ Новых треков: {total_new} (~/Music/YandexMusic)")
 
-def download_my_wave(batch_target=20):
+def download_my_wave(batch_target=100):
+    batch_target = max(10, min(500, int(batch_target)))
     if os.path.exists(STOP_FILE):
         os.remove(STOP_FILE)
     token = read_token()
     if not token:
-        write_prog(False, 0, "Токен не задан. Нажмите «Получить токен» и вставьте его.")
+        write_prog(False, 0, "Токен не задан. Нажмите «Получить токен» и вставьте ссылку с access_token.")
         return
-    write_prog(True, 8, "Запрос потока станции «Моя волна»...")
+    write_prog(True, 5, f"Сбор {batch_target} новых треков со станции «Моя волна»...")
     db_obj = load_db()
     db_set = set(db_obj.get("downloaded_ids", []))
     vibe_tracks = []
     seen_ids = set()
+    max_rounds = max(6, (batch_target // 4) + 5)
     try:
-        for _ in range(4):
+        for r_idx in range(max_rounds):
             if len(vibe_tracks) >= batch_target or os.path.exists(STOP_FILE):
                 break
             queue_param = f"&queue={','.join(list(seen_ids)[-5:])}" if seen_ids else ""
@@ -242,12 +244,15 @@ def download_my_wave(batch_target=20):
                     tid = str(tr["id"])
                     if tid not in seen_ids:
                         seen_ids.add(tid)
-                        vibe_tracks.append(tr)
-                        if len(vibe_tracks) >= batch_target:
-                            break
+                        if f"Моя волна:{tid}" not in db_set:
+                            vibe_tracks.append(tr)
+                            write_prog(True, min(15, 5 + int(len(vibe_tracks) * 10 / batch_target)), f"Найдено треков Моей волны: {len(vibe_tracks)}/{batch_target}...")
+                            if len(vibe_tracks) >= batch_target:
+                                break
     except Exception:
-        write_prog(False, 0, "Ошибка получения «Моей волны» (проверьте токен и подписку Плюс)")
-        return
+        if not vibe_tracks:
+            write_prog(False, 0, "Ошибка получения «Моей волны» (проверьте токен)")
+            return
 
     if not vibe_tracks:
         write_prog(False, 0, "Не удалось получить треки «Моей волны»")
@@ -271,7 +276,8 @@ if __name__ == "__main__":
     elif cmd == "sync":
         sync_all_playlists()
     elif cmd == "my_wave":
-        download_my_wave(20)
+        cnt = int(sys.argv[2]) if len(sys.argv) > 2 else 100
+        download_my_wave(cnt)
     elif cmd == "stop":
         open(STOP_FILE, "w").write("1")
         write_prog(False, 0, "Синхронизация остановлена")

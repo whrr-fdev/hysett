@@ -53,8 +53,8 @@ vec3 paletteColor(float mode, float phase, float depthFactor) {
     return mix(u_glow_color, u_glow_color * 0.75 + vec3(0.25), 0.3 * sin(phase));
 }
 
-// Вязкая ферромагнитная жидкость: реакция на реальные частоты музыки + точный фокус под курсором + волны снизу окна
-float ferroSpikeAmp(float k, float t, float magBoost) {
+// Вязкая ферромагнитная жидкость: реакция только на частоты музыки (без влияния курсора мыши)
+float ferroSpikeAmp(float k, float t) {
     float h1 = fract(sin(k * 127.1 + 1.9) * 43758.5453);
     float h2 = fract(sin(k * 269.5 + 7.3) * 18342.2317);
     float h3 = fract(sin(k * 419.2 + 3.1) * 91523.1143);
@@ -73,13 +73,11 @@ float ferroSpikeAmp(float k, float t, float magBoost) {
     float w2 = 0.5 + 0.5 * sin(t * (2.60 + h2 * 2.10) - h3 * 6.2831853);
     float procWave = pow(clamp(w1 * 0.54 + w2 * 0.46, 0.0, 1.0), 1.35);
 
-    float musicMod = mix(procWave * 0.75, procWave * (0.18 + audioEnergy * 1.25), hasRealAudio);
-    // Симметричное увеличение от magBoost (evaluated strictly at the cell's own center)
-    return clamp(musicMod * (1.0 + magBoost * 0.95) + magBoost * 0.70, 0.0, 2.4);
+    return clamp(mix(procWave * 0.75, procWave * (0.18 + audioEnergy * 1.25), hasRealAudio), 0.0, 2.2);
 }
 
-float ferroToothProfile(float distFromCenter, float sharpness, float needleMix, float magBoost) {
-    float d = clamp(distFromCenter / (1.0 + magBoost * 0.48), 0.0, 1.0);
+float ferroToothProfile(float distFromCenter, float sharpness, float needleMix) {
+    float d = clamp(distFromCenter, 0.0, 1.0);
     float drop = 1.0 / (1.0 + d * d * sharpness);
     float needle = exp(-d * (4.4 + needleMix * 6.2));
     float zeroAtBase = (1.0 - d * d) * (1.0 - d);
@@ -91,38 +89,36 @@ float smaxLiquid(float a, float b, float k) {
     return mix(b, a, h) + k * h * (1.0 - h);
 }
 
-float evalFerroCell(float k, float localF, float t, float cellMag) {
+float evalFerroCell(float k, float localF, float t) {
     float h1 = fract(sin(k * 91.7 + 0.3) * 19452.1);
     float h2 = fract(sin(k * 311.3 + 4.1) * 63819.7);
     float hSharp = fract(sin(k * 517.9 + 2.7) * 38192.3);
 
-    float amp = ferroSpikeAmp(k, t, cellMag);
+    float amp = ferroSpikeAmp(k, t);
     float center = 0.5 + (h1 - 0.5) * 0.12 * sin(t * 1.2 + k);
 
     float needleMix = clamp(pow(hSharp, 0.75) * 0.85, 0.22, 0.94);
     float sharpness = 13.0 + hSharp * 20.0;
 
     float bassHit = u_music_wave2.y;
-    float splitPhase = sin(t * (1.35 + h2 * 1.25) + h1 * 6.2831853) + bassHit * 0.45 + cellMag * 0.60;
+    float splitPhase = sin(t * (1.35 + h2 * 1.25) + h1 * 6.2831853) + bassHit * 0.45;
     float splitOffset = clamp((splitPhase - 0.18) * 0.25, 0.0, 0.20);
 
     if (splitOffset > 0.015) {
         float dLeft  = abs(localF - (center - splitOffset)) * 2.15;
         float dRight = abs(localF - (center + splitOffset)) * 2.15;
         float asym = 0.14 * sin(t * 2.5 + k * 1.9);
-        float pLeft  = amp * (0.94 + asym) * ferroToothProfile(dLeft, sharpness * 1.15, min(1.0, needleMix + 0.14), cellMag);
-        float pRight = amp * (0.94 - asym) * ferroToothProfile(dRight, sharpness * 1.15, min(1.0, needleMix + 0.14), cellMag);
+        float pLeft  = amp * (0.94 + asym) * ferroToothProfile(dLeft, sharpness * 1.15, min(1.0, needleMix + 0.14));
+        float pRight = amp * (0.94 - asym) * ferroToothProfile(dRight, sharpness * 1.15, min(1.0, needleMix + 0.14));
         return smaxLiquid(pLeft, pRight, 0.08);
     } else {
         float dCenter = abs(localF - center) * 2.0;
-        return amp * ferroToothProfile(dCenter, sharpness, needleMix, cellMag);
+        return amp * ferroToothProfile(dCenter, sharpness, needleMix);
     }
 }
 
-// Универсальная функция вычисления растяжения нижней границы для прямоугольника rect (панели задач или открытого окна)
 float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, bool maskDrawerOverlap) {
     if (ampPx <= 0.05 || rect.z <= rect.w * 1.2) return 0.0;
-    // Растягиваем только нижнюю половину прямоугольника, чтобы верхние углы и стык оставались неподвижными
     float bottomHalfMask = smoothstep(rect.y + rect.w * 0.35, rect.y + rect.w * 0.85, p.y);
     if (bottomHalfMask <= 0.001) return 0.0;
 
@@ -138,46 +134,19 @@ float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, 
     if (edgeFade <= 0.001) return 0.0;
 
     float t = u_music_wave.w;
-    float bottomY = rect.y + rect.w;
-    vec2 mPos = u_music_wave.xy;
-
     float totalCount = clamp(u_music_wave2.x, 20.0, 220.0);
     float step1 = max(6.0, 1904.0 / totalCount);
 
-    // Без горизонтального сдвига от sin(), чтобы координаты пиков совпадали с экранным курсором мыши 1:1!
     float relX1 = (p.x - rect.x) / step1;
     float k1 = floor(relX1);
     float f1 = fract(relX1);
 
-    float vertReach = 0.0;
-    if (mPos.x > 0.0 && mPos.y > -20.0) {
-        float dyM = abs(mPos.y - bottomY);
-        vertReach = exp(-(dyM * dyM) / (175.0 * 175.0));
-    }
-
-    // Вычисляем магнитное поле строго в центре каждой ячейки k, чтобы не было перекоса вправо!
-    float xCur  = rect.x + (k1 + 0.5) * step1;
-    float xPrev = rect.x + (k1 - 0.5) * step1;
-    float xNext = rect.x + (k1 + 1.5) * step1;
-
-    float magCur  = vertReach * exp(-((xCur  - mPos.x) * (xCur  - mPos.x)) / (52.0 * 52.0));
-    float magPrev = vertReach * exp(-((xPrev - mPos.x) * (xPrev - mPos.x)) / (52.0 * 52.0));
-    float magNext = vertReach * exp(-((xNext - mPos.x) * (xNext - mPos.x)) / (52.0 * 52.0));
-
-    float spikeCur  = evalFerroCell(k1, f1, t, magCur);
-    float spikePrev = evalFerroCell(k1 - 1.0, f1 + 1.0, t, magPrev);
-    float spikeNext = evalFerroCell(k1 + 1.0, f1 - 1.0, t, magNext);
+    float spikeCur  = evalFerroCell(k1, f1, t);
+    float spikePrev = evalFerroCell(k1 - 1.0, f1 + 1.0, t);
+    float spikeNext = evalFerroCell(k1 + 1.0, f1 - 1.0, t);
 
     float liquidProfile = smaxLiquid(spikeCur, max(spikePrev, spikeNext), 0.07);
-
-    // Центральный пик-аттрактор строго под кончиком курсора мыши (p.x == mPos.x), чтобы максимум всегда был ровно под курсором!
-    if (vertReach > 0.01) {
-        float dMouseCenter = abs(p.x - mPos.x) / (step1 * 0.68);
-        float cursorSpike = vertReach * 1.55 * ferroToothProfile(dMouseCenter, 16.0, 0.78, vertReach);
-        liquidProfile = smaxLiquid(liquidProfile, cursorSpike, 0.10);
-    }
-
-    return ampPx * edgeFade * clamp(liquidProfile, 0.0, 2.35);
+    return ampPx * edgeFade * clamp(liquidProfile, 0.0, 2.2);
 }
 
 float sceneSdf(vec2 p, out float outNotifBlend) {

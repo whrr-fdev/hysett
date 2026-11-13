@@ -171,6 +171,8 @@ ApplicationWindow {
     property string trayMenuName: ""
     property string trayMenuSni: ""
     property real trayMenuTargetX: 1400
+    property real popupTargetX: 1550
+    readonly property bool isCompactPopup: drawerMode === "traymenu" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
 
     property real barExpandProgress: 0.0
     property real drawerProgress: 0.0
@@ -196,7 +198,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 1.0
-            duration: (root.baseBarW < root.targetDrawerW - 2 && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 0
+            duration: (!root.isCompactPopup && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutCubic
         }
         ParallelAnimation {
@@ -242,7 +244,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 0.0
-            duration: (root.baseBarW < root.targetDrawerW - 2 && root.drawerMode !== "traymenu") ? (Waybar ? Waybar.barAnimDuration : 75) : 0
+            duration: (!root.isCompactPopup && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutQuint
         }
     }
@@ -253,6 +255,7 @@ ApplicationWindow {
     property string pendingTrayName: ""
     property string pendingTraySni: ""
     property real pendingTrayX: 1400
+    property real pendingPopupX: 1550
 
     SequentialAnimation {
         id: switchDrawerAnim
@@ -264,6 +267,7 @@ ApplicationWindow {
             script: {
                 root.isWallpaperExpanded = false
                 root.drawerMode = root.pendingDrawerMode
+                root.popupTargetX = root.pendingPopupX
                 if (root.pendingDrawerMode === "traymenu") {
                     root.trayMenuClass = root.pendingTrayClass
                     root.trayMenuName = root.pendingTrayName
@@ -293,7 +297,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 1.0
-            duration: (root.baseBarW < root.targetDrawerW && root.drawerMode !== "traymenu" && root.barExpandProgress < 0.99) ? (Waybar ? Waybar.barAnimDuration : 75) : 10
+            duration: (!root.isCompactPopup && root.baseBarW < root.targetDrawerW && root.barExpandProgress < 0.99) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutCubic
         }
         ParallelAnimation {
@@ -352,14 +356,14 @@ ApplicationWindow {
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
-    readonly property real expandedBarW: (drawerMode === "traymenu") ? baseBarW : Math.max(baseBarW, effDrawerW)
+    readonly property real expandedBarW: isCompactPopup ? baseBarW : Math.max(baseBarW, effDrawerW)
     readonly property real barW: isVertBar ? Math.max(38, barH + 6) : (baseBarW + (expandedBarW - baseBarW) * barExpandProgress)
 
     readonly property real maxAvailVertH: Math.max(400, root.height - 16)
     readonly property real vertIslandH: Math.min(maxAvailVertH, vertTopCol.implicitHeight + (winPillTargetW > 0 ? (winPillTargetW + 16) : 0) + vertBottomCol.implicitHeight + 28)
     property real smoothVertBarH: isCenteredBar ? vertIslandH : maxAvailVertH
     Behavior on smoothVertBarH { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
-    readonly property real expandedVertH: (drawerMode === "traymenu") ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
+    readonly property real expandedVertH: isCompactPopup ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
     readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * barExpandProgress) : barH
 
     readonly property real barLeft: {
@@ -375,19 +379,33 @@ ApplicationWindow {
     readonly property int targetDrawerW: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 230
-        if (drawerMode === "power") return isM3 ? 300 : 280
-        if (drawerMode === "calendar") return isM3 ? 320 : 300
-        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 390 : 360
-        if (drawerMode === "clipboard") return isM3 ? 500 : 460
+        if (drawerMode === "power") return isM3 ? 280 : 260
+        if (drawerMode === "calendar") return isM3 ? 310 : 295
+        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 360 : 340
+        if (drawerMode === "clipboard") return isM3 ? 440 : 410
         return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
     }
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
-        if (drawerMode === "power") return isM3 ? 315 : 295
-        if (drawerMode === "calendar") return isM3 ? 305 : 285
-        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 375 : 350
-        if (drawerMode === "clipboard") return isM3 ? 400 : 370
+        if (drawerMode === "power") return isM3 ? 305 : 285
+        if (drawerMode === "calendar") return isM3 ? 298 : 280
+        if (drawerMode === "volume") {
+            var sCnt = (Waybar && Waybar.audioStreams) ? Waybar.audioStreams.length : 0
+            if (sCnt <= 0) return 174
+            return Math.min(380, 146 + sCnt * 58)
+        }
+        if (drawerMode === "bluetooth") {
+            if (!Bluetooth || !Bluetooth.powered) return 126
+            var dCnt = Bluetooth.devices ? Bluetooth.devices.length : 0
+            if (dCnt <= 0) return 158
+            return Math.min(375, 125 + dCnt * 47)
+        }
+        if (drawerMode === "clipboard") {
+            var cCnt = (Waybar && Waybar.clipboardItems) ? Waybar.clipboardItems.length : 0
+            if (cCnt <= 0) return 138
+            return Math.min(isM3 ? 390 : 360, 108 + cCnt * 37)
+        }
         if (isWallpaperExpanded || isSettingsMaximized) {
             return isVertBar ? (root.height - 12) : (root.height - (barRectY + barH) - Math.max(4, fullBarLeft))
         }
@@ -407,16 +425,19 @@ ApplicationWindow {
 
     property real centerAnchorX: {
         if (drawerMode === "traymenu") return trayMenuTargetX
+        if (isCompactPopup) return popupTargetX
         return root.width * 0.5
     }
-    Behavior on centerAnchorX { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
-    Behavior on animDrawerW { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
-    Behavior on smoothTargetH { NumberAnimation { duration: 400; easing.type: Easing.OutBack; easing.overshoot: 1.18 } }
+    Behavior on centerAnchorX { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on animDrawerW { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+    Behavior on smoothTargetH { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
 
     readonly property real drawerX: {
         if (barPos === 2) return barLeft + barW
         if (barPos === 3) return barLeft - effDrawerW
-        return Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - effDrawerW, centerAnchorX - effDrawerW * 0.5))
+        var minBound = isCompactPopup ? Math.max(fullBarLeft, barLeft + 4) : fullBarLeft
+        var maxBound = isCompactPopup ? Math.min(fullBarLeft + maxAvailBarW - effDrawerW, barLeft + barW - effDrawerW - 4) : (fullBarLeft + maxAvailBarW - effDrawerW)
+        return Math.max(minBound, Math.min(maxBound, centerAnchorX - effDrawerW * 0.5))
     }
     readonly property real drawerY: {
         if (isVertBar) return Math.round((root.height - effDrawerH) * 0.5)
@@ -470,7 +491,14 @@ ApplicationWindow {
         }
     }
 
-    function openDrawerWithMode(mode, tabIdx) {
+    function openDrawerWithMode(mode, tabIdx, anchorX) {
+        if (anchorX !== undefined && anchorX > 0) {
+            root.popupTargetX = anchorX
+            root.pendingPopupX = anchorX
+        } else if (mode === "power") {
+            root.popupTargetX = root.barLeft + root.barW - 140
+            root.pendingPopupX = root.popupTargetX
+        }
         if (root.drawerOpen) {
             if (mode === "settings" && tabIdx !== undefined) {
                 if (root.drawerMode === "settings" && pageController.currentIndex === tabIdx) {
@@ -1795,7 +1823,7 @@ ApplicationWindow {
                                     }
                                 }
 
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("bluetooth") }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("bluetooth", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
 
                             Item {
@@ -1809,7 +1837,7 @@ ApplicationWindow {
                                 visible: modKey === "clipboard"
                                 anchors.fill: parent
                                 Text { anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; text: "󰅌"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 23) }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("clipboard", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
 
                             Item {
@@ -1821,7 +1849,7 @@ ApplicationWindow {
                                     Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                                 }
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.changeVolume(e.angleDelta.y > 0 ? 5 : -5) } }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("volume") }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("volume", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
 
                             Item {
@@ -1843,7 +1871,7 @@ ApplicationWindow {
                                     font.pixelSize: 10; font.bold: true
                                     Timer { interval: 1000; running: modKey === "clock"; repeat: true; onTriggered: barClockText.text = Qt.formatDateTime(new Date(), "hh:mm") }
                                 }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar") }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("calendar", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
 
                             Rectangle {
@@ -1851,7 +1879,7 @@ ApplicationWindow {
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
                                 radius: topBarContainer.pillRadius; color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
                                 Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
-                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") }
+                                MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
 
                             Rectangle {
@@ -3246,7 +3274,17 @@ ApplicationWindow {
                             }
                         }
 
+                        Text {
+                            visible: Bluetooth && Bluetooth.powered && (!Bluetooth.devices || Bluetooth.devices.length === 0)
+                            Layout.fillWidth: true
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "Нет обнаруженных устройств"
+                            color: "#777777"
+                            font.pixelSize: 11
+                        }
+
                         ListView {
+                            visible: Bluetooth && Bluetooth.powered && Bluetooth.devices && Bluetooth.devices.length > 0
                             Layout.fillWidth: true
                             Layout.fillHeight: true
                             clip: true

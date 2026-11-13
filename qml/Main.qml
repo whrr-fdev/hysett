@@ -879,18 +879,18 @@ ApplicationWindow {
             property int pillRadius: (Theme && Theme.isRounded) ? Math.max(5, Math.round(pillHeight * 0.32)) : 0
                         readonly property real settingsOpenWeight: (root.drawerMode === "settings") ? root.drawerProgress : 0.0
             property color pillColor: {
-                if (!Theme || !Theme.isRounded || !Config) return "transparent"
+                var pillOp = Waybar ? Waybar.pillOpacity : 0.85
+                if (pillOp <= 0.005) return "transparent"
+                if (!Theme || !Theme.isRounded || !Config) return Qt.rgba(0.10, 0.11, 0.14, pillOp)
                 var wOpen = settingsOpenWeight
                 var priMix = 0.14 - 0.04 * wOpen
                 var darkScale = 0.72 + 0.28 * wOpen
-                var baseOp = Math.max(0.82, Waybar ? Waybar.pillOpacity : 0.88)
-                var closedAlpha = Math.min(0.97, baseOp * 1.08)
-                var openAlpha = Math.max(0.54, baseOp * 0.72)
+                var effAlpha = pillOp * (1.0 - 0.18 * wOpen)
                 return Qt.rgba(
                     Math.min(1.0, (Config.m3SurfaceContainerHigh.r * (1.0 - priMix) + Config.m3Primary.r * priMix) * darkScale),
                     Math.min(1.0, (Config.m3SurfaceContainerHigh.g * (1.0 - priMix) + Config.m3Primary.g * priMix) * darkScale),
                     Math.min(1.0, (Config.m3SurfaceContainerHigh.b * (1.0 - priMix) + Config.m3Primary.b * priMix) * darkScale),
-                    closedAlpha + (openAlpha - closedAlpha) * wOpen
+                    Math.max(0.0, Math.min(1.0, effAlpha))
                 )
             }
             readonly property string trayTintHex: (Theme && Theme.isRounded && Config)
@@ -2195,7 +2195,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "power"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }

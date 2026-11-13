@@ -166,8 +166,8 @@ void WaybarManager::initSpecs() {
     add("margin_right", "Отступ справа (px)", 0.0, 60.0, 1.0, 10.0, 0);
     add("spacing", "Расстояние между модулями (px)", 1.0, 24.0, 1.0, 4.0, 0);
     add("group_spacing", "Отступ между блоками панели (px)", 0.0, 40.0, 1.0, 6.0, 0);
-    add("bar_opacity", "Прозрачность фона панели", 0.1, 1.0, 0.05, 0.88, 2);
-    add("pill_opacity", "Прозрачность пилюль модулей", 0.05, 1.0, 0.05, 0.65, 2);
+    add("bar_opacity", "Прозрачность фона панели", 0.0, 1.0, 0.05, 0.88, 2);
+    add("pill_opacity", "Прозрачность пилюль модулей", 0.0, 1.0, 0.05, 0.85, 2);
 }
 
 qreal WaybarManager::specVal(const QString &key, qreal fallback) const {

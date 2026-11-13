@@ -39,6 +39,7 @@ private:
     void pollAutoConnect();
 
     bool m_powered = false;
+    qint64 m_powerTransitionUntilMs = 0;
     bool m_autoConnect = true;
     bool m_autoConnectBusy = false;
     QVariantList m_devices;

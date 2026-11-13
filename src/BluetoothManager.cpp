@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
+#include <QDateTime>
 #include <algorithm>
 
 static QString btAutoConfPath() {
@@ -156,9 +157,13 @@ void BluetoothManager::refresh() {
         }
     }
 
-    m_powered = outShow.contains("Powered: yes", Qt::CaseInsensitive) ||
-                outShow.contains("PowerState: on", Qt::CaseInsensitive) ||
-                !connectedMacs.isEmpty();
+    bool hwPowered = outShow.contains("Powered: yes", Qt::CaseInsensitive) ||
+                     outShow.contains("PowerState: on", Qt::CaseInsensitive) ||
+                     outShow.contains("PowerState: off-enabling", Qt::CaseInsensitive) ||
+                     !connectedMacs.isEmpty();
+    if (QDateTime::currentMSecsSinceEpoch() >= m_powerTransitionUntilMs || hwPowered == m_powered) {
+        m_powered = hwPowered;
+    }
     emit stateChanged();
 
     if (!m_powered) {
@@ -237,9 +242,20 @@ void BluetoothManager::refresh() {
 
 void BluetoothManager::setPowered(bool v) {
     m_powered = v;
+    m_powerTransitionUntilMs = QDateTime::currentMSecsSinceEpoch() + 1800;
     emit stateChanged();
-    QProcess::execute("bluetoothctl", {"power", v ? "on" : "off"});
-    refresh();
+
+    QProcess *proc = new QProcess(this);
+    connect(proc, &QProcess::finished, this, [this, proc]() {
+        proc->deleteLater();
+        QTimer::singleShot(350, this, &BluetoothManager::refresh);
+        QTimer::singleShot(1100, this, &BluetoothManager::refresh);
+    });
+    if (v) {
+        proc->start("sh", {"-c", "rfkill unblock bluetooth 2>/dev/null; bluetoothctl power on"});
+    } else {
+        proc->start("bluetoothctl", {"power", "off"});
+    }
 }
 
 void BluetoothManager::scanDevices() {

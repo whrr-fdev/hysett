@@ -46,7 +46,7 @@ BluetoothManager::BluetoothManager(QObject *parent) : QObject(parent) {
     refresh();
 
     m_autoTimer = new QTimer(this);
-    m_autoTimer->setInterval(12000);
+    m_autoTimer->setInterval(5000);
     connect(m_autoTimer, &QTimer::timeout, this, &BluetoothManager::pollAutoConnect);
     m_autoTimer->start();
     QTimer::singleShot(1500, this, &BluetoothManager::pollAutoConnect);
@@ -69,67 +69,83 @@ void BluetoothManager::setAutoConnect(bool v) {
 }
 
 void BluetoothManager::pollAutoConnect() {
-    if (!m_powered || !m_autoConnect || m_scanning || m_autoConnectBusy) return;
+    if (!m_autoConnect || m_scanning || m_autoConnectBusy) return;
 
     m_autoConnectBusy = true;
-    QProcess *pConn = new QProcess(this);
-    connect(pConn, &QProcess::finished, this, [this, pConn]() {
-        QString outConn = stripAnsiCodes(QString::fromUtf8(pConn->readAllStandardOutput()));
-        pConn->deleteLater();
+    QProcess *pShow = new QProcess(this);
+    connect(pShow, &QProcess::finished, this, [this, pShow]() {
+        QString outShow = stripAnsiCodes(QString::fromUtf8(pShow->readAllStandardOutput()));
+        pShow->deleteLater();
 
-        for (const QString &ln : outConn.split('\n', Qt::SkipEmptyParts)) {
-            if (ln.trimmed().startsWith("Device ")) {
-                // Уже есть подключенное устройство — ничего не делаем
-                m_autoConnectBusy = false;
-                return;
-            }
+        bool isOn = outShow.contains("Powered: yes", Qt::CaseInsensitive) ||
+                    outShow.contains("PowerState: on", Qt::CaseInsensitive);
+        if (m_powered != isOn && QDateTime::currentMSecsSinceEpoch() >= m_powerTransitionUntilMs) {
+            m_powered = isOn;
+            emit stateChanged();
+        }
+        if (!isOn) {
+            m_autoConnectBusy = false;
+            return;
         }
 
-        // Если ничего не подключено — ищем сопряженные наушники и подключаемся к ним
-        QProcess *pDevs = new QProcess(this);
-        connect(pDevs, &QProcess::finished, this, [this, pDevs]() {
-            QString outDevs = stripAnsiCodes(QString::fromUtf8(pDevs->readAllStandardOutput()));
-            pDevs->deleteLater();
+        QProcess *pConn = new QProcess(this);
+        connect(pConn, &QProcess::finished, this, [this, pConn]() {
+            QString outConn = stripAnsiCodes(QString::fromUtf8(pConn->readAllStandardOutput()));
+            pConn->deleteLater();
 
-            QString targetMac;
-            QString fallbackMac;
-            for (const QString &line : outDevs.split('\n', Qt::SkipEmptyParts)) {
-                QString trimmed = line.trimmed();
-                if (!trimmed.startsWith("Device ")) continue;
-                QStringList parts = trimmed.split(' ', Qt::SkipEmptyParts);
-                if (parts.size() < 3) continue;
-                QString mac = parts[1].trimmed();
-                QString name = parts.mid(2).join(' ').trimmed();
-                if (m_manuallyDisconnectedMacs.contains(mac)) continue;
-
-                if (isLikelyAudioName(name)) {
-                    targetMac = mac;
-                    break;
+            for (const QString &ln : outConn.split('\n', Qt::SkipEmptyParts)) {
+                if (ln.trimmed().startsWith("Device ")) {
+                    m_autoConnectBusy = false;
+                    return;
                 }
-                if (fallbackMac.isEmpty()) fallbackMac = mac;
             }
 
-            if (targetMac.isEmpty()) targetMac = fallbackMac;
-            if (targetMac.isEmpty()) {
-                m_autoConnectBusy = false;
-                return;
-            }
+            QProcess *pDevs = new QProcess(this);
+            connect(pDevs, &QProcess::finished, this, [this, pDevs]() {
+                QString outDevs = stripAnsiCodes(QString::fromUtf8(pDevs->readAllStandardOutput()));
+                pDevs->deleteLater();
 
-            QProcess::startDetached("bluetoothctl", {"trust", targetMac});
-            QProcess *pTry = new QProcess(this);
-            connect(pTry, &QProcess::finished, this, [this, pTry]() {
-                QString res = stripAnsiCodes(QString::fromUtf8(pTry->readAllStandardOutput()));
-                pTry->deleteLater();
-                m_autoConnectBusy = false;
-                if (res.contains("Connection successful", Qt::CaseInsensitive)) {
-                    refresh();
+                QString targetMac;
+                QString fallbackMac;
+                for (const QString &line : outDevs.split('\n', Qt::SkipEmptyParts)) {
+                    QString trimmed = line.trimmed();
+                    if (!trimmed.startsWith("Device ")) continue;
+                    QStringList parts = trimmed.split(' ', Qt::SkipEmptyParts);
+                    if (parts.size() < 3) continue;
+                    QString mac = parts[1].trimmed();
+                    QString name = parts.mid(2).join(' ').trimmed();
+                    if (m_manuallyDisconnectedMacs.contains(mac)) continue;
+
+                    if (isLikelyAudioName(name)) {
+                        targetMac = mac;
+                        break;
+                    }
+                    if (fallbackMac.isEmpty()) fallbackMac = mac;
                 }
+
+                if (targetMac.isEmpty()) targetMac = fallbackMac;
+                if (targetMac.isEmpty()) {
+                    m_autoConnectBusy = false;
+                    return;
+                }
+
+                QProcess::startDetached("bluetoothctl", {"trust", targetMac});
+                QProcess *pTry = new QProcess(this);
+                connect(pTry, &QProcess::finished, this, [this, pTry]() {
+                    QString res = stripAnsiCodes(QString::fromUtf8(pTry->readAllStandardOutput()));
+                    pTry->deleteLater();
+                    m_autoConnectBusy = false;
+                    if (res.contains("Connection successful", Qt::CaseInsensitive)) {
+                        refresh();
+                    }
+                });
+                pTry->start("bluetoothctl", {"connect", targetMac});
             });
-            pTry->start("bluetoothctl", {"connect", targetMac});
+            pDevs->start("bluetoothctl", {"devices"});
         });
-        pDevs->start("bluetoothctl", {"devices", "Paired"});
+        pConn->start("bluetoothctl", {"devices", "Connected"});
     });
-    pConn->start("bluetoothctl", {"devices", "Connected"});
+    pShow->start("bluetoothctl", {"show"});
 }
 
 void BluetoothManager::refresh() {

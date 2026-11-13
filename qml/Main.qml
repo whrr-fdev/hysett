@@ -789,7 +789,7 @@ ApplicationWindow {
             property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
             property vector3d u_glow_color: Config ? Qt.vector3d(Config.borderGlowCustomColor.r, Config.borderGlowCustomColor.g, Config.borderGlowCustomColor.b) : Qt.vector3d(0.66, 0.78, 0.98)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
-            property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88
+            property real u_bar_alpha: Math.min(Waybar ? Waybar.barOpacity : 0.72, currentOpacity * 0.94)
             property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13.0) : 0.0
             property real u_fillet: (Theme && Theme.isRounded) ? (Config ? Config.m3WindowRadius : 20.0) : 0.0
             property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0
@@ -814,14 +814,22 @@ ApplicationWindow {
             readonly property int vPad: (Theme && Theme.isRounded) ? 8 : 4
             property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
             property int pillRadius: (Theme && Theme.isRounded) ? Math.max(5, Math.round(pillHeight * 0.32)) : 0
-            property color pillColor: (Theme && Theme.isRounded && Config)
-                                      ? Qt.rgba(
-                                            Math.min(1.0, Config.m3SurfaceContainerHigh.r * 0.88 + Config.m3Primary.r * 0.12 + 0.015),
-                                            Math.min(1.0, Config.m3SurfaceContainerHigh.g * 0.88 + Config.m3Primary.g * 0.12 + 0.015),
-                                            Math.min(1.0, Config.m3SurfaceContainerHigh.b * 0.88 + Config.m3Primary.b * 0.12 + 0.015),
-                                            Math.max(0.75, (Waybar ? Waybar.pillOpacity : 0.75) * 0.90)
-                                        )
-                                      : "transparent"
+                        readonly property real settingsOpenWeight: (root.drawerMode === "settings") ? root.drawerProgress : 0.0
+            property color pillColor: {
+                if (!Theme || !Theme.isRounded || !Config) return "transparent"
+                var wOpen = settingsOpenWeight
+                var priMix = 0.18 - 0.07 * wOpen
+                var lift = 0.042 - 0.025 * wOpen
+                var baseOp = Math.max(0.78, Waybar ? Waybar.pillOpacity : 0.85)
+                var closedAlpha = Math.min(0.96, baseOp * 1.06)
+                var openAlpha = Math.max(0.50, baseOp * 0.68)
+                return Qt.rgba(
+                    Math.min(1.0, Config.m3SurfaceContainerHigh.r * (1.0 - priMix) + Config.m3Primary.r * priMix + lift),
+                    Math.min(1.0, Config.m3SurfaceContainerHigh.g * (1.0 - priMix) + Config.m3Primary.g * priMix + lift),
+                    Math.min(1.0, Config.m3SurfaceContainerHigh.b * (1.0 - priMix) + Config.m3Primary.b * priMix + lift),
+                    closedAlpha + (openAlpha - closedAlpha) * wOpen
+                )
+            }
             readonly property string trayTintHex: (Theme && Theme.isRounded && Config)
                                                   ? (Math.round(Config.accentColor.r * 255).toString(16).padStart(2, '0') +
                                                      Math.round(Config.accentColor.g * 255).toString(16).padStart(2, '0') +
@@ -929,13 +937,14 @@ ApplicationWindow {
                             height: topBarContainer.height
                             anchors.verticalCenter: parent.verticalCenter
                             clip: modKey === "media" || modKey === "launcher"
+                            Behavior on width { enabled: modKey === "media"; NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                             opacity: modKey === "launcher" ? (topBarContainer.launcherVis * topBarContainer.launcherVis) : 1.0
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
                                 if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
-                                if (modKey === "media") return mediaInnerRow.implicitWidth + 24
+                                if (modKey === "media") return (Waybar && Waybar.mediaCollapsed) ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 22)
                                 if (modKey === "window") return Math.max(90, root.winPillTargetW)
                                 return 0
                             }
@@ -947,17 +956,20 @@ ApplicationWindow {
                                 color: Qt.rgba(1, 1, 1, 0.32)
                             }
 
-                            // Контент: launcher (логотип CachyOS в закрытом состоянии -> кнопка На весь экран при открытом окне)
+                            // Контент: launcher (логотип CachyOS остается на месте при маленьких окнах, меняется на кнопку полного экрана только для settings)
                             Item {
                                 visible: modKey === "launcher"
                                 anchors.fill: parent
+                                readonly property real maxIconMix: (root.drawerMode === "settings") ? root.drawerProgress : 0.0
+                                Behavior on maxIconMix { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
                                 Rectangle {
                                     width: topBarContainer.pillHeight + 8
                                     height: topBarContainer.pillHeight
                                     anchors.right: parent.right
                                     anchors.verticalCenter: parent.verticalCenter
                                     radius: topBarContainer.pillRadius
-                                    color: (root.drawerOpen && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
+                                    color: (root.drawerOpen && root.drawerMode === "settings" && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
                                            ? Config.m3Primary
                                            : topBarContainer.pillColor
                                     Behavior on color { ColorAnimation { duration: 150 } }
@@ -967,8 +979,8 @@ ApplicationWindow {
                                         width: 16; height: 16
                                         sourceSize: Qt.size(32, 32)
                                         smooth: true
-                                        opacity: Math.max(0.0, 1.0 - root.drawerProgress * 1.35)
-                                        scale: 1.0 - 0.35 * Math.min(1.0, root.drawerProgress)
+                                        opacity: Math.max(0.0, 1.0 - parent.parent.maxIconMix * 1.35)
+                                        scale: 1.0 - 0.35 * Math.min(1.0, parent.parent.maxIconMix)
                                         visible: opacity > 0.02
                                         source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
                                     }
@@ -978,10 +990,10 @@ ApplicationWindow {
                                         text: root.isSettingsMaximized ? "󰊔" : "󰊓"
                                         font.pixelSize: 13
                                         font.bold: true
-                                        opacity: Math.max(0.0, (root.drawerProgress - 0.15) / 0.85)
-                                        scale: 0.65 + 0.35 * Math.min(1.0, root.drawerProgress)
+                                        opacity: Math.max(0.0, (parent.parent.maxIconMix - 0.15) / 0.85)
+                                        scale: 0.65 + 0.35 * Math.min(1.0, parent.parent.maxIconMix)
                                         visible: opacity > 0.02
-                                        color: (root.drawerOpen && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
+                                        color: (root.drawerOpen && root.drawerMode === "settings" && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
                                                ? Config.accentTextColor
                                                : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
                                     }
@@ -991,7 +1003,7 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: {
-                                        if (root.drawerOpen) {
+                                        if (root.drawerOpen && root.drawerMode === "settings") {
                                             root.isSettingsMaximized = !root.isSettingsMaximized
                                         } else {
                                             root.openDrawerWithMode("settings", 16)
@@ -1222,15 +1234,89 @@ ApplicationWindow {
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
 
-                            // Контент: media
+                            // Контент: media (со сворачиванием и прыгающими сглаженными столбиками волн)
                             Rectangle {
+                                id: mediaPillBox
                                 visible: modKey === "media"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
                                 clip: true
+                                readonly property bool isCollapsed: Waybar ? Waybar.mediaCollapsed : false
+                                readonly property bool wavesActive: Waybar ? (Waybar.mediaWaves && Waybar.mediaPlaying) : false
+                                property real eqPhase: 0.0
+
+                                NumberAnimation on eqPhase {
+                                    from: 0.0; to: 62.831853
+                                    duration: 10000
+                                    loops: Animation.Infinite
+                                    running: mediaPillBox.visible && mediaPillBox.wavesActive
+                                }
+
                                 WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.mediaSeek(e.angleDelta.y > 0 ? 5 : -5) } }
+
+                                // Сглаженные прыгающие столбики снизу таблетки/панели
+                                Row {
+                                    id: mediaEqRow
+                                    z: 0
+                                    visible: opacity > 0.02
+                                    opacity: mediaPillBox.wavesActive ? 0.52 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 220 } }
+                                    anchors.bottom: parent.bottom
+                                    anchors.bottomMargin: -1
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                    spacing: 2
+
+                                    readonly property int barCount: Math.max(5, Math.min(34, Math.floor((mediaPillBox.width - 10) / 5)))
+
+                                    Repeater {
+                                        model: mediaEqRow.barCount
+                                        delegate: Rectangle {
+                                            width: 3
+                                            readonly property real normX: mediaEqRow.barCount > 1 ? (index / (mediaEqRow.barCount - 1)) : 0.5
+                                            readonly property real env: Math.sin(normX * Math.PI) * 0.75 + 0.25
+                                            readonly property real w1: Math.sin(mediaPillBox.eqPhase * 3.4 + index * 0.75) * 0.45
+                                            readonly property real w2: Math.sin(mediaPillBox.eqPhase * 5.8 - index * 0.52) * 0.35
+                                            readonly property real w3: Math.cos(mediaPillBox.eqPhase * 8.3 + index * 1.15) * 0.20
+                                            readonly property real amp: Math.max(0.12, Math.min(1.0, (0.5 + 0.5 * (w1 + w2 + w3)) * env))
+                                            height: Math.round(3 + amp * (topBarContainer.pillHeight * 0.62))
+                                            anchors.bottom: parent.bottom
+                                            radius: 1.5
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#a8c7fa"
+                                        }
+                                    }
+                                }
+
+                                // Свернутый режим (компактная иконка музыки; ЛКМ разворачивает, ПКМ пауза/играть)
+                                Item {
+                                    z: 2
+                                    visible: mediaPillBox.isCollapsed
+                                    anchors.fill: parent
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: (Waybar && Waybar.mediaPlaying) ? "󰎆" : "󰐊"
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                        font.pixelSize: 12
+                                    }
+                                    MouseArea {
+                                        enabled: !topBarContainer.editMode
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => {
+                                            if (mouse.button === Qt.RightButton) {
+                                                if (Waybar) Waybar.mediaPlayPause()
+                                            } else {
+                                                if (Waybar) Waybar.setMediaCollapsed(false)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Развернутый режим
                                 Row {
                                     id: mediaInnerRow
+                                    z: 2
+                                    visible: !mediaPillBox.isCollapsed
                                     height: topBarContainer.pillHeight
                                     anchors.centerIn: parent
                                     spacing: 5
@@ -1254,7 +1340,7 @@ ApplicationWindow {
                                     }
 
                                     Item {
-                                        width: Math.min(160, mediaTrackLbl.implicitWidth)
+                                        width: Math.min(150, mediaTrackLbl.implicitWidth)
                                         height: topBarContainer.pillHeight
                                         Text {
                                             id: mediaTrackLbl
@@ -1268,9 +1354,38 @@ ApplicationWindow {
                                         }
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
-                                            anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                                            anchors.fill: parent
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                            cursorShape: Qt.PointingHandCursor
                                             anchors.margins: -4
-                                            onClicked: root.openDrawerWithMode("settings", 27)
+                                            onClicked: (mouse) => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    if (Waybar) Waybar.setMediaCollapsed(true)
+                                                } else {
+                                                    root.openDrawerWithMode("settings", 27)
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Кнопка сворачивания виджета музыки
+                                    Item {
+                                        width: 12; height: topBarContainer.pillHeight
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "‹"
+                                            color: colMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#aaaaaa"
+                                            font.pixelSize: 13
+                                            font.bold: true
+                                        }
+                                        MouseArea {
+                                            id: colMediaMa
+                                            enabled: !topBarContainer.editMode
+                                            anchors.fill: parent
+                                            anchors.margins: -2
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: if (Waybar) Waybar.setMediaCollapsed(true)
                                         }
                                     }
                                 }

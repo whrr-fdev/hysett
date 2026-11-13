@@ -194,6 +194,8 @@ void WaybarManager::loadState() {
             else if (k == "center_title_on_bar") m_centerTitleOnBar = (v == "1" || v == "true");
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
+            else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
+            else if (k == "media_collapsed") m_mediaCollapsed = (v == "1" || v == "true");
             else if (k == "bar_separators") m_barSeparators = (v == "1" || v == "true");
             else if (k == "uniform_bar_spacing") m_uniformBarSpacing = (v == "1" || v == "true");
             else if (k == "vpn_log_height") m_vpnLogHeight = std::clamp(v.toInt(), 90, 420);
@@ -236,6 +238,8 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "center_title_on_bar=" << (m_centerTitleOnBar ? "1" : "0") << "\n";
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
+        out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
+        out << "media_collapsed=" << (m_mediaCollapsed ? "1" : "0") << "\n";
         out << "bar_separators=" << (m_barSeparators ? "1" : "0") << "\n";
         out << "uniform_bar_spacing=" << (m_uniformBarSpacing ? "1" : "0") << "\n";
         out << "vpn_log_height=" << m_vpnLogHeight << "\n";
@@ -967,6 +971,24 @@ void WaybarManager::resetBarOrder() {
     m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     m_hiddenBarModules.clear();
     saveState(false);
+}
+
+void WaybarManager::setMediaWaves(bool v) {
+    if (m_mediaWaves != v) {
+        m_mediaWaves = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::setMediaCollapsed(bool v) {
+    if (m_mediaCollapsed != v) {
+        m_mediaCollapsed = v;
+        saveState(false);
+    }
+}
+
+void WaybarManager::toggleMediaCollapsed() {
+    setMediaCollapsed(!m_mediaCollapsed);
 }
 
 void WaybarManager::toggleMediaDemo() {

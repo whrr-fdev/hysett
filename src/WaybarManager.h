@@ -49,6 +49,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int mediaLengthSec READ mediaLengthSec NOTIFY mediaChanged)
     Q_PROPERTY(bool mediaDemoMode READ mediaDemoMode WRITE setMediaDemoMode NOTIFY mediaChanged)
     Q_PROPERTY(int mediaHideTimeout READ mediaHideTimeout WRITE setMediaHideTimeout NOTIFY stateChanged)
+    Q_PROPERTY(bool mediaWaves READ mediaWaves WRITE setMediaWaves NOTIFY stateChanged)
+    Q_PROPERTY(bool mediaCollapsed READ mediaCollapsed WRITE setMediaCollapsed NOTIFY stateChanged)
 
     // Разделители и режим редактирования панели задач (Drag & Drop)
     Q_PROPERTY(bool barSeparators READ barSeparators WRITE setBarSeparators NOTIFY stateChanged)
@@ -192,6 +194,11 @@ public:
     bool mediaDemoMode() const { return m_mediaDemoMode; }
     void setMediaDemoMode(bool v);
     int mediaHideTimeout() const { return m_mediaHideTimeout; }
+    bool mediaWaves() const { return m_mediaWaves; }
+    void setMediaWaves(bool v);
+    bool mediaCollapsed() const { return m_mediaCollapsed; }
+    void setMediaCollapsed(bool v);
+    Q_INVOKABLE void toggleMediaCollapsed();
     void setMediaHideTimeout(int sec);
     Q_INVOKABLE void toggleMediaDemo();
     Q_INVOKABLE void mediaPlayPause();
@@ -419,6 +426,8 @@ private:
     int m_realPosSec = 0;
     int m_realLenSec = 215;
     int m_mediaHideTimeout = 15;
+    bool m_mediaWaves = true;
+    bool m_mediaCollapsed = false;
     int m_mediaPausedSec = 0;
 
     bool m_barSeparators = false;

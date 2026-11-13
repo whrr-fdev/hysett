@@ -447,6 +447,19 @@ if __name__ == "__main__":
     elif cmd == "play_wave_init":
         cnt = int(sys.argv[2]) if len(sys.argv) > 2 else 30
         download_my_wave(min(cnt, 15))
+    elif cmd == "like_track":
+        base_name = sys.argv[2] if len(sys.argv) > 2 else ""
+        tok = read_token()
+        db_obj = load_db()
+        tid = (db_obj.get("track_meta", {}).get(base_name, {}) or {}).get("id", "")
+        if tok and tid:
+            try:
+                acc = ym_request("/account/status", tok)
+                uid = acc.get("result", {}).get("account", {}).get("uid")
+                if uid:
+                    ym_request(f"/users/{uid}/likes/tracks/add-multiple", tok, data={"track-ids": str(tid)})
+            except Exception:
+                pass
     elif cmd == "stop":
         open(STOP_FILE, "w").write("1")
         write_prog(False, 0, "Синхронизация остановлена")

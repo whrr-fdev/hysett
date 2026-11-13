@@ -3032,3 +3032,136 @@ void WaybarManager::restoreYmTrack(int playlistIdx, int trackIdx) {
     saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
     emit ymLibraryChanged();
 }
+
+
+bool WaybarManager::isTrackInPlaylist(const QString &fullTitle, const QString &playlistTitle) const {
+    QString norm = fullTitle.trimmed();
+    norm.replace(" — ", " - ");
+    if (norm.isEmpty()) return false;
+    for (const QVariant &pv : m_ymPlaylists) {
+        QVariantMap pl = pv.toMap();
+        if (pl["title"].toString() != playlistTitle) continue;
+        const QVariantList trs = pl["tracks"].toList();
+        for (const QVariant &tv : trs) {
+            QVariantMap tm = tv.toMap();
+            QString ft = tm["fullTitle"].toString();
+            if (ft.compare(norm, Qt::CaseInsensitive) == 0 ||
+                QFileInfo(tm["path"].toString()).completeBaseName().compare(norm, Qt::CaseInsensitive) == 0) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+void WaybarManager::copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle) {
+    QString cleanTarget = targetPlaylistTitle.trimmed();
+    if (cleanTarget.isEmpty()) return;
+
+    QString actualSrcPath = trackPath.trimmed();
+    QVariantMap foundMeta;
+
+    // Если передан пустой путь (например, для текущего играющего трека) — ищем его по m_currentLocalTrackPath или m_mediaTitle
+    if (actualSrcPath.isEmpty() || !QFile::exists(actualSrcPath)) {
+        if (!m_currentLocalTrackPath.isEmpty() && QFile::exists(m_currentLocalTrackPath)) {
+            actualSrcPath = m_currentLocalTrackPath;
+        } else if (!m_mediaTitle.isEmpty()) {
+            QString norm = m_mediaTitle;
+            norm.replace(" — ", " - ");
+            for (const QVariant &pv : m_ymPlaylists) {
+                for (const QVariant &tv : pv.toMap()["tracks"].toList()) {
+                    QVariantMap tm = tv.toMap();
+                    if (tm["fullTitle"].toString().compare(norm, Qt::CaseInsensitive) == 0) {
+                        actualSrcPath = tm["path"].toString();
+                        foundMeta = tm;
+                        break;
+                    }
+                }
+                if (!actualSrcPath.isEmpty()) break;
+            }
+        }
+    }
+    if (actualSrcPath.isEmpty() || !QFile::exists(actualSrcPath)) return;
+
+    if (foundMeta.isEmpty()) {
+        for (const QVariant &pv : m_ymPlaylists) {
+            for (const QVariant &tv : pv.toMap()["tracks"].toList()) {
+                QVariantMap tm = tv.toMap();
+                if (tm["path"].toString() == actualSrcPath) {
+                    foundMeta = tm;
+                    break;
+                }
+            }
+            if (!foundMeta.isEmpty()) break;
+        }
+    }
+
+    QFileInfo fi(actualSrcPath);
+    QString baseName = fi.completeBaseName();
+    if (foundMeta.isEmpty()) {
+        QString art = baseName.contains(" - ") ? baseName.section(" - ", 0, 0) : "Яндекс.Музыка";
+        QString tit = baseName.contains(" - ") ? baseName.section(" - ", 1) : baseName;
+        QString cov = QDir::homePath() + "/Music/YandexMusic/.covers/" + baseName + ".jpg";
+        foundMeta["title"] = tit;
+        foundMeta["artist"] = art;
+        foundMeta["fullTitle"] = baseName;
+        foundMeta["duration"] = "";
+        foundMeta["cover"] = QFile::exists(cov) ? cov : "";
+    }
+
+    QString targetDir = QDir::homePath() + "/Music/YandexMusic/" + cleanTarget;
+    QDir().mkpath(targetDir);
+    QString dstPath = targetDir + "/" + fi.fileName();
+    if (actualSrcPath != dstPath && !QFile::exists(dstPath)) {
+        QFile::copy(actualSrcPath, dstPath);
+    }
+
+    QVariantMap newTrack = foundMeta;
+    newTrack["path"] = dstPath;
+
+    int plIdx = -1;
+    for (int i = 0; i < m_ymPlaylists.size(); ++i) {
+        if (m_ymPlaylists[i].toMap()["title"].toString().compare(cleanTarget, Qt::CaseInsensitive) == 0) {
+            plIdx = i;
+            break;
+        }
+    }
+
+    if (plIdx >= 0) {
+        QVariantMap pl = m_ymPlaylists[plIdx].toMap();
+        QVariantList trs = pl["tracks"].toList();
+        bool alreadyExists = false;
+        for (const QVariant &tv : trs) {
+            if (tv.toMap()["fullTitle"].toString().compare(baseName, Qt::CaseInsensitive) == 0) {
+                alreadyExists = true;
+                break;
+            }
+        }
+        if (!alreadyExists) {
+            trs.prepend(newTrack);
+            pl["tracks"] = trs;
+            pl["count"] = trs.size();
+            m_ymPlaylists[plIdx] = pl;
+        }
+    } else {
+        QVariantMap pl;
+        pl["title"] = cleanTarget;
+        pl["folder"] = targetDir;
+        pl["count"] = 1;
+        pl["tracks"] = QVariantList{newTrack};
+        // Вставляем новый плейлист перед «Скрытые»
+        int insertPos = m_ymPlaylists.size();
+        if (!m_ymPlaylists.isEmpty() && m_ymPlaylists.last().toMap()["title"].toString() == "Скрытые") {
+            insertPos = m_ymPlaylists.size() - 1;
+        }
+        m_ymPlaylists.insert(insertPos, pl);
+    }
+
+    if (cleanTarget == "Мне нравится" && ymHasToken()) {
+        QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/ym_sync.py", "like_track", baseName});
+    }
+
+    saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
+    emit ymLibraryChanged();
+    emit mediaChanged();
+}

@@ -287,6 +287,8 @@ public:
     Q_INVOKABLE void moveYmTrack(int playlistIdx, int fromIdx, int toIdx);
     Q_INVOKABLE void deleteYmTrack(int playlistIdx, int trackIdx);
     Q_INVOKABLE void restoreYmTrack(int playlistIdx, int trackIdx);
+    Q_INVOKABLE void copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle);
+    Q_INVOKABLE bool isTrackInPlaylist(const QString &fullTitle, const QString &playlistTitle) const;
     Q_INVOKABLE void playYmMyWave();
     Q_INVOKABLE void saveYmToken(const QString &raw);
     Q_INVOKABLE void openYmOAuth();

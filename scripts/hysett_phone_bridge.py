@@ -570,8 +570,8 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
     # Пробуем разблокировать разрешение ввода через ADB (если доступно)
     subprocess.run(["adb", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    os.environ["SDL_RENDER_SCALE_QUALITY"] = "best"
-    args = ["scrcpy", "--max-fps=120", "--max-size=1280", "--video-bit-rate=16M", "--render-driver=opengl", "--stay-awake"]
+    os.environ["SDL_RENDER_SCALE_QUALITY"] = "1"
+    args = ["scrcpy", "--max-fps=120", "--video-bit-rate=20M", "--render-driver=opengl", "--stay-awake"]
     if mouse_mode == "1":
         args.extend(["--mouse=uhid", "--keyboard=uhid"])
     elif mouse_mode == "2":
@@ -601,7 +601,7 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
 
     if not is_scrcpy_alive() and mouse_mode != "0":
         # Фолбэк на SDK, если ядро телефона не поддерживает UHID/AOA
-        fallback_args = ["scrcpy", "--max-fps=120", "--max-size=1280", "--video-bit-rate=16M", "--render-driver=opengl", "--stay-awake", "-d"] if mode != "wireless" else ["scrcpy", "--max-fps=120", "--max-size=1280", "--video-bit-rate=16M", "--render-driver=opengl", "--stay-awake", "-s", (ip_addr.strip() if ":" in ip_addr else ip_addr.strip() + ":5555")]
+        fallback_args = ["scrcpy", "--max-fps=120", "--video-bit-rate=20M", "--render-driver=opengl", "--stay-awake", "-d"] if mode != "wireless" else ["scrcpy", "--max-fps=120", "--video-bit-rate=20M", "--render-driver=opengl", "--stay-awake", "-s", (ip_addr.strip() if ":" in ip_addr else ip_addr.strip() + ":5555")]
         if turn_off == "1":
             fallback_args.append("--turn-screen-off")
         subprocess.Popen(fallback_args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)

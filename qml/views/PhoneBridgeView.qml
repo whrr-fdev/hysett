@@ -8,9 +8,6 @@ Item {
     id: phoneRoot
     readonly property bool isM3: Theme && Theme.isRounded
     property bool hideUrl: false
-    property int screenFps: 60
-    property bool turnPhoneScreenOff: false
-    property bool useUhidMouse: false
 
     Component.onCompleted: {
         if (Config) Config.refreshPhoneBridgeState()
@@ -22,7 +19,7 @@ Item {
     Timer {
         interval: 2200
         repeat: true
-        running: phoneRoot.visible && Config && Config.phoneBridgeRunning
+        running: phoneRoot.visible && Config && (Config.phoneBridgeRunning || Config.phoneScreenRunning)
         onTriggered: if (Config) Config.refreshPhoneBridgeState()
     }
 
@@ -82,7 +79,7 @@ Item {
                     }
                 }
 
-                // 1. КАРТОЧКА ПРОСМОТРА И УПРАВЛЕНИЯ ЭКРАНОМ ТЕЛЕФОНА (SCRCPY)
+                // 1. КАРТОЧКА ПРОСМОТРА И УПРАВЛЕНИЯ ЭКРАНОМ ТЕЛЕФОНА (ВСЕГДА 120 FPS)
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: scrCol.implicitHeight + 28
@@ -95,24 +92,32 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 10
+                            spacing: 8
+                            Rectangle {
+                                width: 9; height: 9; radius: 4.5
+                                color: (Config && Config.phoneScreenRunning) ? "#69f0ae" : "#888888"
+                            }
                             Text {
-                                text: "󰄙  Экран телефона и управление с ПК"
+                                text: "󰄙  Экран телефона • 120 FPS"
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize + 1 : 12
                                 font.bold: true
                                 Layout.fillWidth: true
                             }
-                            SegmentedButton {
-                                Layout.preferredWidth: 150
-                                options: ["60 FPS", "120 FPS"]
-                                selectedIndex: phoneRoot.screenFps === 120 ? 1 : 0
-                                onSelected: (idx) => phoneRoot.screenFps = (idx === 1 ? 120 : 60)
+                            StyledButton {
+                                text: "⏻ Экран тел."
+                                onClicked: if (Config) Config.pressPhonePowerKey()
                             }
                             StyledButton {
-                                text: "󰄙  Открыть по USB"
+                                text: "󰄙 Открыть по USB"
+                                isActive: !(Config && Config.phoneScreenRunning)
+                                onClicked: if (Config) Config.startPhoneScreen("usb", phoneIpField.text, 120, Config.phoneTurnScreenOff)
+                            }
+                            StyledButton {
+                                visible: Config ? Config.phoneScreenRunning : false
+                                text: "󰅖 Выключить"
                                 isActive: true
-                                onClicked: if (Config) Config.startPhoneScreen(phoneRoot.useUhidMouse ? "usb_uhid" : "usb", "", phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                                onClicked: if (Config) Config.stopPhoneScreen()
                             }
                         }
 
@@ -127,8 +132,9 @@ Item {
                                 leftPadding: 10; rightPadding: 10
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize : 11
-                                text: Config && Config.phoneWirelessIp.length > 0 ? Config.phoneWirelessIp : ""
-                                placeholderText: "IP телефона (например 192.168.1.45)..."
+                                text: Config ? Config.phoneWirelessIp : ""
+                                onEditingFinished: if (Config) Config.phoneWirelessIp = text.trim()
+                                placeholderText: "IP телефона..."
                                 placeholderTextColor: "#777777"
                                 background: Rectangle {
                                     radius: phoneRoot.isM3 ? 8 : 0
@@ -139,15 +145,15 @@ Item {
                             }
 
                             StyledButton {
-                                text: "󰖩 Активировать по USB"
-                                onClicked: if (Config) Config.startPhoneScreen("tcpip_init", "", phoneRoot.screenFps, false)
+                                text: "󰖩 Определить IP"
+                                onClicked: if (Config) Config.startPhoneScreen("tcpip_init", "", 120, false)
                             }
 
                             StyledButton {
-                                text: "󰄙 Открыть по воздуху"
+                                text: "󰄙 По воздуху"
                                 isActive: true
                                 enabled: phoneIpField.text.trim().length > 0
-                                onClicked: if (Config) Config.startPhoneScreen(phoneRoot.useUhidMouse ? "wireless_uhid" : "wireless", phoneIpField.text.trim(), phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                                onClicked: if (Config) Config.startPhoneScreen("wireless", phoneIpField.text.trim(), 120, Config.phoneTurnScreenOff)
                             }
                         }
 
@@ -160,24 +166,24 @@ Item {
                                 Layout.fillWidth: true
                             }
                             SegmentedButton {
-                                Layout.preferredWidth: 230
-                                options: ["Касания", "USB-мышь (UHID)"]
-                                selectedIndex: phoneRoot.useUhidMouse ? 1 : 0
-                                onSelected: (idx) => phoneRoot.useUhidMouse = (idx === 1)
+                                Layout.preferredWidth: 310
+                                options: ["Касания (SDK)", "USB-мышь (UHID)", "Прямой (AOA)"]
+                                selectedIndex: Config ? Config.phoneMouseMode : 0
+                                onSelected: (idx) => { if (Config) Config.phoneMouseMode = idx }
                             }
                         }
 
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: "Гасить экран физического телефона во время управления с ПК:"
+                                text: "Гасить экран физического телефона при работе с ПК:"
                                 color: "#cccccc"
                                 font.pixelSize: Config ? Config.fontSize : 11
                                 Layout.fillWidth: true
                             }
                             StyledSwitch {
-                                checked: phoneRoot.turnPhoneScreenOff
-                                onToggled: phoneRoot.turnPhoneScreenOff = checked
+                                checked: Config ? Config.phoneTurnScreenOff : false
+                                onToggled: if (Config) Config.phoneTurnScreenOff = checked
                             }
                         }
                     }

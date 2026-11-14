@@ -4,17 +4,17 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE_FILE = "/tmp/hysett_phone_bridge_state.json"
 PID_FILE = "/tmp/hysett_phone_bridge.pid"
+SCRCPY_LOG = "/tmp/hysett_scrcpy.log"
 DOWNLOAD_DIR = os.path.expanduser("~/Downloads/PhoneTransfer")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
+def is_scrcpy_alive():
+    return subprocess.run(["pgrep", "-x", "scrcpy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
 def load_state():
-    if os.path.exists(STATE_FILE):
-        try:
-            return json.load(open(STATE_FILE, "r", encoding="utf-8"))
-        except Exception:
-            pass
-    return {
+    st = {
         "running": False,
+        "scrcpy_running": False,
         "url": "",
         "qr_path": "",
         "status": "Мост выключен",
@@ -23,9 +23,18 @@ def load_state():
         "phone_ip": "",
         "items": []
     }
+    if os.path.exists(STATE_FILE):
+        try:
+            loaded = json.load(open(STATE_FILE, "r", encoding="utf-8"))
+            st.update(loaded)
+        except Exception:
+            pass
+    st["scrcpy_running"] = is_scrcpy_alive()
+    return st
 
 def save_state(st):
     try:
+        st["scrcpy_running"] = is_scrcpy_alive()
         tmp = STATE_FILE + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(st, f, ensure_ascii=False)
@@ -499,8 +508,24 @@ def cmd_quick_cloud(target, is_file):
         save_state(st)
     cmd_status()
 
-def cmd_scrcpy(mode, ip_addr, fps, turn_off):
+def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
     st = load_state()
+    if mode == "stop":
+        subprocess.run(["pkill", "-x", "scrcpy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        st["scrcpy_running"] = False
+        st["status"] = "Экран телефона закрыт"
+        save_state(st)
+        cmd_status()
+        return
+
+    if mode == "power_key":
+        subprocess.run(["adb", "shell", "input", "keyevent", "26"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["adb", "shell", "input", "keyevent", "82"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        st["status"] = "Команда питания отправлена на телефон ✓"
+        save_state(st)
+        cmd_status()
+        return
+
     if not shutil.which("scrcpy"):
         subprocess.Popen(["kitty", "--title", "Установка scrcpy", "-e", "bash", "-c", "sudo pacman -S --needed --noconfirm scrcpy android-tools; read -p 'Готово! Нажмите Enter...'"])
         st["status"] = "Установка пакета scrcpy..."
@@ -508,15 +533,7 @@ def cmd_scrcpy(mode, ip_addr, fps, turn_off):
         cmd_status()
         return
 
-    use_uhid = mode.endswith("_uhid")
-    base_mode = mode[:-5] if use_uhid else mode
-    args = ["scrcpy", f"--max-fps={fps}", "--stay-awake"]
-    if use_uhid:
-        args.extend(["--mouse=uhid", "--keyboard=uhid"])
-    if turn_off == "1":
-        args.append("--turn-screen-off")
-
-    if base_mode == "tcpip_init":
+    if mode == "tcpip_init":
         subprocess.run(["adb", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         detected_ip = ""
         for dev in ("rndis0", "usb0", "ncm0", "wlan0"):
@@ -539,27 +556,58 @@ def cmd_scrcpy(mode, ip_addr, fps, turn_off):
                 pass
         if detected_ip:
             st["phone_ip"] = detected_ip
-            st["status"] = f"Беспроводной режим ADB включён ({detected_ip}:5555) ✓"
+            st["status"] = f"Порт 5555 открыт ({detected_ip}) ✓"
         else:
-            st["status"] = "Порт 5555 открыт на телефоне ✓ Введите IP телефона"
+            st["status"] = "Порт 5555 открыт ✓"
         save_state(st)
         cmd_status()
         return
 
-    if base_mode == "wireless" and ip_addr.strip():
+    # Всегда перезапускаем scrcpy при новом вызове, чтобы применились свежие настройки
+    subprocess.run(["pkill", "-x", "scrcpy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    time.sleep(0.15)
+
+    # Пробуем разблокировать разрешение ввода через ADB (если доступно)
+    subprocess.run(["adb", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    args = ["scrcpy", "--max-fps=120", "--stay-awake"]
+    if mouse_mode == "1":
+        args.extend(["--mouse=uhid", "--keyboard=uhid"])
+    elif mouse_mode == "2":
+        args.extend(["--mouse=aoa", "--keyboard=aoa"])
+    else:
+        args.extend(["--mouse=sdk", "--keyboard=sdk"])
+
+    # --turn-screen-off совместим только с sdk
+    if turn_off == "1" and mouse_mode == "0":
+        args.append("--turn-screen-off")
+
+    if mode == "wireless" and ip_addr.strip():
         target = ip_addr.strip()
         if ":" not in target:
             target += ":5555"
         st["phone_ip"] = ip_addr.strip()
         subprocess.run(["adb", "connect", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
-        args.append(f"--tcpip={target}")
-        st["status"] = f"Запуск экрана телефона ({target})..."
+        args.extend(["-s", target])
+        st["status"] = f"Экран телефона запущен (120 FPS • {target})"
     else:
         args.append("-d")
-        st["status"] = "Запуск экрана телефона по USB..."
+        st["status"] = "Экран телефона запущен по USB (120 FPS)"
+
+    log_f = open(SCRCPY_LOG, "w")
+    subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
+    time.sleep(0.45)
+
+    if not is_scrcpy_alive() and mouse_mode != "0":
+        # Фолбэк на SDK, если ядро телефона не поддерживает UHID/AOA
+        fallback_args = ["scrcpy", "--max-fps=120", "--stay-awake", "-d"] if mode != "wireless" else ["scrcpy", "--max-fps=120", "--stay-awake", "-s", (ip_addr.strip() if ":" in ip_addr else ip_addr.strip() + ":5555")]
+        if turn_off == "1":
+            fallback_args.append("--turn-screen-off")
+        subprocess.Popen(fallback_args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
+        time.sleep(0.35)
+        st["status"] = "Запущен режим SDK (120 FPS). Для кликов на Xiaomi включите «Отладка по USB (Настройки безопасности)»"
 
     save_state(st)
-    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     cmd_status()
 
 def cmd_status():
@@ -567,7 +615,8 @@ def cmd_status():
     alive = is_daemon_alive()
     if st.get("running") != alive:
         st["running"] = alive
-        save_state(st)
+    st["scrcpy_running"] = is_scrcpy_alive()
+    save_state(st)
     print(json.dumps(st, ensure_ascii=False))
 
 if __name__ == "__main__":
@@ -587,9 +636,9 @@ if __name__ == "__main__":
     elif c == "scrcpy":
         mode = sys.argv[2] if len(sys.argv) > 2 else "usb"
         ip_a = sys.argv[3] if len(sys.argv) > 3 else ""
-        fps_v = sys.argv[4] if len(sys.argv) > 4 else "60"
+        m_mode = sys.argv[4] if len(sys.argv) > 4 else "0"
         toff = sys.argv[5] if len(sys.argv) > 5 else "0"
-        cmd_scrcpy(mode, ip_a, fps_v, toff)
+        cmd_scrcpy(mode, ip_a, m_mode, toff)
     elif c == "clear":
         st = load_state()
         st["items"] = []

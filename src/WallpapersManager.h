@@ -22,6 +22,9 @@ class WallpapersManager : public QObject {
     Q_PROPERTY(QVariantList wallpapers READ wallpapers NOTIFY wallpapersChanged)
     Q_PROPERTY(QVariantList presets READ presets NOTIFY presetsChanged)
     Q_PROPERTY(int activePresetIndex READ activePresetIndex NOTIFY activePresetChanged)
+    Q_PROPERTY(bool ghSyncBusy READ ghSyncBusy NOTIFY ghSyncChanged)
+    Q_PROPERTY(int ghSyncProgress READ ghSyncProgress NOTIFY ghSyncChanged)
+    Q_PROPERTY(QString ghSyncText READ ghSyncText NOTIFY ghSyncChanged)
 
 public:
     explicit WallpapersManager(QObject *parent = nullptr);
@@ -42,6 +45,9 @@ public:
     QVariantList wallpapers() const { return m_wallpapers; }
     QVariantList presets() const { return m_presets; }
     int activePresetIndex() const { return m_activePresetIndex; }
+    bool ghSyncBusy() const { return m_ghSyncBusy; }
+    int ghSyncProgress() const { return m_ghSyncProgress; }
+    QString ghSyncText() const { return m_ghSyncText; }
 
     Q_INVOKABLE void applyWallpaper(const QString &path);
     Q_INVOKABLE void applyRandomWallpaper();
@@ -50,6 +56,8 @@ public:
     Q_INVOKABLE void savePreset(int idx, const QString &name, const QString &wall, qreal actOp, qreal inactOp, bool blurEn, qreal blurSz);
     Q_INVOKABLE void deletePreset(int idx);
     Q_INVOKABLE QVariantMap snapshotCurrentSettings();
+    Q_INVOKABLE void syncGithubWallpapers();
+    Q_INVOKABLE void reloadWallpapers();
 
 signals:
     void daemonChanged();
@@ -58,6 +66,7 @@ signals:
     void wallpapersChanged();
     void presetsChanged();
     void activePresetChanged();
+    void ghSyncChanged();
 
 private:
     void scanWallpapers();
@@ -71,6 +80,9 @@ private:
     int m_autoInterval = 120;
     bool m_randomAnim = true;
     int m_activePresetIndex = -1;
+    bool m_ghSyncBusy = false;
+    int m_ghSyncProgress = 0;
+    QString m_ghSyncText;
 
     QVariantList m_categories;
     QVariantList m_wallpapers;

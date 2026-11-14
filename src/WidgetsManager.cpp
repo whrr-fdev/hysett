@@ -165,7 +165,8 @@ void WidgetsManager::toggleKbProcess(bool start) {
         saveKbConfig();
         if (s_kbRestartTimer) s_kbRestartTimer->stop();
         QProcess::execute("pkill", {"-f", "kb_overlay.py"});
-        QProcess::startDetached("python3", {home + "/.config/hypr/scripts/kb_overlay.py", m_kbPosition});
+        QString kbPy = QFile::exists(home + "/hysett/scripts/kb_overlay.py") ? (home + "/hysett/scripts/kb_overlay.py") : (home + "/.config/hypr/scripts/kb_overlay.py");
+        QProcess::startDetached("python3", {kbPy, m_kbPosition});
     } else {
         QProcess::startDetached("pkill", {"-f", "kb_overlay.py"});
     }
@@ -258,7 +259,13 @@ void WidgetsManager::toggleClockProcess(bool start) {
         saveClockConfig();
         if (s_clockRestartTimer) s_clockRestartTimer->stop();
         QProcess::execute("pkill", {"-x", "clock_overlay"});
-        QString bin = home + "/clock_overlay/target/release/clock_overlay";
+        QStringList clockCands = {
+            home + "/hysett/bin/clock_overlay",
+            home + "/hysett/widgets/clock_overlay/target/release/clock_overlay",
+            home + "/clock_overlay/target/release/clock_overlay"
+        };
+        QString bin = clockCands.first();
+        for (const QString &c : clockCands) { if (QFile::exists(c)) { bin = c; break; } }
         QProcess::startDetached(bin, {});
     } else {
         QProcess::startDetached("pkill", {"-x", "clock_overlay"});
@@ -285,6 +292,8 @@ void WidgetsManager::launchBtop() {
 
 QString WidgetsManager::findSysBinary() const {
     QStringList candidates = {
+        QDir::homePath() + "/hysett/bin/sysinfo_overlay",
+        QDir::homePath() + "/hysett/widgets/sysinfo/target/release/sysinfo_overlay",
         QDir::homePath() + "/sysinfo/target/release/sysinfo_overlay",
         QDir::homePath() + "/.config/hypr/scripts/sysinfo_overlay",
         QDir::homePath() + "/.local/bin/sysinfo_overlay"

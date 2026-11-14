@@ -6,6 +6,7 @@
 #include <QFileSystemWatcher>
 #include <QTimer>
 #include <QSettings>
+#include <QVariantList>
 
 class AppConfig : public QObject {
     Q_OBJECT
@@ -29,7 +30,21 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString windowOpenAnimType READ windowOpenAnimType WRITE setWindowOpenAnimType NOTIFY windowOpenAnimTypeChanged)
     Q_PROPERTY(int animDuration READ animDuration WRITE setAnimDuration NOTIFY animDurationChanged)
     Q_PROPERTY(bool rememberLastTab READ rememberLastTab WRITE setRememberLastTab NOTIFY rememberLastTabChanged)
-    Q_PROPERTY(bool musicPrivacyMode READ musicPrivacyMode WRITE setMusicPrivacyMode NOTIFY musicPrivacyModeChanged)
+        Q_PROPERTY(bool musicPrivacyMode READ musicPrivacyMode WRITE setMusicPrivacyMode NOTIFY musicPrivacyModeChanged)
+    Q_PROPERTY(bool firstRunCompleted READ firstRunCompleted WRITE setFirstRunCompleted NOTIFY firstRunChanged)
+    Q_PROPERTY(QString wallpapersDir READ wallpapersDir WRITE setWallpapersDir NOTIFY pathsChanged)
+    Q_PROPERTY(QString musicDir READ musicDir WRITE setMusicDir NOTIFY pathsChanged)
+    Q_PROPERTY(QString backupsDir READ backupsDir WRITE setBackupsDir NOTIFY pathsChanged)
+    Q_PROPERTY(int pkgNativeCount READ pkgNativeCount NOTIFY backupStateChanged)
+    Q_PROPERTY(int pkgAurCount READ pkgAurCount NOTIFY backupStateChanged)
+    Q_PROPERTY(QVariantList backupArchives READ backupArchives NOTIFY backupStateChanged)
+    Q_PROPERTY(bool sysBusy READ sysBusy NOTIFY sysProgressChanged)
+    Q_PROPERTY(int sysProgress READ sysProgress NOTIFY sysProgressChanged)
+    Q_PROPERTY(QString sysStatusText READ sysStatusText NOTIFY sysProgressChanged)
+    Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateStateChanged)
+    Q_PROPERTY(QString localVersionInfo READ localVersionInfo NOTIFY updateStateChanged)
+    Q_PROPERTY(QString remoteVersionInfo READ remoteVersionInfo NOTIFY updateStateChanged)
+    Q_PROPERTY(QString updateChangelog READ updateChangelog NOTIFY updateStateChanged)
     Q_PROPERTY(QString hiddenSidebarTabs READ hiddenSidebarTabs WRITE setHiddenSidebarTabs NOTIFY hiddenSidebarTabsChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
 
@@ -131,6 +146,36 @@ public:
     void setRememberLastTab(bool v);
     bool musicPrivacyMode() const { return m_musicPrivacyMode; }
     void setMusicPrivacyMode(bool v);
+
+    bool firstRunCompleted() const { return m_firstRunCompleted; }
+    void setFirstRunCompleted(bool v);
+    QString wallpapersDir() const { return m_wallpapersDir; }
+    void setWallpapersDir(const QString &v);
+    QString musicDir() const { return m_musicDir; }
+    void setMusicDir(const QString &v);
+    QString backupsDir() const { return m_backupsDir; }
+    void setBackupsDir(const QString &v);
+    Q_INVOKABLE void completeFirstRunSetup(const QString &wallDir, const QString &musDir, const QString &bakDir, bool downloadWalls);
+
+    int pkgNativeCount() const { return m_pkgNativeCount; }
+    int pkgAurCount() const { return m_pkgAurCount; }
+    QVariantList backupArchives() const { return m_backupArchives; }
+    bool sysBusy() const { return m_sysBusy; }
+    int sysProgress() const { return m_sysProgress; }
+    QString sysStatusText() const { return m_sysStatusText; }
+    bool updateAvailable() const { return m_updateAvailable; }
+    QString localVersionInfo() const { return m_localVersionInfo; }
+    QString remoteVersionInfo() const { return m_remoteVersionInfo; }
+    QString updateChangelog() const { return m_updateChangelog; }
+
+    Q_INVOKABLE void refreshBackupInfo();
+    Q_INVOKABLE void generatePackageScript();
+    Q_INVOKABLE void createFullBackup();
+    Q_INVOKABLE void restoreFromBackup(const QString &archivePath, bool installPackages);
+    Q_INVOKABLE void deleteBackupArchive(const QString &archivePath);
+    Q_INVOKABLE void openBackupsFolder();
+    Q_INVOKABLE void checkUpdates();
+    Q_INVOKABLE void installUpdate();
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);
@@ -250,6 +295,11 @@ signals:
     void animDurationChanged();
     void rememberLastTabChanged();
     void musicPrivacyModeChanged();
+    void firstRunChanged();
+    void pathsChanged();
+    void backupStateChanged();
+    void sysProgressChanged();
+    void updateStateChanged();
     void hiddenSidebarTabsChanged();
     void languageChanged();
     void borderGlowEnabledChanged();
@@ -295,6 +345,21 @@ private:
     int m_animDuration = 150;
     bool m_rememberLastTab = false;
     bool m_musicPrivacyMode = false;
+    bool m_firstRunCompleted = true;
+    QString m_wallpapersDir;
+    QString m_musicDir;
+    QString m_backupsDir;
+    int m_pkgNativeCount = 0;
+    int m_pkgAurCount = 0;
+    QVariantList m_backupArchives;
+    bool m_sysBusy = false;
+    int m_sysProgress = 0;
+    QString m_sysStatusText = "Готово к работе";
+    bool m_updateAvailable = false;
+    QString m_localVersionInfo = "main";
+    QString m_remoteVersionInfo = "main";
+    QString m_updateChangelog = "Нажмите «Проверить обновления» для запроса к GitHub.";
+    QTimer *m_sysProgTimer = nullptr;
     QString m_hiddenSidebarTabs = "";
     QString m_language = "ru";
 

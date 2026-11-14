@@ -86,7 +86,7 @@ RowLayout {
         Layout.preferredWidth: 195
         color: Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.35)
 
-        property Item activeCardObj: subTab === 0 ? sCard0 : (subTab === 1 ? sCard1 : (subTab === 2 ? sCard2 : (subTab === 3 ? sCard3 : sCard4)))
+        property Item activeCardObj: subTab === 0 ? sCard0 : (subTab === 1 ? sCard1 : (subTab === 2 ? sCard2 : (subTab === 3 ? sCard3 : (subTab === 4 ? sCard4 : sCard5))))
         property Item hoveredCardObj: null
         property Item lastHoveredCardObj: null
 
@@ -224,6 +224,32 @@ RowLayout {
                     anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
                     Text { text: "󰆿"; color: subTab === 4 ? (Config ? Config.accentTextColor : "#000000") : (sMouse4.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
                     Text { text: "Свечение и Меню"; color: subTab === 4 ? (Config ? Config.accentTextColor : "#000000") : (sMouse4.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                }
+            }
+
+            Item {
+                id: sCard5; Layout.fillWidth: true; implicitHeight: 30
+                SubCascadeAttach { stepIdx: 6 }
+                MouseArea {
+                    id: sMouse5; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = sCard5; subSidebar.hoveredCardObj = sCard5 }
+                        else if (subSidebar.hoveredCardObj === sCard5) subSidebar.hoveredCardObj = null
+                    }
+                    onClicked: {
+                        subTab = 5
+                        if (Config) Config.refreshBackupInfo()
+                    }
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
+                    Text { text: "󰚰"; color: subTab === 5 ? (Config ? Config.accentTextColor : "#000000") : (sMouse5.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    Text { text: "Обновления"; color: subTab === 5 ? (Config ? Config.accentTextColor : "#000000") : (sMouse5.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                    Rectangle {
+                        visible: Config ? Config.updateAvailable : false
+                        width: 7; height: 7; radius: 3.5
+                        color: subTab === 5 ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
+                    }
                 }
             }
 
@@ -842,7 +868,8 @@ RowLayout {
                                         { title: "󰂯  Блютуз", idx: 7 }, { title: "󱓞  Панель", idx: 8 }, { title: "󰂚  Уведомления", idx: 18 },
                                         { title: "󰒲  Автозапуск", idx: 9 }, { title: "⌨  Бинды", idx: 10 }, { title: "󰘳  Правила окон", idx: 11 },
                                         { title: "󰀻  Приложения", idx: 12 }, { title: "󰏘  Шейдеры", idx: 13 }, { title: "󰸉  Обои", idx: 14 },
-                                        { title: "󰕰  Виджеты", idx: 15 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "󰒓  Настройки (главная)", idx: 17 },
+                                        { title: "󰕰  Виджеты", idx: 15 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "󰁯  Бэкап", idx: 29 },
+                                        { title: "󰒓  Настройки (главная)", idx: 17 },
                                         { title: "✕  Кнопка Закрыть", idx: 99 }
                                     ]
                                     StyledCheckBox {
@@ -851,6 +878,133 @@ RowLayout {
                                         onToggled: Config.setTabVisible(modelData.idx, checked)
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // РАЗДЕЛ 5: ОБНОВЛЕНИЯ СИСТЕМЫ И МАСТЕР ПЕРВОГО ЗАПУСКА
+        // =====================================================================
+        ScrollView {
+            id: scrUpd; contentWidth: availableWidth; clip: true
+            Item {
+                width: scrUpd.availableWidth; implicitHeight: colUpdMain.implicitHeight + 44
+                ColumnLayout {
+                    id: colUpdMain
+                    width: Math.min(parent.width - 48, 860)
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.top: parent.top; anchors.topMargin: 20
+                    spacing: 14
+
+                    Text { text: "󰚰  Центр обновлений HySett и пути"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
+
+                    GlassPanel {
+                        Layout.fillWidth: true
+                        implicitHeight: colUpdCard.implicitHeight + 28
+                        ColumnLayout {
+                            id: colUpdCard; anchors.fill: parent; anchors.margins: 14; spacing: 12
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 4
+                                    Text {
+                                        text: Config && Config.updateAvailable ? "Доступна новая версия HySett на GitHub!" : "Проверка и установка обновлений (whrr-fdev/hysett)"
+                                        color: Config && Config.updateAvailable ? "#69f0ae" : "#ffffff"
+                                        font.pixelSize: Config.fontSize + 1
+                                        font.bold: true
+                                    }
+                                    Text {
+                                        text: "Текущая версия: " + (Config ? Config.localVersionInfo : "main") +
+                                              "   •   На GitHub: " + (Config ? Config.remoteVersionInfo : "main")
+                                        color: Config ? Config.m3Primary : "#a8c7fa"
+                                        font.pixelSize: Config.fontSize
+                                    }
+                                }
+                                StyledButton {
+                                    text: "󰑐 Проверить обновления"
+                                    enabled: Config ? !Config.sysBusy : true
+                                    onClicked: if (Config) Config.checkUpdates()
+                                }
+                                StyledButton {
+                                    text: "󰇚 Скачать и обновить"
+                                    isActive: true
+                                    enabled: Config ? !Config.sysBusy : true
+                                    onClicked: if (Config) Config.installUpdate()
+                                }
+                            }
+
+                            Rectangle {
+                                visible: Config ? Config.sysBusy : false
+                                Layout.fillWidth: true; height: 5; radius: 2.5
+                                color: Qt.rgba(1, 1, 1, 0.12)
+                                Rectangle {
+                                    width: parent.width * Math.max(0.05, Math.min(1.0, (Config ? Config.sysProgress : 0) / 100.0))
+                                    height: parent.height; radius: 2.5
+                                    color: Config ? Config.m3Primary : "#69f0ae"
+                                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                }
+                            }
+
+                            Text {
+                                visible: Config ? Config.sysStatusText.length > 0 : false
+                                text: Config ? Config.sysStatusText : ""
+                                color: "#cccccc"
+                                font.pixelSize: Config.fontSize - 1
+                            }
+
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+
+                            Text {
+                                text: "Список изменений последнего релиза / коммита:"
+                                color: "#aaaaaa"
+                                font.pixelSize: Config.fontSize - 1
+                                font.bold: true
+                            }
+                            Text {
+                                Layout.fillWidth: true
+                                wrapMode: Text.Wrap
+                                text: Config ? Config.updateChangelog : ""
+                                color: "#dddddd"
+                                font.pixelSize: Config.fontSize
+                            }
+                        }
+                    }
+
+                    GlassPanel {
+                        Layout.fillWidth: true
+                        implicitHeight: colPathsCard.implicitHeight + 28
+                        ColumnLayout {
+                            id: colPathsCard; anchors.fill: parent; anchors.margins: 14; spacing: 10
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "󰉋  Рабочие пути и Мастер первоначальной настройки"
+                                    color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true
+                                    Layout.fillWidth: true
+                                }
+                                StyledButton {
+                                    text: "auto_fix  Открыть мастер установки"
+                                    onClicked: if (ApplicationWindow.window) ApplicationWindow.window.setupWizardOpen = true
+                                }
+                            }
+
+                            Text {
+                                text: "Папка обоев: " + (Config ? Config.wallpapersDir : "~/Pictures/Wallpapers")
+                                color: "#cccccc"; font.pixelSize: Config.fontSize
+                            }
+                            Text {
+                                text: "Папка музыки: " + (Config ? Config.musicDir : "~/Music/YandexMusic")
+                                color: "#cccccc"; font.pixelSize: Config.fontSize
+                            }
+                            Text {
+                                text: "Папка архивов бэкапа: " + (Config ? Config.backupsDir : "~/hysett/backups/archives")
+                                color: "#cccccc"; font.pixelSize: Config.fontSize
                             }
                         }
                     }

@@ -1,10 +1,9 @@
 build/
 backups/
+backup/
 .aider*
-*.o
-*.qsb
-bypass-lists/repos/
-bypass-lists/update.log
+echo
 scripts/vpn_state.json
 scripts/singbox_vpn.json
-scripts/preferred_net_iface.txt
+scripts/ym_downloaded.json
+scripts/*.bak*

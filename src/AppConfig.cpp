@@ -1,3 +1,6 @@
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <QTimer>
 #include "AppConfig.h"
 #include <QDir>
@@ -13,8 +16,27 @@
 #include <QProcess>
 
 AppConfig::AppConfig(QObject *parent) : QObject(parent) {
+    m_wallpapersDir = QDir::homePath() + "/Pictures/Wallpapers";
+    m_musicDir = QDir::homePath() + "/Music/YandexMusic";
+    m_backupsDir = QDir::homePath() + "/hysett/backups/archives";
     initTranslations();
     load();
+    m_sysProgTimer = new QTimer(this);
+    m_sysProgTimer->setInterval(300);
+    connect(m_sysProgTimer, &QTimer::timeout, this, [this]() {
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            pf.close();
+            int p = o["percent"].toInt(m_sysProgress);
+            QString t = o["text"].toString(m_sysStatusText);
+            if (p != m_sysProgress || t != m_sysStatusText) {
+                m_sysProgress = p;
+                m_sysStatusText = t;
+                emit sysProgressChanged();
+            }
+        }
+    });
 
     m_wallExtractTimer = new QTimer(this);
     m_wallExtractTimer->setSingleShot(true);
@@ -468,6 +490,10 @@ void AppConfig::load() {
             else if (key == "anim_duration") m_animDuration = std::clamp(val.toInt(), 0, 1000);
             else if (key == "remember_last_tab") m_rememberLastTab = (val == "1" || val == "true");
             else if (key == "music_privacy_mode") m_musicPrivacyMode = (val == "1" || val == "true");
+            else if (key == "first_run_completed") m_firstRunCompleted = (val == "1" || val == "true");
+            else if (key == "wallpapers_dir" && !val.isEmpty()) m_wallpapersDir = val;
+            else if (key == "music_dir" && !val.isEmpty()) m_musicDir = val;
+            else if (key == "backups_dir" && !val.isEmpty()) m_backupsDir = val;
             else if (key == "hidden_sidebar_tabs") m_hiddenSidebarTabs = val;
             else if (key == "language") m_language = (val == "en" ? "en" : "ru");
             else if (key == "border_glow_enabled") m_borderGlowEnabled = (val == "1" || val == "true");
@@ -544,6 +570,10 @@ void AppConfig::save() {
             extra["anim_duration"] = QString::number(m_animDuration);
             extra["remember_last_tab"] = m_rememberLastTab ? "1" : "0";
             extra["music_privacy_mode"] = m_musicPrivacyMode ? "1" : "0";
+            extra["first_run_completed"] = m_firstRunCompleted ? "1" : "0";
+            extra["wallpapers_dir"] = m_wallpapersDir;
+            extra["music_dir"] = m_musicDir;
+            extra["backups_dir"] = m_backupsDir;
             extra["hidden_sidebar_tabs"] = m_hiddenSidebarTabs;
             extra["language"] = m_language;
             extra["border_glow_enabled"] = m_borderGlowEnabled ? "1" : "0";
@@ -1088,4 +1118,187 @@ void AppConfig::setSliderWaveLength(qreal v) {
 void AppConfig::setSliderThickness(qreal v) {
     v = std::clamp(v, 1.2, 6.0);
     if (!qFuzzyCompare(m_sliderThickness, v)) { m_sliderThickness = v; emit m3AttributesChanged(); save(); }
+}
+
+void AppConfig::setFirstRunCompleted(bool v) {
+    if (m_firstRunCompleted != v) { m_firstRunCompleted = v; emit firstRunChanged(); save(); }
+}
+void AppConfig::setWallpapersDir(const QString &v) {
+    if (!v.trimmed().isEmpty() && m_wallpapersDir != v.trimmed()) { m_wallpapersDir = v.trimmed(); emit pathsChanged(); save(); }
+}
+void AppConfig::setMusicDir(const QString &v) {
+    if (!v.trimmed().isEmpty() && m_musicDir != v.trimmed()) { m_musicDir = v.trimmed(); emit pathsChanged(); save(); }
+}
+void AppConfig::setBackupsDir(const QString &v) {
+    if (!v.trimmed().isEmpty() && m_backupsDir != v.trimmed()) { m_backupsDir = v.trimmed(); emit pathsChanged(); save(); }
+}
+
+void AppConfig::completeFirstRunSetup(const QString &wallDir, const QString &musDir, const QString &bakDir, bool downloadWalls) {
+    if (!wallDir.trimmed().isEmpty()) m_wallpapersDir = wallDir.trimmed();
+    if (!musDir.trimmed().isEmpty()) m_musicDir = musDir.trimmed();
+    if (!bakDir.trimmed().isEmpty()) m_backupsDir = bakDir.trimmed();
+    QDir().mkpath(m_wallpapersDir);
+    QDir().mkpath(m_musicDir);
+    QDir().mkpath(m_backupsDir);
+    m_firstRunCompleted = true;
+    emit pathsChanged();
+    emit firstRunChanged();
+    save();
+    if (downloadWalls) {
+        QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_wallpapers_sync.py"});
+    }
+}
+
+static void parseSysInfoJson(const QByteArray &raw, int &natCnt, int &aurCnt, QVariantList &archs, QString &locVer) {
+    QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
+    if (o.isEmpty()) return;
+    if (o.contains("native_count")) natCnt = o["native_count"].toInt();
+    if (o.contains("aur_count")) aurCnt = o["aur_count"].toInt();
+    if (o.contains("archives")) archs = o["archives"].toArray().toVariantList();
+    if (o.contains("local_version")) locVer = o["local_version"].toString(locVer);
+}
+
+void AppConfig::refreshBackupInfo() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        emit backupStateChanged();
+        emit updateStateChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "info"});
+}
+
+void AppConfig::generatePackageScript() {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 15; m_sysStatusText = "Генерация скрипта пакетов...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "gen_pkg_script"});
+}
+
+void AppConfig::createFullBackup() {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 10; m_sysStatusText = "Создание полного бэкапа системы...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "create_backup"});
+}
+
+void AppConfig::restoreFromBackup(const QString &archivePath, bool installPackages) {
+    if (m_sysBusy || archivePath.trimmed().isEmpty()) return;
+    m_sysBusy = true; m_sysProgress = 15; m_sysStatusText = "Восстановление из архива бэкапа...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        load();
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "restore_backup", archivePath.trimmed(), installPackages ? "1" : "0"});
+}
+
+void AppConfig::deleteBackupArchive(const QString &archivePath) {
+    if (archivePath.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        m_sysStatusText = "Архив бэкапа удален";
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "delete_backup", archivePath.trimmed()});
+}
+
+void AppConfig::openBackupsFolder() {
+    QDir().mkpath(m_backupsDir);
+    QProcess::startDetached("xdg-open", {m_backupsDir});
+}
+
+void AppConfig::checkUpdates() {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 20; m_sysStatusText = "Проверка новой версии на GitHub...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        QByteArray out = p->readAllStandardOutput().trimmed();
+        p->deleteLater();
+        QJsonObject o = QJsonDocument::fromJson(out).object();
+        if (!o.isEmpty()) {
+            m_updateAvailable = o["update_available"].toBool(false);
+            m_localVersionInfo = o["local_version"].toString(m_localVersionInfo);
+            m_remoteVersionInfo = o["remote_version"].toString(m_remoteVersionInfo);
+            m_updateChangelog = o["changelog"].toString(m_updateChangelog);
+            m_sysStatusText = o["status"].toString(m_sysStatusText);
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit updateStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "check_updates"});
+}
+
+void AppConfig::installUpdate() {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 10; m_sysStatusText = "Скачивание и сборка обновления HySett...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "install_update"});
 }

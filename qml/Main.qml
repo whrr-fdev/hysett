@@ -470,7 +470,8 @@ ApplicationWindow {
 
     property bool modalOpen: false
     property bool barSavePromptOpen: false
-    readonly property bool anyModalActive: modalOpen || barSavePromptOpen || (Monitors && Monitors.revertDialogActive)
+    property bool setupWizardOpen: Config ? !Config.firstRunCompleted : false
+    readonly property bool anyModalActive: modalOpen || barSavePromptOpen || setupWizardOpen || (Monitors && Monitors.revertDialogActive)
     readonly property bool isWindowExpanded: isWallpaperExpanded
 
     property real wallpapersLiveOpacity: Config ? Config.wallpapersOpacity : 0.30
@@ -578,7 +579,7 @@ ApplicationWindow {
         } else {
             root.requestActivate()
             sceneRoot.forceActiveFocus()
-            syncTabBlur()
+            Qt.callLater(syncTabBlur)
         }
     }
     onDrawerActiveChanged: {
@@ -4268,7 +4269,8 @@ ApplicationWindow {
                             "views/LanguageView.qml",
                             "views/VpnView.qml",
                             "views/MusicView.qml",
-                            "views/TimerView.qml"
+                            "views/TimerView.qml",
+                            "views/BackupView.qml"
                         ]
 
                         Loader {
@@ -4277,10 +4279,9 @@ ApplicationWindow {
                             x: index === 0 ? 0 : pageController.sidebarW
                             width: index === 0 ? pageController.width : (pageController.width - pageController.sidebarW)
                             height: pageController.height
-                            active: root.drawerActive && root.drawerMode === "settings" && (
-                                    index === 0 ||
+                            active: index === 0 || (root.drawerActive && root.drawerMode === "settings" && (
                                     index === pageController.currentIndex ||
-                                    (pageController.inTransition && index === pageController.previousIndex))
+                                    (pageController.inTransition && index === pageController.previousIndex)))
                             source: modelData
                             visible: index === 0
                             opacity: index === 0 ? 1.0 : 0.0
@@ -4417,6 +4418,130 @@ ApplicationWindow {
                     fragmentShader: "qrc:/shaders/qml/shaders/atmosphere_fx.frag.qsb"
                 }
             }
+
+                // Мастер первоначальной настройки при первом запуске (First-Run Setup Wizard)
+                Rectangle {
+                    visible: root.setupWizardOpen
+                    anchors.fill: parent
+                    z: 995
+                    color: Qt.rgba(0, 0, 0, 0.62)
+
+                    MouseArea { anchors.fill: parent; onClicked: {} }
+
+                    GlassPanel {
+                        anchors.centerIn: parent
+                        width: 480
+                        implicitHeight: wizCol.implicitHeight + 32
+                        radius: (Theme && Theme.isRounded) ? 16 : 0
+
+                        property bool dlWallsOnStart: true
+
+                        ColumnLayout {
+                            id: wizCol
+                            anchors.fill: parent
+                            anchors.margins: 18
+                            spacing: 12
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "🚀  Добро пожаловать в HySett!"
+                                color: "#ffffff"
+                                font.pixelSize: 15
+                                font.bold: true
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Выберите рабочие папки и параметры оформления перед началом работы:"
+                                color: "#bbbbbb"
+                                font.pixelSize: 11
+                                wrapMode: Text.Wrap
+                                horizontalAlignment: Text.AlignHCenter
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Стиль оформления:"; color: "#cccccc"; font.pixelSize: 11; Layout.fillWidth: true }
+                                SegmentedButton {
+                                    Layout.preferredWidth: 220
+                                    options: ["Квадратный", "Скругленный"]
+                                    selectedIndex: (Theme && Theme.isRounded) ? 1 : 0
+                                    onSelected: (idx) => { if (Theme) Theme.setRoundedState(idx === 1) }
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 4
+                                Text { text: "Папка обоев:"; color: "#aaaaaa"; font.pixelSize: 10 }
+                                TextField {
+                                    id: wizWallDir
+                                    Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
+                                    color: "#ffffff"; font.pixelSize: 11
+                                    text: Config ? Config.wallpapersDir : "/home/whrr/Pictures/Wallpapers"
+                                    background: Rectangle { radius: (Theme && Theme.isRounded) ? 8 : 0; color: Qt.rgba(1,1,1,0.08); border.color: Qt.rgba(1,1,1,0.16) }
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 4
+                                Text { text: "Папка музыки (Яндекс.Музыка):"; color: "#aaaaaa"; font.pixelSize: 10 }
+                                TextField {
+                                    id: wizMusDir
+                                    Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
+                                    color: "#ffffff"; font.pixelSize: 11
+                                    text: Config ? Config.musicDir : "/home/whrr/Music/YandexMusic"
+                                    background: Rectangle { radius: (Theme && Theme.isRounded) ? 8 : 0; color: Qt.rgba(1,1,1,0.08); border.color: Qt.rgba(1,1,1,0.16) }
+                                }
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 4
+                                Text { text: "Папка для архивов бэкапа:"; color: "#aaaaaa"; font.pixelSize: 10 }
+                                TextField {
+                                    id: wizBakDir
+                                    Layout.fillWidth: true; implicitHeight: 28; leftPadding: 10; rightPadding: 10
+                                    color: "#ffffff"; font.pixelSize: 11
+                                    text: Config ? Config.backupsDir : "/home/whrr/hysett/backups/archives"
+                                    background: Rectangle { radius: (Theme && Theme.isRounded) ? 8 : 0; color: Qt.rgba(1,1,1,0.08); border.color: Qt.rgba(1,1,1,0.16) }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Скачать обои по умолчанию с GitHub (whrr-fdev/wallpapers) в фоне:"
+                                    color: "#cccccc"; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap
+                                }
+                                StyledSwitch {
+                                    id: wizDlSwitch
+                                    checked: true
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.alignment: Qt.AlignRight
+                                spacing: 8
+                                StyledButton {
+                                    text: "Отмена"
+                                    visible: Config ? Config.firstRunCompleted : false
+                                    onClicked: root.setupWizardOpen = false
+                                }
+                                StyledButton {
+                                    text: "✓ Сохранить и начать"
+                                    isActive: true
+                                    onClicked: {
+                                        if (Config) {
+                                            Config.completeFirstRunSetup(wizWallDir.text, wizMusDir.text, wizBakDir.text, wizDlSwitch.checked)
+                                        }
+                                        if (Wallpapers) Wallpapers.reloadWallpapers()
+                                        root.setupWizardOpen = false
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 // Модальный диалог сохранения при выходе из режима перетаскивания панели задач
                 Rectangle {

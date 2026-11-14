@@ -1,3 +1,6 @@
+#include <QTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <algorithm>
 #include "WallpapersManager.h"
 #include <QDir>
@@ -94,6 +97,9 @@ WallpapersManager::WallpapersManager(QObject *parent) : QObject(parent) {
     loadDaemonSettings();
     loadPresets();
     scanWallpapers();
+    if (m_wallpapers.isEmpty()) {
+        QTimer::singleShot(3500, this, &WallpapersManager::syncGithubWallpapers);
+    }
 }
 
 void WallpapersManager::setDaemonRunning(bool v) {
@@ -190,8 +196,18 @@ void WallpapersManager::scanWallpapers() {
     m_wallpapers.clear();
 
     QString wallRoot = QDir::homePath() + "/Pictures/Wallpapers";
+    QFile ccf(QDir::homePath() + "/.config/hypr/scripts/control_center.conf");
+    if (ccf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        for (const QByteArray &ln : ccf.readAll().split('\n')) {
+            if (ln.trimmed().startsWith("wallpapers_dir=")) {
+                QString customD = QString::fromUtf8(ln.trimmed().mid(15)).trimmed();
+                if (!customD.isEmpty()) wallRoot = customD;
+            }
+        }
+        ccf.close();
+    }
     QDir dir(wallRoot);
-    if (!dir.exists()) return;
+    if (!dir.exists()) dir.mkpath(".");
 
     QStringList subDirs = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
     QStringList imgExts = {"*.jpg", "*.jpeg", "*.png", "*.webp", "*.mp4", "*.webm", "*.mkv"};
@@ -514,4 +530,52 @@ QVariantMap WallpapersManager::snapshotCurrentSettings() {
         m["wall"] = "";
     }
     return m;
+}
+
+void WallpapersManager::reloadWallpapers() {
+    scanWallpapers();
+}
+
+void WallpapersManager::syncGithubWallpapers() {
+    if (m_ghSyncBusy) return;
+    m_ghSyncBusy = true;
+    m_ghSyncProgress = 5;
+    m_ghSyncText = "Синхронизация обоев с GitHub (whrr-fdev/wallpapers)...";
+    emit ghSyncChanged();
+
+    QTimer *pollT = new QTimer(this);
+    pollT->setInterval(400);
+    connect(pollT, &QTimer::timeout, this, [this]() {
+        QFile pf("/tmp/hysett_wall_sync.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            pf.close();
+            int p = o["percent"].toInt(m_ghSyncProgress);
+            QString t = o["text"].toString(m_ghSyncText);
+            if (p != m_ghSyncProgress || t != m_ghSyncText) {
+                m_ghSyncProgress = p;
+                m_ghSyncText = t;
+                emit ghSyncChanged();
+            }
+        }
+    });
+    pollT->start();
+
+    QProcess *proc = new QProcess(this);
+    connect(proc, &QProcess::finished, this, [this, proc, pollT]() {
+        pollT->stop();
+        pollT->deleteLater();
+        proc->deleteLater();
+        QFile pf("/tmp/hysett_wall_sync.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_ghSyncProgress = o["percent"].toInt(100);
+            m_ghSyncText = o["text"].toString(m_ghSyncText);
+            pf.close();
+        }
+        m_ghSyncBusy = false;
+        scanWallpapers();
+        emit ghSyncChanged();
+    });
+    proc->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_wallpapers_sync.py"});
 }

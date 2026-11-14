@@ -190,22 +190,11 @@ ApplicationWindow {
     SequentialAnimation {
         id: barChewAnim
         ParallelAnimation {
-            NumberAnimation { target: root; property: "swallowIconScale"; from: 1.25; to: 0.0; duration: 240; easing.type: Easing.InBack }
-            NumberAnimation { target: root; property: "swallowIconY"; from: 26.0; to: 4.0; duration: 240; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "swallowIconScale"; from: 1.15; to: 0.0; duration: 210; easing.type: Easing.InBack }
+            NumberAnimation { target: root; property: "swallowIconY"; from: 14.0; to: 4.0; duration: 210; easing.type: Easing.InCubic }
             SequentialAnimation {
-                NumberAnimation { target: root; property: "barChewExtraH"; to: 22.0; duration: 75; easing.type: Easing.OutQuad }
-                NumberAnimation { target: root; property: "barChewExtraH"; to: 3.0; duration: 85; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: root; property: "barChewExtraH"; to: 17.0; duration: 80; easing.type: Easing.OutQuad }
-                NumberAnimation { target: root; property: "barChewExtraH"; to: 4.0; duration: 80; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: root; property: "barChewExtraH"; to: 13.0; duration: 75; easing.type: Easing.OutQuad }
-                NumberAnimation { target: root; property: "barChewExtraH"; to: 0.0; duration: 110; easing.type: Easing.OutCubic }
-            }
-            SequentialAnimation {
-                NumberAnimation { target: root; property: "barChewWidthScale"; to: 1.018; duration: 75; easing.type: Easing.OutQuad }
-                NumberAnimation { target: root; property: "barChewWidthScale"; to: 0.991; duration: 85; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: root; property: "barChewWidthScale"; to: 1.012; duration: 80; easing.type: Easing.OutQuad }
-                NumberAnimation { target: root; property: "barChewWidthScale"; to: 0.995; duration: 80; easing.type: Easing.InOutQuad }
-                NumberAnimation { target: root; property: "barChewWidthScale"; to: 1.0; duration: 150; easing.type: Easing.OutElastic }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 18.0; duration: 70; easing.type: Easing.OutQuad }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 0.0; duration: 150; easing.type: Easing.OutQuint }
             }
         }
         ScriptAction {
@@ -228,7 +217,6 @@ ApplicationWindow {
         if (actIdx === 0) {
             if (Config) {
                 Config.shareFileToPhone(fp)
-                if (!Config.phoneBridgeRunning) Config.togglePhoneBridge()
             }
             root.openDrawerWithMode("settings", 30)
         } else if (actIdx === 1) {
@@ -1002,6 +990,8 @@ ApplicationWindow {
             Rectangle {
                 id: statusClockPillBg
                 z: 4
+                opacity: (root.barDragActive || barChewAnim.running) ? 0.0 : 1.0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
                 readonly property var bounds: {
                     var _ = Waybar ? Waybar.rightBarOrder : []
                     var _h = Waybar ? Waybar.hiddenBarModules : ""
@@ -1031,6 +1021,8 @@ ApplicationWindow {
 
             Row {
                 id: leftBarRow; z: 5; visible: !root.isVertBar
+                opacity: (root.barDragActive || barChewAnim.running) ? 0.0 : 1.0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
                 move: Transition { NumberAnimation { properties: "x"; duration: 150; easing.type: Easing.OutQuint } }
                 anchors.left: parent.left; anchors.leftMargin: (Theme && Theme.isRounded) ? 8 : 4; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
@@ -1827,7 +1819,7 @@ ApplicationWindow {
                 readonly property real targetCenterX: Math.round(Math.max(minLeftX, Math.min(maxRightX, useBarCenter ? trueCenterX : gapCenterX)))
 
                 visible: !root.isVertBar && !root.winInSideOrder && width > 0.5 && availGap > 24
-                opacity: (root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? 1.0 : 0.0
+                opacity: (root.barDragActive || barChewAnim.running) ? 0.0 : ((root.isFixedTitle || root.hasWinTitle || topBarContainer.editMode) ? 1.0 : 0.0)
                 clip: true
                 width: targetPillW
                 Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
@@ -1892,6 +1884,8 @@ ApplicationWindow {
 
             Row {
                 id: rightBarRow; z: 5; visible: !root.isVertBar
+                opacity: (root.barDragActive || barChewAnim.running) ? 0.0 : 1.0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
                 move: Transition { NumberAnimation { properties: "x"; duration: 150; easing.type: Easing.OutQuint } }
                 anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 8 : 4; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
@@ -3090,29 +3084,63 @@ ApplicationWindow {
                 }
             }
 
-            // Подсветка и подсказка при перетаскивании файла на панель задач
-            Rectangle {
+            // Пунктирная обводка и подсказка при перетаскивании файла на панель задач
+            Item {
+                id: barDashedDropOverlay
                 z: 890
+                anchors.fill: parent
                 visible: opacity > 0.01
                 opacity: (root.barDragActive && !barChewAnim.running) ? 1.0 : 0.0
                 Behavior on opacity { NumberAnimation { duration: 150 } }
-                anchors.fill: parent
-                radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13) : 0
-                color: Qt.rgba(Config ? Config.m3Primary.r : 0.6, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 1.0, 0.22)
-                border.width: 1.5
-                border.color: Config ? Config.m3Primary : "#ffffff"
+                onVisibleChanged: if (visible) dashedBorderCanvas.requestPaint()
+
+                Canvas {
+                    id: dashedBorderCanvas
+                    anchors.fill: parent
+                    anchors.margins: 4
+                    onWidthChanged: if (visible) requestPaint()
+                    onHeightChanged: if (visible) requestPaint()
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+                        if (width <= 8 || height <= 8) return
+                        var r = (Theme && Theme.isRounded) ? Math.min(height * 0.42, Config ? Math.round(Config.m3WindowRadius * 0.55) : 11) : 0
+                        var x = 1.5, y = 1.5, w = width - 3.0, h = height - 3.0
+                        ctx.save()
+                        ctx.beginPath()
+                        ctx.setLineDash([7, 5])
+                        ctx.lineWidth = 1.8
+                        ctx.strokeStyle = Config ? Config.m3Primary.toString() : "#ffffff"
+                        if (r <= 1) {
+                            ctx.rect(x, y, w, h)
+                        } else {
+                            ctx.moveTo(x + r, y)
+                            ctx.lineTo(x + w - r, y)
+                            ctx.arcTo(x + w, y, x + w, y + r, r)
+                            ctx.lineTo(x + w, y + h - r)
+                            ctx.arcTo(x + w, y + h, x + w - r, y + h, r)
+                            ctx.lineTo(x + r, y + h)
+                            ctx.arcTo(x, y + h, x, y + h - r, r)
+                            ctx.lineTo(x, y + r)
+                            ctx.arcTo(x, y, x + r, y, r)
+                        }
+                        ctx.closePath()
+                        ctx.stroke()
+                        ctx.restore()
+                    }
+                }
 
                 Row {
                     anchors.centerIn: parent
                     spacing: 8
                     Text {
                         text: "󰇚"
-                        color: "#ffffff"
+                        color: Config ? Config.m3Primary : "#ffffff"
                         font.pixelSize: 14
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: "Отпустите файл — панель прожуёт его и откроет меню действий"
+                        text: "Отпустите файл здесь"
                         color: "#ffffff"
                         font.pixelSize: 11
                         font.bold: true
@@ -3146,7 +3174,6 @@ ApplicationWindow {
                 anchors.bottomMargin: -24
                 onEntered: (drag) => {
                     root.barDragActive = true
-                    root.chewWaveActive = true
                     root.barDropX = topBarContainer.x + drag.x
                 }
                 onPositionChanged: (drag) => {
@@ -3170,7 +3197,6 @@ ApplicationWindow {
                         var parts = rawPath.split("/")
                         root.droppedFileName = parts.length > 0 ? parts[parts.length - 1] : rawPath
                         root.barDropX = topBarContainer.x + drop.x
-                        root.chewWaveActive = true
                         barChewAnim.restart()
                         drop.accept()
                     } else {

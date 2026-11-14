@@ -50,6 +50,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString phoneBridgeQrPath READ phoneBridgeQrPath NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QString phoneBridgeStatus READ phoneBridgeStatus NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QVariantList phoneSharedItems READ phoneSharedItems NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(QString phoneWirelessIp READ phoneWirelessIp NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QString hiddenSidebarTabs READ hiddenSidebarTabs WRITE setHiddenSidebarTabs NOTIFY hiddenSidebarTabsChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
 
@@ -194,6 +195,8 @@ public:
     Q_INVOKABLE void quickCloudShare(const QString &target, bool isFile);
     Q_INVOKABLE void clearPhoneItems();
     Q_INVOKABLE void openPhoneDownloadsFolder();
+    QString phoneWirelessIp() const { return m_phoneWirelessIp; }
+    Q_INVOKABLE void startPhoneScreen(const QString &mode, const QString &ip, int fps, bool turnScreenOff);
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);
@@ -384,6 +387,7 @@ private:
     QString m_phoneBridgeQrPath;
     QString m_phoneBridgeStatus = "Готово к обмену с телефоном";
     QVariantList m_phoneSharedItems;
+    QString m_phoneWirelessIp;
     QString m_hiddenSidebarTabs = "";
     QString m_language = "ru";
 

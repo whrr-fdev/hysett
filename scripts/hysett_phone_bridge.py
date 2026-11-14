@@ -4,7 +4,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE_FILE = "/tmp/hysett_phone_bridge_state.json"
 PID_FILE = "/tmp/hysett_phone_bridge.pid"
-QR_FILE = "/tmp/hysett_phone_qr.png"
 DOWNLOAD_DIR = os.path.expanduser("~/Downloads/PhoneTransfer")
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
@@ -21,6 +20,7 @@ def load_state():
         "status": "Мост выключен",
         "token": "",
         "port": 0,
+        "phone_ip": "",
         "items": []
     }
 
@@ -133,6 +133,7 @@ MOBILE_HTML = """<!DOCTYPE html>
 
 <script>
 const TOKEN = "__TOKEN__";
+let lastSig = "";
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -146,7 +147,7 @@ async function sendText() {
   await fetch('/' + TOKEN + '/api/text', { method: 'POST', body: val });
   el.value = '';
   showToast('Отправлено на ПК ✓');
-  loadItems();
+  loadItems(true);
 }
 async function uploadFiles(files) {
   if (!files || !files.length) return;
@@ -160,16 +161,19 @@ async function uploadFiles(files) {
   }
   lbl.textContent = 'Выбрать файлы или фото';
   showToast('Файлы сохранены на ПК ✓');
-  loadItems();
+  loadItems(true);
 }
 function copyTxt(str) {
   navigator.clipboard.writeText(str);
   showToast('Скопировано ✓');
 }
-async function loadItems() {
+async function loadItems(force) {
   try {
     const r = await fetch('/' + TOKEN + '/api/state');
     const d = await r.json();
+    const sig = JSON.stringify(d.items || []);
+    if (!force && sig === lastSig) return;
+    lastSig = sig;
     const box = document.getElementById('itemsBox');
     if (!d.items || !d.items.length) {
       box.innerHTML = '<div style="color:#666;font-size:13px;">Пока пусто</div>';
@@ -186,8 +190,8 @@ async function loadItems() {
     }).join('');
   } catch (e) {}
 }
-loadItems();
-setInterval(loadItems, 2000);
+loadItems(true);
+setInterval(() => loadItems(false), 2000);
 </script>
 </body>
 </html>
@@ -312,11 +316,11 @@ def run_daemon():
     port = sock.getsockname()[1]
     sock.close()
 
-    tok = uuid.uuid4().hex[:10]
+    st = load_state()
+    tok = st.get("token") or uuid.uuid4().hex[:10]
     lan_url = f"http://{get_lan_ip()}:{port}/{tok}"
     qr_init = generate_qr(lan_url)
 
-    st = load_state()
     st["running"] = True
     st["port"] = port
     st["token"] = tok
@@ -340,17 +344,19 @@ def run_daemon():
             break
         try:
             proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            bound_url = ""
             for line in proc.stdout:
-                m = re.search(pattern, line)
-                if m:
-                    full_url = f"{m.group(1)}/{tok}"
-                    qr_p = generate_qr(full_url)
-                    st = load_state()
-                    st["running"] = True
-                    st["url"] = full_url
-                    st["qr_path"] = qr_p
-                    st["status"] = "Мост активен ✓ Отсканируйте QR-код"
-                    save_state(st)
+                if not bound_url:
+                    m = re.search(pattern, line)
+                    if m:
+                        bound_url = f"{m.group(1)}/{tok}"
+                        qr_p = generate_qr(bound_url)
+                        st = load_state()
+                        st["running"] = True
+                        st["url"] = bound_url
+                        st["qr_path"] = qr_p
+                        st["status"] = "Мост активен ✓ Отсканируйте QR-код"
+                        save_state(st)
             proc.wait()
         except Exception:
             pass
@@ -358,16 +364,17 @@ def run_daemon():
     while is_daemon_alive():
         time.sleep(2)
 
+def ensure_started():
+    if not is_daemon_alive():
+        subprocess.Popen([sys.executable, __file__, "_daemon"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        for _ in range(10):
+            time.sleep(0.25)
+            st = load_state()
+            if st.get("running") and st.get("url"):
+                break
+
 def cmd_start():
-    if is_daemon_alive():
-        cmd_status()
-        return
-    subprocess.Popen([sys.executable, __file__, "_daemon"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    for _ in range(12):
-        time.sleep(0.25)
-        st = load_state()
-        if st.get("running") and st.get("url"):
-            break
+    ensure_started()
     cmd_status()
 
 def cmd_stop():
@@ -396,6 +403,7 @@ def cmd_add_text(txt):
     if not txt:
         cmd_status()
         return
+    ensure_started()
     st = load_state()
     items = st.get("items", [])
     items.insert(0, {
@@ -408,7 +416,7 @@ def cmd_add_text(txt):
         "time": time.strftime("%H:%M:%S")
     })
     st["items"] = items[:40]
-    st["status"] = "Текст добавлен в ленту ✓"
+    st["status"] = "Текст отправлен в ленту ✓"
     save_state(st)
     cmd_status()
 
@@ -420,6 +428,7 @@ def cmd_add_file(fp):
         save_state(st)
         cmd_status()
         return
+    ensure_started()
     sz_mb = os.path.getsize(fp) / (1024.0 * 1024.0)
     sz_str = f"{sz_mb:.1f} MB" if sz_mb >= 1.0 else f"{max(1, int(os.path.getsize(fp)/1024))} KB"
     st = load_state()
@@ -434,7 +443,7 @@ def cmd_add_file(fp):
         "time": time.strftime("%H:%M:%S")
     })
     st["items"] = items[:40]
-    st["status"] = f"Файл «{os.path.basename(fp)}» добавлен ✓"
+    st["status"] = f"Файл «{os.path.basename(fp)}» готов к скачиванию ✓"
     save_state(st)
     cmd_status()
 
@@ -490,6 +499,53 @@ def cmd_quick_cloud(target, is_file):
         save_state(st)
     cmd_status()
 
+def cmd_scrcpy(mode, ip_addr, fps, turn_off):
+    st = load_state()
+    if not shutil.which("scrcpy"):
+        subprocess.Popen(["kitty", "--title", "Установка scrcpy", "-e", "bash", "-c", "sudo pacman -S --needed --noconfirm scrcpy android-tools; read -p 'Готово! Нажмите Enter...'"])
+        st["status"] = "Установка пакета scrcpy..."
+        save_state(st)
+        cmd_status()
+        return
+
+    args = ["scrcpy", f"--max-fps={fps}", "--stay-awake"]
+    if turn_off == "1":
+        args.append("--turn-screen-off")
+
+    if mode == "tcpip_init":
+        subprocess.run(["adb", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        detected_ip = ""
+        try:
+            out = subprocess.check_output(["adb", "shell", "ip", "-f", "inet", "addr", "show", "wlan0"], stderr=subprocess.DEVNULL).decode()
+            m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
+            if m:
+                detected_ip = m.group(1)
+        except Exception:
+            pass
+        if detected_ip:
+            st["phone_ip"] = detected_ip
+            st["status"] = f"Беспроводной режим ADB включён ({detected_ip}:5555) ✓"
+        else:
+            st["status"] = "Порт 5555 открыт на телефоне ✓ Введите IP телефона"
+        save_state(st)
+        cmd_status()
+        return
+
+    if mode == "wireless" and ip_addr.strip():
+        target = ip_addr.strip()
+        if ":" not in target:
+            target += ":5555"
+        st["phone_ip"] = ip_addr.strip()
+        subprocess.run(["adb", "connect", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+        args.append(f"--tcpip={target}")
+        st["status"] = f"Запуск экрана телефона ({target})..."
+    else:
+        st["status"] = "Запуск экрана телефона по USB..."
+
+    save_state(st)
+    subprocess.Popen(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    cmd_status()
+
 def cmd_status():
     st = load_state()
     alive = is_daemon_alive()
@@ -512,6 +568,12 @@ if __name__ == "__main__":
         cmd_add_file(sys.argv[2] if len(sys.argv) > 2 else "")
     elif c == "quick_cloud":
         cmd_quick_cloud(sys.argv[2] if len(sys.argv) > 2 else "", (sys.argv[3] == "1") if len(sys.argv) > 3 else False)
+    elif c == "scrcpy":
+        mode = sys.argv[2] if len(sys.argv) > 2 else "usb"
+        ip_a = sys.argv[3] if len(sys.argv) > 3 else ""
+        fps_v = sys.argv[4] if len(sys.argv) > 4 else "60"
+        toff = sys.argv[5] if len(sys.argv) > 5 else "0"
+        cmd_scrcpy(mode, ip_a, fps_v, toff)
     elif c == "clear":
         st = load_state()
         st["items"] = []

@@ -1400,3 +1400,21 @@ void AppConfig::openPhoneDownloadsFolder() {
     QDir().mkpath(dir);
     QProcess::startDetached("xdg-open", {dir});
 }
+
+void AppConfig::startPhoneScreen(const QString &mode, const QString &ip, int fps, bool turnScreenOff) {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QByteArray raw = p->readAllStandardOutput();
+        QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
+        if (!o.isEmpty() && o.contains("phone_ip") && !o["phone_ip"].toString().isEmpty()) {
+            m_phoneWirelessIp = o["phone_ip"].toString();
+        }
+        applyPhoneJson(raw, m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+    });
+    p->start("/usr/bin/python3", {
+        QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py",
+        "scrcpy", mode, ip.trimmed(), QString::number(fps), turnScreenOff ? "1" : "0"
+    });
+}

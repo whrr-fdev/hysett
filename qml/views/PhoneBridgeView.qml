@@ -8,6 +8,8 @@ Item {
     id: phoneRoot
     readonly property bool isM3: Theme && Theme.isRounded
     property bool hideUrl: false
+    property int screenFps: 60
+    property bool turnPhoneScreenOff: false
 
     Component.onCompleted: {
         if (Config) Config.refreshPhoneBridgeState()
@@ -56,7 +58,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 10
                     Text {
-                        text: "󰄜  Обмен с телефоном"
+                        text: "󰄜  Телефон и управление"
                         color: "#ffffff"
                         font.pixelSize: Config ? Config.fontSize + 3 : 14
                         font.bold: true
@@ -79,7 +81,92 @@ Item {
                     }
                 }
 
-                // 1. КАРТОЧКА ИНТЕРНЕТ-МОСТА И QR-КОДА
+                // 1. КАРТОЧКА ПРОСМОТРА И УПРАВЛЕНИЯ ЭКРАНОМ ТЕЛЕФОНА (SCRCPY)
+                GlassPanel {
+                    Layout.fillWidth: true
+                    implicitHeight: scrCol.implicitHeight + 28
+
+                    ColumnLayout {
+                        id: scrCol
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+                            Text {
+                                text: "󰄙  Экран телефона и управление с ПК"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            SegmentedButton {
+                                Layout.preferredWidth: 150
+                                options: ["60 FPS", "120 FPS"]
+                                selectedIndex: phoneRoot.screenFps === 120 ? 1 : 0
+                                onSelected: (idx) => phoneRoot.screenFps = (idx === 1 ? 120 : 60)
+                            }
+                            StyledButton {
+                                text: "󰄙  Открыть по USB"
+                                isActive: true
+                                onClicked: if (Config) Config.startPhoneScreen("usb", "", phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            TextField {
+                                id: phoneIpField
+                                Layout.fillWidth: true
+                                implicitHeight: 28
+                                leftPadding: 10; rightPadding: 10
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize : 11
+                                text: Config && Config.phoneWirelessIp.length > 0 ? Config.phoneWirelessIp : ""
+                                placeholderText: "IP телефона (например 192.168.1.45)..."
+                                placeholderTextColor: "#777777"
+                                background: Rectangle {
+                                    radius: phoneRoot.isM3 ? 8 : 0
+                                    color: phoneRoot.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.06)
+                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: phoneRoot.isM3 ? 0 : 1
+                                }
+                            }
+
+                            StyledButton {
+                                text: "󰖩 Активировать по USB"
+                                onClicked: if (Config) Config.startPhoneScreen("tcpip_init", "", phoneRoot.screenFps, false)
+                            }
+
+                            StyledButton {
+                                text: "󰄙 Открыть по воздуху"
+                                isActive: true
+                                enabled: phoneIpField.text.trim().length > 0
+                                onClicked: if (Config) Config.startPhoneScreen("wireless", phoneIpField.text.trim(), phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "Гасить экран физического телефона во время управления с ПК:"
+                                color: "#cccccc"
+                                font.pixelSize: Config ? Config.fontSize : 11
+                                Layout.fillWidth: true
+                            }
+                            StyledSwitch {
+                                checked: phoneRoot.turnPhoneScreenOff
+                                onToggled: phoneRoot.turnPhoneScreenOff = checked
+                            }
+                        }
+                    }
+                }
+
+                // 2. КАРТОЧКА ИНТЕРНЕТ-МОСТА И QR-КОДА
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: bridgeRow.implicitHeight + 28
@@ -192,7 +279,7 @@ Item {
                     }
                 }
 
-                // 2. КАРТОЧКА ОТПРАВКИ ТЕКСТА И ФАЙЛОВ
+                // 3. КАРТОЧКА ОТПРАВКИ ТЕКСТА И ФАЙЛОВ
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: sendCol.implicitHeight + 28
@@ -305,7 +392,7 @@ Item {
                     }
                 }
 
-                // 3. ЛЕНТА ОБМЕНА
+                // 4. ЛЕНТА ОБМЕНА
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: feedCol.implicitHeight + 28

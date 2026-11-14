@@ -356,6 +356,7 @@ Item {
                             { title: "󰏘  Шейдеры", desc: "Эффекты экрана и CRT", idx: 13, kw: "шейдеры эффекты экрана ретро чб фильтр shaders screen effects crt grayscale" },
                             { title: "󰸉  Обои", desc: "Галерея, пресеты и демон", idx: 14, kw: "обои фон видео живые пресеты автосмена галерея wallpapers background live video presets awww mpvpaper" },
                             { title: "󰕰  Виджеты", desc: "Часы, оверлей клавиш, сводка", idx: 15, kw: "виджеты часы оверлей клавиш информеры монитор процессов btop fastfetch peaclock widgets clock keyboard overlay" },
+                            { title: "󰄜  Телефон", desc: "Файлы и текст по QR без локальной сети", idx: 30, kw: "телефон файлы текст передача обмен qr мост облако phone transfer share bridge" },
                             { title: "󰁯  Бэкап", desc: "Архивы системы и пакеты", idx: 29, kw: "бэкап архив восстановление пакеты pacman aur backup restore packages" },
                             { title: "󰒓  Настройки", desc: "Тема MD3, шрифт, стекло", idx: 17, kw: "настройки шрифт масштаб жидкое стекло подсветка границ вспышка курсор язык цвет акцент палитра высота окна боковое меню settings font scale liquid glass border glow flash language color accent palette md3" }
                         ]

@@ -1302,3 +1302,101 @@ void AppConfig::installUpdate() {
     });
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "install_update"});
 }
+
+static void applyPhoneJson(const QByteArray &raw, bool &run, QString &url, QString &qr, QString &st, QVariantList &items) {
+    QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
+    if (o.isEmpty()) return;
+    run = o["running"].toBool(run);
+    url = o["url"].toString(url);
+    qr = o["qr_path"].toString(qr);
+    st = o["status"].toString(st);
+    items = o["items"].toArray().toVariantList();
+}
+
+void AppConfig::refreshPhoneBridgeState() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py", "status"});
+}
+
+void AppConfig::togglePhoneBridge() {
+    QString cmd = m_phoneBridgeRunning ? "stop" : "start";
+    if (!m_phoneBridgeRunning) {
+        m_phoneBridgeStatus = "Запуск интернет-моста и генерация QR-кода...";
+        emit phoneBridgeChanged();
+    }
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+        QTimer::singleShot(2200, this, &AppConfig::refreshPhoneBridgeState);
+        QTimer::singleShot(4500, this, &AppConfig::refreshPhoneBridgeState);
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py", cmd});
+}
+
+void AppConfig::sendTextToPhone(const QString &text) {
+    if (text.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py", "add_text", text.trimmed()});
+}
+
+void AppConfig::sendClipboardToPhone() {
+    QProcess *cp = new QProcess(this);
+    connect(cp, &QProcess::finished, this, [this, cp]() {
+        QString clip = QString::fromUtf8(cp->readAllStandardOutput()).trimmed();
+        cp->deleteLater();
+        if (!clip.isEmpty()) sendTextToPhone(clip);
+    });
+    cp->start("wl-paste", {"--no-newline"});
+}
+
+void AppConfig::shareFileToPhone(const QString &filePath) {
+    if (filePath.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py", "add_file", filePath.trimmed()});
+}
+
+void AppConfig::quickCloudShare(const QString &target, bool isFile) {
+    if (target.trimmed().isEmpty()) return;
+    m_phoneBridgeStatus = "Выгрузка в облако и генерация QR-кода...";
+    emit phoneBridgeChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py", "quick_cloud", target.trimmed(), isFile ? "1" : "0"});
+}
+
+void AppConfig::clearPhoneItems() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        p->deleteLater();
+        emit phoneBridgeChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py", "clear"});
+}
+
+void AppConfig::openPhoneDownloadsFolder() {
+    QString dir = QDir::homePath() + "/Downloads/PhoneTransfer";
+    QDir().mkpath(dir);
+    QProcess::startDetached("xdg-open", {dir});
+}

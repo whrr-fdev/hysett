@@ -127,6 +127,7 @@ qt_add_qml_module(hysett
         qml/views/MusicView.qml
         qml/views/TimerView.qml
         qml/views/BackupView.qml
+        qml/views/PhoneBridgeView.qml
 )
 
 target_link_libraries(hysett PRIVATE

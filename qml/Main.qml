@@ -4270,7 +4270,8 @@ ApplicationWindow {
                             "views/VpnView.qml",
                             "views/MusicView.qml",
                             "views/TimerView.qml",
-                            "views/BackupView.qml"
+                            "views/BackupView.qml",
+                            "views/PhoneBridgeView.qml"
                         ]
 
                         Loader {

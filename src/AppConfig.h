@@ -45,6 +45,11 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString localVersionInfo READ localVersionInfo NOTIFY updateStateChanged)
     Q_PROPERTY(QString remoteVersionInfo READ remoteVersionInfo NOTIFY updateStateChanged)
     Q_PROPERTY(QString updateChangelog READ updateChangelog NOTIFY updateStateChanged)
+    Q_PROPERTY(bool phoneBridgeRunning READ phoneBridgeRunning NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(QString phoneBridgeUrl READ phoneBridgeUrl NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(QString phoneBridgeQrPath READ phoneBridgeQrPath NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(QString phoneBridgeStatus READ phoneBridgeStatus NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(QVariantList phoneSharedItems READ phoneSharedItems NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QString hiddenSidebarTabs READ hiddenSidebarTabs WRITE setHiddenSidebarTabs NOTIFY hiddenSidebarTabsChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
 
@@ -176,6 +181,19 @@ public:
     Q_INVOKABLE void openBackupsFolder();
     Q_INVOKABLE void checkUpdates();
     Q_INVOKABLE void installUpdate();
+    bool phoneBridgeRunning() const { return m_phoneBridgeRunning; }
+    QString phoneBridgeUrl() const { return m_phoneBridgeUrl; }
+    QString phoneBridgeQrPath() const { return m_phoneBridgeQrPath; }
+    QString phoneBridgeStatus() const { return m_phoneBridgeStatus; }
+    QVariantList phoneSharedItems() const { return m_phoneSharedItems; }
+    Q_INVOKABLE void togglePhoneBridge();
+    Q_INVOKABLE void refreshPhoneBridgeState();
+    Q_INVOKABLE void sendTextToPhone(const QString &text);
+    Q_INVOKABLE void sendClipboardToPhone();
+    Q_INVOKABLE void shareFileToPhone(const QString &filePath);
+    Q_INVOKABLE void quickCloudShare(const QString &target, bool isFile);
+    Q_INVOKABLE void clearPhoneItems();
+    Q_INVOKABLE void openPhoneDownloadsFolder();
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);
@@ -300,6 +318,7 @@ signals:
     void backupStateChanged();
     void sysProgressChanged();
     void updateStateChanged();
+    void phoneBridgeChanged();
     void hiddenSidebarTabsChanged();
     void languageChanged();
     void borderGlowEnabledChanged();
@@ -360,6 +379,11 @@ private:
     QString m_remoteVersionInfo = "main";
     QString m_updateChangelog = "Нажмите «Проверить обновления» для запроса к GitHub.";
     QTimer *m_sysProgTimer = nullptr;
+    bool m_phoneBridgeRunning = false;
+    QString m_phoneBridgeUrl;
+    QString m_phoneBridgeQrPath;
+    QString m_phoneBridgeStatus = "Готово к обмену с телефоном";
+    QVariantList m_phoneSharedItems;
     QString m_hiddenSidebarTabs = "";
     QString m_language = "ru";
 

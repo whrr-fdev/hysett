@@ -173,7 +173,79 @@ ApplicationWindow {
     property string trayMenuSni: ""
     property real trayMenuTargetX: 1400
     property real popupTargetX: 1550
-    readonly property bool isCompactPopup: drawerMode === "traymenu" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
+    property bool barDragActive: false
+    property bool chewWaveActive: false
+    property real barChewExtraH: barDragActive ? 14.0 : 0.0
+    Behavior on barChewExtraH { enabled: !barChewAnim.running; NumberAnimation { duration: 190; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+    property real barChewWidthScale: 1.0
+    property real barDropX: 960
+    property real swallowIconScale: 0.0
+    property real swallowIconY: 0.0
+    property string droppedFilePath: ""
+    property string droppedFileName: ""
+    property int fileDropSelectedIndex: 0
+
+    onBarDragActiveChanged: syncInputMask()
+
+    SequentialAnimation {
+        id: barChewAnim
+        ParallelAnimation {
+            NumberAnimation { target: root; property: "swallowIconScale"; from: 1.25; to: 0.0; duration: 240; easing.type: Easing.InBack }
+            NumberAnimation { target: root; property: "swallowIconY"; from: 26.0; to: 4.0; duration: 240; easing.type: Easing.InCubic }
+            SequentialAnimation {
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 22.0; duration: 75; easing.type: Easing.OutQuad }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 3.0; duration: 85; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 17.0; duration: 80; easing.type: Easing.OutQuad }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 4.0; duration: 80; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 13.0; duration: 75; easing.type: Easing.OutQuad }
+                NumberAnimation { target: root; property: "barChewExtraH"; to: 0.0; duration: 110; easing.type: Easing.OutCubic }
+            }
+            SequentialAnimation {
+                NumberAnimation { target: root; property: "barChewWidthScale"; to: 1.018; duration: 75; easing.type: Easing.OutQuad }
+                NumberAnimation { target: root; property: "barChewWidthScale"; to: 0.991; duration: 85; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: root; property: "barChewWidthScale"; to: 1.012; duration: 80; easing.type: Easing.OutQuad }
+                NumberAnimation { target: root; property: "barChewWidthScale"; to: 0.995; duration: 80; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: root; property: "barChewWidthScale"; to: 1.0; duration: 150; easing.type: Easing.OutElastic }
+            }
+        }
+        ScriptAction {
+            script: {
+                root.chewWaveActive = false
+                root.barDragActive = false
+                root.fileDropSelectedIndex = 0
+                root.openDrawerWithMode("filedrop", undefined, root.barDropX)
+            }
+        }
+    }
+
+    function executeDroppedFileAction(actIdx) {
+        var fp = root.droppedFilePath
+        if (!fp || fp.length === 0) {
+            root.drawerOpen = false
+            return
+        }
+        if (actIdx === 0) {
+            if (Config) {
+                Config.shareFileToPhone(fp)
+                if (!Config.phoneBridgeRunning) Config.togglePhoneBridge()
+            }
+            root.openDrawerWithMode("settings", 30)
+        } else if (actIdx === 1) {
+            if (Config) Config.quickCloudShare(fp, true)
+            root.openDrawerWithMode("settings", 30)
+        } else if (actIdx === 2) {
+            root.drawerOpen = false
+            if (Wallpapers) Wallpapers.applyWallpaper(fp)
+        } else if (actIdx === 3) {
+            root.drawerOpen = false
+            if (Waybar) Waybar.runCommand("printf '%s' "" + fp.replace(/"/g, '\"') + "" | wl-copy")
+        } else if (actIdx === 4) {
+            root.drawerOpen = false
+            if (Waybar) Waybar.runCommand("xdg-open "" + fp.replace(/"/g, '\"') + """)
+        }
+    }
+
+    readonly property bool isCompactPopup: drawerMode === "traymenu" || drawerMode === "filedrop" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
 
     property real barExpandProgress: 0.0
     property real drawerProgress: 0.0
@@ -358,14 +430,14 @@ ApplicationWindow {
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real baseBarW: smoothBaseBarW
     readonly property real expandedBarW: isCompactPopup ? baseBarW : Math.max(baseBarW, effDrawerW)
-    readonly property real barW: isVertBar ? Math.max(38, barH + 6) : (baseBarW + (expandedBarW - baseBarW) * barExpandProgress)
+    readonly property real barW: isVertBar ? Math.max(38, barH + 6 + root.barChewExtraH) : ((baseBarW + (expandedBarW - baseBarW) * barExpandProgress) * root.barChewWidthScale)
 
     readonly property real maxAvailVertH: Math.max(400, root.height - 16)
     readonly property real vertIslandH: Math.min(maxAvailVertH, vertTopCol.implicitHeight + (winPillTargetW > 0 ? (winPillTargetW + 16) : 0) + vertBottomCol.implicitHeight + 28)
     property real smoothVertBarH: isCenteredBar ? vertIslandH : maxAvailVertH
     Behavior on smoothVertBarH { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real expandedVertH: isCompactPopup ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
-    readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * barExpandProgress) : barH
+    readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * barExpandProgress) : (barH + root.barChewExtraH)
 
     readonly property real barLeft: {
         if (barPos === 2) return barTop
@@ -380,6 +452,7 @@ ApplicationWindow {
     readonly property int targetDrawerW: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 230
+        if (drawerMode === "filedrop") return isM3 ? 336 : 316
         if (drawerMode === "power") return isM3 ? 280 : 260
         if (drawerMode === "calendar") return isM3 ? 310 : 295
         if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 360 : 340
@@ -389,6 +462,7 @@ ApplicationWindow {
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
+        if (drawerMode === "filedrop") return isM3 ? 272 : 254
         if (drawerMode === "power") return isM3 ? 305 : 285
         if (drawerMode === "calendar") return isM3 ? 298 : 280
         if (drawerMode === "volume") {
@@ -623,9 +697,9 @@ ApplicationWindow {
     property real mediaPillCenterX: 320.0
     property real mediaPillHalfW: 95.0
     readonly property int waveMode: Waybar ? Waybar.mediaWaveMode : 0
-    readonly property bool anyMusicWaveOn: !root.isVertBar && root.barPos === 0 && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves
-    readonly property bool barShaderWaveRun: anyMusicWaveOn && (waveMode === 0 || waveMode === 2)
-    readonly property real targetBarWaveAmp: !barShaderWaveRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 38.0) : (Waybar ? Waybar.mediaWaveSize : 11.0))
+    readonly property bool anyMusicWaveOn: (!root.isVertBar && root.barPos === 0 && Waybar && Waybar.mediaActive && Waybar.mediaPlaying && Waybar.mediaWaves) || root.chewWaveActive
+    readonly property bool barShaderWaveRun: (anyMusicWaveOn && (waveMode === 0 || waveMode === 2)) || root.chewWaveActive
+    readonly property real targetBarWaveAmp: root.chewWaveActive ? 15.0 : (!barShaderWaveRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 38.0) : (Waybar ? Waybar.mediaWaveSize : 11.0)))
     property real musicWaveAmp: targetBarWaveAmp
     Behavior on musicWaveAmp { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
@@ -634,9 +708,9 @@ ApplicationWindow {
     property real drawerWaveAmp: !drawerWaveShouldRun ? 0.0 : (waveMode === 2 ? (Waybar ? Waybar.arcWaveSize : 38.0) : (Waybar ? Waybar.mediaWaveSize : 11.0))
     Behavior on drawerWaveAmp { NumberAnimation { duration: 320; easing.type: Easing.OutQuint } }
 
-    property real smoothBass: Waybar ? Waybar.audioBass : 0.0
-    property real smoothMid: Waybar ? Waybar.audioMid : 0.0
-    property real smoothTreb: Waybar ? Waybar.audioTreble : 0.0
+    property real smoothBass: root.chewWaveActive ? 1.15 : (Waybar ? Waybar.audioBass : 0.0)
+    property real smoothMid: root.chewWaveActive ? 1.05 : (Waybar ? Waybar.audioMid : 0.0)
+    property real smoothTreb: root.chewWaveActive ? 0.95 : (Waybar ? Waybar.audioTreble : 0.0)
     Behavior on smoothBass { NumberAnimation { duration: 65; easing.type: Easing.Linear } }
     Behavior on smoothMid  { NumberAnimation { duration: 65; easing.type: Easing.Linear } }
     Behavior on smoothTreb { NumberAnimation { duration: 65; easing.type: Easing.Linear } }
@@ -854,8 +928,8 @@ ApplicationWindow {
             readonly property real modeParamCountOrPack: (root.waveMode === 2)
                                                          ? ((Waybar ? Waybar.arcWaveWidth : 2) * 100.0 + (Waybar ? Waybar.arcWaveGap : 1))
                                                          : (Waybar ? Waybar.mediaWaveCount : 95)
-            property vector4d u_music_wave: Qt.vector4d(root.waveMode, modeParamY, root.musicWaveAmp, root.musicWavePhase)
-            property vector4d u_music_wave2: Qt.vector4d(modeParamCountOrPack, Waybar ? Waybar.audioBass : 0.0, Waybar ? Waybar.audioMid : 0.0, Waybar ? Waybar.audioTreble : 0.0)
+            property vector4d u_music_wave: Qt.vector4d(root.chewWaveActive ? 0 : root.waveMode, root.chewWaveActive ? 0.88 : modeParamY, root.musicWaveAmp, root.musicWavePhase)
+            property vector4d u_music_wave2: Qt.vector4d(root.chewWaveActive ? 115 : modeParamCountOrPack, root.smoothBass, root.smoothMid, root.smoothTreb)
             property real u_drawer_wave_amp: root.drawerWaveAmp
             fragmentShader: "qrc:/shaders/qml/shaders/merged_shell.frag.qsb"
         }
@@ -3015,6 +3089,96 @@ ApplicationWindow {
                 }
             }
 
+            // Подсветка и подсказка при перетаскивании файла на панель задач
+            Rectangle {
+                z: 890
+                visible: opacity > 0.01
+                opacity: (root.barDragActive && !barChewAnim.running) ? 1.0 : 0.0
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                anchors.fill: parent
+                radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13) : 0
+                color: Qt.rgba(Config ? Config.m3Primary.r : 0.6, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 1.0, 0.22)
+                border.width: 1.5
+                border.color: Config ? Config.m3Primary : "#ffffff"
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 8
+                    Text {
+                        text: "󰇚"
+                        color: "#ffffff"
+                        font.pixelSize: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: "Отпустите файл — панель прожуёт его и откроет меню действий"
+                        color: "#ffffff"
+                        font.pixelSize: 11
+                        font.bold: true
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
+
+            // Иконка заглатываемого файла во время жевания
+            Rectangle {
+                z: 895
+                visible: root.swallowIconScale > 0.02
+                x: Math.max(12, Math.min(topBarContainer.width - 44, (root.barDropX - topBarContainer.x) - 18))
+                y: root.swallowIconY
+                width: 36; height: 36; radius: 18
+                scale: root.swallowIconScale
+                color: Config ? Config.m3Primary : "#ffffff"
+                Text {
+                    anchors.centerIn: parent
+                    text: "󰈔"
+                    font.pixelSize: 18
+                    color: Config ? Config.accentTextColor : "#000000"
+                }
+            }
+
+            // Зона приёма перетаскиваемых файлов (DropArea не блокирует обычные клики мыши!)
+            DropArea {
+                id: barFileDropArea
+                z: 900
+                anchors.fill: parent
+                anchors.bottomMargin: -24
+                onEntered: (drag) => {
+                    root.barDragActive = true
+                    root.chewWaveActive = true
+                    root.barDropX = topBarContainer.x + drag.x
+                }
+                onPositionChanged: (drag) => {
+                    root.barDropX = topBarContainer.x + drag.x
+                }
+                onExited: {
+                    if (!barChewAnim.running) {
+                        root.barDragActive = false
+                        root.chewWaveActive = false
+                    }
+                }
+                onDropped: (drop) => {
+                    var rawPath = ""
+                    if (drop.hasUrls && drop.urls.length > 0) {
+                        rawPath = decodeURIComponent(String(drop.urls[0]).replace(/^file:\/\//, ""))
+                    } else if (drop.hasText && drop.text.trim().length > 0) {
+                        rawPath = drop.text.trim().split("\n")[0].replace(/^file:\/\//, "").trim()
+                    }
+                    if (rawPath.length > 0) {
+                        root.droppedFilePath = rawPath
+                        var parts = rawPath.split("/")
+                        root.droppedFileName = parts.length > 0 ? parts[parts.length - 1] : rawPath
+                        root.barDropX = topBarContainer.x + drop.x
+                        root.chewWaveActive = true
+                        barChewAnim.restart()
+                        drop.accept()
+                    } else {
+                        root.barDragActive = false
+                        root.chewWaveActive = false
+                    }
+                }
+            }
+
         }
 
         // ПРАВЫЙ СТЕК УВЕДОМЛЕНИЙ (ПОВЕРХ ОКНА НАСТРОЕК С СОБСТВЕННОЙ ПОДЛОЖКОЙ ПРИ ОТКРЫТОМ ОКНЕ)
@@ -3183,6 +3347,121 @@ ApplicationWindow {
                             Qt.callLater(() => pageController.switchPage(0))
                         }
                         mouse.accepted = false
+                    }
+                }
+
+                // 0a. МЕНЮ ДЕЙСТВИЙ СО СЪЕДЕННЫМ ПАНЕЛЬЮ ФАЙЛОМ (FILEDROP)
+                Item {
+                    id: fileDropMenuBox
+                    anchors.fill: parent
+                    visible: root.drawerMode === "filedrop"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Rectangle {
+                                width: 28; height: 28
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "󰈔"
+                                    font.pixelSize: 15
+                                    color: Config ? Config.accentTextColor : "#000000"
+                                }
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 1
+                                Text {
+                                    text: root.droppedFileName.length > 0 ? root.droppedFileName : "Файл получен"
+                                    color: "#ffffff"
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    elide: Text.ElideRight
+                                    Layout.fillWidth: true
+                                }
+                                Text {
+                                    text: root.droppedFilePath
+                                    color: "#888888"
+                                    font.pixelSize: 9
+                                    elide: Text.ElideMiddle
+                                    Layout.fillWidth: true
+                                }
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 1
+                            color: Qt.rgba(1, 1, 1, 0.10)
+                        }
+
+                        Item {
+                            id: fdItemsArea
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            readonly property int itemCount: 5
+                            readonly property real gap: 5
+                            readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
+
+                            Rectangle {
+                                x: 0
+                                y: root.fileDropSelectedIndex * (fdItemsArea.btnH + fdItemsArea.gap)
+                                width: fdItemsArea.width
+                                height: fdItemsArea.btnH
+                                radius: (Theme && Theme.isRounded) ? 9 : 0
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                            }
+
+                            Repeater {
+                                model: [
+                                    { label: "󰄜   Отправить на телефон (Интернет-мост)", idx: 0 },
+                                    { label: "󰅧   Быстрая ссылка + QR в облако", idx: 1 },
+                                    { label: "󰸉   Установить как обои рабочего стола", idx: 2 },
+                                    { label: "󰆏   Скопировать путь в буфер обмена", idx: 3 },
+                                    { label: "󰉋   Открыть файл в системе", idx: 4 }
+                                ]
+                                delegate: Rectangle {
+                                    x: 0
+                                    y: index * (fdItemsArea.btnH + fdItemsArea.gap)
+                                    width: fdItemsArea.width
+                                    height: fdItemsArea.btnH
+                                    readonly property bool isSel: root.fileDropSelectedIndex === modelData.idx
+                                    radius: (Theme && Theme.isRounded) ? 9 : 0
+                                    color: "transparent"
+                                    border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
+                                    border.width: 1
+
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: 12
+                                        text: modelData.label
+                                        font.pixelSize: 11
+                                        font.bold: parent.isSel
+                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                        Behavior on color { ColorAnimation { duration: 110 } }
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onEntered: root.fileDropSelectedIndex = modelData.idx
+                                        onPositionChanged: root.fileDropSelectedIndex = modelData.idx
+                                        onClicked: root.executeDroppedFileAction(modelData.idx)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

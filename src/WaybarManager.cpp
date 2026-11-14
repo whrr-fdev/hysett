@@ -2298,7 +2298,8 @@ void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool not
     static QRegion s_lastReg;
     static int s_lastDrawerState = -1;
 
-    int bh = barHeight() + marginTop() + 6;
+    bool dragAct = win->property("barDragActive").toBool();
+    int bh = barHeight() + marginTop() + (dragAct ? 38 : 6);
     QRegion reg;
     if (m_barPosition == 0) reg = QRegion(0, 0, win->width(), bh);
     else if (m_barPosition == 1) reg = QRegion(0, win->height() - bh, win->width(), bh);

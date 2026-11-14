@@ -494,6 +494,9 @@ void AppConfig::load() {
             else if (key == "wallpapers_dir" && !val.isEmpty()) m_wallpapersDir = val;
             else if (key == "music_dir" && !val.isEmpty()) m_musicDir = val;
             else if (key == "backups_dir" && !val.isEmpty()) m_backupsDir = val;
+            else if (key == "phone_wireless_ip" && !val.isEmpty()) m_phoneWirelessIp = val;
+            else if (key == "phone_mouse_mode") m_phoneMouseMode = std::clamp(val.toInt(), 0, 2);
+            else if (key == "phone_turn_screen_off") m_phoneTurnScreenOff = (val == "1" || val == "true");
             else if (key == "hidden_sidebar_tabs") m_hiddenSidebarTabs = val;
             else if (key == "language") m_language = (val == "en" ? "en" : "ru");
             else if (key == "border_glow_enabled") m_borderGlowEnabled = (val == "1" || val == "true");
@@ -574,6 +577,9 @@ void AppConfig::save() {
             extra["wallpapers_dir"] = m_wallpapersDir;
             extra["music_dir"] = m_musicDir;
             extra["backups_dir"] = m_backupsDir;
+            extra["phone_wireless_ip"] = m_phoneWirelessIp;
+            extra["phone_mouse_mode"] = QString::number(m_phoneMouseMode);
+            extra["phone_turn_screen_off"] = m_phoneTurnScreenOff ? "1" : "0";
             extra["hidden_sidebar_tabs"] = m_hiddenSidebarTabs;
             extra["language"] = m_language;
             extra["border_glow_enabled"] = m_borderGlowEnabled ? "1" : "0";
@@ -1303,20 +1309,55 @@ void AppConfig::installUpdate() {
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "install_update"});
 }
 
-static void applyPhoneJson(const QByteArray &raw, bool &run, QString &url, QString &qr, QString &st, QVariantList &items) {
+static void applyPhoneJson(const QByteArray &raw, bool &run, bool &scrRun, QString &url, QString &qr, QString &st, QVariantList &items, QString &ip) {
     QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
     if (o.isEmpty()) return;
     run = o["running"].toBool(run);
+    scrRun = o["scrcpy_running"].toBool(scrRun);
     url = o["url"].toString(url);
     qr = o["qr_path"].toString(qr);
     st = o["status"].toString(st);
     items = o["items"].toArray().toVariantList();
+    if (o.contains("phone_ip") && !o["phone_ip"].toString().isEmpty()) {
+        ip = o["phone_ip"].toString();
+    }
+}
+
+void AppConfig::setPhoneWirelessIp(const QString &v) {
+    if (m_phoneWirelessIp != v.trimmed()) {
+        m_phoneWirelessIp = v.trimmed();
+        emit phoneBridgeChanged();
+        save();
+    }
+}
+
+void AppConfig::setPhoneMouseMode(int v) {
+    v = std::clamp(v, 0, 2);
+    if (m_phoneMouseMode != v) {
+        m_phoneMouseMode = v;
+        emit phoneBridgeChanged();
+        save();
+        if (m_phoneScreenRunning) {
+            startPhoneScreen("usb", m_phoneWirelessIp, 120, m_phoneTurnScreenOff);
+        }
+    }
+}
+
+void AppConfig::setPhoneTurnScreenOff(bool v) {
+    if (m_phoneTurnScreenOff != v) {
+        m_phoneTurnScreenOff = v;
+        emit phoneBridgeChanged();
+        save();
+        if (m_phoneScreenRunning) {
+            startPhoneScreen("usb", m_phoneWirelessIp, 120, m_phoneTurnScreenOff);
+        }
+    }
 }
 
 void AppConfig::refreshPhoneBridgeState() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
         emit phoneBridgeChanged();
     });
@@ -1331,7 +1372,7 @@ void AppConfig::togglePhoneBridge() {
     }
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
         emit phoneBridgeChanged();
         QTimer::singleShot(2200, this, &AppConfig::refreshPhoneBridgeState);
@@ -1344,7 +1385,7 @@ void AppConfig::sendTextToPhone(const QString &text) {
     if (text.trimmed().isEmpty()) return;
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
         emit phoneBridgeChanged();
     });
@@ -1365,7 +1406,7 @@ void AppConfig::shareFileToPhone(const QString &filePath) {
     if (filePath.trimmed().isEmpty()) return;
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
         emit phoneBridgeChanged();
     });
@@ -1378,7 +1419,7 @@ void AppConfig::quickCloudShare(const QString &target, bool isFile) {
     emit phoneBridgeChanged();
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
         emit phoneBridgeChanged();
     });
@@ -1388,7 +1429,7 @@ void AppConfig::quickCloudShare(const QString &target, bool isFile) {
 void AppConfig::clearPhoneItems() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
         emit phoneBridgeChanged();
     });
@@ -1402,19 +1443,28 @@ void AppConfig::openPhoneDownloadsFolder() {
 }
 
 void AppConfig::startPhoneScreen(const QString &mode, const QString &ip, int fps, bool turnScreenOff) {
+    Q_UNUSED(fps);
+    if (!ip.trimmed().isEmpty() && m_phoneWirelessIp != ip.trimmed()) {
+        m_phoneWirelessIp = ip.trimmed();
+        save();
+    }
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        QByteArray raw = p->readAllStandardOutput();
-        QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
-        if (!o.isEmpty() && o.contains("phone_ip") && !o["phone_ip"].toString().isEmpty()) {
-            m_phoneWirelessIp = o["phone_ip"].toString();
-        }
-        applyPhoneJson(raw, m_phoneBridgeRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems);
+        applyPhoneJson(p->readAllStandardOutput(), m_phoneBridgeRunning, m_phoneScreenRunning, m_phoneBridgeUrl, m_phoneBridgeQrPath, m_phoneBridgeStatus, m_phoneSharedItems, m_phoneWirelessIp);
         p->deleteLater();
+        save();
         emit phoneBridgeChanged();
     });
     p->start("/usr/bin/python3", {
         QDir::homePath() + "/hysett/scripts/hysett_phone_bridge.py",
-        "scrcpy", mode, ip.trimmed(), QString::number(fps), turnScreenOff ? "1" : "0"
+        "scrcpy", mode, ip.trimmed(), QString::number(m_phoneMouseMode), turnScreenOff ? "1" : "0"
     });
+}
+
+void AppConfig::stopPhoneScreen() {
+    startPhoneScreen("stop", "", 120, false);
+}
+
+void AppConfig::pressPhonePowerKey() {
+    startPhoneScreen("power_key", "", 120, false);
 }

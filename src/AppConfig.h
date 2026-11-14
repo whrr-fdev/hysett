@@ -50,7 +50,10 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString phoneBridgeQrPath READ phoneBridgeQrPath NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QString phoneBridgeStatus READ phoneBridgeStatus NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QVariantList phoneSharedItems READ phoneSharedItems NOTIFY phoneBridgeChanged)
-    Q_PROPERTY(QString phoneWirelessIp READ phoneWirelessIp NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(QString phoneWirelessIp READ phoneWirelessIp WRITE setPhoneWirelessIp NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(int phoneMouseMode READ phoneMouseMode WRITE setPhoneMouseMode NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(bool phoneTurnScreenOff READ phoneTurnScreenOff WRITE setPhoneTurnScreenOff NOTIFY phoneBridgeChanged)
+    Q_PROPERTY(bool phoneScreenRunning READ phoneScreenRunning NOTIFY phoneBridgeChanged)
     Q_PROPERTY(QString hiddenSidebarTabs READ hiddenSidebarTabs WRITE setHiddenSidebarTabs NOTIFY hiddenSidebarTabsChanged)
     Q_PROPERTY(QString language READ language WRITE setLanguage NOTIFY languageChanged)
 
@@ -196,7 +199,15 @@ public:
     Q_INVOKABLE void clearPhoneItems();
     Q_INVOKABLE void openPhoneDownloadsFolder();
     QString phoneWirelessIp() const { return m_phoneWirelessIp; }
+    void setPhoneWirelessIp(const QString &v);
+    int phoneMouseMode() const { return m_phoneMouseMode; }
+    void setPhoneMouseMode(int v);
+    bool phoneTurnScreenOff() const { return m_phoneTurnScreenOff; }
+    void setPhoneTurnScreenOff(bool v);
+    bool phoneScreenRunning() const { return m_phoneScreenRunning; }
     Q_INVOKABLE void startPhoneScreen(const QString &mode, const QString &ip, int fps, bool turnScreenOff);
+    Q_INVOKABLE void stopPhoneScreen();
+    Q_INVOKABLE void pressPhonePowerKey();
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);

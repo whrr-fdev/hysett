@@ -570,7 +570,10 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
     # Пробуем разблокировать разрешение ввода через ADB (если доступно)
     subprocess.run(["adb", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    args = ["scrcpy", "--max-fps=120", "--max-size=1440", "--video-codec=h265", "--video-bit-rate=20M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake"]
+    mip_so = os.path.expanduser("~/hysett/bin/libscrcpy_mipmap.so")
+    if os.path.exists(mip_so):
+        os.environ["LD_PRELOAD"] = mip_so
+    args = ["scrcpy", "--max-fps=120", "--video-codec=h265", "--video-bit-rate=20M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake"]
     if mouse_mode == "1":
         args.extend(["--mouse=uhid", "--keyboard=uhid"])
     elif mouse_mode == "2":

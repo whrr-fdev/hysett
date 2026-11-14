@@ -19,8 +19,8 @@ Item {
     readonly property bool isSearching: settingsSearchQuery.length > 0
     readonly property int wMode: Config ? Config.welcomeAlignMode : 1
     readonly property bool isM3: Theme && Theme.isRounded
-    readonly property int cardHeight: isM3 ? (isMaximized ? 60 : 56) : (isMaximized ? 48 : 44)
-    readonly property int cardGap: isM3 ? (isMaximized ? 13 : 11) : (isMaximized ? 9 : 7)
+    readonly property int cardHeight: isM3 ? (isMaximized ? 54 : 45) : (isMaximized ? 44 : 38)
+    readonly property int cardGap: isM3 ? (isMaximized ? 11 : 7) : (isMaximized ? 8 : 6)
     property int visibleCardsHeight: 280
     property real gridTopYPos: 170
 
@@ -62,12 +62,12 @@ Item {
             welcomeRoot.visibleCardsHeight = totalRows * cardH + (totalRows - 1) * gap
         }
 
-        var heroTop = welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 46 : 16)
-        var heroH = Math.max(heroLeftBox.implicitHeight, heroRightBox.implicitHeight, 52) + (welcomeRoot.isM3 ? 18 : 14) + (welcomeRoot.isM3 ? 38 : 30)
+        var heroTop = welcomeRoot.isSearching ? 18 : (welcomeRoot.isMaximized ? 38 : 10)
+        var heroH = Math.max(heroLeftBox.implicitHeight, heroRightBox.implicitHeight, 46) + (welcomeRoot.isM3 ? 12 : 10) + (welcomeRoot.isM3 ? 34 : 28)
         var heroBot = heroTop + heroH
         var gTop = welcomeRoot.isSearching
-                   ? (heroBot + 20)
-                   : Math.max(heroBot + 18, Math.round(heroBot + (welcomeRoot.targetViewH - heroBot - welcomeRoot.visibleCardsHeight) * 0.5))
+                   ? (heroBot + 14)
+                   : Math.max(heroBot + 10, Math.round(heroBot + (welcomeRoot.targetViewH - heroBot - welcomeRoot.visibleCardsHeight) * 0.5))
         welcomeRoot.gridTopYPos = gTop
 
         if (welcomeRoot.isSearching) {
@@ -158,7 +158,7 @@ Item {
         Item {
             id: scrollArea
             width: welcomeRoot.width
-            implicitHeight: Math.max(welcomeRoot.height, welcomeRoot.gridTopYPos + welcomeRoot.visibleCardsHeight + 28)
+            implicitHeight: welcomeRoot.isSearching ? Math.max(welcomeRoot.height, welcomeRoot.gridTopYPos + welcomeRoot.visibleCardsHeight + 16) : welcomeRoot.height
             height: implicitHeight
 
             // Неподвижная координатная сцена 1640px по центру экрана (исключает встречное движение родителя и карточек)
@@ -168,7 +168,7 @@ Item {
                 height: parent.height
                 anchors.horizontalCenter: parent.horizontalCenter
 
-                readonly property real heroTopY: welcomeRoot.isSearching ? 24 : (welcomeRoot.isMaximized ? 46 : 16)
+                readonly property real heroTopY: welcomeRoot.isSearching ? 18 : (welcomeRoot.isMaximized ? 38 : 10)
                 readonly property real heroRowH: Math.max(heroLeftBox.implicitHeight, heroRightBox.implicitHeight, 52)
                 readonly property real heroGap: welcomeRoot.isMaximized ? 34 : 21
                 readonly property real leftBoxW: heroLeftBox.implicitWidth
@@ -263,12 +263,12 @@ Item {
                         if (welcomeRoot.wMode === 0) return welcomeRoot.effStartX
                         return welcomeRoot.effStartX + welcomeRoot.effContainerW - targetSearchW
                     }
-                    readonly property real targetSearchY: mainContainer.heroTopY + mainContainer.heroRowH + (welcomeRoot.isM3 ? 18 : 14)
+                    readonly property real targetSearchY: mainContainer.heroTopY + mainContainer.heroRowH + (welcomeRoot.isM3 ? 12 : 10)
 
                     x: targetSearchX
                     y: targetSearchY
                     width: targetSearchW
-                    implicitHeight: welcomeRoot.isM3 ? 38 : 30
+                    implicitHeight: welcomeRoot.isM3 ? 34 : 28
                     height: implicitHeight
                     leftPadding: 16
                     rightPadding: 16
@@ -425,8 +425,8 @@ Item {
 
                                 Rectangle {
                                     visible: welcomeRoot.isM3
-                                    Layout.preferredWidth: 36
-                                    Layout.preferredHeight: 36
+                                    Layout.preferredWidth: 30
+                                    Layout.preferredHeight: 30
                                     radius: Config ? Math.min(14, Config.m3ControlRadius + 2) : 12
                                     color: cardBtn.hovered
                                            ? (Config ? Config.m3Primary : "#a8c7fa")

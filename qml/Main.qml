@@ -224,6 +224,7 @@ ApplicationWindow {
             root.drawerOpen = false
             return
         }
+        var safeSq = fp.replace(/'/g, "'\\''")
         if (actIdx === 0) {
             if (Config) {
                 Config.shareFileToPhone(fp)
@@ -238,10 +239,10 @@ ApplicationWindow {
             if (Wallpapers) Wallpapers.applyWallpaper(fp)
         } else if (actIdx === 3) {
             root.drawerOpen = false
-            if (Waybar) Waybar.runCommand("printf '%s' "" + fp.replace(/"/g, '\"') + "" | wl-copy")
+            if (Waybar) Waybar.runCommand("printf '%s' '" + safeSq + "' | wl-copy")
         } else if (actIdx === 4) {
             root.drawerOpen = false
-            if (Waybar) Waybar.runCommand("xdg-open "" + fp.replace(/"/g, '\"') + """)
+            if (Waybar) Waybar.runCommand("xdg-open '" + safeSq + "'")
         }
     }
 
@@ -3162,7 +3163,7 @@ ApplicationWindow {
                     if (drop.hasUrls && drop.urls.length > 0) {
                         rawPath = decodeURIComponent(String(drop.urls[0]).replace(/^file:\/\//, ""))
                     } else if (drop.hasText && drop.text.trim().length > 0) {
-                        rawPath = drop.text.trim().split("\n")[0].replace(/^file:\/\//, "").trim()
+                        rawPath = drop.text.trim().split(/\r?\n/)[0].replace(/^file:\/\//, "").trim()
                     }
                     if (rawPath.length > 0) {
                         root.droppedFilePath = rawPath

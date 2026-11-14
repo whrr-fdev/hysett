@@ -257,10 +257,17 @@ Item {
                             }
 
                             StyledButton {
-                                text: "󰖟 Опубликовать"
+                                text: "󰖟 Локально"
                                 isActive: true
                                 enabled: pathField.text.trim().length > 0
                                 onClicked: if (Config && pathField.text.trim().length > 0) Config.hostPathForFriend(pathField.text.trim())
+                            }
+
+                            StyledButton {
+                                text: "󰅧 Автономно 24/7"
+                                isActive: true
+                                enabled: pathField.text.trim().length > 0
+                                onClicked: if (Config && pathField.text.trim().length > 0) Config.cloudHostPathForFriend(pathField.text.trim())
                             }
                         }
 
@@ -292,12 +299,23 @@ Item {
                                 }
                                 Item { Layout.fillWidth: true }
                                 StyledButton {
-                                    text: "󰖟 Запустить HTML-сайт"
+                                    text: "󰖟 Локальный сайт"
                                     isActive: true
                                     enabled: htmlCodeArea.text.trim().length > 0
                                     onClicked: {
                                         if (Config && htmlCodeArea.text.trim().length > 0) {
                                             Config.hostHtmlCodeForFriend(htmlCodeArea.text, htmlTitleField.text)
+                                            webRoot.showHtmlEditor = false
+                                        }
+                                    }
+                                }
+                                StyledButton {
+                                    text: "󰅧 Автономный сайт 24/7"
+                                    isActive: true
+                                    enabled: htmlCodeArea.text.trim().length > 0
+                                    onClicked: {
+                                        if (Config && htmlCodeArea.text.trim().length > 0) {
+                                            Config.cloudHostHtmlForFriend(htmlCodeArea.text, htmlTitleField.text)
                                             webRoot.showHtmlEditor = false
                                         }
                                     }
@@ -320,6 +338,127 @@ Item {
                                         color: Qt.rgba(0, 0, 0, 0.28)
                                         border.color: Qt.rgba(1, 1, 1, 0.14)
                                         border.width: 1
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 4. АВТОНОМНЫЕ ССЫЛКИ 24/7 (РАБОТАЮТ ПРИ ВЫКЛЮЧЕННОМ ПК)
+                GlassPanel {
+                    Layout.fillWidth: true
+                    implicitHeight: cloudListCol.implicitHeight + 28
+
+                    ColumnLayout {
+                        id: cloudListCol
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "󰅧  Автономные сайты и файлы 24/7 • Работают при выкл. ПК (" + (Config ? Config.webShareCloudItems.length : 0) + ")"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                        }
+
+                        Text {
+                            visible: !Config || Config.webShareCloudItems.length === 0
+                            text: "Нажмите «󰅧 Автономно 24/7» выше, чтобы выложить сайт или файл, который будет открываться даже когда ваш ПК выключен."
+                            color: "#777777"
+                            wrapMode: Text.Wrap
+                            Layout.fillWidth: true
+                            font.pixelSize: Config ? Config.fontSize : 11
+                        }
+
+                        Repeater {
+                            model: Config ? Config.webShareCloudItems : []
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 48
+                                radius: webRoot.isM3 ? 10 : 0
+                                color: Qt.rgba(1, 1, 1, 0.04)
+                                border.color: Qt.rgba(0.41, 0.94, 0.68, 0.28)
+                                border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 12
+                                    anchors.rightMargin: 10
+                                    spacing: 10
+
+                                    Text {
+                                        text: modelData.kind === "site" ? "󰖟" : "󰅧"
+                                        color: "#69f0ae"
+                                        font.pixelSize: 16
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+                                        RowLayout {
+                                            spacing: 6
+                                            Rectangle {
+                                                width: cBadgeTxt.implicitWidth + 10
+                                                height: 17
+                                                radius: 4
+                                                color: Qt.rgba(0.4, 0.95, 0.68, 0.18)
+                                                Text {
+                                                    id: cBadgeTxt
+                                                    anchors.centerIn: parent
+                                                    text: modelData.kind === "site" ? "24/7 САЙТ" : "24/7 ФАЙЛ"
+                                                    color: "#69f0ae"
+                                                    font.pixelSize: 9
+                                                    font.bold: true
+                                                }
+                                            }
+                                            Text {
+                                                text: modelData.label
+                                                color: "#ffffff"
+                                                font.pixelSize: Config ? Config.fontSize : 11
+                                                font.bold: true
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+                                        Text {
+                                            text: (webRoot.effHide ? "https://••••••••••••••••••••••••" : modelData.url) + "  •  " + modelData.size + "  •  " + modelData.time
+                                            color: "#999999"
+                                            elide: Text.ElideMiddle
+                                            Layout.fillWidth: true
+                                            font.pixelSize: Config ? Config.fontSize - 2 : 9
+                                        }
+                                    }
+
+                                    StyledButton {
+                                        text: "󰐲 QR"
+                                        implicitHeight: 24
+                                        onClicked: if (Config) Config.selectCloudShareQr(modelData.id)
+                                    }
+
+                                    StyledButton {
+                                        text: "󰆏 Ссылка"
+                                        implicitHeight: 24
+                                        onClicked: if (Waybar) Waybar.runCommand("printf '%s' '" + modelData.url + "' | wl-copy")
+                                    }
+
+                                    StyledButton {
+                                        text: "󰖟 Открыть"
+                                        implicitHeight: 24
+                                        onClicked: if (Waybar) Waybar.runCommand("xdg-open '" + modelData.url + "'")
+                                    }
+
+                                    StyledButton {
+                                        text: "󰅖"
+                                        isIconOnly: true
+                                        implicitWidth: 24
+                                        implicitHeight: 24
+                                        onClicked: if (Config) Config.removeCloudShareItem(modelData.id)
                                     }
                                 }
                             }

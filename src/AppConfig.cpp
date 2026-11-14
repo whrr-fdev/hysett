@@ -1482,7 +1482,7 @@ void AppConfig::pressPhonePowerKey() {
 }
 
 
-static void applyWebShareJson(const QByteArray &raw, bool &run, QString &url, QString &qr, QString &st, QString &mode, QString &title, QVariantList &items) {
+static void applyWebShareJson(const QByteArray &raw, bool &run, QString &url, QString &qr, QString &st, QString &mode, QString &title, QVariantList &items, QVariantList &cloudItems) {
     QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
     if (o.isEmpty()) return;
     run = o["running"].toBool(run);
@@ -1492,12 +1492,13 @@ static void applyWebShareJson(const QByteArray &raw, bool &run, QString &url, QS
     mode = o["mode"].toString(mode);
     title = o["active_title"].toString(title);
     items = o["items"].toArray().toVariantList();
+    if (o.contains("cloud_items")) cloudItems = o["cloud_items"].toArray().toVariantList();
 }
 
 void AppConfig::refreshWebShareState() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
     });
@@ -1512,7 +1513,7 @@ void AppConfig::toggleWebShare() {
     }
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
         QTimer::singleShot(2000, this, &AppConfig::refreshWebShareState);
@@ -1527,7 +1528,7 @@ void AppConfig::hostPathForFriend(const QString &path) {
     emit webShareChanged();
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
         QTimer::singleShot(2000, this, &AppConfig::refreshWebShareState);
@@ -1542,7 +1543,7 @@ void AppConfig::hostHtmlCodeForFriend(const QString &htmlCode, const QString &ti
     emit webShareChanged();
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
         QTimer::singleShot(2000, this, &AppConfig::refreshWebShareState);
@@ -1564,7 +1565,7 @@ void AppConfig::pickFileForWebShare(bool pickFolder) {
 void AppConfig::removeWebShareItem(const QString &itemId) {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
     });
@@ -1574,7 +1575,7 @@ void AppConfig::removeWebShareItem(const QString &itemId) {
 void AppConfig::setPrimaryWebShareItem(const QString &itemId) {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
     });
@@ -1584,9 +1585,56 @@ void AppConfig::setPrimaryWebShareItem(const QString &itemId) {
 void AppConfig::clearWebShareItems() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
         p->deleteLater();
         emit webShareChanged();
     });
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "clear"});
+}
+
+
+void AppConfig::cloudHostPathForFriend(const QString &path) {
+    if (path.trimmed().isEmpty()) return;
+    m_webShareStatus = "Выгрузка автономной ссылки 24/7 (работает при выкл. ПК)...";
+    emit webShareChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "cloud_add_path", path.trimmed()});
+}
+
+void AppConfig::cloudHostHtmlForFriend(const QString &htmlCode, const QString &title) {
+    if (htmlCode.trimmed().isEmpty()) return;
+    m_webShareStatus = "Публикация автономного HTML-сайта 24/7...";
+    emit webShareChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "cloud_add_html", title.trimmed().isEmpty() ? "index.html" : title.trimmed(), htmlCode});
+}
+
+void AppConfig::removeCloudShareItem(const QString &itemId) {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "cloud_remove", itemId});
+}
+
+void AppConfig::selectCloudShareQr(const QString &itemId) {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems, m_webShareCloudItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "cloud_qr", itemId});
 }

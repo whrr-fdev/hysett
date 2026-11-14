@@ -468,11 +468,231 @@ def cmd_pick(is_folder):
     except Exception:
         pass
 
+
+CLOUD_LIST_FILE = os.path.expanduser("~/.config/hypr/scripts/web_share_cloud.json")
+SITES_REPO_DIR = "/tmp/hysett_sites_repo"
+
+def load_cloud_items():
+    if os.path.exists(CLOUD_LIST_FILE):
+        try:
+            return json.load(open(CLOUD_LIST_FILE, "r", encoding="utf-8"))
+        except Exception:
+            pass
+    return []
+
+def save_cloud_items(c_items):
+    os.makedirs(os.path.dirname(CLOUD_LIST_FILE), exist_ok=True)
+    tmp = CLOUD_LIST_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(c_items, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, CLOUD_LIST_FILE)
+
+def copy_to_clipboard_nonblocking(txt):
+    try:
+        p = subprocess.Popen(["wl-copy"], stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        p.stdin.write(txt.encode("utf-8"))
+        p.stdin.close()
+    except Exception:
+        pass
+
+def get_github_repo_slug():
+    try:
+        rem = subprocess.check_output(["git", "-C", os.path.expanduser("~/hysett"), "remote", "get-url", "origin"], stderr=subprocess.DEVNULL).decode().strip()
+        m = re.search(r"github\.com[:/]([^/]+/[^/.]+?)(?:\.git)?$", rem)
+        if m:
+            return m.group(1), rem
+    except Exception:
+        pass
+    return "whrr-fdev/hysett", "https://github.com/whrr-fdev/hysett.git"
+
+def ensure_sites_repo():
+    slug, rem_url = get_github_repo_slug()
+    if not os.path.exists(os.path.join(SITES_REPO_DIR, ".git")):
+        shutil.rmtree(SITES_REPO_DIR, ignore_errors=True)
+        os.makedirs(SITES_REPO_DIR, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "remote", "add", "origin", rem_url], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "fetch", "--depth=1", "origin", "sites"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "checkout", "-B", "sites", "FETCH_HEAD"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return slug
+
+def publish_site_to_github_24_7(iid, src_dir, entry_file):
+    try:
+        slug = ensure_sites_repo()
+        dst_dir = os.path.join(SITES_REPO_DIR, iid)
+        shutil.rmtree(dst_dir, ignore_errors=True)
+        os.makedirs(dst_dir, exist_ok=True)
+        if os.path.isdir(src_dir):
+            for root, dirs, files in os.walk(src_dir):
+                if ".git" in dirs:
+                    dirs.remove(".git")
+                rel = os.path.relpath(root, src_dir)
+                target_sub = dst_dir if rel == "." else os.path.join(dst_dir, rel)
+                os.makedirs(target_sub, exist_ok=True)
+                for fn in files:
+                    fp = os.path.join(root, fn)
+                    if os.path.isfile(fp) and os.path.getsize(fp) < 25 * 1024 * 1024:
+                        shutil.copy2(fp, os.path.join(target_sub, fn))
+        subprocess.run(["git", "add", "-A"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "commit", "-m", f"site: publish {iid}"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        r = subprocess.run(["git", "push", "-f", "origin", "HEAD:refs/heads/sites"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+        if r.returncode == 0:
+            return f"https://raw.githack.com/{slug}/sites/{iid}/{urllib.parse.quote(entry_file)}"
+    except Exception:
+        pass
+    return ""
+
+def upload_file_to_cloud_24_7(fp):
+    for cmd in [
+        ["curl", "-s", "-S", "-m", "45", "-F", "reqtype=fileupload", "-F", f"fileToUpload=@{fp}", "https://catbox.moe/user/api.php"],
+        ["curl", "-s", "-S", "-m", "35", "-A", "HySett/1.0", "-F", f"file=@{fp}", "https://0x0.st"],
+        ["curl", "-s", "-S", "-m", "45", "-F", "reqtype=fileupload", "-F", "time=72h", "-F", f"fileToUpload=@{fp}", "https://litterbox.catbox.moe/resources/internals/api.php"]
+    ]:
+        try:
+            out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore").strip()
+            if out.startswith("http"):
+                return out.splitlines()[-1].strip()
+        except Exception:
+            pass
+    return ""
+
+def cmd_cloud_add_path(raw_path):
+    fp = os.path.expanduser((raw_path or "").strip())
+    st = load_state()
+    if not fp or not os.path.exists(fp):
+        st["status"] = f"Файл или папка не найдены: {fp}"
+        save_state(st)
+        cmd_status()
+        return
+
+    iid = uuid.uuid4().hex[:8]
+    now_str = time.strftime("%d.%m %H:%M")
+    cloud_url = ""
+    kind = "file"
+    label = os.path.basename(fp.rstrip("/")) or "item"
+    sz_str = "Папка сайта" if os.path.isdir(fp) else format_size(os.path.getsize(fp))
+
+    if os.path.isdir(fp):
+        kind = "site"
+        entry = "index.html"
+        if not os.path.exists(os.path.join(fp, entry)):
+            htmls = [f for f in os.listdir(fp) if f.lower().endswith((".html", ".htm"))]
+            if htmls:
+                entry = htmls[0]
+        cloud_url = publish_site_to_github_24_7(iid, fp, entry)
+    elif fp.lower().endswith((".html", ".htm")):
+        kind = "site"
+        tmp_sdir = os.path.join(CUSTOM_SITES_DIR, f"cloud_{iid}")
+        os.makedirs(tmp_sdir, exist_ok=True)
+        shutil.copy2(fp, os.path.join(tmp_sdir, os.path.basename(fp)))
+        cloud_url = publish_site_to_github_24_7(iid, tmp_sdir, os.path.basename(fp))
+    elif fp.lower().endswith(".zip") and zipfile.is_zipfile(fp):
+        ext_dir = os.path.join(CUSTOM_SITES_DIR, f"zip_{iid}")
+        os.makedirs(ext_dir, exist_ok=True)
+        with zipfile.ZipFile(fp, "r") as zf:
+            zf.extractall(ext_dir)
+        html_entry = ""
+        site_root = ext_dir
+        for root, _, files in os.walk(ext_dir):
+            for f in files:
+                if f.lower() == "index.html":
+                    site_root, html_entry = root, f
+                    break
+                elif f.lower().endswith((".html", ".htm")) and not html_entry:
+                    site_root, html_entry = root, f
+            if html_entry == "index.html":
+                break
+        if html_entry:
+            kind = "site"
+            cloud_url = publish_site_to_github_24_7(iid, site_root, html_entry)
+
+    if not cloud_url and os.path.isfile(fp):
+        cloud_url = upload_file_to_cloud_24_7(fp)
+
+    if cloud_url:
+        c_items = load_cloud_items()
+        c_items.insert(0, {
+            "id": iid,
+            "kind": kind,
+            "label": label,
+            "url": cloud_url,
+            "size": sz_str,
+            "time": now_str
+        })
+        save_cloud_items(c_items[:60])
+        copy_to_clipboard_nonblocking(cloud_url)
+        st["url"] = cloud_url
+        st["qr_path"] = generate_qr(cloud_url)
+        st["status"] = f"Автономная ссылка 24/7 скопирована ✓ ({label})"
+    else:
+        st["status"] = "Не удалось выгрузить автономную ссылку"
+    save_state(st)
+    cmd_status()
+
+def cmd_cloud_add_html(title, code):
+    iid = uuid.uuid4().hex[:8]
+    sdir = os.path.join(CUSTOM_SITES_DIR, f"html_{iid}")
+    os.makedirs(sdir, exist_ok=True)
+    clean_title = os.path.basename(title.strip() or "index.html")
+    if not clean_title.lower().endswith((".html", ".htm")):
+        clean_title += ".html"
+    fp = os.path.join(sdir, "index.html")
+    with open(fp, "w", encoding="utf-8") as f:
+        f.write(code)
+    cloud_url = publish_site_to_github_24_7(iid, sdir, "index.html")
+    if not cloud_url:
+        cloud_url = upload_file_to_cloud_24_7(fp)
+    st = load_state()
+    if cloud_url:
+        c_items = load_cloud_items()
+        c_items.insert(0, {
+            "id": iid,
+            "kind": "site",
+            "label": clean_title,
+            "url": cloud_url,
+            "size": format_size(os.path.getsize(fp)),
+            "time": time.strftime("%d.%m %H:%M")
+        })
+        save_cloud_items(c_items[:60])
+        copy_to_clipboard_nonblocking(cloud_url)
+        st["url"] = cloud_url
+        st["qr_path"] = generate_qr(cloud_url)
+        st["status"] = f"Автономный сайт 24/7 «{clean_title}» опубликован и скопирован ✓"
+    else:
+        st["status"] = "Ошибка публикации автономного HTML-сайта"
+    save_state(st)
+    cmd_status()
+
+def cmd_cloud_remove(iid):
+    c_items = load_cloud_items()
+    c_items = [x for x in c_items if x.get("id") != iid]
+    save_cloud_items(c_items)
+    dst_dir = os.path.join(SITES_REPO_DIR, iid)
+    if os.path.exists(dst_dir):
+        shutil.rmtree(dst_dir, ignore_errors=True)
+        subprocess.run(["git", "add", "-A"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["git", "commit", "-m", f"site: remove {iid}"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["git", "push", "-f", "origin", "HEAD:refs/heads/sites"], cwd=SITES_REPO_DIR, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    cmd_status()
+
+def cmd_cloud_qr(iid):
+    c_items = load_cloud_items()
+    it = next((x for x in c_items if x.get("id") == iid), None)
+    st = load_state()
+    if it and it.get("url"):
+        st["url"] = it["url"]
+        st["qr_path"] = generate_qr(it["url"])
+        st["status"] = f"Выбрана автономная ссылка 24/7: {it.get('label','')}"
+        copy_to_clipboard_nonblocking(it["url"])
+        save_state(st)
+    cmd_status()
+
 def cmd_status():
     st = load_state()
     alive = is_daemon_alive()
     if st.get("running") != alive:
         st["running"] = alive
+    st["cloud_items"] = load_cloud_items()
     save_state(st)
     print(json.dumps(st, ensure_ascii=False))
 
@@ -511,5 +731,13 @@ if __name__ == "__main__":
         st["primary_id"] = ""
         save_state(st)
         cmd_status()
+    elif c == "cloud_add_path":
+        cmd_cloud_add_path(sys.argv[2] if len(sys.argv) > 2 else "")
+    elif c == "cloud_add_html":
+        cmd_cloud_add_html(sys.argv[2] if len(sys.argv) > 2 else "index.html", sys.argv[3] if len(sys.argv) > 3 else "")
+    elif c == "cloud_remove":
+        cmd_cloud_remove(sys.argv[2] if len(sys.argv) > 2 else "")
+    elif c == "cloud_qr":
+        cmd_cloud_qr(sys.argv[2] if len(sys.argv) > 2 else "")
     else:
         cmd_status()

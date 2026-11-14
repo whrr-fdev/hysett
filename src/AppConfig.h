@@ -39,6 +39,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString webShareMode READ webShareMode NOTIFY webShareChanged)
     Q_PROPERTY(QString webShareActiveTitle READ webShareActiveTitle NOTIFY webShareChanged)
     Q_PROPERTY(QVariantList webShareItems READ webShareItems NOTIFY webShareChanged)
+    Q_PROPERTY(QVariantList webShareCloudItems READ webShareCloudItems NOTIFY webShareChanged)
     Q_PROPERTY(bool firstRunCompleted READ firstRunCompleted WRITE setFirstRunCompleted NOTIFY firstRunChanged)
     Q_PROPERTY(QString wallpapersDir READ wallpapersDir WRITE setWallpapersDir NOTIFY pathsChanged)
     Q_PROPERTY(QString musicDir READ musicDir WRITE setMusicDir NOTIFY pathsChanged)
@@ -225,6 +226,11 @@ public:
     QString webShareMode() const { return m_webShareMode; }
     QString webShareActiveTitle() const { return m_webShareActiveTitle; }
     QVariantList webShareItems() const { return m_webShareItems; }
+    QVariantList webShareCloudItems() const { return m_webShareCloudItems; }
+    Q_INVOKABLE void cloudHostPathForFriend(const QString &path);
+    Q_INVOKABLE void cloudHostHtmlForFriend(const QString &htmlCode, const QString &title);
+    Q_INVOKABLE void removeCloudShareItem(const QString &itemId);
+    Q_INVOKABLE void selectCloudShareQr(const QString &itemId);
     Q_INVOKABLE void refreshWebShareState();
     Q_INVOKABLE void toggleWebShare();
     Q_INVOKABLE void hostPathForFriend(const QString &path);
@@ -414,6 +420,7 @@ private:
     QString m_webShareMode = "files";
     QString m_webShareActiveTitle;
     QVariantList m_webShareItems;
+    QVariantList m_webShareCloudItems;
     bool m_firstRunCompleted = true;
     QString m_wallpapersDir;
     QString m_musicDir;

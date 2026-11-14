@@ -38,7 +38,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 10
                     Text {
-                        text: "󰁯  Бэкап системы, конфигов и пакетов"
+                        text: "󰁯  Бэкап системы и пакетов"
                         color: "#ffffff"
                         font.pixelSize: Config ? Config.fontSize + 3 : 14
                         font.bold: true
@@ -54,9 +54,9 @@ Item {
                     }
                 }
 
-                // Полоса прогресса активной операции
+                // Полоса прогресса (отображается только во время операции или после действия)
                 GlassPanel {
-                    visible: Config ? (Config.sysBusy || Config.sysStatusText.length > 0) : false
+                    visible: Config ? (Config.sysBusy || (Config.sysStatusText.length > 0 && Config.sysStatusText !== "Готово к работе")) : false
                     Layout.fillWidth: true
                     implicitHeight: statusCol.implicitHeight + 20
 
@@ -70,7 +70,7 @@ Item {
                             Layout.fillWidth: true
                             Text {
                                 text: Config ? Config.sysStatusText : ""
-                                color: Config && Config.sysBusy ? (Config.m3Primary) : "#cccccc"
+                                color: Config && Config.sysBusy ? Config.m3Primary : "#cccccc"
                                 font.pixelSize: Config ? Config.fontSize : 11
                                 font.bold: Config ? Config.sysBusy : false
                                 elide: Text.ElideRight
@@ -107,44 +107,38 @@ Item {
                     Layout.fillWidth: true
                     implicitHeight: pkgCol.implicitHeight + 28
 
-                    ColumnLayout {
+                    RowLayout {
                         id: pkgCol
                         anchors.fill: parent
                         anchors.margins: 14
-                        spacing: 10
+                        spacing: 14
 
-                        Text {
-                            text: "󰏖  Установленные пакеты системы (Pacman + AUR)"
-                            color: "#ffffff"
-                            font.pixelSize: Config ? Config.fontSize + 1 : 12
-                            font.bold: true
-                        }
-
-                        Text {
-                            text: "Официальные пакеты (pacman -Qqen): " + (Config ? Config.pkgNativeCount : 0) +
-                                  "   •   Пакеты AUR (pacman -Qqem): " + (Config ? Config.pkgAurCount : 0)
-                            color: Config ? Config.m3Primary : "#a8c7fa"
-                            font.pixelSize: Config ? Config.fontSize : 11
-                            font.bold: true
-                        }
-
-                        Text {
+                        ColumnLayout {
                             Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            text: "Генерирует автономный скрипт ~/install_my_packages.sh, который устанавливает все текущие официальные и AUR-пакеты (через paru/yay) одной командой."
-                            color: "#aaaaaa"
-                            font.pixelSize: Config ? Config.fontSize - 1 : 10
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 10
-                            StyledButton {
-                                text: "󰆓  Создать скрипт установки моих пакетов (install_my_packages.sh)"
-                                isActive: true
-                                enabled: Config ? !Config.sysBusy : true
-                                onClicked: if (Config) Config.generatePackageScript()
+                            spacing: 4
+                            Text {
+                                Layout.fillWidth: true
+                                text: "󰏖  Установленные пакеты"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
                             }
+                            Text {
+                                Layout.fillWidth: true
+                                text: "Официальные: " + (Config ? Config.pkgNativeCount : 0) +
+                                      "   •   AUR: " + (Config ? Config.pkgAurCount : 0)
+                                color: Config ? Config.m3Primary : "#a8c7fa"
+                                font.pixelSize: Config ? Config.fontSize : 11
+                                font.bold: true
+                            }
+                        }
+
+                        StyledButton {
+                            Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                            text: "󰆓  Создать скрипт пакетов"
+                            isActive: true
+                            enabled: Config ? !Config.sysBusy : true
+                            onClicked: if (Config) Config.generatePackageScript()
                         }
                     }
                 }
@@ -162,23 +156,17 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
-                            ColumnLayout {
+                            spacing: 14
+                            Text {
                                 Layout.fillWidth: true
-                                spacing: 2
-                                Text {
-                                    text: "󰀼  Полный бэкап системы и настроек в архив (.tar.gz)"
-                                    color: "#ffffff"
-                                    font.pixelSize: Config ? Config.fontSize + 1 : 12
-                                    font.bold: true
-                                }
-                                Text {
-                                    text: "Включает конфиги ~/.config/hypr, kitty, btop, gtk, профили HySett и скрипт установки всех пакетов"
-                                    color: "#999999"
-                                    font.pixelSize: Config ? Config.fontSize - 1 : 10
-                                }
+                                text: "󰀼  Полный бэкап системы и настроек"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
                             }
                             StyledButton {
-                                text: "󰁯  Создать полный бэкап"
+                                Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                text: "󰁯  Создать бэкап"
                                 isActive: true
                                 enabled: Config ? !Config.sysBusy : true
                                 onClicked: if (Config) Config.createFullBackup()
@@ -193,7 +181,7 @@ Item {
 
                         Text {
                             visible: !Config || Config.backupArchives.length === 0
-                            text: "Сохранённых архивов пока нет. Нажмите «Создать полный бэкап»."
+                            text: "Сохранённых архивов пока нет"
                             color: "#777777"
                             font.pixelSize: Config ? Config.fontSize : 11
                         }
@@ -264,7 +252,7 @@ Item {
                     }
                 }
 
-                // 3. ВОССТАНОВЛЕНИЕ ИЗ СВОЕГО АРХИВА (НА НОВОМ ПК)
+                // 3. ВОССТАНОВЛЕНИЕ ИЗ АРХИВА
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: impCol.implicitHeight + 28
@@ -276,18 +264,10 @@ Item {
                         spacing: 10
 
                         Text {
-                            text: "󰋺  Восстановление из своего архива бэкапа (на новом ПК)"
+                            text: "󰋺  Восстановление из архива"
                             color: "#ffffff"
                             font.pixelSize: Config ? Config.fontSize + 1 : 12
                             font.bold: true
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            wrapMode: Text.Wrap
-                            text: "Укажите путь к перенесённому архиву (.tar.gz / .tar.zst), чтобы автоматически раскатать все конфиги Hyprland/HySett и установить все ваши пакеты."
-                            color: "#aaaaaa"
-                            font.pixelSize: Config ? Config.fontSize - 1 : 10
                         }
 
                         RowLayout {
@@ -301,7 +281,7 @@ Item {
                                 leftPadding: 10; rightPadding: 10
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize : 11
-                                placeholderText: "~/hysett_system_backup_2026.tar.gz..."
+                                placeholderText: "Путь к архиву .tar.gz / .tar.zst..."
                                 placeholderTextColor: "#777777"
                                 background: Rectangle {
                                     radius: backupRoot.isM3 ? 8 : 0
@@ -322,7 +302,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: "Автоматически установить все пакеты (pacman + AUR) из архива:"
+                                text: "Установить пакеты из архива:"
                                 color: "#cccccc"
                                 font.pixelSize: Config ? Config.fontSize : 11
                                 Layout.fillWidth: true

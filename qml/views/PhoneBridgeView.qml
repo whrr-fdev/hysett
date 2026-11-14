@@ -17,7 +17,7 @@ Item {
     }
 
     Timer {
-        interval: 2500
+        interval: 2200
         repeat: true
         running: phoneRoot.visible && Config && Config.phoneBridgeRunning
         onTriggered: if (Config) Config.refreshPhoneBridgeState()
@@ -56,19 +56,21 @@ Item {
                     Layout.fillWidth: true
                     spacing: 10
                     Text {
-                        text: "󰄜  Обмен файлами и текстом с телефоном"
+                        text: "󰄜  Обмен с телефоном"
                         color: "#ffffff"
                         font.pixelSize: Config ? Config.fontSize + 3 : 14
                         font.bold: true
                         Layout.fillWidth: true
                     }
                     StyledButton {
-                        text: phoneRoot.hideUrl ? "󰈉 Ссылка скрыта" : "󰈈 Скрыть ссылку"
+                        text: phoneRoot.hideUrl ? "󰈉" : "󰈈"
+                        isIconOnly: true
+                        implicitWidth: 28
                         isActive: phoneRoot.hideUrl
                         onClicked: phoneRoot.hideUrl = !phoneRoot.hideUrl
                     }
                     StyledButton {
-                        text: "󰉋 Папка принятых"
+                        text: "󰉋 Принятые"
                         onClicked: if (Config) Config.openPhoneDownloadsFolder()
                     }
                     StyledButton {
@@ -88,10 +90,9 @@ Item {
                         anchors.margins: 14
                         spacing: 18
 
-                        // Блок QR-кода
                         Rectangle {
-                            Layout.preferredWidth: 144
-                            Layout.preferredHeight: 144
+                            Layout.preferredWidth: 140
+                            Layout.preferredHeight: 140
                             radius: phoneRoot.isM3 ? 14 : 0
                             color: (!phoneRoot.hideUrl && Config && Config.phoneBridgeQrPath.length > 0) ? "#ffffff" : Qt.rgba(1, 1, 1, 0.06)
                             border.color: Config ? Config.m3Primary : "#ffffff"
@@ -108,31 +109,19 @@ Item {
                                 smooth: false
                             }
 
-                            ColumnLayout {
+                            Text {
                                 visible: !qrImg.visible
                                 anchors.centerIn: parent
-                                spacing: 4
-                                Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: phoneRoot.hideUrl ? "󰈉" : "󰐲"
-                                    font.pixelSize: 38
-                                    color: Config ? Config.m3Primary : "#ffffff"
-                                }
-                                Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: phoneRoot.hideUrl ? "QR скрыт" : "QR появится\nпосле старта"
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: "#888888"
-                                    font.pixelSize: 10
-                                }
+                                text: phoneRoot.hideUrl ? "󰈉" : "󰐲"
+                                font.pixelSize: 40
+                                color: Config ? Config.m3Primary : "#ffffff"
                             }
                         }
 
-                        // Управление мостом и ссылкой
                         ColumnLayout {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
-                            spacing: 8
+                            spacing: 10
 
                             RowLayout {
                                 Layout.fillWidth: true
@@ -142,9 +131,7 @@ Item {
                                     color: (Config && Config.phoneBridgeRunning) ? "#69f0ae" : "#888888"
                                 }
                                 Text {
-                                    text: (Config && Config.phoneBridgeRunning)
-                                          ? "Двусторонний интернет-мост активен (ПК ⇄ Телефон)"
-                                          : "Двусторонний интернет-мост (без одной Wi-Fi сети)"
+                                    text: (Config && Config.phoneBridgeRunning) ? "Интернет-мост активен" : "Интернет-мост"
                                     color: "#ffffff"
                                     font.pixelSize: Config ? Config.fontSize + 1 : 12
                                     font.bold: true
@@ -156,7 +143,7 @@ Item {
                                 Layout.fillWidth: true
                                 wrapMode: Text.Wrap
                                 text: Config ? Config.phoneBridgeStatus : ""
-                                color: (Config && Config.phoneBridgeRunning) ? (Config.m3Primary) : "#aaaaaa"
+                                color: (Config && Config.phoneBridgeRunning) ? Config.m3Primary : "#aaaaaa"
                                 font.pixelSize: Config ? Config.fontSize : 11
                             }
 
@@ -187,7 +174,7 @@ Item {
                                 }
 
                                 StyledButton {
-                                    text: "󰆏 Копировать URL"
+                                    text: "󰆏 Копировать"
                                     onClicked: if (Waybar && Config) Waybar.runCommand("printf '%s' '" + Config.phoneBridgeUrl + "' | wl-copy")
                                 }
                             }
@@ -196,25 +183,16 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 10
                                 StyledButton {
-                                    text: (Config && Config.phoneBridgeRunning)
-                                          ? "󰅖  Остановить интернет-мост"
-                                          : "󰄜  Запустить интернет-мост (QR)"
+                                    text: (Config && Config.phoneBridgeRunning) ? "󰅖  Остановить мост" : "󰄜  Запустить мост"
                                     isActive: !(Config && Config.phoneBridgeRunning)
                                     onClicked: if (Config) Config.togglePhoneBridge()
-                                }
-                                Text {
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
-                                    text: "Работает через 4G/LTE и любую сеть без установки приложений"
-                                    color: "#777777"
-                                    font.pixelSize: Config ? Config.fontSize - 2 : 9
                                 }
                             }
                         }
                     }
                 }
 
-                // 2. КАРТОЧКА ОТПРАВКИ ТЕКСТА И ФАЙЛОВ НА ТЕЛЕФОН
+                // 2. КАРТОЧКА ОТПРАВКИ ТЕКСТА И ФАЙЛОВ
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: sendCol.implicitHeight + 28
@@ -223,16 +201,15 @@ Item {
                         id: sendCol
                         anchors.fill: parent
                         anchors.margins: 14
-                        spacing: 12
+                        spacing: 10
 
                         Text {
-                            text: "ddd  Отправить текст или файл с ПК на телефон"
+                            text: "󰁕  Отправить на телефон"
                             color: "#ffffff"
                             font.pixelSize: Config ? Config.fontSize + 1 : 12
                             font.bold: true
                         }
 
-                        // Отправка текста
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -244,7 +221,7 @@ Item {
                                 leftPadding: 10; rightPadding: 10
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize : 11
-                                placeholderText: "Введите текст, ссылку или заметку для отправки на телефон..."
+                                placeholderText: "Текст или ссылка..."
                                 placeholderTextColor: "#777777"
                                 onAccepted: {
                                     if (text.trim().length > 0 && Config) {
@@ -261,12 +238,12 @@ Item {
                             }
 
                             StyledButton {
-                                text: "󰅌 Из буфера ПК"
+                                text: "󰅌 Буфер"
                                 onClicked: if (Config) Config.sendClipboardToPhone()
                             }
 
                             StyledButton {
-                                text: "ddd В мост"
+                                text: "󰁕 В мост"
                                 isActive: true
                                 enabled: textShareField.text.trim().length > 0
                                 onClicked: {
@@ -278,7 +255,7 @@ Item {
                             }
 
                             StyledButton {
-                                text: "󰅧 Облако + QR"
+                                text: "󰅧 Облако"
                                 enabled: textShareField.text.trim().length > 0
                                 onClicked: {
                                     if (Config && textShareField.text.trim().length > 0) {
@@ -288,7 +265,6 @@ Item {
                             }
                         }
 
-                        // Отправка файла
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -300,7 +276,7 @@ Item {
                                 leftPadding: 10; rightPadding: 10
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize : 11
-                                placeholderText: "Путь к файлу (или перетащите файл мышкой прямо в это окно)..."
+                                placeholderText: "Путь к файлу..."
                                 placeholderTextColor: "#777777"
                                 onAccepted: {
                                     if (text.trim().length > 0 && Config) Config.shareFileToPhone(text.trim())
@@ -314,14 +290,14 @@ Item {
                             }
 
                             StyledButton {
-                                text: "ddd Расшарить в мост"
+                                text: "󰁕 В мост"
                                 isActive: true
                                 enabled: fileInputField.text.trim().length > 0
                                 onClicked: if (Config) Config.shareFileToPhone(fileInputField.text.trim())
                             }
 
                             StyledButton {
-                                text: "󰅧 Файл в облако + QR"
+                                text: "󰅧 Облако"
                                 enabled: fileInputField.text.trim().length > 0
                                 onClicked: if (Config) Config.quickCloudShare(fileInputField.text.trim(), true)
                             }
@@ -329,7 +305,7 @@ Item {
                     }
                 }
 
-                // 3. ЛЕНТА ОБМЕНА (ПК ⇄ ТЕЛЕФОН)
+                // 3. ЛЕНТА ОБМЕНА
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: feedCol.implicitHeight + 28
@@ -343,7 +319,7 @@ Item {
                         RowLayout {
                             Layout.fillWidth: true
                             Text {
-                                text: "󰋚  Лента переданных файлов и текста (" + (Config ? Config.phoneSharedItems.length : 0) + ")"
+                                text: "󰋚  Лента обмена (" + (Config ? Config.phoneSharedItems.length : 0) + ")"
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize + 1 : 12
                                 font.bold: true
@@ -351,14 +327,14 @@ Item {
                             }
                             StyledButton {
                                 visible: Config && Config.phoneSharedItems.length > 0
-                                text: "󰎟 Очистить ленту"
+                                text: "󰎟 Очистить"
                                 onClicked: if (Config) Config.clearPhoneItems()
                             }
                         }
 
                         Text {
                             visible: !Config || Config.phoneSharedItems.length === 0
-                            text: "Лента обмена пуста. Отправьте текст/файл выше или загрузите их со смартфона по QR-коду."
+                            text: "Лента пуста"
                             color: "#777777"
                             font.pixelSize: Config ? Config.fontSize : 11
                         }
@@ -397,7 +373,7 @@ Item {
                                             Layout.fillWidth: true
                                         }
                                         Text {
-                                            text: (modelData.dir === "phone2pc" ? "📱 С телефона на ПК" : "💻 С ПК на телефон") +
+                                            text: (modelData.dir === "phone2pc" ? "С телефона" : "С ПК") +
                                                   "  •  " + modelData.time +
                                                   (modelData.size && modelData.size.length > 0 ? ("  •  " + modelData.size) : "")
                                             color: "#888888"
@@ -408,13 +384,13 @@ Item {
                                     StyledButton {
                                         visible: modelData.kind === "text"
                                         text: "󰆏 Копировать"
-                                        onClicked: if (Waybar) Waybar.runCommand("printf '%s' \"" + String(modelData.label).replace(/"/g, '\\"') + "\" | wl-copy")
+                                        onClicked: if (Waybar) Waybar.runCommand("printf '%s' '" + String(modelData.label).replace(/'/g, "'\\''") + "' | wl-copy")
                                     }
 
                                     StyledButton {
                                         visible: modelData.kind === "file" && modelData.path && modelData.path.length > 0
                                         text: "󰉋 Открыть"
-                                        onClicked: if (Waybar) Waybar.runCommand("xdg-open \"" + modelData.path + "\"")
+                                        onClicked: if (Waybar) Waybar.runCommand("xdg-open '" + String(modelData.path).replace(/'/g, "'\\''") + "'")
                                     }
                                 }
                             }

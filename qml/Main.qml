@@ -3424,7 +3424,7 @@ ApplicationWindow {
 
                             Repeater {
                                 model: [
-                                    { label: "󰄜   Отправить на телефон (Интернет-мост)", idx: 0 },
+                                    { label: "󰄜   Отправить на телефон", idx: 0 },
                                     { label: "󰅧   Быстрая ссылка + QR в облако", idx: 1 },
                                     { label: "󰸉   Установить как обои рабочего стола", idx: 2 },
                                     { label: "󰆏   Скопировать путь в буфер обмена", idx: 3 },
@@ -4791,7 +4791,7 @@ ApplicationWindow {
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {
-                                    text: "Скачать обои по умолчанию с GitHub (whrr-fdev/wallpapers) в фоне:"
+                                    text: "Скачать обои по умолчанию с GitHub в фоне:"
                                     color: "#cccccc"; font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap
                                 }
                                 StyledSwitch {

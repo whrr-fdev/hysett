@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, re, json, time, uuid, shutil, socket, urllib.request, urllib.parse, subprocess, threading, cgi
+import sys, os, re, json, time, uuid, shutil, socket, urllib.request, urllib.parse, subprocess, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE_FILE = "/tmp/hysett_phone_bridge_state.json"
@@ -18,7 +18,7 @@ def load_state():
         "running": False,
         "url": "",
         "qr_path": "",
-        "status": "Мост остановлен. Нажмите «Запустить интернет-мост» или используйте Быстрый дроп.",
+        "status": "Мост выключен",
         "token": "",
         "port": 0,
         "items": []
@@ -33,14 +33,32 @@ def save_state(st):
     except Exception:
         pass
 
+def get_lan_ip():
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
+
 def generate_qr(url_str):
     if not url_str:
         return ""
+    ts = int(time.time() * 1000)
+    out_file = f"/tmp/hysett_phone_qr_{ts}.png"
+    for old in os.listdir("/tmp"):
+        if old.startswith("hysett_phone_qr_") and old.endswith(".png"):
+            try:
+                os.remove(os.path.join("/tmp", old))
+            except Exception:
+                pass
     try:
         if shutil.which("qrencode"):
-            subprocess.run(["qrencode", "-o", QR_FILE, "-s", "8", "-m", "2", url_str], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4)
-            if os.path.exists(QR_FILE) and os.path.getsize(QR_FILE) > 100:
-                return f"{QR_FILE}?t={int(time.time()*1000)}"
+            subprocess.run(["qrencode", "-o", out_file, "-s", "8", "-m", "2", url_str], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4)
+            if os.path.exists(out_file) and os.path.getsize(out_file) > 100:
+                return out_file
     except Exception:
         pass
     try:
@@ -49,9 +67,9 @@ def generate_qr(url_str):
         with urllib.request.urlopen(req, timeout=6) as r:
             data = r.read()
         if len(data) > 100:
-            with open(QR_FILE, "wb") as f:
+            with open(out_file, "wb") as f:
                 f.write(data)
-            return f"{QR_FILE}?t={int(time.time()*1000)}"
+            return out_file
     except Exception:
         pass
     return ""
@@ -71,12 +89,11 @@ MOBILE_HTML = """<!DOCTYPE html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>HySett • Обмен с ПК</title>
+<title>HySett Bridge</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
   body { background: #0e1015; color: #f0f2f8; padding: 16px; max-width: 540px; margin: 0 auto; }
-  h1 { font-size: 20px; margin-bottom: 4px; color: #a8c7fa; }
-  .sub { font-size: 12px; color: #8c92a4; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin-bottom: 14px; color: #a8c7fa; }
   .card { background: #181b22; border: 1px solid rgba(255,255,255,0.09); border-radius: 16px; padding: 14px; margin-bottom: 14px; }
   .card h2 { font-size: 14px; margin-bottom: 10px; color: #dce2f0; }
   textarea { width: 100%; height: 84px; background: #101218; color: #fff; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; padding: 10px; font-size: 14px; resize: none; margin-bottom: 10px; }
@@ -84,7 +101,7 @@ MOBILE_HTML = """<!DOCTYPE html>
   .btn:active { transform: scale(0.98); opacity: 0.9; }
   .btn-sec { background: #262b38; color: #e2e6f0; padding: 7px 12px; font-size: 12px; width: auto; border-radius: 8px; }
   input[type=file] { display: none; }
-  .file-lbl { display: flex; align-items: center; justify-content: center; border: 1.5px dashed #a8c7fa; color: #a8c7fa; border-radius: 12px; padding: 16px; text-align: center; font-weight: 600; font-size: 14px; cursor: pointer; margin-bottom: 8px; }
+  .file-lbl { display: flex; align-items: center; justify-content: center; border: 1.5px dashed #a8c7fa; color: #a8c7fa; border-radius: 12px; padding: 16px; text-align: center; font-weight: 600; font-size: 14px; cursor: pointer; }
   .item { background: #12141a; border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .item-body { flex: 1; min-width: 0; }
   .item-tag { font-size: 11px; color: #8c92a4; margin-bottom: 2px; }
@@ -93,24 +110,23 @@ MOBILE_HTML = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-  <h1>󰄜 HySett Bridge</h1>
-  <div class="sub">Прямой защищённый обмен между телефоном и вашим ПК</div>
+  <h1>HySett • Телефон ⇄ ПК</h1>
 
   <div class="card">
-    <h2>Отправить текст или ссылку на ПК</h2>
-    <textarea id="txtIn" placeholder="Введите или вставьте текст (сразу попадёт в буфер обмена ПК)..."></textarea>
-    <button class="btn" onclick="sendText()">Отправить в буфер ПК</button>
+    <h2>Отправить текст на ПК</h2>
+    <textarea id="txtIn" placeholder="Введите текст..."></textarea>
+    <button class="btn" onclick="sendText()">Отправить</button>
   </div>
 
   <div class="card">
-    <h2>Отправить фото или файл на ПК</h2>
-    <label class="file-lbl" for="fileIn" id="fileStatus">📁 Выбрать файлы или фото с телефона</label>
+    <h2>Отправить файлы на ПК</h2>
+    <label class="file-lbl" for="fileIn" id="fileStatus">Выбрать файлы или фото</label>
     <input type="file" id="fileIn" multiple onchange="uploadFiles(this.files)">
   </div>
 
   <div class="card">
-    <h2>Лента обмена (ПК ⇄ Телефон)</h2>
-    <div id="itemsBox">Загрузка...</div>
+    <h2>Лента обмена</h2>
+    <div id="itemsBox">Пусто</div>
   </div>
 
   <div class="toast" id="toast">Готово ✓</div>
@@ -129,7 +145,7 @@ async function sendText() {
   if (!val) return;
   await fetch('/' + TOKEN + '/api/text', { method: 'POST', body: val });
   el.value = '';
-  showToast('Скопировано на ПК ✓');
+  showToast('Отправлено на ПК ✓');
   loadItems();
 }
 async function uploadFiles(files) {
@@ -137,11 +153,12 @@ async function uploadFiles(files) {
   const lbl = document.getElementById('fileStatus');
   for (let i = 0; i < files.length; i++) {
     lbl.textContent = `Загрузка (${i+1}/${files.length}): ${files[i].name}...`;
-    const fd = new FormData();
-    fd.append('file', files[i]);
-    await fetch('/' + TOKEN + '/api/upload', { method: 'POST', body: fd });
+    await fetch('/' + TOKEN + '/api/upload?name=' + encodeURIComponent(files[i].name), {
+      method: 'POST',
+      body: files[i]
+    });
   }
-  lbl.textContent = '📁 Выбрать файлы или фото с телефона';
+  lbl.textContent = 'Выбрать файлы или фото';
   showToast('Файлы сохранены на ПК ✓');
   loadItems();
 }
@@ -155,13 +172,13 @@ async function loadItems() {
     const d = await r.json();
     const box = document.getElementById('itemsBox');
     if (!d.items || !d.items.length) {
-      box.innerHTML = '<div style="color:#666;font-size:13px;">Лента пока пуста</div>';
+      box.innerHTML = '<div style="color:#666;font-size:13px;">Пока пусто</div>';
       return;
     }
     box.innerHTML = d.items.map(it => {
-      const dir = it.dir === 'pc2phone' ? '💻 ПК → 📱 Телефон' : '📱 Телефон → 💻 ПК';
+      const dir = it.dir === 'pc2phone' ? 'ПК → Телефон' : 'Телефон → ПК';
       if (it.kind === 'file') {
-        return `<div class="item"><div class="item-body"><div class="item-tag">${dir} • ${it.time} • ${it.size || ''}</div><div class="item-txt">📄 ${it.label}</div></div><a class="btn btn-sec" href="/${TOKEN}/download/${it.id}" download>Скачать</a></div>`;
+        return `<div class="item"><div class="item-body"><div class="item-tag">${dir} • ${it.time} • ${it.size || ''}</div><div class="item-txt">${it.label}</div></div><a class="btn btn-sec" href="/${TOKEN}/download/${it.id}" download>Скачать</a></div>`;
       } else {
         const safe = it.label.replace(/'/g, "\\'").replace(/\\n/g, " ");
         return `<div class="item"><div class="item-body"><div class="item-tag">${dir} • ${it.time}</div><div class="item-txt">${it.label}</div></div><button class="btn btn-sec" onclick="copyTxt('${safe}')">Копировать</button></div>`;
@@ -170,7 +187,7 @@ async function loadItems() {
   } catch (e) {}
 }
 loadItems();
-setInterval(loadItems, 2200);
+setInterval(loadItems, 2000);
 </script>
 </body>
 </html>
@@ -220,10 +237,13 @@ class BridgeHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         st = load_state()
         tok = st.get("token", "")
-        path = urllib.parse.unquote(self.path.split("?")[0])
+        parsed = urllib.parse.urlparse(self.path)
+        path = urllib.parse.unquote(parsed.path)
+        qs = urllib.parse.parse_qs(parsed.query)
         now_str = time.strftime("%H:%M:%S")
+        length = int(self.headers.get("Content-Length", 0))
+
         if path == f"/{tok}/api/text":
-            length = int(self.headers.get("Content-Length", 0))
             txt = self.rfile.read(length).decode("utf-8", errors="ignore").strip()
             if txt:
                 try:
@@ -231,7 +251,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
                     p.communicate(txt.encode("utf-8"))
                 except Exception:
                     pass
-                subprocess.Popen(["notify-send", "-a", "HySett Phone", "📱 Текст с телефона скопирован", txt[:120]])
+                subprocess.Popen(["notify-send", "-a", "HySett", "Текст с телефона скопирован", txt[:120]])
                 items = st.get("items", [])
                 items.insert(0, {
                     "id": uuid.uuid4().hex[:8],
@@ -248,31 +268,35 @@ class BridgeHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"OK")
         elif path == f"/{tok}/api/upload":
-            form = cgi.FieldStorage(fp=self.rfile, headers=self.headers, environ={"REQUEST_METHOD": "POST", "CONTENT_TYPE": self.headers.get("Content-Type", "")})
-            field = form["file"] if "file" in form else None
-            if field is not None and getattr(field, "filename", None):
-                safe_name = os.path.basename(field.filename)
-                dst = os.path.join(DOWNLOAD_DIR, safe_name)
-                if os.path.exists(dst):
-                    base, ext = os.path.splitext(safe_name)
-                    dst = os.path.join(DOWNLOAD_DIR, f"{base}_{int(time.time())}{ext}")
-                with open(dst, "wb") as wf:
-                    shutil.copyfileobj(field.file, wf)
-                sz_mb = os.path.getsize(dst) / (1024.0 * 1024.0)
-                sz_str = f"{sz_mb:.1f} MB" if sz_mb >= 1.0 else f"{max(1, int(os.path.getsize(dst)/1024))} KB"
-                subprocess.Popen(["notify-send", "-a", "HySett Phone", "📱 Получен файл с телефона", f"{os.path.basename(dst)} ({sz_str})"])
-                items = st.get("items", [])
-                items.insert(0, {
-                    "id": uuid.uuid4().hex[:8],
-                    "kind": "file",
-                    "dir": "phone2pc",
-                    "label": os.path.basename(dst),
-                    "path": dst,
-                    "size": sz_str,
-                    "time": now_str
-                })
-                st["items"] = items[:40]
-                save_state(st)
+            raw_name = (qs.get("name", ["file.bin"])[0] or "file.bin")
+            safe_name = os.path.basename(urllib.parse.unquote(raw_name)) or "file.bin"
+            dst = os.path.join(DOWNLOAD_DIR, safe_name)
+            if os.path.exists(dst):
+                base, ext = os.path.splitext(safe_name)
+                dst = os.path.join(DOWNLOAD_DIR, f"{base}_{int(time.time())}{ext}")
+            remaining = length
+            with open(dst, "wb") as wf:
+                while remaining > 0:
+                    chunk = self.rfile.read(min(65536, remaining))
+                    if not chunk:
+                        break
+                    wf.write(chunk)
+                    remaining -= len(chunk)
+            sz_mb = os.path.getsize(dst) / (1024.0 * 1024.0)
+            sz_str = f"{sz_mb:.1f} MB" if sz_mb >= 1.0 else f"{max(1, int(os.path.getsize(dst)/1024))} KB"
+            subprocess.Popen(["notify-send", "-a", "HySett", "Получен файл с телефона", f"{os.path.basename(dst)} ({sz_str})"])
+            items = st.get("items", [])
+            items.insert(0, {
+                "id": uuid.uuid4().hex[:8],
+                "kind": "file",
+                "dir": "phone2pc",
+                "label": os.path.basename(dst),
+                "path": dst,
+                "size": sz_str,
+                "time": now_str
+            })
+            st["items"] = items[:40]
+            save_state(st)
             self.send_response(200)
             self.end_headers()
             self.wfile.write(b"OK")
@@ -284,61 +308,73 @@ def run_daemon():
     with open(PID_FILE, "w") as f:
         f.write(str(os.getpid()))
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.bind(("127.0.0.1", 0))
+    sock.bind(("0.0.0.0", 0))
     port = sock.getsockname()[1]
     sock.close()
 
     tok = uuid.uuid4().hex[:10]
+    lan_url = f"http://{get_lan_ip()}:{port}/{tok}"
+    qr_init = generate_qr(lan_url)
+
     st = load_state()
     st["running"] = True
     st["port"] = port
     st["token"] = tok
-    st["status"] = "Поднятие защищённого интернет-туннеля (localhost.run)..."
+    st["url"] = lan_url
+    st["qr_path"] = qr_init
+    st["status"] = "Подключение интернет-туннеля..."
     save_state(st)
 
-    srv = ThreadingHTTPServer(("127.0.0.1", port), BridgeHandler)
+    srv = ThreadingHTTPServer(("0.0.0.0", port), BridgeHandler)
     t = threading.Thread(target=srv.serve_forever, daemon=True)
     t.start()
 
-    ssh_cmd = [
-        "ssh", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null",
-        "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=10",
-        "-R", f"80:127.0.0.1:{port}", "nokey@localhost.run"
+    tunnels = [
+        (["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", "-R", f"80:127.0.0.1:{port}", "nokey@localhost.run"], r"(https://[a-zA-Z0-9.-]+\.lhr\.life)"),
+        (["ssh", "-T", "-p", "443", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", f"-R0:127.0.0.1:{port}", "a.pinggy.io"], r"(https://[a-zA-Z0-9.-]+\.pinggy\.link)"),
+        (["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", "-R", f"80:127.0.0.1:{port}", "serveo.net"], r"(https://[a-zA-Z0-9.-]+\.serveo\.net)")
     ]
-    proc = subprocess.Popen(ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    url_found = False
-    for line in proc.stdout:
-        m = re.search(r"(https://[a-zA-Z0-9.-]+\.lhr\.life)", line)
-        if m and not url_found:
-            url_found = True
-            full_url = f"{m.group(1)}/{tok}"
-            qr_p = generate_qr(full_url)
-            st = load_state()
-            st["running"] = True
-            st["url"] = full_url
-            st["qr_path"] = qr_p
-            st["status"] = "Интернет-мост активен ✓ Отсканируйте QR-код камерой телефона"
-            save_state(st)
 
-    proc.wait()
-    st = load_state()
-    st["running"] = False
-    st["status"] = "Интернет-мост остановлен"
-    save_state(st)
+    for cmd, pattern in tunnels:
+        if not is_daemon_alive():
+            break
+        try:
+            proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+            for line in proc.stdout:
+                m = re.search(pattern, line)
+                if m:
+                    full_url = f"{m.group(1)}/{tok}"
+                    qr_p = generate_qr(full_url)
+                    st = load_state()
+                    st["running"] = True
+                    st["url"] = full_url
+                    st["qr_path"] = qr_p
+                    st["status"] = "Мост активен ✓ Отсканируйте QR-код"
+                    save_state(st)
+            proc.wait()
+        except Exception:
+            pass
+
+    while is_daemon_alive():
+        time.sleep(2)
 
 def cmd_start():
     if is_daemon_alive():
         cmd_status()
         return
-    subprocess.Popen([sys.executable, __file__, "_daemon"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    time.sleep(0.4)
+    subprocess.Popen([sys.executable, __file__, "_daemon"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+    for _ in range(12):
+        time.sleep(0.25)
+        st = load_state()
+        if st.get("running") and st.get("url"):
+            break
     cmd_status()
 
 def cmd_stop():
     if os.path.exists(PID_FILE):
         try:
             pid = int(open(PID_FILE).read().strip())
-            os.kill(pid, 15)
+            os.kill(pid, 9)
         except Exception:
             pass
         try:
@@ -346,10 +382,12 @@ def cmd_stop():
         except Exception:
             pass
     subprocess.run(["pkill", "-f", "nokey@localhost.run"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["pkill", "-f", "a.pinggy.io"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["pkill", "-f", "serveo.net"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     st = load_state()
     st["running"] = False
     st["url"] = ""
-    st["status"] = "Мост остановлен"
+    st["status"] = "Мост выключен"
     save_state(st)
     cmd_status()
 
@@ -370,7 +408,7 @@ def cmd_add_text(txt):
         "time": time.strftime("%H:%M:%S")
     })
     st["items"] = items[:40]
-    st["status"] = "Текст добавлен в ленту для телефона ✓"
+    st["status"] = "Текст добавлен в ленту ✓"
     save_state(st)
     cmd_status()
 
@@ -396,13 +434,13 @@ def cmd_add_file(fp):
         "time": time.strftime("%H:%M:%S")
     })
     st["items"] = items[:40]
-    st["status"] = f"Файл «{os.path.basename(fp)}» готов к скачиванию на телефоне ✓"
+    st["status"] = f"Файл «{os.path.basename(fp)}» добавлен ✓"
     save_state(st)
     cmd_status()
 
 def cmd_quick_cloud(target, is_file):
     st = load_state()
-    st["status"] = "Выгрузка в облако для быстрой ссылки и QR..."
+    st["status"] = "Загрузка в облако..."
     save_state(st)
     tmp_txt = None
     upload_path = os.path.expanduser(target.strip())
@@ -412,6 +450,7 @@ def cmd_quick_cloud(target, is_file):
             f.write(target)
         upload_path = tmp_txt
     elif not os.path.exists(upload_path):
+        st = load_state()
         st["status"] = f"Файл не найден: {upload_path}"
         save_state(st)
         cmd_status()
@@ -443,11 +482,11 @@ def cmd_quick_cloud(target, is_file):
         st = load_state()
         st["url"] = link
         st["qr_path"] = qr_p
-        st["status"] = f"Готово! Ссылка скопирована: {link} ✓"
+        st["status"] = f"Ссылка скопирована: {link} ✓"
         save_state(st)
     else:
         st = load_state()
-        st["status"] = "Не удалось загрузить в облако (используйте Интернет-мост выше)"
+        st["status"] = "Ошибка выгрузки в облако"
         save_state(st)
     cmd_status()
 

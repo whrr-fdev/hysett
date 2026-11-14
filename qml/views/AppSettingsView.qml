@@ -869,7 +869,7 @@ RowLayout {
                                         { title: "󰒲  Автозапуск", idx: 9 }, { title: "⌨  Бинды", idx: 10 }, { title: "󰘳  Правила окон", idx: 11 },
                                         { title: "󰀻  Приложения", idx: 12 }, { title: "󰏘  Шейдеры", idx: 13 }, { title: "󰸉  Обои", idx: 14 },
                                         { title: "󰕰  Виджеты", idx: 15 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "󰁯  Бэкап", idx: 29 }, { title: "󰄜  Телефон", idx: 30 },
-                                        { title: "󰒓  Настройки (главная)", idx: 17 },
+                                        { title: "󰒓  Настройки", idx: 17 },
                                         { title: "✕  Кнопка Закрыть", idx: 99 }
                                     ]
                                     StyledCheckBox {
@@ -913,7 +913,7 @@ RowLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
                                     Text {
-                                        text: Config && Config.updateAvailable ? "Доступна новая версия HySett на GitHub!" : "Проверка и установка обновлений (whrr-fdev/hysett)"
+                                        text: Config && Config.updateAvailable ? "Доступна новая версия HySett на GitHub!" : "Проверка и установка обновлений"
                                         color: Config && Config.updateAvailable ? "#69f0ae" : "#ffffff"
                                         font.pixelSize: Config.fontSize + 1
                                         font.bold: true
@@ -989,7 +989,7 @@ RowLayout {
                                     Layout.fillWidth: true
                                 }
                                 StyledButton {
-                                    text: "auto_fix  Открыть мастер установки"
+                                    text: "󰒓  Мастер настройки"
                                     onClicked: if (ApplicationWindow.window) ApplicationWindow.window.setupWizardOpen = true
                                 }
                             }

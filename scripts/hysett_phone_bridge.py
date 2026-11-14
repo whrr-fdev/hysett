@@ -573,7 +573,7 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
     mip_so = os.path.expanduser("~/hysett/bin/libscrcpy_mipmap.so")
     if os.path.exists(mip_so):
         os.environ["LD_PRELOAD"] = mip_so
-    args = ["scrcpy", "--max-fps=120", "--video-codec=h265", "--video-bit-rate=20M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake"]
+    args = ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake"]
     if mouse_mode == "1":
         args.extend(["--mouse=uhid", "--keyboard=uhid"])
     elif mouse_mode == "2":
@@ -603,7 +603,7 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
 
     if not is_scrcpy_alive() and mouse_mode != "0":
         # Фолбэк на SDK, если ядро телефона не поддерживает UHID/AOA
-        fallback_args = ["scrcpy", "--max-fps=120", "--video-codec=h265", "--video-bit-rate=20M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake", "-d"] if mode != "wireless" else ["scrcpy", "--max-fps=120", "--video-codec=h265", "--video-bit-rate=20M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake", "-s", (ip_addr.strip() if ":" in ip_addr else ip_addr.strip() + ":5555")]
+        fallback_args = ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake", "-d"] if mode != "wireless" else ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake", "-s", (ip_addr.strip() if ":" in ip_addr else ip_addr.strip() + ":5555")]
         if turn_off == "1":
             fallback_args.append("--turn-screen-off")
         subprocess.Popen(fallback_args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)

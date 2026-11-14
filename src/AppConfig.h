@@ -438,5 +438,8 @@ private:
     QFileSystemWatcher *m_wallWatcher = nullptr;
     QTimer *m_wallExtractTimer = nullptr;
 
+    int m_phoneMouseMode = 0;
+    bool m_phoneTurnScreenOff = false;
+    bool m_phoneScreenRunning = false;
     QHash<QString, QString> m_enDict;
 };

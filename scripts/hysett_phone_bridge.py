@@ -44,13 +44,54 @@ def save_state(st):
 
 def get_lan_ip():
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        out = subprocess.check_output(["ip", "-4", "-o", "addr", "show"], stderr=subprocess.DEVNULL).decode()
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 4:
+                dev = parts[1]
+                ip = parts[3].split("/")[0]
+                if dev not in ("lo", "singbox_tun0", "tun0") and not ip.startswith("127.") and not ip.startswith("172.19."):
+                    return ip
     except Exception:
-        return "127.0.0.1"
+        pass
+    return "127.0.0.1"
+
+def detect_phone_wifi_ip():
+    # 1. Спрашиваем напрямую у подключенного по USB телефона (wlan0 / swlan0 / rndis0)
+    for prefix in (["adb", "-d"], ["adb"]):
+        for dev in ("wlan0", "wlan1", "swlan0", "ap0", "rndis0", "usb0", "ncm0"):
+            try:
+                out = subprocess.check_output(prefix + ["shell", "ip", "-f", "inet", "addr", "show", dev], stderr=subprocess.DEVNULL, timeout=2.5).decode()
+                m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
+                if m and not m.group(1).startswith("127."):
+                    return m.group(1)
+            except Exception:
+                pass
+    # 2. Проверяем уже подключенные adb-устройства вида IP:5555
+    try:
+        devs = subprocess.check_output(["adb", "devices"], stderr=subprocess.DEVNULL, timeout=2).decode()
+        for ln in devs.splitlines():
+            m = re.match(r"^(\d+\.\d+\.\d+\.\d+):(\d+)\s+device", ln.strip())
+            if m:
+                return m.group(1)
+    except Exception:
+        pass
+    # 3. Проверяем соседей в ARP/LAN таблице с открытым портом 5555
+    try:
+        neigh = subprocess.check_output(["ip", "-4", "neigh", "show"], stderr=subprocess.DEVNULL, timeout=2).decode()
+        for ln in neigh.splitlines():
+            ip = ln.split()[0]
+            if re.match(r"^\d+\.\d+\.\d+\.\d+$", ip):
+                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                s.settimeout(0.35)
+                if s.connect_ex((ip, 5555)) == 0:
+                    s.close()
+                    return ip
+                s.close()
+    except Exception:
+        pass
+    return ""
+
 
 def generate_qr(url_str):
     if not url_str:
@@ -534,81 +575,111 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
         return
 
     if mode == "tcpip_init":
-        subprocess.run(["adb", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        detected_ip = ""
-        for dev in ("rndis0", "usb0", "ncm0", "wlan0"):
-            try:
-                out = subprocess.check_output(["adb", "shell", "ip", "-f", "inet", "addr", "show", dev], stderr=subprocess.DEVNULL).decode()
-                m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
-                if m:
-                    detected_ip = m.group(1)
-                    break
-            except Exception:
-                pass
+        detected_ip = detect_phone_wifi_ip()
+        subprocess.run(["adb", "-d", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4)
+        subprocess.run(["adb", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4)
+        time.sleep(1.0)
         if not detected_ip:
-            try:
-                rout = subprocess.check_output(["ip", "route"], stderr=subprocess.DEVNULL).decode()
-                for ln in rout.splitlines():
-                    if ln.startswith("default via ") and any(k in ln for k in ("usb", "rndis", "enp0s29")):
-                        detected_ip = ln.split()[2].strip()
-                        break
-            except Exception:
-                pass
+            detected_ip = detect_phone_wifi_ip()
         if detected_ip:
+            subprocess.run(["adb", "connect", f"{detected_ip}:5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4)
             st["phone_ip"] = detected_ip
-            st["status"] = f"Порт 5555 открыт ({detected_ip}) ✓"
+            st["status"] = f"Порт 5555 открыт и подключен ({detected_ip}:5555) ✓"
         else:
-            st["status"] = "Порт 5555 открыт ✓"
+            st["status"] = "Порт 5555 открыт (подключите телефон к Wi-Fi или введите IP)"
         save_state(st)
         cmd_status()
         return
 
-    # Всегда перезапускаем scrcpy при новом вызове, чтобы применились свежие настройки
     subprocess.run(["pkill", "-x", "scrcpy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.15)
-
-    # Пробуем разблокировать разрешение ввода через ADB (если доступно)
-    subprocess.run(["adb", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     mip_so = os.path.expanduser("~/hysett/bin/libscrcpy_mipmap.so")
     if os.path.exists(mip_so):
         os.environ["LD_PRELOAD"] = mip_so
-    args = ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake"]
-    if mouse_mode == "1":
-        args.extend(["--mouse=uhid", "--keyboard=uhid"])
-    elif mouse_mode == "2":
-        args.extend(["--mouse=aoa", "--keyboard=aoa"])
-    else:
-        args.extend(["--mouse=sdk", "--keyboard=sdk"])
 
-    # --turn-screen-off совместим только с sdk
-    if turn_off == "1" and mouse_mode == "0":
-        args.append("--turn-screen-off")
+    base_args = ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--render-driver=opengl", "--stay-awake"]
 
-    if mode == "wireless" and ip_addr.strip():
-        target = ip_addr.strip()
-        if ":" not in target:
-            target += ":5555"
-        st["phone_ip"] = ip_addr.strip()
-        subprocess.run(["adb", "connect", target], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
+    if mode == "wireless":
+        clean_ip = (ip_addr or "").strip() or st.get("phone_ip", "").strip()
+        if not clean_ip:
+            clean_ip = detect_phone_wifi_ip()
+        # Если телефон подключен по USB, автоматически активируем tcpip 5555
+        usb_chk = subprocess.run(["adb", "-d", "get-state"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if usb_chk.returncode == 0:
+            if not clean_ip:
+                clean_ip = detect_phone_wifi_ip()
+            subprocess.run(["adb", "-d", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=4)
+            time.sleep(1.0)
+            if not clean_ip:
+                clean_ip = detect_phone_wifi_ip()
+
+        if not clean_ip:
+            st["status"] = "Не найден IP телефона. Подключите телефон по USB на 2 сек и нажмите «Определить IP»."
+            save_state(st)
+            cmd_status()
+            return
+
+        target = clean_ip if ":" in clean_ip else f"{clean_ip}:5555"
+        st["phone_ip"] = clean_ip.split(":")[0]
+        try:
+            c_out = subprocess.check_output(["adb", "connect", target], stderr=subprocess.STDOUT, timeout=5).decode(errors="ignore")
+        except Exception as e:
+            c_out = str(e)
+
+        if "connected" not in c_out.lower():
+            st["status"] = f"Не удалось подключиться к {target}. Нажмите «Определить IP» по USB."
+            save_state(st)
+            cmd_status()
+            return
+
+        subprocess.run(["adb", "-s", target, "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+        args = list(base_args)
+        # По воздуху AOA не работает (AOA только для USB!), используем UHID или SDK
+        if mouse_mode == "1":
+            args.extend(["--mouse=uhid", "--keyboard=uhid"])
+        else:
+            args.extend(["--mouse=sdk", "--keyboard=sdk"])
+            if turn_off == "1":
+                args.append("--turn-screen-off")
         args.extend(["-s", target])
-        st["status"] = f"Экран телефона запущен (120 FPS • {target})"
+        st["status"] = f"Экран по воздуху запущен (120 FPS • {target}) ✓"
     else:
+        subprocess.run(["adb", "-d", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
+        args = list(base_args)
+        if mouse_mode == "1":
+            args.extend(["--mouse=uhid", "--keyboard=uhid"])
+        elif mouse_mode == "2":
+            args.extend(["--mouse=aoa", "--keyboard=aoa"])
+        else:
+            args.extend(["--mouse=sdk", "--keyboard=sdk"])
+            if turn_off == "1":
+                args.append("--turn-screen-off")
         args.append("-d")
-        st["status"] = "Экран телефона запущен по USB (120 FPS)"
+        st["status"] = "Экран телефона запущен по USB (120 FPS) ✓"
 
     log_f = open(SCRCPY_LOG, "w")
     subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
-    time.sleep(0.45)
+    time.sleep(0.65)
 
-    if not is_scrcpy_alive() and mouse_mode != "0":
-        # Фолбэк на SDK, если ядро телефона не поддерживает UHID/AOA
-        fallback_args = ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake", "-d"] if mode != "wireless" else ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--hwdec=disabled", "--render-driver=opengl", "--stay-awake", "-s", (ip_addr.strip() if ":" in ip_addr else ip_addr.strip() + ":5555")]
+    if not is_scrcpy_alive():
+        fallback_args = list(base_args) + ["--mouse=sdk", "--keyboard=sdk"]
         if turn_off == "1":
             fallback_args.append("--turn-screen-off")
+        if mode == "wireless":
+            clean_ip = st.get("phone_ip", "").strip()
+            target = clean_ip if ":" in clean_ip else f"{clean_ip}:5555"
+            fallback_args.extend(["-s", target])
+        else:
+            fallback_args.append("-d")
         subprocess.Popen(fallback_args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
-        time.sleep(0.35)
-        st["status"] = "Запущен режим SDK (120 FPS). Для кликов на Xiaomi включите «Отладка по USB (Настройки безопасности)»"
+        time.sleep(0.55)
+        if not is_scrcpy_alive():
+            try:
+                err_txt = open(SCRCPY_LOG, "r", encoding="utf-8", errors="ignore").read().strip().splitlines()[-1]
+            except Exception:
+                err_txt = "Проверьте отладку по USB на телефоне"
+            st["status"] = f"Ошибка запуска scrcpy: {err_txt}"
 
     save_state(st)
     cmd_status()

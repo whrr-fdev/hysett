@@ -8,6 +8,7 @@ Item {
     id: phoneRoot
     readonly property bool isM3: Theme && Theme.isRounded
     property bool hideUrl: false
+    readonly property bool effHide: hideUrl || (Config && Config.streamerMode)
 
     Component.onCompleted: {
         if (Config) Config.refreshPhoneBridgeState()
@@ -63,11 +64,11 @@ Item {
                         Layout.fillWidth: true
                     }
                     StyledButton {
-                        text: phoneRoot.hideUrl ? "󰈉" : "󰈈"
+                        text: phoneRoot.effHide ? "󰈉" : "󰈈"
                         isIconOnly: true
                         implicitWidth: 28
                         isActive: phoneRoot.hideUrl
-                        onClicked: phoneRoot.hideUrl = !phoneRoot.hideUrl
+                        onClicked: phoneRoot.hideUrl = !phoneRoot.effHide
                     }
                     StyledButton {
                         text: "󰉋 Принятые"
@@ -133,6 +134,15 @@ Item {
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize : 11
                                 text: Config ? Config.phoneWirelessIp : ""
+                                echoMode: phoneRoot.effHide ? TextInput.Password : TextInput.Normal
+                                Connections {
+                                    target: Config
+                                    function onPhoneBridgeChanged() {
+                                        if (!phoneIpField.activeFocus && Config && Config.phoneWirelessIp.length > 0 && phoneIpField.text !== Config.phoneWirelessIp) {
+                                            phoneIpField.text = Config.phoneWirelessIp
+                                        }
+                                    }
+                                }
                                 onEditingFinished: if (Config) Config.phoneWirelessIp = text.trim()
                                 placeholderText: "IP телефона..."
                                 placeholderTextColor: "#777777"
@@ -152,7 +162,7 @@ Item {
                             StyledButton {
                                 text: "󰄙 По воздуху"
                                 isActive: true
-                                enabled: phoneIpField.text.trim().length > 0
+                                enabled: true
                                 onClicked: if (Config) Config.startPhoneScreen("wireless", phoneIpField.text.trim(), 120, Config.phoneTurnScreenOff)
                             }
                         }
@@ -204,7 +214,7 @@ Item {
                             Layout.preferredWidth: 140
                             Layout.preferredHeight: 140
                             radius: phoneRoot.isM3 ? 14 : 0
-                            color: (!phoneRoot.hideUrl && Config && Config.phoneBridgeQrPath.length > 0) ? "#ffffff" : Qt.rgba(1, 1, 1, 0.06)
+                            color: (!phoneRoot.effHide && Config && Config.phoneBridgeQrPath.length > 0) ? "#ffffff" : Qt.rgba(1, 1, 1, 0.06)
                             border.color: Config ? Config.m3Primary : "#ffffff"
                             border.width: 1.5
 
@@ -212,7 +222,7 @@ Item {
                                 id: qrImg
                                 anchors.fill: parent
                                 anchors.margins: 6
-                                visible: !phoneRoot.hideUrl && status === Image.Ready && Config && Config.phoneBridgeQrPath.length > 0
+                                visible: !phoneRoot.effHide && status === Image.Ready && Config && Config.phoneBridgeQrPath.length > 0
                                 source: (Config && Config.phoneBridgeQrPath.length > 0) ? ("file://" + Config.phoneBridgeQrPath) : ""
                                 fillMode: Image.PreserveAspectFit
                                 cache: false
@@ -222,7 +232,7 @@ Item {
                             Text {
                                 visible: !qrImg.visible
                                 anchors.centerIn: parent
-                                text: phoneRoot.hideUrl ? "󰈉" : "󰐲"
+                                text: phoneRoot.effHide ? "󰈉" : "󰐲"
                                 font.pixelSize: 40
                                 color: Config ? Config.m3Primary : "#ffffff"
                             }
@@ -276,7 +286,7 @@ Item {
                                         anchors.rightMargin: 10
                                         verticalAlignment: Text.AlignVCenter
                                         elide: Text.ElideRight
-                                        text: phoneRoot.hideUrl ? "https://••••••••••••••••••••••••" : (Config ? Config.phoneBridgeUrl : "")
+                                        text: phoneRoot.effHide ? "https://••••••••••••••••••••••••" : (Config ? Config.phoneBridgeUrl : "")
                                         color: "#ffffff"
                                         font.pixelSize: Config ? Config.fontSize : 11
                                         font.family: "monospace"
@@ -475,7 +485,7 @@ Item {
                                         Layout.fillWidth: true
                                         spacing: 1
                                         Text {
-                                            text: modelData.label
+                                            text: (phoneRoot.effHide && modelData.kind === "text") ? "••••••••••••••••••••" : modelData.label
                                             color: "#ffffff"
                                             font.pixelSize: Config ? Config.fontSize : 11
                                             font.bold: true

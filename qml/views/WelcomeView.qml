@@ -19,7 +19,7 @@ Item {
     readonly property bool isSearching: settingsSearchQuery.length > 0
     readonly property int wMode: Config ? Config.welcomeAlignMode : 1
     readonly property bool isM3: Theme && Theme.isRounded
-    readonly property int cardHeight: isM3 ? (isMaximized ? 54 : 45) : (isMaximized ? 44 : 38)
+    readonly property int cardHeight: isM3 ? (isMaximized ? 52 : 42) : (isMaximized ? 42 : 36)
     readonly property int cardGap: isM3 ? (isMaximized ? 11 : 7) : (isMaximized ? 8 : 6)
     property int visibleCardsHeight: 280
     property real gridTopYPos: 170
@@ -357,6 +357,7 @@ Item {
                             { title: "󰸉  Обои", desc: "Галерея, пресеты и демон", idx: 14, kw: "обои фон видео живые пресеты автосмена галерея wallpapers background live video presets awww mpvpaper" },
                             { title: "󰕰  Виджеты", desc: "Часы, оверлей клавиш, сводка", idx: 15, kw: "виджеты часы оверлей клавиш информеры монитор процессов btop fastfetch peaclock widgets clock keyboard overlay" },
                             { title: "󰄜  Телефон", desc: "Файлы и текст по QR без локальной сети", idx: 30, kw: "телефон файлы текст передача обмен qr мост облако phone transfer share bridge" },
+                            { title: "󰖟  Хостинг", desc: "Раздача сайтов (.html) и файлов по ссылке", idx: 31, kw: "хостинг сайт ссылка раздача файл друг html сервер туннель web share host site link friend" },
                             { title: "󰁯  Бэкап", desc: "Архивы системы и пакеты", idx: 29, kw: "бэкап архив восстановление пакеты pacman aur backup restore packages" },
                             { title: "󰒓  Настройки", desc: "Тема MD3, шрифт, стекло", idx: 17, kw: "настройки шрифт масштаб жидкое стекло подсветка границ вспышка курсор язык цвет акцент палитра высота окна боковое меню settings font scale liquid glass border glow flash language color accent palette md3" }
                         ]

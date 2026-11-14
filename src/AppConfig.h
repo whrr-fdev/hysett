@@ -31,6 +31,14 @@ class AppConfig : public QObject {
     Q_PROPERTY(int animDuration READ animDuration WRITE setAnimDuration NOTIFY animDurationChanged)
     Q_PROPERTY(bool rememberLastTab READ rememberLastTab WRITE setRememberLastTab NOTIFY rememberLastTabChanged)
         Q_PROPERTY(bool musicPrivacyMode READ musicPrivacyMode WRITE setMusicPrivacyMode NOTIFY musicPrivacyModeChanged)
+    Q_PROPERTY(bool streamerMode READ streamerMode WRITE setStreamerMode NOTIFY streamerModeChanged)
+    Q_PROPERTY(bool webShareRunning READ webShareRunning NOTIFY webShareChanged)
+    Q_PROPERTY(QString webShareUrl READ webShareUrl NOTIFY webShareChanged)
+    Q_PROPERTY(QString webShareQrPath READ webShareQrPath NOTIFY webShareChanged)
+    Q_PROPERTY(QString webShareStatus READ webShareStatus NOTIFY webShareChanged)
+    Q_PROPERTY(QString webShareMode READ webShareMode NOTIFY webShareChanged)
+    Q_PROPERTY(QString webShareActiveTitle READ webShareActiveTitle NOTIFY webShareChanged)
+    Q_PROPERTY(QVariantList webShareItems READ webShareItems NOTIFY webShareChanged)
     Q_PROPERTY(bool firstRunCompleted READ firstRunCompleted WRITE setFirstRunCompleted NOTIFY firstRunChanged)
     Q_PROPERTY(QString wallpapersDir READ wallpapersDir WRITE setWallpapersDir NOTIFY pathsChanged)
     Q_PROPERTY(QString musicDir READ musicDir WRITE setMusicDir NOTIFY pathsChanged)
@@ -155,6 +163,8 @@ public:
     void setRememberLastTab(bool v);
     bool musicPrivacyMode() const { return m_musicPrivacyMode; }
     void setMusicPrivacyMode(bool v);
+    bool streamerMode() const { return m_streamerMode; }
+    void setStreamerMode(bool v);
 
     bool firstRunCompleted() const { return m_firstRunCompleted; }
     void setFirstRunCompleted(bool v);
@@ -208,6 +218,21 @@ public:
     Q_INVOKABLE void startPhoneScreen(const QString &mode, const QString &ip, int fps, bool turnScreenOff);
     Q_INVOKABLE void stopPhoneScreen();
     Q_INVOKABLE void pressPhonePowerKey();
+    bool webShareRunning() const { return m_webShareRunning; }
+    QString webShareUrl() const { return m_webShareUrl; }
+    QString webShareQrPath() const { return m_webShareQrPath; }
+    QString webShareStatus() const { return m_webShareStatus; }
+    QString webShareMode() const { return m_webShareMode; }
+    QString webShareActiveTitle() const { return m_webShareActiveTitle; }
+    QVariantList webShareItems() const { return m_webShareItems; }
+    Q_INVOKABLE void refreshWebShareState();
+    Q_INVOKABLE void toggleWebShare();
+    Q_INVOKABLE void hostPathForFriend(const QString &path);
+    Q_INVOKABLE void hostHtmlCodeForFriend(const QString &htmlCode, const QString &title);
+    Q_INVOKABLE void pickFileForWebShare(bool pickFolder);
+    Q_INVOKABLE void removeWebShareItem(const QString &itemId);
+    Q_INVOKABLE void setPrimaryWebShareItem(const QString &itemId);
+    Q_INVOKABLE void clearWebShareItems();
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);
@@ -327,6 +352,8 @@ signals:
     void animDurationChanged();
     void rememberLastTabChanged();
     void musicPrivacyModeChanged();
+    void streamerModeChanged();
+    void webShareChanged();
     void firstRunChanged();
     void pathsChanged();
     void backupStateChanged();
@@ -378,6 +405,15 @@ private:
     int m_animDuration = 150;
     bool m_rememberLastTab = false;
     bool m_musicPrivacyMode = false;
+    bool m_streamerMode = false;
+    QString m_lastPhoneScreenMode = "usb";
+    bool m_webShareRunning = false;
+    QString m_webShareUrl;
+    QString m_webShareQrPath;
+    QString m_webShareStatus = "Сервер раздачи выключен";
+    QString m_webShareMode = "files";
+    QString m_webShareActiveTitle;
+    QVariantList m_webShareItems;
     bool m_firstRunCompleted = true;
     QString m_wallpapersDir;
     QString m_musicDir;

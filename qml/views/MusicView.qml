@@ -9,7 +9,7 @@ Item {
     id: musicRoot
     property var winObj: ApplicationWindow.window
     readonly property bool isM3: Theme && Theme.isRounded
-    readonly property bool isPrivacyHidden: Config ? Config.musicPrivacyMode : false
+    readonly property bool isPrivacyHidden: Config ? (Config.musicPrivacyMode || Config.streamerMode) : false
     readonly property bool hideActiveTrack: isPrivacyHidden && !(Waybar && Waybar.currentTrackPublic)
 
     function isPublicPlaylistTitle(t) {
@@ -528,7 +528,11 @@ Item {
                             implicitWidth: 28
                             implicitHeight: 26
                             isActive: musicRoot.isPrivacyHidden
-                            onClicked: if (Config) Config.musicPrivacyMode = !Config.musicPrivacyMode
+                            onClicked: {
+                                if (!Config) return
+                                if (Config.streamerMode && Config.musicPrivacyMode) { Config.streamerMode = false; Config.musicPrivacyMode = false }
+                                else Config.musicPrivacyMode = !Config.musicPrivacyMode
+                            }
                         }
                         StyledButton {
                             visible: !musicRoot.isPrivacyHidden

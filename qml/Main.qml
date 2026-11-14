@@ -215,20 +215,21 @@ ApplicationWindow {
         }
         var safeSq = fp.replace(/'/g, "'\\''")
         if (actIdx === 0) {
-            if (Config) {
-                Config.shareFileToPhone(fp)
-            }
-            root.openDrawerWithMode("settings", 30)
+            if (Config) Config.hostPathForFriend(fp)
+            root.openDrawerWithMode("settings", 31)
         } else if (actIdx === 1) {
-            if (Config) Config.quickCloudShare(fp, true)
+            if (Config) Config.shareFileToPhone(fp)
             root.openDrawerWithMode("settings", 30)
         } else if (actIdx === 2) {
-            root.drawerOpen = false
-            if (Wallpapers) Wallpapers.applyWallpaper(fp)
+            if (Config) Config.quickCloudShare(fp, true)
+            root.openDrawerWithMode("settings", 30)
         } else if (actIdx === 3) {
             root.drawerOpen = false
-            if (Waybar) Waybar.runCommand("printf '%s' '" + safeSq + "' | wl-copy")
+            if (Wallpapers) Wallpapers.applyWallpaper(fp)
         } else if (actIdx === 4) {
+            root.drawerOpen = false
+            if (Waybar) Waybar.runCommand("printf '%s' '" + safeSq + "' | wl-copy")
+        } else if (actIdx === 5) {
             root.drawerOpen = false
             if (Waybar) Waybar.runCommand("xdg-open '" + safeSq + "'")
         }
@@ -451,7 +452,7 @@ ApplicationWindow {
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
-        if (drawerMode === "filedrop") return isM3 ? 272 : 254
+        if (drawerMode === "filedrop") return isM3 ? 304 : 284
         if (drawerMode === "power") return isM3 ? 305 : 285
         if (drawerMode === "calendar") return isM3 ? 298 : 280
         if (drawerMode === "volume") {
@@ -3434,7 +3435,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            readonly property int itemCount: 5
+                            readonly property int itemCount: 6
                             readonly property real gap: 5
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 
@@ -3450,11 +3451,12 @@ ApplicationWindow {
 
                             Repeater {
                                 model: [
-                                    { label: "󰄜   Отправить на телефон", idx: 0 },
-                                    { label: "󰅧   Быстрая ссылка + QR в облако", idx: 1 },
-                                    { label: "󰸉   Установить как обои рабочего стола", idx: 2 },
-                                    { label: "󰆏   Скопировать путь в буфер обмена", idx: 3 },
-                                    { label: "󰉋   Открыть файл в системе", idx: 4 }
+                                    { label: "󰖟   Опубликовать по ссылке (Сайт / Файл)", idx: 0 },
+                                    { label: "󰄜   Отправить на телефон", idx: 1 },
+                                    { label: "󰅧   Быстрая ссылка + QR в облако", idx: 2 },
+                                    { label: "󰸉   Установить как обои рабочего стола", idx: 3 },
+                                    { label: "󰆏   Скопировать путь в буфер обмена", idx: 4 },
+                                    { label: "󰉋   Открыть файл в системе", idx: 5 }
                                 ]
                                 delegate: Rectangle {
                                     x: 0
@@ -3715,7 +3717,7 @@ ApplicationWindow {
                                     RowLayout {
                                         anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10; spacing: 10
                                         Text {
-                                            text: modelData.label
+                                            text: (Config && Config.streamerMode) ? "󰈉  Скрыто режимом стримера" : modelData.label
                                             color: clipDelRect.isHov ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                             Behavior on color { ColorAnimation { duration: 110 } }
                                             font.pixelSize: 11
@@ -4577,7 +4579,8 @@ ApplicationWindow {
                             "views/MusicView.qml",
                             "views/TimerView.qml",
                             "views/BackupView.qml",
-                            "views/PhoneBridgeView.qml"
+                            "views/PhoneBridgeView.qml",
+                            "views/WebShareView.qml"
                         ]
 
                         Loader {
@@ -4614,6 +4617,56 @@ ApplicationWindow {
                                 }
                             }
                         }
+                    }
+                }
+
+                // Кнопка-глазик «Режим стримера» в правом верхнем углу
+                Rectangle {
+                    id: streamerTopBtn
+                    z: 220
+                    anchors.top: parent.top
+                    anchors.right: parent.right
+                    anchors.topMargin: 8
+                    anchors.rightMargin: 12
+                    readonly property bool isOn: Config ? Config.streamerMode : false
+                    readonly property bool isWelcome: pageController.currentIndex === 0
+                    width: isWelcome ? (streamerBtnRow.implicitWidth + 18) : 28
+                    height: 26
+                    radius: (Theme && Theme.isRounded) ? 13 : 0
+                    color: isOn
+                           ? (Config ? Config.m3Primary : "#ffffff")
+                           : (streamerBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28))
+                    border.width: 1
+                    border.color: isOn ? "transparent" : Qt.rgba(1, 1, 1, 0.18)
+                    Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                    Behavior on color { ColorAnimation { duration: 140 } }
+
+                    Row {
+                        id: streamerBtnRow
+                        anchors.centerIn: parent
+                        spacing: 6
+                        Text {
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: streamerTopBtn.isOn ? "󰈉" : "󰈈"
+                            font.pixelSize: 13
+                            color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                        }
+                        Text {
+                            visible: streamerTopBtn.isWelcome
+                            anchors.verticalCenter: parent.verticalCenter
+                            text: streamerTopBtn.isOn ? "Стример: ВКЛ" : "Стример"
+                            font.pixelSize: 10
+                            font.bold: true
+                            color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#dddddd"
+                        }
+                    }
+
+                    MouseArea {
+                        id: streamerBtnMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: if (Config) Config.streamerMode = !Config.streamerMode
                     }
                 }
 

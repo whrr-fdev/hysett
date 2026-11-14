@@ -7,6 +7,12 @@ import "../components"
 ScrollView {
     id: vpnScroll
     property bool hideSubLinks: false
+    readonly property bool effHideSubs: hideSubLinks || (Config && Config.streamerMode)
+    function maskIpIfStreamer(str) {
+        if (!str) return ""
+        if (!(Config && Config.streamerMode)) return str
+        return String(str).replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, "•••.•••.•••.•••")
+    }
     property int copiedSubIdx: -1
     property int copiedWlSubIdx: -1
     property string copiedSrvSig: ""
@@ -374,7 +380,7 @@ ScrollView {
                         font.family: "monospace"
                         font.pixelSize: 10
                         color: "#cccccc"
-                        text: (vpnScroll.visible && logsCardRoot.activeScreen && Waybar) ? Waybar.vpnLogHtml : ""
+                        text: (vpnScroll.visible && logsCardRoot.activeScreen && Waybar) ? vpnScroll.maskIpIfStreamer(Waybar.vpnLogHtml) : ""
                     }
                 }
             }
@@ -570,7 +576,7 @@ ScrollView {
                         if (!Waybar) return "Туннель отключен"
                         if (Waybar.vpnBusy && Waybar.vpnProgressText.length > 0) return Waybar.vpnProgressText
                         var t = Waybar.vpnIpCheckText || ""
-                        if (t.length > 0 && (Waybar.vpnActive || Waybar.vpnIpCheckState > 0)) return t
+                        if (t.length > 0 && (Waybar.vpnActive || Waybar.vpnIpCheckState > 0)) return vpnScroll.maskIpIfStreamer(t)
                         return Waybar.vpnActive ? "Нажмите «2ip.io» или «Проверка конфигов»" : "Туннель отключен • Доступна «Проверка конфигов»"
                     }
                 }
@@ -789,10 +795,10 @@ ScrollView {
                                     }
                                     StyledButton {
                                         visible: Waybar && Waybar.vpnSubUrls.length > 0
-                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
+                                        text: vpnScroll.effHideSubs ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
-                                        isActive: vpnScroll.hideSubLinks
-                                        onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
+                                        isActive: vpnScroll.effHideSubs
+                                        onClicked: { if (Config && Config.streamerMode) Config.streamerMode = false; else vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks }
                                     }
                                 }
 
@@ -1049,7 +1055,7 @@ ScrollView {
                                                         id: subUrlBlurWrap
                                                         Layout.fillWidth: true
                                                         Layout.preferredHeight: 24
-                                                        layer.enabled: vpnScroll.hideSubLinks
+                                                        layer.enabled: vpnScroll.effHideSubs
                                                         layer.smooth: true
                                                         layer.textureSize: Qt.size(Math.max(1, Math.round(width * 0.22)), Math.max(1, Math.round(height * 0.35)))
                                                         layer.effect: ShaderEffect {
@@ -1327,7 +1333,7 @@ ScrollView {
                                                 }
 
                                                 Text {
-                                                    text: parsed.title
+                                                    text: vpnScroll.maskIpIfStreamer(parsed.title)
                                                     color: isSel
                                                            ? (Config ? Config.accentTextColor : "#000000")
                                                            : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")
@@ -1658,10 +1664,10 @@ ScrollView {
                                     }
                                     StyledButton {
                                         visible: Waybar && Waybar.vpnWlSubGroups.length > 0
-                                        text: vpnScroll.hideSubLinks ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
+                                        text: vpnScroll.effHideSubs ? "󰈉 Показать ссылки" : "󰈈 Блюр ссылок"
                                         implicitHeight: 24
-                                        isActive: vpnScroll.hideSubLinks
-                                        onClicked: vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks
+                                        isActive: vpnScroll.effHideSubs
+                                        onClicked: { if (Config && Config.streamerMode) Config.streamerMode = false; else vpnScroll.hideSubLinks = !vpnScroll.hideSubLinks }
                                     }
                                 }
 
@@ -1750,7 +1756,7 @@ ScrollView {
                                                         id: wlUrlBlurWrap
                                                         Layout.fillWidth: true
                                                         Layout.preferredHeight: 24
-                                                        layer.enabled: vpnScroll.hideSubLinks
+                                                        layer.enabled: vpnScroll.effHideSubs
                                                         layer.smooth: true
                                                         layer.textureSize: Qt.size(Math.max(1, Math.round(width * 0.22)), Math.max(1, Math.round(height * 0.35)))
                                                         layer.effect: ShaderEffect {
@@ -2044,7 +2050,7 @@ ScrollView {
                                                 }
 
                                                 Text {
-                                                    text: parsed.title
+                                                    text: vpnScroll.maskIpIfStreamer(parsed.title)
                                                     color: isSel
                                                            ? (Config ? Config.accentTextColor : "#000000")
                                                            : (vpnScroll.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff")

@@ -490,6 +490,7 @@ void AppConfig::load() {
             else if (key == "anim_duration") m_animDuration = std::clamp(val.toInt(), 0, 1000);
             else if (key == "remember_last_tab") m_rememberLastTab = (val == "1" || val == "true");
             else if (key == "music_privacy_mode") m_musicPrivacyMode = (val == "1" || val == "true");
+            else if (key == "streamer_mode") m_streamerMode = (val == "1" || val == "true");
             else if (key == "first_run_completed") m_firstRunCompleted = (val == "1" || val == "true");
             else if (key == "wallpapers_dir" && !val.isEmpty()) m_wallpapersDir = val;
             else if (key == "music_dir" && !val.isEmpty()) m_musicDir = val;
@@ -573,6 +574,7 @@ void AppConfig::save() {
             extra["anim_duration"] = QString::number(m_animDuration);
             extra["remember_last_tab"] = m_rememberLastTab ? "1" : "0";
             extra["music_privacy_mode"] = m_musicPrivacyMode ? "1" : "0";
+            extra["streamer_mode"] = m_streamerMode ? "1" : "0";
             extra["first_run_completed"] = m_firstRunCompleted ? "1" : "0";
             extra["wallpapers_dir"] = m_wallpapersDir;
             extra["music_dir"] = m_musicDir;
@@ -677,6 +679,15 @@ void AppConfig::setWelcomeAnimType(const QString &v) { if (m_welcomeAnimType != 
 void AppConfig::setAnimDuration(int v) { v = std::clamp(v, 0, 1000); if (m_animDuration != v) { m_animDuration = v; emit animDurationChanged(); save(); } }
 void AppConfig::setRememberLastTab(bool v) { if (m_rememberLastTab != v) { m_rememberLastTab = v; emit rememberLastTabChanged(); save(); } }
 void AppConfig::setMusicPrivacyMode(bool v) { if (m_musicPrivacyMode != v) { m_musicPrivacyMode = v; emit musicPrivacyModeChanged(); save(); } }
+void AppConfig::setStreamerMode(bool v) {
+    if (m_streamerMode != v) {
+        m_streamerMode = v;
+        m_musicPrivacyMode = v;
+        emit streamerModeChanged();
+        emit musicPrivacyModeChanged();
+        save();
+    }
+}
 void AppConfig::setBorderGlowEnabled(bool v) { if (m_borderGlowEnabled != v) { m_borderGlowEnabled = v; emit borderGlowEnabledChanged(); save(); } }
 void AppConfig::setBorderGlowAllPages(bool v) { if (m_borderGlowAllPages != v) { m_borderGlowAllPages = v; emit borderGlowAllPagesChanged(); save(); } }
 void AppConfig::setBorderGlowIntensity(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzzyCompare(m_borderGlowIntensity, v)) { m_borderGlowIntensity = v; emit borderGlowIntensityChanged(); save(); } }
@@ -1338,7 +1349,7 @@ void AppConfig::setPhoneMouseMode(int v) {
         emit phoneBridgeChanged();
         save();
         if (m_phoneScreenRunning) {
-            startPhoneScreen("usb", m_phoneWirelessIp, 120, m_phoneTurnScreenOff);
+            startPhoneScreen(m_lastPhoneScreenMode, m_phoneWirelessIp, 120, m_phoneTurnScreenOff);
         }
     }
 }
@@ -1349,7 +1360,7 @@ void AppConfig::setPhoneTurnScreenOff(bool v) {
         emit phoneBridgeChanged();
         save();
         if (m_phoneScreenRunning) {
-            startPhoneScreen("usb", m_phoneWirelessIp, 120, m_phoneTurnScreenOff);
+            startPhoneScreen(m_lastPhoneScreenMode, m_phoneWirelessIp, 120, m_phoneTurnScreenOff);
         }
     }
 }
@@ -1444,6 +1455,7 @@ void AppConfig::openPhoneDownloadsFolder() {
 
 void AppConfig::startPhoneScreen(const QString &mode, const QString &ip, int fps, bool turnScreenOff) {
     Q_UNUSED(fps);
+    if (mode == "usb" || mode == "wireless") m_lastPhoneScreenMode = mode;
     if (!ip.trimmed().isEmpty() && m_phoneWirelessIp != ip.trimmed()) {
         m_phoneWirelessIp = ip.trimmed();
         save();
@@ -1467,4 +1479,114 @@ void AppConfig::stopPhoneScreen() {
 
 void AppConfig::pressPhonePowerKey() {
     startPhoneScreen("power_key", "", 120, false);
+}
+
+
+static void applyWebShareJson(const QByteArray &raw, bool &run, QString &url, QString &qr, QString &st, QString &mode, QString &title, QVariantList &items) {
+    QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
+    if (o.isEmpty()) return;
+    run = o["running"].toBool(run);
+    url = o["url"].toString(url);
+    qr = o["qr_path"].toString(qr);
+    st = o["status"].toString(st);
+    mode = o["mode"].toString(mode);
+    title = o["active_title"].toString(title);
+    items = o["items"].toArray().toVariantList();
+}
+
+void AppConfig::refreshWebShareState() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "status"});
+}
+
+void AppConfig::toggleWebShare() {
+    QString cmd = m_webShareRunning ? "stop" : "start";
+    if (!m_webShareRunning) {
+        m_webShareStatus = "Запуск публичного туннеля и генерация ссылки...";
+        emit webShareChanged();
+    }
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+        QTimer::singleShot(2000, this, &AppConfig::refreshWebShareState);
+        QTimer::singleShot(4200, this, &AppConfig::refreshWebShareState);
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", cmd});
+}
+
+void AppConfig::hostPathForFriend(const QString &path) {
+    if (path.trimmed().isEmpty()) return;
+    m_webShareStatus = "Публикация и подключение туннеля...";
+    emit webShareChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+        QTimer::singleShot(2000, this, &AppConfig::refreshWebShareState);
+        QTimer::singleShot(4200, this, &AppConfig::refreshWebShareState);
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "add_path", path.trimmed()});
+}
+
+void AppConfig::hostHtmlCodeForFriend(const QString &htmlCode, const QString &title) {
+    if (htmlCode.trimmed().isEmpty()) return;
+    m_webShareStatus = "Создание HTML-сайта и запуск ссылки...";
+    emit webShareChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+        QTimer::singleShot(2000, this, &AppConfig::refreshWebShareState);
+        QTimer::singleShot(4200, this, &AppConfig::refreshWebShareState);
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "add_html", title.trimmed().isEmpty() ? "index.html" : title.trimmed(), htmlCode});
+}
+
+void AppConfig::pickFileForWebShare(bool pickFolder) {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QString chosen = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
+        p->deleteLater();
+        if (!chosen.isEmpty()) hostPathForFriend(chosen);
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", pickFolder ? "pick_folder" : "pick_file"});
+}
+
+void AppConfig::removeWebShareItem(const QString &itemId) {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "remove", itemId});
+}
+
+void AppConfig::setPrimaryWebShareItem(const QString &itemId) {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "set_primary", itemId});
+}
+
+void AppConfig::clearWebShareItems() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyWebShareJson(p->readAllStandardOutput(), m_webShareRunning, m_webShareUrl, m_webShareQrPath, m_webShareStatus, m_webShareMode, m_webShareActiveTitle, m_webShareItems);
+        p->deleteLater();
+        emit webShareChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "clear"});
 }

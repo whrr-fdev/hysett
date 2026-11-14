@@ -868,7 +868,7 @@ RowLayout {
                                         { title: "󰂯  Блютуз", idx: 7 }, { title: "󱓞  Панель", idx: 8 }, { title: "󰂚  Уведомления", idx: 18 },
                                         { title: "󰒲  Автозапуск", idx: 9 }, { title: "⌨  Бинды", idx: 10 }, { title: "󰘳  Правила окон", idx: 11 },
                                         { title: "󰀻  Приложения", idx: 12 }, { title: "󰏘  Шейдеры", idx: 13 }, { title: "󰸉  Обои", idx: 14 },
-                                        { title: "󰕰  Виджеты", idx: 15 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "󰁯  Бэкап", idx: 29 }, { title: "󰄜  Телефон", idx: 30 },
+                                        { title: "󰕰  Виджеты", idx: 15 }, { title: "󰖗  Атмосфера", idx: 19 }, { title: "󰁯  Бэкап", idx: 29 }, { title: "󰄜  Телефон", idx: 30 }, { title: "󰖟  Хостинг", idx: 31 },
                                         { title: "󰒓  Настройки", idx: 17 },
                                         { title: "✕  Кнопка Закрыть", idx: 99 }
                                     ]

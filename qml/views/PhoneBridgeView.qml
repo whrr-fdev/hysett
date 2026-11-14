@@ -10,6 +10,7 @@ Item {
     property bool hideUrl: false
     property int screenFps: 60
     property bool turnPhoneScreenOff: false
+    property bool useUhidMouse: false
 
     Component.onCompleted: {
         if (Config) Config.refreshPhoneBridgeState()
@@ -111,7 +112,7 @@ Item {
                             StyledButton {
                                 text: "󰄙  Открыть по USB"
                                 isActive: true
-                                onClicked: if (Config) Config.startPhoneScreen("usb", "", phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                                onClicked: if (Config) Config.startPhoneScreen(phoneRoot.useUhidMouse ? "usb_uhid" : "usb", "", phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
                             }
                         }
 
@@ -146,7 +147,23 @@ Item {
                                 text: "󰄙 Открыть по воздуху"
                                 isActive: true
                                 enabled: phoneIpField.text.trim().length > 0
-                                onClicked: if (Config) Config.startPhoneScreen("wireless", phoneIpField.text.trim(), phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                                onClicked: if (Config) Config.startPhoneScreen(phoneRoot.useUhidMouse ? "wireless_uhid" : "wireless", phoneIpField.text.trim(), phoneRoot.screenFps, phoneRoot.turnPhoneScreenOff)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "Режим управления мышью и клавиатурой:"
+                                color: "#cccccc"
+                                font.pixelSize: Config ? Config.fontSize : 11
+                                Layout.fillWidth: true
+                            }
+                            SegmentedButton {
+                                Layout.preferredWidth: 230
+                                options: ["Касания", "USB-мышь (UHID)"]
+                                selectedIndex: phoneRoot.useUhidMouse ? 1 : 0
+                                onSelected: (idx) => phoneRoot.useUhidMouse = (idx === 1)
                             }
                         }
 

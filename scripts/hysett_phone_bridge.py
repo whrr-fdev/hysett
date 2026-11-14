@@ -508,11 +508,15 @@ def cmd_scrcpy(mode, ip_addr, fps, turn_off):
         cmd_status()
         return
 
+    use_uhid = mode.endswith("_uhid")
+    base_mode = mode[:-5] if use_uhid else mode
     args = ["scrcpy", f"--max-fps={fps}", "--stay-awake"]
+    if use_uhid:
+        args.extend(["--mouse=uhid", "--keyboard=uhid"])
     if turn_off == "1":
         args.append("--turn-screen-off")
 
-    if mode == "tcpip_init":
+    if base_mode == "tcpip_init":
         subprocess.run(["adb", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         detected_ip = ""
         for dev in ("rndis0", "usb0", "ncm0", "wlan0"):
@@ -542,7 +546,7 @@ def cmd_scrcpy(mode, ip_addr, fps, turn_off):
         cmd_status()
         return
 
-    if mode == "wireless" and ip_addr.strip():
+    if base_mode == "wireless" and ip_addr.strip():
         target = ip_addr.strip()
         if ":" not in target:
             target += ":5555"

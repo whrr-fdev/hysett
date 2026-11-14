@@ -515,13 +515,24 @@ def cmd_scrcpy(mode, ip_addr, fps, turn_off):
     if mode == "tcpip_init":
         subprocess.run(["adb", "tcpip", "5555"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         detected_ip = ""
-        try:
-            out = subprocess.check_output(["adb", "shell", "ip", "-f", "inet", "addr", "show", "wlan0"], stderr=subprocess.DEVNULL).decode()
-            m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
-            if m:
-                detected_ip = m.group(1)
-        except Exception:
-            pass
+        for dev in ("rndis0", "usb0", "ncm0", "wlan0"):
+            try:
+                out = subprocess.check_output(["adb", "shell", "ip", "-f", "inet", "addr", "show", dev], stderr=subprocess.DEVNULL).decode()
+                m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
+                if m:
+                    detected_ip = m.group(1)
+                    break
+            except Exception:
+                pass
+        if not detected_ip:
+            try:
+                rout = subprocess.check_output(["ip", "route"], stderr=subprocess.DEVNULL).decode()
+                for ln in rout.splitlines():
+                    if ln.startswith("default via ") and any(k in ln for k in ("usb", "rndis", "enp0s29")):
+                        detected_ip = ln.split()[2].strip()
+                        break
+            except Exception:
+                pass
         if detected_ip:
             st["phone_ip"] = detected_ip
             st["status"] = f"Беспроводной режим ADB включён ({detected_ip}:5555) ✓"
@@ -540,6 +551,7 @@ def cmd_scrcpy(mode, ip_addr, fps, turn_off):
         args.append(f"--tcpip={target}")
         st["status"] = f"Запуск экрана телефона ({target})..."
     else:
+        args.append("-d")
         st["status"] = "Запуск экрана телефона по USB..."
 
     save_state(st)

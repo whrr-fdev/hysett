@@ -571,6 +571,7 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
     subprocess.run(["adb", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     os.environ["SDL_RENDER_SCALE_QUALITY"] = "1"
+    os.environ["LIBVA_DRIVER_NAME"] = "none"
     args = ["scrcpy", "--max-fps=120", "--video-bit-rate=20M", "--render-driver=opengl", "--stay-awake"]
     if mouse_mode == "1":
         args.extend(["--mouse=uhid", "--keyboard=uhid"])

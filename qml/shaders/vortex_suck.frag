@@ -9,7 +9,7 @@ layout(std140, binding = 0) uniform buf {
     vec2 u_resolution;
     float u_progress;
     float u_direction;
-    float u_mode; // 0 = Воронка, 1 = 3D Сферический Портал, 2 = Квантовый Телепорт
+    float u_mode;
 };
 
 layout(binding = 1) uniform sampler2D source;
@@ -19,6 +19,13 @@ float hash11(float p) {
     p *= p + 33.33;
     p *= p + p;
     return fract(p);
+}
+
+vec2 swirlUV(vec2 delta, vec2 aspect, vec2 center, float shrink, float angle) {
+    float s = sin(angle);
+    float c = cos(angle);
+    vec2 rot = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c);
+    return center + (rot / shrink) / aspect;
 }
 
 void main() {
@@ -36,49 +43,45 @@ void main() {
     vec2 aspect = vec2(res.x / res.y, 1.0);
     vec2 center = vec2(0.5, 0.5);
 
-    // =========================================================================
-    // РЕЖИМ 0: ВОРОНКА (Black Hole Swirl)
-    // =========================================================================
     if (u_mode < 0.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
 
-        float shrink = max(0.002, pow(1.0 - t, 1.45));
-        float sourceR = r / shrink;
+        float shrink = max(0.004, pow(1.0 - t, 1.35));
+        float radialPull = mix(1.0, 0.72 + 0.28 * smoothstep(0.0, 0.65, r), t);
+        vec2 pulledDelta = delta * radialPull;
+        float sourceR = length(pulledDelta) / shrink;
 
-        float swirlAngle = (t * 4.2 + t * t * 15.0) * u_direction / (0.12 + sourceR * 1.1);
-        float s = sin(swirlAngle);
-        float c = cos(swirlAngle);
-        vec2 rotDelta = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c);
+        float baseAngle = (t * 2.8 + t * t * 6.5) * u_direction * exp(-sourceR * 1.15);
+        float blurStep = t * 0.06 * u_direction;
 
-        vec2 sampleUV = center + (rotDelta / shrink) / aspect;
+        vec2 uv0 = swirlUV(pulledDelta, aspect, center, shrink, baseAngle - blurStep);
+        vec2 uv1 = swirlUV(pulledDelta, aspect, center, shrink, baseAngle);
+        vec2 uv2 = swirlUV(pulledDelta, aspect, center, shrink, baseAngle + blurStep);
 
-        vec2 edge = smoothstep(vec2(0.0), vec2(0.03), sampleUV) * smoothstep(vec2(0.0), vec2(0.03), vec2(1.0) - sampleUV);
+        vec2 edge = smoothstep(vec2(0.0), vec2(0.025), uv1) * smoothstep(vec2(0.0), vec2(0.025), vec2(1.0) - uv1);
         float mask = edge.x * edge.y;
         if (mask <= 0.001) {
             fragColor = vec4(0.0);
             return;
         }
 
-        vec4 col = texture(source, clamp(sampleUV, 0.0, 1.0));
-        float ringGlow = exp(-pow((r - 0.12 * shrink) / max(0.01, 0.04 * shrink), 2.0)) * t * (1.0 - t) * 0.65;
-        float endFade = smoothstep(1.0, 0.86, t);
+        vec4 c0 = texture(source, clamp(uv0, 0.0, 1.0));
+        vec4 c1 = texture(source, clamp(uv1, 0.0, 1.0));
+        vec4 c2 = texture(source, clamp(uv2, 0.0, 1.0));
+        vec4 col = (c0 * 0.25 + c1 * 0.50 + c2 * 0.25);
 
-        vec3 outRgb = col.rgb * mask + vec3(ringGlow * mask);
-        float outA = clamp(col.a * mask + ringGlow * mask, 0.0, 1.0) * endFade * qt_Opacity;
-        fragColor = vec4(outRgb * endFade * qt_Opacity, outA);
+        float endFade = smoothstep(1.0, 0.82, t);
+        float alpha = col.a * mask * endFade * qt_Opacity;
+        fragColor = vec4(col.rgb * mask * endFade * qt_Opacity, alpha);
         return;
     }
 
-    // =========================================================================
-    // РЕЖИМ 1: СФЕРИЧЕСКИЙ ПОРТАЛ (3D Fisheye Lens + Energy Ring Aperture)
-    // =========================================================================
     if (u_mode < 1.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
         float maxR = length(vec2(0.5, 0.5) * aspect) * 1.05;
 
-        // Радиус открытого портала (при t: 0->1 сжимается в центр, при t: 1->0 расширяется из центра)
         float apertureR = max(0.005, (1.0 - pow(t, 1.25)) * maxR);
         float circleMask = 1.0 - smoothstep(apertureR - 0.035, apertureR + 0.01, r);
         if (circleMask <= 0.001) {
@@ -86,7 +89,6 @@ void main() {
             return;
         }
 
-        // 3D сферическое преломление линзы внутри кольца портала
         float normR = clamp(r / apertureR, 0.0, 1.0);
         float sphereLens = mix(1.0, 0.55 + 0.65 * normR * normR, t * 0.85);
         float wave = sin(normR * 18.0 - t * 14.0) * t * 0.035;
@@ -101,25 +103,18 @@ void main() {
             return;
         }
 
-        // Хроматическая дисперсия на краю кольца портала
         vec2 radialShift = (delta / aspect) * (pow(normR, 2.0) * t * 0.055);
         vec4 cR = texture(source, clamp(uvBase - radialShift, 0.0, 1.0));
         vec4 cG = texture(source, clamp(uvBase, 0.0, 1.0));
         vec4 cB = texture(source, clamp(uvBase + radialShift, 0.0, 1.0));
 
-        // Светящееся кольцо самого портала
-        float ringGlow = exp(-pow((r - apertureR + 0.02) / 0.028, 2.0)) * sin(t * 3.14159) * 0.85;
         float endFade = smoothstep(1.0, 0.88, t);
-
-        vec3 rgb = vec3(cR.r, cG.g, cB.b) * bounds + vec3(0.92, 0.97, 1.0) * ringGlow * circleMask;
-        float alpha = clamp(cG.a * bounds + ringGlow * circleMask, 0.0, 1.0) * endFade * qt_Opacity;
+        vec3 rgb = vec3(cR.r, cG.g, cB.b) * bounds;
+        float alpha = clamp(cG.a * bounds, 0.0, 1.0) * endFade * qt_Opacity;
         fragColor = vec4(rgb * endFade * qt_Opacity, alpha);
         return;
     }
 
-    // =========================================================================
-    // РЕЖИМ 2: ТЕЛЕПОРТ / КВАНТОВЫЙ РАСПАД (Quantum Cyber Shatter)
-    // =========================================================================
     float numSlices = 26.0;
     float sliceIdx = floor(qt_TexCoord0.y * numSlices);
     float rnd = hash11(sliceIdx + 17.0);

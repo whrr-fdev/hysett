@@ -225,11 +225,8 @@ ApplicationWindow {
             root.openDrawerWithMode("settings", 30)
         } else if (actIdx === 3) {
             root.drawerOpen = false
-            if (Wallpapers) Wallpapers.applyWallpaper(fp)
-        } else if (actIdx === 4) {
-            root.drawerOpen = false
             if (Waybar) Waybar.runCommand("printf '%s' '" + safeSq + "' | wl-copy")
-        } else if (actIdx === 5) {
+        } else if (actIdx === 4) {
             root.drawerOpen = false
             if (Waybar) Waybar.runCommand("xdg-open '" + safeSq + "'")
         }
@@ -452,7 +449,7 @@ ApplicationWindow {
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
-        if (drawerMode === "filedrop") return isM3 ? 304 : 284
+        if (drawerMode === "filedrop") return isM3 ? 270 : 252
         if (drawerMode === "power") return isM3 ? 305 : 285
         if (drawerMode === "calendar") return isM3 ? 298 : 280
         if (drawerMode === "volume") {
@@ -3451,7 +3448,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            readonly property int itemCount: 6
+                            readonly property int itemCount: 5
                             readonly property real gap: 5
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 
@@ -3470,8 +3467,7 @@ ApplicationWindow {
                                     { label: "󰖟   Опубликовать по ссылке (Сайт / Файл)", idx: 0 },
                                     { label: "󰄜   Отправить на телефон", idx: 1 },
                                     { label: "󰅧   Быстрая ссылка + QR в облако", idx: 2 },
-                                    { label: "󰸉   Установить как обои рабочего стола", idx: 3 },
-                                    { label: "󰆏   Скопировать путь в буфер обмена", idx: 4 },
+                                    { label: "󰆏   Скопировать путь в буфер обмена", idx: 3 },
                                     { label: "󰉋   Открыть файл в системе", idx: 5 }
                                 ]
                                 delegate: Rectangle {
@@ -3584,7 +3580,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            readonly property int itemCount: 6
+                            readonly property int itemCount: 5
                             readonly property real gap: 6
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 
@@ -4332,19 +4328,19 @@ ApplicationWindow {
                             newPage.vortexDir = -dir
                             newPage.vortexProgress = 0.65
                             newPage.scale = 0.04
-                            newPage.rotation = -140 * dir
+                            newPage.rotation = -35 * dir
                             newPage.opacity = 0.0
                             newPage.visible = true
 
                             bhOutVortex.target = oldPage; bhOutVortex.duration = 380
                             bhOutSc.target = oldPage; bhOutSc.duration = 380
-                            bhOutRot.target = oldPage; bhOutRot.to = 200 * dir; bhOutRot.duration = 380
+                            bhOutRot.target = oldPage; bhOutRot.to = 45 * dir; bhOutRot.duration = 380
                             bhOutOp.target = oldPage; bhOutOp.duration = 380
 
                             bhInDelay.duration = 270
                             bhInVortex.target = newPage; bhInVortex.duration = 370
                             bhInSc.target = newPage; bhInSc.duration = 370
-                            bhInRot.target = newPage; bhInRot.from = -140 * dir; bhInRot.duration = 370
+                            bhInRot.target = newPage; bhInRot.from = -35 * dir; bhInRot.duration = 370
                             bhInOp.target = newPage; bhInOp.duration = 240
 
                             blackholeTransition.start()
@@ -4650,7 +4646,7 @@ ApplicationWindow {
                     readonly property bool isOn: Config ? Config.streamerMode : false
                     width: 28
                     height: 26
-                    radius: (Theme && Theme.isRounded) ? 13 : 0
+                    radius: (Theme && Theme.isRounded) ? (Config ? Math.min(8, Math.round(Config.m3ControlRadius * 0.65)) : 7) : 0
                     color: isOn
                            ? (Config ? Config.m3Primary : "#ffffff")
                            : (streamerBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28))

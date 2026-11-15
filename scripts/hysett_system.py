@@ -172,7 +172,7 @@ echo "==> Восстановление успешно завершено! ✓"
     hs_stage = os.path.join(stage_dir, "hysett_data")
     os.makedirs(hs_stage, exist_ok=True)
     if os.path.exists(os.path.join(HYSETT_DIR, "scripts")):
-        shutil.copytree(os.path.join(HYSETT_DIR, "scripts"), os.path.join(hs_stage, "scripts"), symlinks=False, ignore=shutil.ignore_patterns("vpn_state.json", "singbox_vpn.json", "*.bak*"), dirs_exist_ok=True)
+        shutil.copytree(os.path.join(HYSETT_DIR, "scripts"), os.path.join(hs_stage, "scripts"), symlinks=False, ignore_dangling_symlinks=True, ignore=shutil.ignore_patterns("vpn_state.json", "singbox_vpn.json", "*.bak*"), dirs_exist_ok=True)
 
     write_prog(True, 85, f"Сжатие архива {archive_name}...")
     with tarfile.open(archive_path, "w:gz") as tar:

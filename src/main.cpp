@@ -285,6 +285,5 @@ int main(int argc, char *argv[]) {
 
     engine.load(url);
     malloc_trim(0);
-    QTimer::singleShot(1200, [&]() { hyprIpc.deepCleanMemory(); });
     return app.exec();
 }

@@ -42,36 +42,36 @@ void main() {
     vec2 center = vec2(0.5, 0.5);
 
     // =========================================================================
-    // РЕЖИМ 0: ПОЛНОЕ СПИРАЛЬНОЕ СКРУЧИВАНИЕ В ВОРОНКУ (УГЛЫ + ОКНО ЦЕЛИКОМ)
+    // РЕЖИМ 0: НАСТОЯЩЕЕ ЗАСАСЫВАНИЕ В ЦЕНТР ПО СПИРАЛЯМ (ГИДРОДИНАМИЧЕСКИЙ СТОК)
     // =========================================================================
     if (u_mode < 0.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
         float maxR = length(vec2(0.5, 0.5) * aspect);
+        float rnScreen = r / maxR;
 
-        // Сжатие радиуса к центру так, чтобы при закручивании углы прямоугольного окна
-        // полностью помещались внутри холста и скручивались вместе с содержимым
-        float collapse = max(0.0015, pow(1.0 - t, 1.65) / (1.0 + 0.90 * t));
-        float rScaled = r / collapse;
-        float rn = rScaled / maxR;
+        // Спиральные рукава вихря, затягивающие края к центру
+        float baseAngle = atan(delta.y, delta.x);
+        float spiralArmWave = sin(baseAngle * 3.0 - u_direction * (14.0 * pow(1.0 - clamp(rnScreen, 0.0, 1.0), 1.6) + t * 10.0));
 
-        // Плавное воронкообразное натяжение от центра к краям без отрыва углов от контента
-        float funnelPull = 1.0 + 0.72 * pow(t, 0.85) * exp(-2.1 * rn);
-        float srcR = rScaled * funnelPull;
+        // 1. Уравнение стока (drain sink): swallowedR(t) — радиус области окна, которая УЖЕ
+        // всосалась в центральную точку r=0. Пиксели реально затекают в r=0 и поглощаются центром!
+        float swallowedR = pow(t, 1.06) * maxR * 1.06;
+        float outerPull = max(0.06, 1.0 - 0.72 * pow(t, 1.15));
+        float rPulled = (r / outerPull) * (1.0 + 0.08 * t * spiralArmWave * exp(-1.8 * rnScreen));
 
-        // Полное скручивание всего окна: и внешние углы, и центр закручиваются в единую спираль,
-        // при этом к центру горловины спираль закручена сильнее
-        float outerTwist = 4.8 * pow(t, 1.15);
-        float innerTwist = 9.2 * pow(t, 1.05) * exp(-2.05 * rn);
-        float swirlAngle = u_direction * (outerTwist + innerTwist);
+        float srcR = sqrt(rPulled * rPulled + swallowedR * swallowedR);
 
-        vec2 dir = (r > 1e-5) ? (delta / r) : vec2(0.0);
-        float s = sin(swirlAngle);
-        float c = cos(swirlAngle);
-        vec2 rotDir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
-        vec2 sampleUV = center + (rotDir * srcR) / aspect;
+        // 2. Гиперболическое закручивание (v_theta ~ 1/r): чем ближе пиксель подтянулся к точке стока (r -> 0),
+        // тем сильнее он закручивается по спирали в саму воронку
+        float swirlStrength = pow(t, 0.88);
+        float swirlAngle = u_direction * swirlStrength * (2.75 / (rnScreen + 0.08) - 1.35 * rnScreen);
 
-        // Антиалиасинг внешних скруглённых границ скручиваемого окна
+        float targetAngle = baseAngle + swirlAngle;
+        vec2 sampleDelta = vec2(cos(targetAngle), sin(targetAngle)) * srcR;
+        vec2 sampleUV = center + sampleDelta / aspect;
+
+        // Антиалиасинг внешних границ окна, затягиваемых по спирали в центр
         vec2 px = (sampleUV - center) * res;
         float dBox = sdRoundRect(px, 0.5 * res - vec2(1.0), 16.0);
         float boxMask = 1.0 - smoothstep(-1.5, 1.5, dBox);
@@ -82,10 +82,10 @@ void main() {
 
         vec4 col = texture(source, clamp(sampleUV, 0.0, 1.0));
 
-        // 3D-затемнение в глубине горловины в центре
-        float vortexCore = exp(-3.2 * rn);
-        float throatShadow = 1.0 - 0.52 * vortexCore * sin(t * 3.14159265);
-        float endFade = smoothstep(1.0, 0.85, t);
+        // Глубокое затемнение внутри самой точки всасывания в центре (r -> 0)
+        float drainHole = exp(-rnScreen * rnScreen / max(0.0006, 0.032 * (1.0 - t * 0.75)));
+        float throatShadow = 1.0 - 0.76 * drainHole * sin(t * 3.14159265);
+        float endFade = smoothstep(1.0, 0.88, t);
         float outA = col.a * boxMask * endFade * qt_Opacity;
         fragColor = vec4(col.rgb * throatShadow * boxMask * endFade * qt_Opacity, outA);
         return;

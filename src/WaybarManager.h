@@ -6,6 +6,7 @@
 #include <QTimer>
 #include <QSocketNotifier>
 #include <QQuickWindow>
+#include <QSettings>
 
 class WaybarManager : public QObject {
     Q_OBJECT
@@ -13,6 +14,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool posBottom READ posBottom WRITE setPosBottom NOTIFY stateChanged)
     Q_PROPERTY(int barPosition READ barPosition WRITE setBarPosition NOTIFY stateChanged)
     Q_PROPERTY(bool centeredBar READ centeredBar WRITE setCenteredBar NOTIFY stateChanged)
+    Q_PROPERTY(bool pillOutlineOnly READ pillOutlineOnly WRITE setPillOutlineOnly NOTIFY stateChanged)
     Q_PROPERTY(bool workspaceDots READ workspaceDots WRITE setWorkspaceDots NOTIFY stateChanged)
     Q_PROPERTY(int workspaceDotSize READ workspaceDotSize WRITE setWorkspaceDotSize NOTIFY stateChanged)
     Q_PROPERTY(bool fixedTitleWidth READ fixedTitleWidth WRITE setFixedTitleWidth NOTIFY stateChanged)
@@ -185,6 +187,18 @@ public:
     void setBarPosition(int v);
     bool centeredBar() const { return m_centeredBar; }
     void setCenteredBar(bool v);
+    bool pillOutlineOnly() const {
+        QSettings s("whrr", "HyprSettings");
+        return s.value("pillOutlineOnly", m_pillOutlineOnly).toBool();
+    }
+    void setPillOutlineOnly(bool v) {
+        if (pillOutlineOnly() != v) {
+            m_pillOutlineOnly = v;
+            QSettings s("whrr", "HyprSettings");
+            s.setValue("pillOutlineOnly", v);
+            emit stateChanged();
+        }
+    }
     bool workspaceDots() const { return m_workspaceDots; }
     void setWorkspaceDots(bool v);
     int workspaceDotSize() const { return m_workspaceDotSize; }
@@ -503,6 +517,7 @@ private:
     int m_barPosition = 0;
     QString m_hiddenBarModules;
     bool m_centeredBar = false;
+    bool m_pillOutlineOnly = true;
     bool m_workspaceDots = false;
     int m_workspaceDotSize = 5;
     bool m_fixedTitleWidth = false;

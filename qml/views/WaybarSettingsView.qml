@@ -129,6 +129,24 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
+                implicitHeight: pillStyleRow.implicitHeight + 16
+                RowLayout {
+                    id: pillStyleRow
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    Text { text: "Стиль пилюль модулей на панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                    Item { Layout.fillWidth: true }
+                    SegmentedButton {
+                        options: ["Заливка цветом", "Только обводка (как у блоков)"]
+                        selectedIndex: (Waybar && Waybar.pillOutlineOnly) ? 1 : 0
+                        onSelected: (idx) => { if (Waybar) Waybar.pillOutlineOnly = (idx === 1) }
+                    }
+                }
+            }
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
                 implicitHeight: titleAlignRow.implicitHeight + 16
                 RowLayout {
                     id: titleAlignRow

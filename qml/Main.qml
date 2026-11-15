@@ -484,7 +484,8 @@ ApplicationWindow {
         if (drawerMode === "filedrop") return isM3 ? 336 : 316
         if (drawerMode === "power") return isM3 ? 280 : 260
         if (drawerMode === "calendar") return isM3 ? 310 : 295
-        if (drawerMode === "usb" || drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 368 : 346
+        if (drawerMode === "usb") return isM3 ? 430 : 405
+        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 368 : 346
         if (drawerMode === "clipboard") return isM3 ? 440 : 410
         return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.max(820, Math.min(maxAvailBarW, root.isResizingWindow ? root.liveResizeW : (Config ? Config.windowWidth : (isM3 ? 1040 : 860))))
     }
@@ -4450,19 +4451,19 @@ ApplicationWindow {
 
                                         ColumnLayout {
                                             Layout.fillWidth: true
-                                            spacing: 1
+                                            spacing: 2
                                             Text {
-                                                text: modelData.name + " (" + modelData.size + ")"
+                                                text: modelData.name
                                                 color: "#ffffff"
-                                                font.pixelSize: 11
+                                                font.pixelSize: 12
                                                 font.bold: true
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
                                             }
                                             Text {
-                                                text: modelData.mounted ? modelData.mountpoint : (modelData.dev + " • Отмонтирована")
+                                                text: modelData.size + " • " + modelData.fstype + " • " + (modelData.mounted ? "Смонтирована" : "Отмонтирована")
                                                 color: modelData.mounted ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
-                                                font.pixelSize: 9
+                                                font.pixelSize: 10
                                                 elide: Text.ElideRight
                                                 Layout.fillWidth: true
                                             }

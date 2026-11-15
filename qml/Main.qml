@@ -508,8 +508,8 @@ ApplicationWindow {
         }
         if (drawerMode === "usb") {
             var uCnt = Devices ? Devices.usbDrivesCount : 0
-            if (uCnt <= 0) return 138
-            return Math.min(380, 72 + uCnt * 66)
+            if (uCnt <= 0) return 124
+            return Math.min(372, 52 + uCnt * 64)
         }
         if (drawerMode === "clipboard") {
             var cCnt = (Waybar && Waybar.clipboardItems) ? Waybar.clipboardItems.length : 0

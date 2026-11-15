@@ -422,6 +422,96 @@ Item {
                                 onClicked: if (Config) Config.quickCloudShare(fileInputField.text.trim(), true)
                             }
                         }
+
+                        // Блок файлов, закинутых в панель задач
+                        ColumnLayout {
+                            visible: Config && Config.stashedFiles.length > 0
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "󰇚"
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                }
+                                Text {
+                                    text: "Загружено в панель задач (" + (Config ? Config.stashedFiles.length : 0) + ")"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config ? Config.fontSize : 11
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                }
+                                StyledButton {
+                                    text: "󰎟 Очистить"
+                                    implicitHeight: 22
+                                    onClicked: if (Config) Config.clearStashedFiles()
+                                }
+                            }
+
+                            Repeater {
+                                model: Config ? Config.stashedFiles : []
+                                delegate: Rectangle {
+                                    Layout.fillWidth: true
+                                    implicitHeight: 36
+                                    radius: phoneRoot.isM3 ? 8 : 0
+                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                    border.color: Qt.rgba(1, 1, 1, 0.12)
+                                    border.width: 1
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 8
+                                        spacing: 8
+
+                                        Text {
+                                            text: "󰈔"
+                                            color: Config ? Config.m3Primary : "#a8c7fa"
+                                            font.pixelSize: 14
+                                        }
+
+                                        Text {
+                                            text: modelData.name
+                                            color: "#ffffff"
+                                            font.pixelSize: Config ? Config.fontSize : 11
+                                            font.bold: true
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                        }
+
+                                        Text {
+                                            text: modelData.size
+                                            color: "#888888"
+                                            font.pixelSize: Config ? Config.fontSize - 2 : 9
+                                        }
+
+                                        StyledButton {
+                                            text: "󰁕 В мост"
+                                            implicitHeight: 24
+                                            onClicked: if (Config) Config.shareFileToPhone(modelData.path)
+                                        }
+
+                                        StyledButton {
+                                            text: "󰅧 Облако"
+                                            implicitHeight: 24
+                                            onClicked: if (Config) Config.quickCloudShare(modelData.path, true)
+                                        }
+
+                                        StyledButton {
+                                            text: "󰅖"
+                                            isIconOnly: true
+                                            implicitWidth: 24; implicitHeight: 24
+                                            onClicked: if (Config) Config.removeStashedFile(modelData.path)
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

@@ -271,6 +271,144 @@ Item {
                                 onClicked: if (Config && pathField.text.trim().length > 0) Config.cloudHostPathForFriend(pathField.text.trim())
                             }
                         }
+
+                        // Блок файлов, закинутых в панель задач
+                        ColumnLayout {
+                            visible: Config && Config.stashedFiles.length > 0
+                            Layout.fillWidth: true
+                            spacing: 6
+
+                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "󰇚"
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                }
+                                Text {
+                                    text: "Загружено в панель задач (" + (Config ? Config.stashedFiles.length : 0) + ")"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config ? Config.fontSize : 11
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                }
+                                StyledButton {
+                                    text: "󰎟 Очистить"
+                                    implicitHeight: 22
+                                    onClicked: if (Config) Config.clearStashedFiles()
+                                }
+                            }
+
+                            Item {
+                                id: stashWebHoverWrap
+                                Layout.fillWidth: true
+                                implicitHeight: stashWebCol.implicitHeight
+                                property bool isHovering: false
+                                property real hovY: 0
+                                property real hovH: 38
+
+                                Timer {
+                                    id: stashWebHold
+                                    interval: 45
+                                    onTriggered: stashWebHoverWrap.isHovering = false
+                                }
+
+                                Rectangle {
+                                    z: 1
+                                    opacity: stashWebHoverWrap.isHovering ? 1.0 : 0.0
+                                    x: 0; y: stashWebHoverWrap.hovY
+                                    width: stashWebHoverWrap.width; height: stashWebHoverWrap.hovH
+                                    radius: webRoot.isM3 ? 8 : 0
+                                    color: webRoot.isM3 && Config
+                                           ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14)
+                                           : Qt.rgba(1, 1, 1, 0.10)
+                                    Behavior on y { NumberAnimation { duration: 175; easing.type: Easing.OutQuint } }
+                                    Behavior on opacity { NumberAnimation { duration: 115 } }
+                                }
+
+                                ColumnLayout {
+                                    id: stashWebCol
+                                    z: 2; width: parent.width; spacing: 5
+
+                                    Repeater {
+                                        model: Config ? Config.stashedFiles : []
+                                        delegate: Rectangle {
+                                            id: stashWebRow
+                                            Layout.fillWidth: true
+                                            implicitHeight: 38
+                                            radius: webRoot.isM3 ? 8 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.04)
+                                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                                            border.width: 1
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onEntered: {
+                                                    stashWebHold.stop()
+                                                    stashWebHoverWrap.hovY = stashWebRow.y
+                                                    stashWebHoverWrap.hovH = stashWebRow.height
+                                                    stashWebHoverWrap.isHovering = true
+                                                }
+                                                onExited: stashWebHold.restart()
+                                                onClicked: pathField.text = modelData.path
+                                            }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 10
+                                                anchors.rightMargin: 8
+                                                spacing: 8
+
+                                                Text {
+                                                    text: modelData.isDir ? "󰉋" : (String(modelData.name).toLowerCase().indexOf(".html") !== -1 ? "󰖟" : "󰈔")
+                                                    color: Config ? Config.m3Primary : "#a8c7fa"
+                                                    font.pixelSize: 14
+                                                }
+
+                                                Text {
+                                                    text: modelData.name
+                                                    color: "#ffffff"
+                                                    font.pixelSize: Config ? Config.fontSize : 11
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                Text {
+                                                    text: modelData.size + " • " + modelData.time
+                                                    color: "#888888"
+                                                    font.pixelSize: Config ? Config.fontSize - 2 : 9
+                                                }
+
+                                                StyledButton {
+                                                    text: "󰖟 Выложить локально"
+                                                    implicitHeight: 24
+                                                    onClicked: if (Config) Config.hostPathForFriend(modelData.path)
+                                                }
+
+                                                StyledButton {
+                                                    text: "󰅧 Выложить 24/7"
+                                                    implicitHeight: 24
+                                                    onClicked: if (Config) Config.cloudHostPathForFriend(modelData.path)
+                                                }
+
+                                                StyledButton {
+                                                    text: "󰅖"
+                                                    isIconOnly: true
+                                                    implicitWidth: 24; implicitHeight: 24
+                                                    onClicked: if (Config) Config.removeStashedFile(modelData.path)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
 

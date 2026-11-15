@@ -40,6 +40,8 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString webShareActiveTitle READ webShareActiveTitle NOTIFY webShareChanged)
     Q_PROPERTY(QVariantList webShareItems READ webShareItems NOTIFY webShareChanged)
     Q_PROPERTY(QVariantList webShareCloudItems READ webShareCloudItems NOTIFY webShareChanged)
+    Q_PROPERTY(QVariantList stashedFiles READ stashedFiles NOTIFY stashedFilesChanged)
+    Q_PROPERTY(QString lastStashedFile READ lastStashedFile NOTIFY stashedFilesChanged)
     Q_PROPERTY(QString bootloaderType READ bootloaderType NOTIFY bootloaderChanged)
     Q_PROPERTY(QString bootloaderStatus READ bootloaderStatus NOTIFY bootloaderChanged)
     Q_PROPERTY(int bootloaderTimeout READ bootloaderTimeout NOTIFY bootloaderChanged)
@@ -275,6 +277,11 @@ public:
     Q_INVOKABLE void removeWebShareItem(const QString &itemId);
     Q_INVOKABLE void setPrimaryWebShareItem(const QString &itemId);
     Q_INVOKABLE void clearWebShareItems();
+    QVariantList stashedFiles() const { return m_stashedFiles; }
+    QString lastStashedFile() const { return m_lastStashedFile; }
+    Q_INVOKABLE void addStashedFile(const QString &filePath);
+    Q_INVOKABLE void removeStashedFile(const QString &filePath);
+    Q_INVOKABLE void clearStashedFiles();
 
     QString hiddenSidebarTabs() const { return m_hiddenSidebarTabs; }
     void setHiddenSidebarTabs(const QString &v);
@@ -396,6 +403,7 @@ signals:
     void musicPrivacyModeChanged();
     void streamerModeChanged();
     void webShareChanged();
+    void stashedFilesChanged();
     void bootloaderChanged();
     void firstRunChanged();
     void pathsChanged();
@@ -458,6 +466,8 @@ private:
     QString m_webShareActiveTitle;
     QVariantList m_webShareItems;
     QVariantList m_webShareCloudItems;
+    QVariantList m_stashedFiles;
+    QString m_lastStashedFile;
     QString m_bootloaderType = "systemd-boot";
     QString m_bootloaderStatus = "Загрузка параметров загрузчика...";
     int m_bootloaderTimeout = 5;

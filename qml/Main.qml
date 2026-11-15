@@ -3210,6 +3210,7 @@ ApplicationWindow {
                     }
                     if (rawPath.length > 0) {
                         root.droppedFilePath = rawPath
+                        if (Config) Config.addStashedFile(rawPath)
                         var parts = rawPath.split("/")
                         root.droppedFileName = parts.length > 0 ? parts[parts.length - 1] : rawPath
                         root.barDropX = topBarContainer.x + drop.x

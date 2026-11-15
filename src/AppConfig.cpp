@@ -14,6 +14,7 @@
 #include <QImage>
 #include <QFileInfo>
 #include <QProcess>
+#include <QDateTime>
 
 AppConfig::AppConfig(QObject *parent) : QObject(parent) {
     m_wallpapersDir = QDir::homePath() + "/Pictures/Wallpapers";
@@ -21,6 +22,7 @@ AppConfig::AppConfig(QObject *parent) : QObject(parent) {
     m_backupsDir = QDir::homePath() + "/hysett/backups/archives";
     initTranslations();
     load();
+    { QFile sf(QDir::homePath() + "/.config/hypr/scripts/stashed_files.json"); if (sf.open(QIODevice::ReadOnly)) { m_stashedFiles = QJsonDocument::fromJson(sf.readAll()).array().toVariantList(); if (!m_stashedFiles.isEmpty()) m_lastStashedFile = m_stashedFiles.first().toMap().value("path").toString(); } }
     m_sysProgTimer = new QTimer(this);
     m_sysProgTimer->setInterval(300);
     connect(m_sysProgTimer, &QTimer::timeout, this, [this]() {
@@ -1756,4 +1758,64 @@ void AppConfig::bootFromSpecificUsb(const QString &disk, int part, const QString
         applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
+}
+
+
+static void saveStashedListToDisk(const QVariantList &list) {
+    QFile f(QDir::homePath() + "/.config/hypr/scripts/stashed_files.json");
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(QJsonDocument(QJsonArray::fromVariantList(list)).toJson(QJsonDocument::Compact));
+        f.close();
+    }
+}
+
+void AppConfig::addStashedFile(const QString &filePath) {
+    QString clean = filePath.trimmed();
+    if (clean.isEmpty()) return;
+    QFileInfo fi(clean);
+    if (!fi.exists()) return;
+
+    QVariantList next;
+    QVariantMap item;
+    item["path"] = fi.absoluteFilePath();
+    item["name"] = fi.fileName().isEmpty() ? fi.absoluteFilePath() : fi.fileName();
+    item["isDir"] = fi.isDir();
+    if (fi.isDir()) {
+        item["size"] = "Папка";
+    } else {
+        double mb = fi.size() / (1024.0 * 1024.0);
+        item["size"] = (mb >= 1.0) ? QString("%1 MB").arg(mb, 0, 'f', 1) : QString("%1 KB").arg(std::max<qint64>(1, fi.size() / 1024));
+    }
+    item["time"] = QDateTime::currentDateTime().toString("HH:mm");
+    next.append(item);
+
+    for (const QVariant &v : m_stashedFiles) {
+        QVariantMap m = v.toMap();
+        if (m.value("path").toString() != item["path"].toString() && next.size() < 15) {
+            next.append(m);
+        }
+    }
+    m_stashedFiles = next;
+    m_lastStashedFile = item["path"].toString();
+    saveStashedListToDisk(m_stashedFiles);
+    emit stashedFilesChanged();
+}
+
+void AppConfig::removeStashedFile(const QString &filePath) {
+    QVariantList next;
+    for (const QVariant &v : m_stashedFiles) {
+        QVariantMap m = v.toMap();
+        if (m.value("path").toString() != filePath) next.append(m);
+    }
+    m_stashedFiles = next;
+    m_lastStashedFile = m_stashedFiles.isEmpty() ? "" : m_stashedFiles.first().toMap().value("path").toString();
+    saveStashedListToDisk(m_stashedFiles);
+    emit stashedFilesChanged();
+}
+
+void AppConfig::clearStashedFiles() {
+    m_stashedFiles.clear();
+    m_lastStashedFile.clear();
+    saveStashedListToDisk(m_stashedFiles);
+    emit stashedFilesChanged();
 }

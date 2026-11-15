@@ -416,9 +416,26 @@ def set_uefi_os_indications(enable=True):
     except Exception:
         pass
 
+def ensure_grub_unconditional_fwsetup():
+    cfg = "/boot/grub/grub.cfg"
+    if not os.path.exists(cfg):
+        return
+    try:
+        os.chmod(cfg, 0o644)
+        txt = open(cfg, "r", encoding="utf-8", errors="ignore").read()
+        # Убираем проверку fwsetup --is-supported, которая блокирует пункт на платах без OsIndicationsSupported
+        if "fwsetup --is-supported" in txt:
+            txt = txt.replace("fwsetup --is-supported\nif [ \"$?\" = 0 ]; then", "if true; then")
+            open(cfg, "w", encoding="utf-8").write(txt)
+    except Exception:
+        pass
+
 def trigger_now_reboot(firmware=False):
     if firmware:
         set_uefi_os_indications(True)
+        ensure_grub_unconditional_fwsetup()
+        subprocess.run(["grub-reboot", "uefi-firmware"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["grub-editenv", "/boot/grub/grubenv", "set", "next_entry=uefi-firmware"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         r = subprocess.run(["systemctl", "reboot", "--firmware-setup", "-i"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if r.returncode == 0:
             return

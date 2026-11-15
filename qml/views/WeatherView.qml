@@ -10,6 +10,7 @@ ScrollView {
     clip: true
 
     property int periodTab: 0
+    property int previewWeatherMode: 0 // 0=Авто, 1=Ясно, 2=Дождь, 3=Снег
     property int hoveredHourIdx: -1
     property int lastHourIdx: 0
     property int hoveredWeekIdx: -1
@@ -37,6 +38,23 @@ ScrollView {
         if (s.indexOf("ясн") !== -1 || s.indexOf("солн") !== -1 || s.indexOf("☀") !== -1) return "󰖙"
         if (s.indexOf("пасмур") !== -1 || s.indexOf("облач") !== -1 || s.indexOf("☁") !== -1) return "󰖐"
         return "󰖕"
+    }
+
+    function weatherIconColor(rawIcon, descText) {
+        var ic = toNerdWeatherIcon(rawIcon, descText)
+        var base
+        if (ic === "󰖙") base = Qt.rgba(1.0, 0.84, 0.42, 1.0)
+        else if (ic === "󰖕") base = Qt.rgba(0.96, 0.82, 0.52, 1.0)
+        else if (ic === "󰖗" || ic === "󰖖") base = Qt.rgba(0.52, 0.78, 1.0, 1.0)
+        else if (ic === "󰼶") base = Qt.rgba(0.76, 0.91, 1.0, 1.0)
+        else if (ic === "󰖓") base = Qt.rgba(0.84, 0.68, 1.0, 1.0)
+        else base = Qt.rgba(0.78, 0.84, 0.92, 1.0)
+        return Qt.rgba(
+            base.r * 0.78 + weatherScroll.priCol.r * 0.22,
+            base.g * 0.78 + weatherScroll.priCol.g * 0.22,
+            base.b * 0.78 + weatherScroll.priCol.b * 0.22,
+            1.0
+        )
     }
 
     function parseTempNum(str) {
@@ -154,8 +172,8 @@ ScrollView {
                         if (hr < 9 || hr >= 17) return 1.0
                         return 0.0
                     }
-                    property real u_is_rain: (Waybar && Waybar.weatherDetails && Waybar.weatherDetails.isRain) ? 1.0 : 0.0
-                    property real u_is_snow: (Waybar && Waybar.weatherDetails && Waybar.weatherDetails.isSnow) ? 1.0 : 0.0
+                    property real u_is_rain: weatherScroll.previewWeatherMode === 2 ? 1.0 : (weatherScroll.previewWeatherMode !== 0 ? 0.0 : ((Waybar && Waybar.weatherDetails && Waybar.weatherDetails.isRain) ? 1.0 : 0.0))
+                    property real u_is_snow: weatherScroll.previewWeatherMode === 3 ? 1.0 : (weatherScroll.previewWeatherMode !== 0 ? 0.0 : ((Waybar && Waybar.weatherDetails && Waybar.weatherDetails.isSnow) ? 1.0 : 0.0))
                     property real u_radius: weatherScroll.isM3 ? (Config ? Config.m3CardRadius : 16.0) : 0.0
                     property vector3d u_accent: Qt.vector3d(weatherScroll.priCol.r, weatherScroll.priCol.g, weatherScroll.priCol.b)
                     property vector3d u_surface: Config ? Qt.vector3d(Config.m3SurfaceContainer.r, Config.m3SurfaceContainer.g, Config.m3SurfaceContainer.b) : Qt.vector3d(0.11, 0.12, 0.15)
@@ -179,10 +197,11 @@ ScrollView {
 
                         Text {
                             anchors.centerIn: parent
+                            readonly property string curDesc: weatherScroll.previewWeatherMode === 1 ? "Ясно" : (weatherScroll.previewWeatherMode === 2 ? "Дождь" : (weatherScroll.previewWeatherMode === 3 ? "Снег" : ((Waybar && Waybar.weatherDetails) ? Waybar.weatherDetails.desc : "")))
                             text: weatherScroll.toNerdWeatherIcon(
-                                      (Waybar && Waybar.weatherDetails) ? Waybar.weatherDetails.icon : "",
-                                      (Waybar && Waybar.weatherDetails) ? Waybar.weatherDetails.desc : "")
-                            color: weatherScroll.priCol
+                                      weatherScroll.previewWeatherMode === 0 && Waybar && Waybar.weatherDetails ? Waybar.weatherDetails.icon : "",
+                                      curDesc)
+                            color: weatherScroll.weatherIconColor("", curDesc)
                             font.pixelSize: 36
                         }
                     }
@@ -435,7 +454,7 @@ ScrollView {
 
                                     Text {
                                         text: weatherScroll.toNerdWeatherIcon(modelData.icon, "")
-                                        color: weatherScroll.priCol
+                                        color: weatherScroll.weatherIconColor(modelData.icon, "")
                                         font.pixelSize: 22
                                         Layout.alignment: Qt.AlignHCenter
                                         Layout.topMargin: 2
@@ -552,7 +571,7 @@ ScrollView {
 
                                     Text {
                                         text: weatherScroll.toNerdWeatherIcon(modelData.icon, modelData.desc)
-                                        color: weatherScroll.priCol
+                                        color: weatherScroll.weatherIconColor(modelData.icon, modelData.desc)
                                         font.pixelSize: 18
                                         Layout.preferredWidth: 26
                                         horizontalAlignment: Text.AlignHCenter
@@ -702,7 +721,7 @@ ScrollView {
 
                                     Text {
                                         text: weatherScroll.toNerdWeatherIcon(modelData.icon, "")
-                                        color: weatherScroll.priCol
+                                        color: weatherScroll.weatherIconColor(modelData.icon, "")
                                         font.pixelSize: 18
                                         Layout.alignment: Qt.AlignHCenter
                                     }

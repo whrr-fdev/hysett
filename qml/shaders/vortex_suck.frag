@@ -21,6 +21,11 @@ float hash11(float p) {
     return fract(p);
 }
 
+float sdRoundRect(vec2 p, vec2 b, float r) {
+    vec2 q = abs(p) - b + r;
+    return min(max(q.x, q.y), 0.0) + length(max(q, 0.0)) - r;
+}
+
 void main() {
     float t = clamp(u_progress, 0.0, 1.0);
     if (t <= 0.001) {
@@ -37,50 +42,52 @@ void main() {
     vec2 center = vec2(0.5, 0.5);
 
     // =========================================================================
-    // РЕЖИМ 0: НАСТОЯЩАЯ ВОРОНКА (Гиперболическое втягивание в горловину центра)
+    // РЕЖИМ 0: ПОЛНОЕ СПИРАЛЬНОЕ СКРУЧИВАНИЕ В ВОРОНКУ (УГЛЫ + ОКНО ЦЕЛИКОМ)
     // =========================================================================
     if (u_mode < 0.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
         float maxR = length(vec2(0.5, 0.5) * aspect);
 
-        // Стягивание внешнего радиуса к центру по мере всасывания
-        float collapse = max(0.002, 1.0 - pow(t, 1.45));
-        float rn = (r / collapse) / maxR;
+        // Сжатие радиуса к центру так, чтобы при закручивании углы прямоугольного окна
+        // полностью помещались внутри холста и скручивались вместе с содержимым
+        float collapse = max(0.0015, pow(1.0 - t, 1.65) / (1.0 + 0.90 * t));
+        float rScaled = r / collapse;
+        float rn = rScaled / maxR;
 
-        // Профиль горловины воронки: центр проваливается вглубь первым (gamma < 1),
-        // растягивая элементы радиально к сингулярности в центре
-        float funnelGamma = mix(1.0, 0.30, pow(t, 0.65));
-        float warpedRn = pow(max(0.0, rn), funnelGamma);
+        // Плавное воронкообразное натяжение от центра к краям без отрыва углов от контента
+        float funnelPull = 1.0 + 0.72 * pow(t, 0.85) * exp(-2.1 * rn);
+        float srcR = rScaled * funnelPull;
 
-        // Втягивание краёв по осям (подушкообразное проваливание в воронку)
+        // Полное скручивание всего окна: и внешние углы, и центр закручиваются в единую спираль,
+        // при этом к центру горловины спираль закручена сильнее
+        float outerTwist = 4.8 * pow(t, 1.15);
+        float innerTwist = 9.2 * pow(t, 1.05) * exp(-2.05 * rn);
+        float swirlAngle = u_direction * (outerTwist + innerTwist);
+
         vec2 dir = (r > 1e-5) ? (delta / r) : vec2(0.0);
-        float srcR = warpedRn * maxR;
-
-        // Дифференциальный вихрь: на внешних краях вращение 0 (экран НЕ крутится как картонка),
-        // а внутри горловины спираль закручивается на несколько оборотов к центру
-        float vortexProx = 1.0 - smoothstep(0.0, 0.82, rn);
-        float swirlAngle = u_direction * pow(t, 1.1) * (10.5 * pow(vortexProx, 2.45) + 2.2 * pow(vortexProx, 1.2) * t);
-
         float s = sin(swirlAngle);
         float c = cos(swirlAngle);
         vec2 rotDir = vec2(dir.x * c - dir.y * s, dir.x * s + dir.y * c);
         vec2 sampleUV = center + (rotDir * srcR) / aspect;
 
-        vec2 edge = smoothstep(vec2(0.0), vec2(0.02), sampleUV) * smoothstep(vec2(0.0), vec2(0.02), vec2(1.0) - sampleUV);
-        float mask = edge.x * edge.y * (1.0 - smoothstep(1.02, 1.12, rn));
-        if (mask <= 0.001) {
+        // Антиалиасинг внешних скруглённых границ скручиваемого окна
+        vec2 px = (sampleUV - center) * res;
+        float dBox = sdRoundRect(px, 0.5 * res - vec2(1.0), 16.0);
+        float boxMask = 1.0 - smoothstep(-1.5, 1.5, dBox);
+        if (boxMask <= 0.001) {
             fragColor = vec4(0.0);
             return;
         }
 
         vec4 col = texture(source, clamp(sampleUV, 0.0, 1.0));
 
-        // 3D-затемнение в глубине самой узкой части горловины воронки
-        float throatShadow = 1.0 - 0.58 * pow(vortexProx, 2.8) * sin(t * 3.14159265);
-        float endFade = smoothstep(1.0, 0.86, t);
-        float outA = col.a * mask * endFade * qt_Opacity;
-        fragColor = vec4(col.rgb * throatShadow * mask * endFade * qt_Opacity, outA);
+        // 3D-затемнение в глубине горловины в центре
+        float vortexCore = exp(-3.2 * rn);
+        float throatShadow = 1.0 - 0.52 * vortexCore * sin(t * 3.14159265);
+        float endFade = smoothstep(1.0, 0.85, t);
+        float outA = col.a * boxMask * endFade * qt_Opacity;
+        fragColor = vec4(col.rgb * throatShadow * boxMask * endFade * qt_Opacity, outA);
         return;
     }
 

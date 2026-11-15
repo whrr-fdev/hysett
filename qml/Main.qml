@@ -510,7 +510,7 @@ ApplicationWindow {
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
     readonly property bool isFreeFloating: root.isFloatingMode && !root.isDockedToBar
-    readonly property real floatScaleProgress: isFreeFloating ? (root.isVortexWindowAnim ? 1.0 : Math.max(0.0, drawerProgress)) : 1.0
+    readonly property real floatScaleProgress: !root.drawerActive ? 0.0 : (isFreeFloating ? (root.isVortexWindowAnim ? 1.0 : Math.max(0.0, drawerProgress)) : 1.0)
     readonly property real effDrawerW: isFreeFloating
                                        ? (animDrawerW * root.drawerWidthScale * floatScaleProgress)
                                        : (isVertBar
@@ -960,7 +960,7 @@ ApplicationWindow {
 
             property vector2d u_resolution: Qt.vector2d(width, height)
             property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.actualBarH)
-            property vector4d u_drawer_rect: root.isVortexWindowAnimActive ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
+            property vector4d u_drawer_rect: (!root.drawerActive || root.isVortexWindowAnimActive) ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
             property vector4d u_notif_rect: notifClipBox.overlapsOpenDrawer ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)

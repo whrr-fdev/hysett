@@ -503,8 +503,20 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Плавающий режим окна по центру экрана (примагничивание к панели):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-                                StyledSwitch { checked: Config.floatingWindowMode; onToggled: Config.floatingWindowMode = checked }
+                                Text { text: "Режим открытия окна настроек:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                SegmentedButton {
+                                    Layout.preferredWidth: 320
+                                    options: ["Из-под панели", "Плавающее по центру"]
+                                    selectedIndex: (Config && Config.floatingWindowMode) ? 1 : 0
+                                    onSelected: (idx) => {
+                                        if (Config) Config.floatingWindowMode = (idx === 1)
+                                        if (ApplicationWindow.window) {
+                                            ApplicationWindow.window.isDockedToBar = false
+                                            ApplicationWindow.window.floatOffsetX = 0
+                                            ApplicationWindow.window.floatOffsetY = 0
+                                        }
+                                    }
+                                }
                             }
 
                             RowLayout {
@@ -576,6 +588,24 @@ RowLayout {
                         implicitHeight: colAnim.implicitHeight + 28
                         ColumnLayout {
                             id: colAnim; anchors.fill: parent; anchors.margins: 14; spacing: 14
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Режим открытия окна настроек:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                SegmentedButton {
+                                    Layout.preferredWidth: 320
+                                    options: ["Из-под панели", "Плавающее по центру"]
+                                    selectedIndex: (Config && Config.floatingWindowMode) ? 1 : 0
+                                    onSelected: (idx) => {
+                                        if (Config) Config.floatingWindowMode = (idx === 1)
+                                        if (ApplicationWindow.window) {
+                                            ApplicationWindow.window.isDockedToBar = false
+                                            ApplicationWindow.window.floatOffsetX = 0
+                                            ApplicationWindow.window.floatOffsetY = 0
+                                        }
+                                    }
+                                }
+                            }
 
                             ColumnLayout {
                                 Layout.fillWidth: true; spacing: 6

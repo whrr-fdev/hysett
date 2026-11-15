@@ -2306,8 +2306,8 @@ ApplicationWindow {
                                         anchors.verticalCenter: parent.verticalCenter
                                         radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
                                         color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
-                                        border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
-                                        border.width: 1
+                                        border.color: topBarContainer.isOutlinePills ? topBarContainer.pillBorderColor : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
+                                        border.width: topBarContainer.isOutlinePills ? topBarContainer.pillBorderWidth : 1
                                         Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 9; font.bold: true }
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
@@ -2379,7 +2379,7 @@ ApplicationWindow {
                                     radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
                                     color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
                                     border.color: topBarContainer.isOutlinePills ? topBarContainer.pillBorderColor : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
-                                    border.width: 1
+                                    border.width: topBarContainer.isOutlinePills ? topBarContainer.pillBorderWidth : 1
 
                                     Row {
                                         id: usbPillInnerRow
@@ -2432,8 +2432,8 @@ ApplicationWindow {
                                     anchors.horizontalCenterOffset: rightModBody.innerShiftX
                                     radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
                                     color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
-                                    border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
-                                    border.width: 1
+                                    border.color: topBarContainer.isOutlinePills ? topBarContainer.pillBorderColor : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
+                                    border.width: topBarContainer.isOutlinePills ? topBarContainer.pillBorderWidth : 1
 
                                     Row {
                                         id: btPillInnerRow

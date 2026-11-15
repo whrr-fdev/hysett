@@ -7,6 +7,7 @@
 #include <QTimer>
 #include <QSettings>
 #include <QVariantList>
+#include <QVariantMap>
 
 class AppConfig : public QObject {
     Q_OBJECT
@@ -45,6 +46,8 @@ class AppConfig : public QObject {
     Q_PROPERTY(QVariantList webShareCloudItems READ webShareCloudItems NOTIFY webShareChanged)
     Q_PROPERTY(QVariantList stashedFiles READ stashedFiles NOTIFY stashedFilesChanged)
     Q_PROPERTY(QString lastStashedFile READ lastStashedFile NOTIFY stashedFilesChanged)
+    Q_PROPERTY(QVariantMap terminalState READ terminalState NOTIFY terminalChanged)
+    Q_PROPERTY(QVariantList terminalFonts READ terminalFonts NOTIFY terminalChanged)
     Q_PROPERTY(QString bootloaderType READ bootloaderType NOTIFY bootloaderChanged)
     Q_PROPERTY(QString bootloaderStatus READ bootloaderStatus NOTIFY bootloaderChanged)
     Q_PROPERTY(int bootloaderTimeout READ bootloaderTimeout NOTIFY bootloaderChanged)
@@ -253,6 +256,12 @@ public:
     Q_INVOKABLE void cloudHostHtmlForFriend(const QString &htmlCode, const QString &title);
     Q_INVOKABLE void removeCloudShareItem(const QString &itemId);
     Q_INVOKABLE void selectCloudShareQr(const QString &itemId);
+    QVariantMap terminalState() const { return m_terminalState; }
+    QVariantList terminalFonts() const { return m_terminalFonts; }
+    Q_INVOKABLE void refreshTerminalState();
+    Q_INVOKABLE void applyTerminalPatch(const QVariantMap &patch);
+    Q_INVOKABLE void reinstallTidePlugin();
+    Q_INVOKABLE void openTestTerminal();
     QString bootloaderType() const { return m_bootloaderType; }
     QString bootloaderStatus() const { return m_bootloaderStatus; }
     int bootloaderTimeout() const { return m_bootloaderTimeout; }
@@ -417,6 +426,7 @@ signals:
     void webShareChanged();
     void stashedFilesChanged();
     void bootloaderChanged();
+    void terminalChanged();
     void firstRunChanged();
     void pathsChanged();
     void backupStateChanged();
@@ -484,6 +494,8 @@ private:
     QVariantList m_webShareCloudItems;
     QVariantList m_stashedFiles;
     QString m_lastStashedFile;
+    QVariantMap m_terminalState;
+    QVariantList m_terminalFonts;
     QString m_bootloaderType = "systemd-boot";
     QString m_bootloaderStatus = "Загрузка параметров загрузчика...";
     int m_bootloaderTimeout = 5;

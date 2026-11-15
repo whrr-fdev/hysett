@@ -1834,3 +1834,45 @@ void AppConfig::clearStashedFiles() {
     saveStashedListToDisk(m_stashedFiles);
     emit stashedFilesChanged();
 }
+
+static void parseTerminalJson(const QByteArray &out, QVariantMap &state, QVariantList &fonts) {
+    QJsonParseError err;
+    QJsonDocument doc = QJsonDocument::fromJson(out, &err);
+    if (err.error != QJsonParseError::NoError || !doc.isObject()) return;
+    QVariantMap m = doc.object().toVariantMap();
+    if (m.contains("fonts")) {
+        fonts = m.value("fonts").toList();
+    }
+    state = m;
+}
+
+void AppConfig::refreshTerminalState() {
+    runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_terminal.py", "status"}, "", [this](const QByteArray &out) {
+        parseTerminalJson(out, m_terminalState, m_terminalFonts);
+        emit terminalChanged();
+    });
+}
+
+void AppConfig::applyTerminalPatch(const QVariantMap &patch) {
+    for (auto it = patch.begin(); it != patch.end(); ++it) {
+        m_terminalState[it.key()] = it.value();
+    }
+    emit terminalChanged();
+    QByteArray jsonBytes = QJsonDocument(QJsonObject::fromVariantMap(patch)).toJson(QJsonDocument::Compact);
+    runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_terminal.py", "apply_json", QString::fromUtf8(jsonBytes)}, "", [this](const QByteArray &out) {
+        parseTerminalJson(out, m_terminalState, m_terminalFonts);
+        emit terminalChanged();
+    });
+}
+
+void AppConfig::reinstallTidePlugin() {
+    runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_terminal.py", "reinstall_tide"}, "", [this](const QByteArray &out) {
+        parseTerminalJson(out, m_terminalState, m_terminalFonts);
+        emit terminalChanged();
+    });
+}
+
+void AppConfig::openTestTerminal() {
+    runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_terminal.py", "open_terminal"}, "", [](const QByteArray &) {});
+}
+

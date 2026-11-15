@@ -1441,8 +1441,8 @@ ApplicationWindow {
                                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.75)
                                                              : Qt.rgba(1, 1, 1, 0.78))
                                                           : (parent.occ
-                                                             ? Qt.rgba(0.36, 0.39, 0.46, 0.92)
-                                                             : Qt.rgba(0.22, 0.24, 0.29, 0.88)))
+                                                             ? Qt.rgba(0.74, 0.78, 0.86, 0.95)
+                                                             : Qt.rgba(0.20, 0.22, 0.27, 0.88)))
                                                 Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                                 Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                             }
@@ -2937,8 +2937,8 @@ ApplicationWindow {
                                                      ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.75)
                                                      : Qt.rgba(1, 1, 1, 0.78))
                                                   : (parent.occ
-                                                     ? Qt.rgba(0.36, 0.39, 0.46, 0.92)
-                                                     : Qt.rgba(0.22, 0.24, 0.29, 0.88)))
+                                                     ? Qt.rgba(0.74, 0.78, 0.86, 0.95)
+                                                     : Qt.rgba(0.20, 0.22, 0.27, 0.88)))
                                         Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                         Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     }
@@ -5252,7 +5252,8 @@ ApplicationWindow {
                             "views/BackupView.qml",
                             "views/PhoneBridgeView.qml",
                             "views/WebShareView.qml",
-                            "views/BootloaderView.qml"
+                            "views/BootloaderView.qml",
+                            "views/TerminalView.qml"
                         ]
 
                         Loader {

@@ -379,7 +379,8 @@ Rectangle {
                         { title: "Бэкап", icon: "󰁯", idx: 29 },
                         { title: "Телефон", icon: "󰄜", idx: 30 },
                         { title: "Хостинг", icon: "󰖟", idx: 31 },
-                        { title: "Загрузчик", icon: "󰍛", idx: 32 }
+                        { title: "Загрузчик", icon: "󰍛", idx: 32 },
+                        { title: "Терминал", icon: "󰆍", idx: 33 }
                     ]
 
                     NavButton {

@@ -130,6 +130,7 @@ qt_add_qml_module(hysett
         qml/views/PhoneBridgeView.qml
         qml/views/WebShareView.qml
         qml/views/BootloaderView.qml
+        qml/views/TerminalView.qml
 )
 
 target_link_libraries(hysett PRIVATE

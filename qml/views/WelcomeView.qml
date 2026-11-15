@@ -389,6 +389,7 @@ Item {
                             { title: "󰄜  Телефон", desc: "Файлы и текст по QR без локальной сети", idx: 30, kw: "телефон файлы текст передача обмен qr мост облако phone transfer share bridge" },
                             { title: "󰖟  Хостинг", desc: "Раздача сайтов (.html) и файлов по ссылке", idx: 31, kw: "хостинг сайт ссылка раздача файл друг html сервер туннель web share host site link friend" },
                             { title: "󰍛  Загрузчик", desc: "Автовыбор ОС, таймаут и порядок UEFI", idx: 32, kw: "загрузчик биос уефи автовыбор таймаут ядро grub systemd-boot limine efibootmgr bootloader bios uefi" },
+                            { title: "󰆍  Терминал", desc: "Шрифт Kitty, плагин Tide v6 и тема", idx: 33, kw: "терминал консоль шрифт размер промпт фиш китти плагин тема kitty fish tide prompt font terminal" },
                             { title: "󰁯  Бэкап", desc: "Архивы системы и пакеты", idx: 29, kw: "бэкап архив восстановление пакеты pacman aur backup restore packages" },
                             { title: "󰒓  Настройки", desc: "Тема MD3, шрифт, стекло", idx: 17, kw: "настройки шрифт масштаб жидкое стекло подсветка границ вспышка курсор язык цвет акцент палитра высота окна боковое меню settings font scale liquid glass border glow flash language color accent palette md3" }
                         ]

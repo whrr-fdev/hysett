@@ -1,4 +1,3 @@
-#include <QRegularExpression>
 #include "DevicesManager.h"
 #include <QDir>
 #include <QFile>
@@ -7,6 +6,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
+#include <QRegularExpression>
 #include <algorithm>
 
 static bool jsonToBool(const QJsonValue &v) {
@@ -31,6 +31,13 @@ static QString formatDriveSize(qint64 bytes) {
     if (gb >= 1.0) return QString("%1 GB").arg(gb, 0, 'f', gb >= 10.0 ? 0 : 1);
     double mb = bytes / (1024.0 * 1024.0);
     return QString("%1 MB").arg(std::max(1.0, mb), 0, 'f', 0);
+}
+
+static QString baseDiskPrefix(const QString &devPath) {
+    QString clean = devPath.trimmed();
+    QRegularExpression re(R"(^(/dev/(?:sd[a-z]+|nvme\d+n\d+|mmcblk\d+)))");
+    auto m = re.match(clean);
+    return m.hasMatch() ? m.captured(1) : clean;
 }
 
 DevicesManager::DevicesManager(QObject *parent) : QObject(parent) {
@@ -80,7 +87,6 @@ static bool isVentoyOrBootHelperPartition(const QJsonObject &part, qint64 partBy
         label == "MISO_EFI" || partLabel == "MISO_EFI") {
         return true;
     }
-    // Если на флешке несколько разделов и один из них <= 64 МБ (служебный EFI-раздел Ventoy/Rufus), скрываем его
     if (siblingCount > 1 && partBytes > 0 && partBytes <= 68LL * 1024 * 1024 && maxDiskPartBytes > 256LL * 1024 * 1024) {
         return true;
     }
@@ -104,7 +110,7 @@ void DevicesManager::refreshUsbDrives() {
             if (devPath.isEmpty()) devPath = "/dev/" + name;
 
             qint64 szBytes = jsonToBytes(part["size"]);
-            if (szBytes > 0 && szBytes <= 65536) return; // пропускаем контейнер расширенного раздела
+            if (szBytes > 0 && szBytes <= 65536) return;
 
             QString fstype = part["fstype"].toString().trimmed();
             if (fstype.toLower() == "swap") return;
@@ -124,7 +130,6 @@ void DevicesManager::refreshUsbDrives() {
             bool isRm = jsonToBool(part["rm"]) || jsonToBool(part["hotplug"]) || diskRemovable;
             if (!isRm && !mp.startsWith("/run/media/") && !mp.startsWith("/media/")) return;
 
-            // Отфильтровываем служебный раздел VTOYEFI у флешек с Ventoy
             if (isVentoyOrBootHelperPartition(part, szBytes, maxPartBytes, siblingCount)) return;
 
             QString label = part["label"].toString().trimmed();
@@ -158,7 +163,6 @@ void DevicesManager::refreshUsbDrives() {
             QString vendor = d["vendor"].toString().trimmed();
 
             QJsonArray children = d["children"].toArray();
-            // Проверяем, нет ли на диске системных разделов (/, /boot, /home)
             bool hasSysMount = false;
             qint64 maxPartBytes = 0;
             for (const QJsonValue &cv : children) {
@@ -208,13 +212,6 @@ void DevicesManager::mountUsbDrive(const QString &devPath) {
     p->start("udisksctl", {"mount", "-b", devPath.trimmed(), "--no-user-interaction"});
 }
 
-static QString baseDiskPrefix(const QString &devPath) {
-    QString clean = devPath.trimmed();
-    QRegularExpression re("^(/dev/(?:sd[a-z]+|nvme\d+n\d+|mmcblk\d+))");
-    auto m = re.match(clean);
-    return m.hasMatch() ? m.captured(1) : clean;
-}
-
 void DevicesManager::unmountUsbDrive(const QString &devPath) {
     if (devPath.trimmed().isEmpty()) return;
     QString baseDisk = baseDiskPrefix(devPath);
@@ -229,7 +226,7 @@ void DevicesManager::unmountUsbDrive(const QString &devPath) {
         refreshUsbDrives();
     });
     QString cmd = QString("sync && udisksctl unmount -b '%1' --no-user-interaction; "
-                          "for p in %2?* ; do [ "$p" != '%1' ] && udisksctl unmount -b "$p" --no-user-interaction >/dev/null 2>&1 || true; done")
+                          "for p in %2?* ; do [ \"$p\" != '%1' ] && udisksctl unmount -b \"$p\" --no-user-interaction >/dev/null 2>&1 || true; done")
                   .arg(devPath.trimmed(), baseDisk);
     p->start("/bin/sh", {"-c", cmd});
 }
@@ -246,7 +243,7 @@ void DevicesManager::ejectUsbDrive(const QString &devPath) {
         m_usbStatusText = err.isEmpty() ? ("Накопитель " + devPath + " безопасно отключен") : err;
         refreshUsbDrives();
     });
-    QString cmd = QString("sync; for p in %2?* ; do udisksctl unmount -b "$p" --no-user-interaction >/dev/null 2>&1 || true; done; "
+    QString cmd = QString("sync; for p in %2?* ; do udisksctl unmount -b \"$p\" --no-user-interaction >/dev/null 2>&1 || true; done; "
                           "udisksctl unmount -b '%1' --no-user-interaction >/dev/null 2>&1 || true; "
                           "udisksctl power-off -b '%1' --no-user-interaction").arg(devPath.trimmed(), baseDisk);
     p->start("/bin/sh", {"-c", cmd});

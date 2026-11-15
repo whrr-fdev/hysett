@@ -57,6 +57,23 @@ ScrollView {
         )
     }
 
+    function weatherIconColor(rawIcon, descText) {
+        var ic = toNerdWeatherIcon(rawIcon, descText)
+        var base
+        if (ic === "󰖙") base = Qt.rgba(1.0, 0.84, 0.42, 1.0)
+        else if (ic === "󰖕") base = Qt.rgba(0.96, 0.82, 0.52, 1.0)
+        else if (ic === "󰖗" || ic === "󰖖") base = Qt.rgba(0.52, 0.78, 1.0, 1.0)
+        else if (ic === "󰼶") base = Qt.rgba(0.76, 0.91, 1.0, 1.0)
+        else if (ic === "󰖓") base = Qt.rgba(0.84, 0.68, 1.0, 1.0)
+        else base = Qt.rgba(0.78, 0.84, 0.92, 1.0)
+        return Qt.rgba(
+            base.r * 0.78 + weatherScroll.priCol.r * 0.22,
+            base.g * 0.78 + weatherScroll.priCol.g * 0.22,
+            base.b * 0.78 + weatherScroll.priCol.b * 0.22,
+            1.0
+        )
+    }
+
     function parseTempNum(str) {
         if (!str) return 0
         var m = String(str).replace("−", "-").match(/-?\d+/)

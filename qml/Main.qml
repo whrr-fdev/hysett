@@ -498,7 +498,7 @@ ApplicationWindow {
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
     readonly property bool isFreeFloating: root.isFloatingMode && !root.isDockedToBar
-    readonly property real floatScaleProgress: isFreeFloating ? (0.88 + 0.12 * Math.min(1.0, Math.max(0.0, drawerProgress))) : 1.0
+    readonly property real floatScaleProgress: isFreeFloating ? Math.max(0.0, drawerProgress) : 1.0
     readonly property real effDrawerW: isFreeFloating
                                        ? (animDrawerW * root.drawerWidthScale * floatScaleProgress)
                                        : (isVertBar
@@ -3406,8 +3406,8 @@ ApplicationWindow {
                 transform: Scale {
                     origin.x: drawerInner.width * 0.5
                     origin.y: root.isFreeFloating ? (drawerInner.height * 0.5) : 0
-                    xScale: root.contentMaxBounce * root.drawerWidthScale * ((root.isFreeFloating || (root.openFxMode === "zoom_spring" && root.drawerOpen)) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)
-                    yScale: root.contentMaxBounce * (0.90 + 0.10 * root.drawerProgress)
+                    xScale: root.contentMaxBounce * root.drawerWidthScale * (root.isFreeFloating ? Math.max(0.001, root.floatScaleProgress) : ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0))
+                    yScale: root.contentMaxBounce * (root.isFreeFloating ? Math.max(0.001, root.floatScaleProgress) : (0.90 + 0.10 * root.drawerProgress))
                 }
                 opacity: Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
 
@@ -4423,7 +4423,7 @@ ApplicationWindow {
                             bounceInY.target = newPage; bounceInY.from = newPage.y; bounceInY.duration = dur * 1.15
                             bounceInSc.target = newPage; bounceInSc.duration = dur * 1.15
                             bounceTransition.start()
-                        } else if (mode === "blackhole") {
+                        } else if (mode === "blackhole" || mode === "vortex") {
                             var dir = toForward ? 1.0 : -1.0
                             oldPage.vortexMode = 0.0
                             oldPage.vortexDir = dir
@@ -4435,22 +4435,18 @@ ApplicationWindow {
 
                             newPage.vortexMode = 0.0
                             newPage.vortexDir = -dir
-                            newPage.vortexProgress = 0.72
-                            newPage.scale = 0.03
-                            newPage.rotation = -200 * dir
+                            newPage.vortexProgress = 1.0
+                            newPage.scale = 1.0
+                            newPage.rotation = 0
                             newPage.opacity = 0.0
                             newPage.visible = true
 
-                            bhOutVortex.target = oldPage; bhOutVortex.duration = 380
-                            bhOutSc.target = oldPage; bhOutSc.duration = 380
-                            bhOutRot.target = oldPage; bhOutRot.to = 260 * dir; bhOutRot.duration = 380
-                            bhOutOp.target = oldPage; bhOutOp.duration = 380
+                            bhOutVortex.target = oldPage; bhOutVortex.duration = 420
+                            bhOutOp.target = oldPage; bhOutOp.duration = 420
 
-                            bhInDelay.duration = 260
-                            bhInVortex.target = newPage; bhInVortex.duration = 380
-                            bhInSc.target = newPage; bhInSc.duration = 380
-                            bhInRot.target = newPage; bhInRot.from = -200 * dir; bhInRot.duration = 380
-                            bhInOp.target = newPage; bhInOp.duration = 240
+                            bhInDelay.duration = 180
+                            bhInVortex.target = newPage; bhInVortex.duration = 420
+                            bhInOp.target = newPage; bhInOp.duration = 260
 
                             blackholeTransition.start()
                         } else if (mode === "portal") {
@@ -4618,16 +4614,12 @@ ApplicationWindow {
                     }
                     ParallelAnimation {
                         id: blackholeTransition
-                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InCubic }
-                        NumberAnimation { id: bhOutSc; property: "scale"; from: 1.0; to: 0.02; easing.type: Easing.InCubic }
-                        NumberAnimation { id: bhOutRot; property: "rotation"; from: 0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InOutCubic }
                         NumberAnimation { id: bhOutOp; property: "opacity"; from: 1.0; to: 0.0; easing.type: Easing.InExpo }
                         SequentialAnimation {
                             PauseAnimation { id: bhInDelay }
                             ParallelAnimation {
-                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 0.72; to: 0.0; easing.type: Easing.OutCubic }
-                                NumberAnimation { id: bhInSc; property: "scale"; from: 0.03; to: 1.0; easing.type: Easing.OutBack; easing.overshoot: 0.85 }
-                                NumberAnimation { id: bhInRot; property: "rotation"; to: 0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 1.0; to: 0.0; easing.type: Easing.OutCubic }
                                 NumberAnimation { id: bhInOp; property: "opacity"; from: 0.0; to: 1.0; easing.type: Easing.OutCubic }
                             }
                         }

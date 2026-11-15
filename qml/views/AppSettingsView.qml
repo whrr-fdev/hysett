@@ -514,6 +514,7 @@ RowLayout {
                                             ApplicationWindow.window.isDockedToBar = false
                                             ApplicationWindow.window.floatOffsetX = 0
                                             ApplicationWindow.window.floatOffsetY = 0
+                                            ApplicationWindow.window.barExpandProgress = (idx === 0) ? 1.0 : 0.0
                                         }
                                     }
                                 }
@@ -602,6 +603,7 @@ RowLayout {
                                             ApplicationWindow.window.isDockedToBar = false
                                             ApplicationWindow.window.floatOffsetX = 0
                                             ApplicationWindow.window.floatOffsetY = 0
+                                            ApplicationWindow.window.barExpandProgress = (idx === 0) ? 1.0 : 0.0
                                         }
                                     }
                                 }

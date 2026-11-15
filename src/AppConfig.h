@@ -30,6 +30,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString windowOpenAnimType READ windowOpenAnimType WRITE setWindowOpenAnimType NOTIFY windowOpenAnimTypeChanged)
     Q_PROPERTY(int animDuration READ animDuration WRITE setAnimDuration NOTIFY animDurationChanged)
     Q_PROPERTY(bool rememberLastTab READ rememberLastTab WRITE setRememberLastTab NOTIFY rememberLastTabChanged)
+    Q_PROPERTY(bool floatingWindowMode READ floatingWindowMode WRITE setFloatingWindowMode NOTIFY floatingWindowModeChanged)
         Q_PROPERTY(bool musicPrivacyMode READ musicPrivacyMode WRITE setMusicPrivacyMode NOTIFY musicPrivacyModeChanged)
     Q_PROPERTY(bool streamerMode READ streamerMode WRITE setStreamerMode NOTIFY streamerModeChanged)
     Q_PROPERTY(bool webShareRunning READ webShareRunning NOTIFY webShareChanged)
@@ -175,6 +176,8 @@ public:
     void setAnimDuration(int v);
     bool rememberLastTab() const { return m_rememberLastTab; }
     void setRememberLastTab(bool v);
+    bool floatingWindowMode() const { return m_floatingWindowMode; }
+    void setFloatingWindowMode(bool v);
     bool musicPrivacyMode() const { return m_musicPrivacyMode; }
     void setMusicPrivacyMode(bool v);
     bool streamerMode() const { return m_streamerMode; }
@@ -400,6 +403,7 @@ signals:
     void windowOpenAnimTypeChanged();
     void animDurationChanged();
     void rememberLastTabChanged();
+    void floatingWindowModeChanged();
     void musicPrivacyModeChanged();
     void streamerModeChanged();
     void webShareChanged();
@@ -455,6 +459,7 @@ private:
     QString m_windowOpenAnimType = "spring";
     int m_animDuration = 150;
     bool m_rememberLastTab = false;
+    bool m_floatingWindowMode = true;
     bool m_musicPrivacyMode = false;
     bool m_streamerMode = false;
     QString m_lastPhoneScreenMode = "usb";

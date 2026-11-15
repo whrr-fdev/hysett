@@ -95,7 +95,7 @@ Item {
                                 Layout.fillWidth: true
                                 from: 0; to: 30; stepSize: 1
                                 value: Config ? Config.bootloaderTimeout : 5
-                                onReleased: if (Config) Config.applyBootloaderSettings(Math.round(value), Config.bootloaderSavedDefault, Config.bootloaderEditor)
+                                onPressedChanged: if (!pressed && Config) Config.applyBootloaderSettings(Math.round(value), Config.bootloaderSavedDefault, Config.bootloaderEditor)
                             }
                             Text {
                                 text: Math.round(toSlider.value) === 0 ? "0 сек (Сразу)" : (Math.round(toSlider.value) + " сек")

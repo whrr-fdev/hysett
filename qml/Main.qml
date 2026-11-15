@@ -657,7 +657,19 @@ ApplicationWindow {
         openSeqAnim.stop()
         closeSeqAnim.stop()
         switchDrawerAnim.stop()
-        if (drawerOpen) openSeqAnim.start()
+        if (drawerOpen) {
+            if (Config && Config.floatingWindowMode) {
+                root.isDockedToBar = false
+                root.floatOffsetX = 0
+                root.floatOffsetY = 0
+                root.barExpandProgress = 0.0
+            } else {
+                root.isDockedToBar = false
+                root.floatOffsetX = 0
+                root.floatOffsetY = 0
+            }
+            openSeqAnim.start()
+        }
         else closeSeqAnim.start()
         syncInputMask()
         if (!drawerOpen) {
@@ -3466,14 +3478,15 @@ ApplicationWindow {
                         }
 
                         onPressed: (mouse) => {
-                            if (!Config.floatingWindowMode) Config.floatingWindowMode = true
                             root.isDraggingWindow = true
                             var gp = winDragMa.mapToItem(sceneRoot, mouse.x, mouse.y)
                             startGlobal = gp
-                            if (root.isDockedToBar) {
+                            if (!Config.floatingWindowMode || root.isDockedToBar) {
                                 var dockY = (root.barPos === 1) ? (root.barRectY - root.smoothTargetH) : (root.barRectY + root.barH)
+                                root.floatOffsetX = 0
                                 root.floatOffsetY = dockY - (root.height - root.smoothTargetH) * 0.5
                                 root.isDockedToBar = false
+                                if (Config && !Config.floatingWindowMode) Config.floatingWindowMode = true
                             }
                             startOffX = root.floatOffsetX
                             startOffY = root.floatOffsetY
@@ -3488,9 +3501,15 @@ ApplicationWindow {
 
                         onReleased: {
                             root.isDraggingWindow = false
-                            if (root.distToBarPx < 26.0) {
-                                root.isDockedToBar = true
+                            if (root.distToBarPx < 28.0) {
+                                root.isDockedToBar = false
+                                root.floatOffsetX = 0
                                 root.floatOffsetY = 0
+                                root.barExpandProgress = 1.0
+                                if (Config) Config.floatingWindowMode = false
+                            } else {
+                                root.isDockedToBar = false
+                                if (Config && !Config.floatingWindowMode) Config.floatingWindowMode = true
                             }
                         }
 

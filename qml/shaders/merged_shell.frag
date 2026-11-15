@@ -126,9 +126,12 @@ float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, 
                      smoothstep(rect.x + rect.z - edgePad * 0.4, rect.x + rect.z - edgePad * 1.5, p.x) * bottomHalfMask;
 
     if (maskDrawerOverlap && u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0) {
-        float inDrwX = smoothstep(u_drawer_rect.x - 10.0, u_drawer_rect.x + 6.0, p.x) *
-                       smoothstep(u_drawer_rect.x + u_drawer_rect.z + 10.0, u_drawer_rect.x + u_drawer_rect.z - 6.0, p.x);
-        edgeFade *= (1.0 - inDrwX);
+        float gapY = abs(u_drawer_rect.y - (rect.y + rect.w));
+        if (gapY < 24.0) {
+            float inDrwX = smoothstep(u_drawer_rect.x - 10.0, u_drawer_rect.x + 6.0, p.x) *
+                           smoothstep(u_drawer_rect.x + u_drawer_rect.z + 10.0, u_drawer_rect.x + u_drawer_rect.z - 6.0, p.x);
+            edgeFade *= (1.0 - inDrwX);
+        }
     }
     if (edgeFade <= 0.001) return 0.0;
 
@@ -149,10 +152,31 @@ float computeFerroStretchForRect(vec2 p, vec4 rect, float ampPx, float edgeRad, 
     return ampPx * edgeFade * clamp(liquidProfile, 0.0, 2.2);
 }
 
-float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend) {
+float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend, out float outBarMergeProx) {
     outNotifBlend = 0.0;
     outDrwBlend = 0.0;
-    float bigOpen = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
+    outBarMergeProx = 0.0;
+
+    bool isVertBar = (u_bar_rect.w > u_bar_rect.z * 1.5);
+    float gapPx = 1e5;
+    if (u_drawer_rect.w > 0.5 && u_drawer_rect.z > 0.5) {
+        if (!isVertBar) {
+            bool isTopBar = (u_drawer_rect.y + u_drawer_rect.w * 0.5 >= u_bar_rect.y + u_bar_rect.w * 0.5);
+            gapPx = isTopBar
+                    ? max(0.0, u_drawer_rect.y - (u_bar_rect.y + u_bar_rect.w))
+                    : max(0.0, u_bar_rect.y - (u_drawer_rect.y + u_drawer_rect.w));
+        } else {
+            bool isLeftBar = (u_drawer_rect.x + u_drawer_rect.z * 0.5 >= u_bar_rect.x + u_bar_rect.z * 0.5);
+            gapPx = isLeftBar
+                    ? max(0.0, u_drawer_rect.x - (u_bar_rect.x + u_bar_rect.z))
+                    : max(0.0, u_bar_rect.x - (u_drawer_rect.x + u_drawer_rect.z));
+        }
+    }
+    float mergeProx = clamp(1.0 - gapPx / 28.0, 0.0, 1.0);
+    float dockProx  = clamp(1.0 - gapPx / 4.0, 0.0, 1.0);
+    outBarMergeProx = mergeProx;
+
+    float bigOpen = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0) * mergeProx;
     float barVis = clamp(max(u_bar_alpha * 10.0, bigOpen), 0.0, 1.0);
     float waveStretch = (barVis > 0.01) ? computeFerroStretchForRect(p, u_bar_rect, u_music_wave.z, u_radius, true) : 0.0;
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);
@@ -169,18 +193,19 @@ float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend) {
         vec2 dCenter = vec2(u_drawer_rect.x + dHalf.x, u_drawer_rect.y + dHalf.y);
         float dDrw = sdRoundedBox(p - dCenter, dHalf, rDrw);
 
-        if (barVis > 0.05) {
-            bool isVertBar = (u_bar_rect.w > u_bar_rect.z * 1.5);
+        if (barVis > 0.05 && mergeProx > 0.001) {
             if (!isVertBar) {
-                bool isTopBar = (u_drawer_rect.y >= u_bar_rect.y);
-                float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
-                float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
-                float ny1 = isTopBar ? (u_bar_rect.y + min(u_radius, u_bar_rect.w * 0.45)) : max(u_drawer_rect.y, u_drawer_rect.y + u_drawer_rect.w - rDrw - 4.0);
-                float ny2 = isTopBar ? min(u_drawer_rect.y + u_drawer_rect.w, u_drawer_rect.y + rDrw + 4.0) : (u_bar_rect.y + u_bar_rect.w - min(u_radius, u_bar_rect.w * 0.45));
-                if (nx2 > nx1 && ny2 > ny1) {
-                    vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
-                    vec2 nCenter = vec2(nx1, ny1) + nHalf;
-                    dDrw = min(dDrw, sdRoundedBox(p - nCenter, nHalf, 0.0));
+                bool isTopBar = (u_drawer_rect.y + u_drawer_rect.w * 0.5 >= u_bar_rect.y + u_bar_rect.w * 0.5);
+                if (dockProx > 0.001) {
+                    float nx1 = max(u_bar_rect.x, u_drawer_rect.x);
+                    float nx2 = min(u_bar_rect.x + u_bar_rect.z, u_drawer_rect.x + u_drawer_rect.z);
+                    float ny1 = isTopBar ? (u_bar_rect.y + min(u_radius, u_bar_rect.w * 0.45)) : max(u_drawer_rect.y, u_drawer_rect.y + u_drawer_rect.w - rDrw - 4.0);
+                    float ny2 = isTopBar ? min(u_drawer_rect.y + u_drawer_rect.w, u_drawer_rect.y + rDrw + 4.0) : (u_bar_rect.y + u_bar_rect.w - min(u_radius, u_bar_rect.w * 0.45));
+                    if (nx2 > nx1 && ny2 > ny1) {
+                        vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
+                        vec2 nCenter = vec2(nx1, ny1) + nHalf;
+                        dDrw = mix(dDrw, min(dDrw, sdRoundedBox(p - nCenter, nHalf, 0.0)), dockProx);
+                    }
                 }
                 float leftStep  = abs(u_bar_rect.x - u_drawer_rect.x);
                 float rightStep = abs((u_bar_rect.x + u_bar_rect.z) - (u_drawer_rect.x + u_drawer_rect.z));
@@ -188,19 +213,21 @@ float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend) {
                 float innerEdgeMask = isTopBar
                                       ? smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w - 1.0, p.y)
                                       : smoothstep(u_bar_rect.y + u_bar_rect.w - 4.0, u_bar_rect.y + 1.0, p.y);
-                float k = u_fillet * barVis * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+                float k = u_fillet * barVis * mergeProx * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
                 outDrwBlend = smoothstep(4.0, -4.0, dDrw - dBar);
                 d = smin(d, dDrw, k);
             } else {
-                bool isLeftBar = (u_drawer_rect.x >= u_bar_rect.x);
-                float ny1 = max(u_bar_rect.y, u_drawer_rect.y);
-                float ny2 = min(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y + u_drawer_rect.w);
-                float nx1 = isLeftBar ? (u_bar_rect.x + min(u_radius, u_bar_rect.z * 0.45)) : max(u_drawer_rect.x, u_drawer_rect.x + u_drawer_rect.z - rDrw - 4.0);
-                float nx2 = isLeftBar ? min(u_drawer_rect.x + u_drawer_rect.z, u_drawer_rect.x + rDrw + 4.0) : (u_bar_rect.x + u_bar_rect.z - min(u_radius, u_bar_rect.z * 0.45));
-                if (nx2 > nx1 && ny2 > ny1) {
-                    vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
-                    vec2 nCenter = vec2(nx1, ny1) + nHalf;
-                    dDrw = min(dDrw, sdRoundedBox(p - nCenter, nHalf, 0.0));
+                bool isLeftBar = (u_drawer_rect.x + u_drawer_rect.z * 0.5 >= u_bar_rect.x + u_bar_rect.z * 0.5);
+                if (dockProx > 0.001) {
+                    float ny1 = max(u_bar_rect.y, u_drawer_rect.y);
+                    float ny2 = min(u_bar_rect.y + u_bar_rect.w, u_drawer_rect.y + u_drawer_rect.w);
+                    float nx1 = isLeftBar ? (u_bar_rect.x + min(u_radius, u_bar_rect.z * 0.45)) : max(u_drawer_rect.x, u_drawer_rect.x + u_drawer_rect.z - rDrw - 4.0);
+                    float nx2 = isLeftBar ? min(u_drawer_rect.x + u_drawer_rect.z, u_drawer_rect.x + rDrw + 4.0) : (u_bar_rect.x + u_bar_rect.z - min(u_radius, u_bar_rect.z * 0.45));
+                    if (nx2 > nx1 && ny2 > ny1) {
+                        vec2 nHalf = 0.5 * vec2(nx2 - nx1, ny2 - ny1);
+                        vec2 nCenter = vec2(nx1, ny1) + nHalf;
+                        dDrw = mix(dDrw, min(dDrw, sdRoundedBox(p - nCenter, nHalf, 0.0)), dockProx);
+                    }
                 }
                 float topStep = abs(u_bar_rect.y - u_drawer_rect.y);
                 float botStep = abs((u_bar_rect.y + u_bar_rect.w) - (u_drawer_rect.y + u_drawer_rect.w));
@@ -208,13 +235,13 @@ float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend) {
                 float innerEdgeMask = isLeftBar
                                       ? smoothstep(u_bar_rect.x + 4.0, u_bar_rect.x + u_bar_rect.z - 1.0, p.x)
                                       : smoothstep(u_bar_rect.x + u_bar_rect.z - 4.0, u_bar_rect.x + 1.0, p.x);
-                float k = u_fillet * barVis * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
+                float k = u_fillet * barVis * mergeProx * innerEdgeMask * clamp((sideStep - 1.0) / 22.0, 0.0, 1.0) * clamp(min(u_drawer_rect.z, u_drawer_rect.w) / 42.0, 0.0, 1.0);
                 outDrwBlend = smoothstep(4.0, -4.0, dDrw - dBar);
                 d = smin(d, dDrw, k);
             }
         } else {
-            outDrwBlend = 1.0;
-            d = dDrw;
+            outDrwBlend = smoothstep(4.0, -4.0, dDrw - dBar);
+            d = min(d, dDrw);
         }
     }
 
@@ -240,7 +267,8 @@ void main() {
 
     float notifBlend = 0.0;
     float drwBlend = 0.0;
-    float d = sceneSdf(p, notifBlend, drwBlend);
+    float barMergeProx = 0.0;
+    float d = sceneSdf(p, notifBlend, drwBlend, barMergeProx);
     float gradLen = clamp(length(vec2(dFdx(d), dFdy(d))), 1.0, 6.0);
     float trueD = d / gradLen;
     float mask = 1.0 - smoothstep(-0.75, 0.75, trueD);
@@ -250,10 +278,11 @@ void main() {
     float outlineMask = exp(-distInward * 1.55);
 
     float bigSettingsMix = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
-    vec3 darkBgRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix);
+    vec3 barRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix * barMergeProx);
+    vec3 drwRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix);
+    vec3 darkBgRgb = mix(barRgb, drwRgb, drwBlend);
 
-    // При открытии большого окна настроек ВСЯ панель задач целиком принимает прозрачность и цвет окна настроек
-    float barBaseAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
+    float barBaseAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix * barMergeProx);
     float popupOrSettingsAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
     float effAlpha = mix(barBaseAlpha, popupOrSettingsAlpha, drwBlend);
     float outlineVis = clamp(effAlpha * 3.0, 0.0, 1.0);

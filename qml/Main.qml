@@ -484,7 +484,7 @@ ApplicationWindow {
         if (drawerMode === "filedrop") return isM3 ? 336 : 316
         if (drawerMode === "power") return isM3 ? 280 : 260
         if (drawerMode === "calendar") return isM3 ? 310 : 295
-        if (drawerMode === "usb") return isM3 ? 430 : 405
+        if (drawerMode === "usb") return isM3 ? 476 : 450
         if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 368 : 346
         if (drawerMode === "clipboard") return isM3 ? 440 : 410
         return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.max(820, Math.min(maxAvailBarW, root.isResizingWindow ? root.liveResizeW : (Config ? Config.windowWidth : (isM3 ? 1040 : 860))))

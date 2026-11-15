@@ -27,7 +27,7 @@ ApplicationWindow {
     property bool isResizingWindow: false
     property int liveResizeW: 1040
     property int liveResizeH: 640
-    property real dockTransition: (Config && !Config.floatingWindowMode) ? 1.0 : 0.0
+    property real dockTransition: ((Config && !Config.floatingWindowMode) || root.isSettingsMaximized || root.isWallpaperExpanded) ? 1.0 : 0.0
     Behavior on dockTransition {
         enabled: !root.isDraggingWindow
         NumberAnimation { duration: 300; easing.type: Easing.OutQuint }
@@ -701,7 +701,7 @@ ApplicationWindow {
             root.isDockedToBar = false
             root.floatOffsetX = 0
             root.floatOffsetY = 0
-            if (Config && Config.floatingWindowMode) {
+            if (root.isFloatingMode) {
                 root.barExpandProgress = 0.0
             }
             openSeqAnim.start()
@@ -711,8 +711,6 @@ ApplicationWindow {
         if (!drawerOpen) {
             modalOpen = false
             trailActive = false
-            isWallpaperExpanded = false
-            isSettingsMaximized = false
             root.mousePos = Qt.point(-500, -500)
             if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
         } else {
@@ -737,6 +735,8 @@ ApplicationWindow {
     onDrawerActiveChanged: {
         syncInputMask()
         if (!drawerActive && !root.drawerOpen && !switchDrawerAnim.running) {
+            root.isWallpaperExpanded = false
+            root.isSettingsMaximized = false
             if (Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
             if (Apps) { Apps.clearFileSearch(); Apps.clearPackageSearch() }
             if (Atmosphere) Atmosphere.releaseInAppCaches()
@@ -816,10 +816,18 @@ ApplicationWindow {
         if (cmd === "wallpaper") {
             if (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && root.isWallpaperExpanded) {
                 root.drawerOpen = false
+            } else if (root.drawerOpen) {
+                root.drawerMode = "settings"
+                pageController.jumpToPageInstant(14)
+                root.isWallpaperExpanded = true
+                root.barExpandProgress = 1.0
+                root.syncWallpapersModeState()
             } else {
-                root.openDrawerWithMode("settings", 14)
+                root.drawerMode = "settings"
+                pageController.jumpToPageInstant(14)
                 root.isWallpaperExpanded = true
                 root.syncWallpapersModeState()
+                root.drawerOpen = true
             }
         } else if (cmd === "apps") {
             root.openDrawerWithMode("settings", 12)

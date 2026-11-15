@@ -249,9 +249,9 @@ if status is-interactive
         if test -f ~/.config/fish/functions/fish_prompt.fish
             source ~/.config/fish/functions/fish_prompt.fish
             if contains newline $_tide_left_items
-                set -U _tide_prompt_$fish_pid (_tide_2_line_prompt)
+                _tide_status=0 _tide_pipestatus=0 set -U _tide_prompt_$fish_pid (_tide_2_line_prompt)
             else
-                set -U _tide_prompt_$fish_pid (_tide_1_line_prompt)
+                _tide_status=0 _tide_pipestatus=0 set -U _tide_prompt_$fish_pid (_tide_1_line_prompt)
             end
         else if test -f /usr/share/cachyos-fish-config/cachyos-config.fish
             functions -e fish_right_prompt 2>/dev/null

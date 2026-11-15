@@ -1017,7 +1017,15 @@ ApplicationWindow {
             property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
             property int pillRadius: (Theme && Theme.isRounded) ? Math.max(5, Math.round(pillHeight * 0.32)) : 0
                         readonly property real settingsOpenWeight: (root.drawerMode === "settings" && !root.isFloatingMode) ? root.drawerProgress : 0.0
+            readonly property bool isOutlinePills: Waybar ? Waybar.pillOutlineOnly : true
+            readonly property real pillBorderWidth: (isOutlinePills && Theme && Theme.isRounded)
+                                                    ? Math.max(1.0, Config ? (Config.m3ElevationStyle === 1 ? Config.m3OutlineWidth : Math.max(1.0, Config.m3OutlineWidth * 0.85)) : 1.0)
+                                                    : 0.0
+            readonly property color pillBorderColor: (Theme && Theme.isRounded && Config)
+                                                     ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, Math.min(1.0, Math.max(0.28, Config.m3OutlineOpacity * 1.15)))
+                                                     : Qt.rgba(1, 1, 1, 0.18)
             property color pillColor: {
+                if (isOutlinePills) return "transparent"
                 var pillOp = Waybar ? Waybar.pillOpacity : 0.85
                 if (pillOp <= 0.005) return "transparent"
                 if (!Theme || !Theme.isRounded || !Config) return Qt.rgba(0.10, 0.11, 0.14, pillOp)
@@ -1087,6 +1095,8 @@ ApplicationWindow {
                 anchors.verticalCenter: parent.verticalCenter
                 radius: topBarContainer.pillRadius
                 color: topBarContainer.pillColor
+                border.width: topBarContainer.pillBorderWidth
+                border.color: topBarContainer.pillBorderColor
             }
 
             Row {
@@ -1182,6 +1192,8 @@ ApplicationWindow {
                                     color: (root.drawerOpen && root.drawerMode === "settings" && root.isSettingsMaximized && Theme && Theme.isRounded && Config)
                                            ? Config.m3Primary
                                            : topBarContainer.pillColor
+                                    border.width: topBarContainer.pillBorderWidth
+                                    border.color: topBarContainer.pillBorderColor
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
                                     Image {
@@ -1255,6 +1267,8 @@ ApplicationWindow {
                                     anchors.fill: parent
                                     radius: wsModuleItem.outerR
                                     color: topBarContainer.pillColor
+                                    border.width: topBarContainer.pillBorderWidth
+                                    border.color: topBarContainer.pillBorderColor
                                 }
 
                                 Row {
@@ -1273,6 +1287,8 @@ ApplicationWindow {
                                             topRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                             bottomRightRadius: isLast ? wsModuleItem.outerR : wsModuleItem.innerR
                                             color: topBarContainer.pillColor
+                                            border.width: topBarContainer.pillBorderWidth
+                                            border.color: topBarContainer.pillBorderColor
                                         }
                                     }
                                 }
@@ -1423,7 +1439,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "window"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Text {
                                     anchors.centerIn: parent
                                     width: parent.width - 16
@@ -1439,7 +1455,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "weather"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Text { id: wLbl; anchors.centerIn: parent; text: Waybar ? Waybar.weatherText : "☁️ +3°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 20) }
                             }
@@ -1457,6 +1473,8 @@ ApplicationWindow {
                                 anchors.verticalCenter: parent.verticalCenter
                                 radius: topBarContainer.pillRadius
                                 color: topBarContainer.pillColor
+                                border.width: topBarContainer.pillBorderWidth
+                                border.color: topBarContainer.pillBorderColor
                                 Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                 Behavior on opacity { NumberAnimation { duration: 160 } }
 
@@ -1522,7 +1540,7 @@ ApplicationWindow {
                                 x: (ymDownloadPillBox.visible && ymDownloadPillBox.width > 0.5) ? (ymDownloadPillBox.width + (Waybar ? Waybar.spacing : 4)) : 0
                                 Behavior on x { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                 anchors.verticalCenter: parent.verticalCenter
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 clip: true
 
                                 function syncWaveCoords() {
@@ -1899,6 +1917,8 @@ ApplicationWindow {
                 height: topBarContainer.pillHeight
                 radius: topBarContainer.pillRadius
                 color: (root.hasWinTitle || topBarContainer.editMode) ? topBarContainer.pillColor : "transparent"
+                border.width: (root.hasWinTitle || topBarContainer.editMode) ? topBarContainer.pillBorderWidth : 0
+                border.color: topBarContainer.pillBorderColor
 
                 Text {
                     id: winLbl
@@ -2009,6 +2029,8 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         radius: topBarContainer.pillRadius
                         color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
 
                         Row {
                             id: timerBarInnerRow
@@ -2059,6 +2081,8 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         radius: topBarContainer.pillRadius
                         color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
 
                         Row {
                             id: swBarInnerRow
@@ -2110,6 +2134,8 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         radius: topBarContainer.pillRadius
                         color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
 
                         Rectangle {
                             anchors.left: parent.left
@@ -2256,7 +2282,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "window"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Text {
                                     anchors.centerIn: parent
                                     width: parent.width - 16
@@ -2271,7 +2297,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "sysinfo"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Row {
                                     id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 5
                                     Item { width: 40; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
@@ -2284,7 +2310,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "tray"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Row {
                                     id: trayRow; anchors.centerIn: parent; spacing: 7
                                     Rectangle {
@@ -2444,7 +2470,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: modKey === "power"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
-                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor
+                                radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x) }
                             }
@@ -2711,6 +2737,8 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
                         color: topBarContainer.pillColor
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
                         opacity: topBarContainer.launcherVis
                         clip: true
                         Image {
@@ -2751,6 +2779,8 @@ ApplicationWindow {
                             anchors.fill: parent
                             radius: vWsBox.outerR
                             color: topBarContainer.pillColor
+                            border.width: topBarContainer.pillBorderWidth
+                            border.color: topBarContainer.pillBorderColor
                         }
 
                         Column {
@@ -2767,6 +2797,8 @@ ApplicationWindow {
                                     bottomLeftRadius: isLast ? vWsBox.outerR : vWsBox.innerR
                                     bottomRightRadius: isLast ? vWsBox.outerR : vWsBox.innerR
                                     color: topBarContainer.pillColor
+                                    border.width: topBarContainer.pillBorderWidth
+                                    border.color: topBarContainer.pillBorderColor
                                 }
                             }
                         }
@@ -2895,6 +2927,8 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
                         color: topBarContainer.pillColor
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
                         Column {
                             id: vWeatherCol
                             anchors.centerIn: parent
@@ -2925,6 +2959,8 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
                         color: topBarContainer.pillColor
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
                         Column {
                             id: vMediaCol; anchors.centerIn: parent; spacing: 4
                             Text { anchors.horizontalCenter: parent.horizontalCenter; text: "󰒮"; color: "#ffffff"; font.pixelSize: 11; MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.mediaPrev() } }
@@ -2953,6 +2989,8 @@ ApplicationWindow {
                     y: Math.max(topEdge + 8, Math.min(Math.max(topEdge + 8, botEdge - 8 - height), targetY))
                     radius: topBarContainer.pillRadius
                     color: root.hasWinTitle ? topBarContainer.pillColor : "transparent"
+                    border.width: root.hasWinTitle ? topBarContainer.pillBorderWidth : 0
+                    border.color: topBarContainer.pillBorderColor
                     clip: true
 
                     Text {
@@ -2985,6 +3023,8 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
                         color: topBarContainer.pillColor
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
                         Column {
                             id: vSysCol; anchors.centerIn: parent; spacing: 5
                             Column {
@@ -3014,6 +3054,8 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
                         color: topBarContainer.pillColor
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
                         Column {
                             id: vTrayCol; anchors.centerIn: parent; spacing: 6
                             Rectangle {
@@ -3069,6 +3111,8 @@ ApplicationWindow {
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
                         color: topBarContainer.pillColor
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: topBarContainer.pillBorderColor
 
                         Column {
                             id: vStatusCol

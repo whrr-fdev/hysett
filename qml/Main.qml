@@ -4435,22 +4435,22 @@ ApplicationWindow {
 
                             newPage.vortexMode = 0.0
                             newPage.vortexDir = -dir
-                            newPage.vortexProgress = 0.65
-                            newPage.scale = 0.04
-                            newPage.rotation = -110 * dir
+                            newPage.vortexProgress = 0.92
+                            newPage.scale = 1.0
+                            newPage.rotation = 0
                             newPage.opacity = 0.0
                             newPage.visible = true
 
-                            bhOutVortex.target = oldPage; bhOutVortex.duration = 380
-                            bhOutSc.target = oldPage; bhOutSc.duration = 380
-                            bhOutRot.target = oldPage; bhOutRot.to = 145 * dir; bhOutRot.duration = 380
-                            bhOutOp.target = oldPage; bhOutOp.duration = 380
+                            bhOutVortex.target = oldPage; bhOutVortex.duration = 420
+                            bhOutSc.target = oldPage; bhOutSc.duration = 420
+                            bhOutRot.target = oldPage; bhOutRot.to = 0; bhOutRot.duration = 420
+                            bhOutOp.target = oldPage; bhOutOp.duration = 420
 
-                            bhInDelay.duration = 270
-                            bhInVortex.target = newPage; bhInVortex.duration = 370
-                            bhInSc.target = newPage; bhInSc.duration = 370
-                            bhInRot.target = newPage; bhInRot.from = -110 * dir; bhInRot.duration = 370
-                            bhInOp.target = newPage; bhInOp.duration = 240
+                            bhInDelay.duration = 220
+                            bhInVortex.target = newPage; bhInVortex.duration = 420
+                            bhInSc.target = newPage; bhInSc.duration = 420
+                            bhInRot.target = newPage; bhInRot.from = 0; bhInRot.duration = 420
+                            bhInOp.target = newPage; bhInOp.duration = 260
 
                             blackholeTransition.start()
                         } else if (mode === "portal") {
@@ -4618,15 +4618,15 @@ ApplicationWindow {
                     }
                     ParallelAnimation {
                         id: blackholeTransition
-                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InCubic }
-                        NumberAnimation { id: bhOutSc; property: "scale"; from: 1.0; to: 0.02; easing.type: Easing.InBack; easing.overshoot: 0.6 }
+                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InOutCubic }
+                        NumberAnimation { id: bhOutSc; property: "scale"; from: 1.0; to: 1.0 }
                         NumberAnimation { id: bhOutRot; property: "rotation"; from: 0; easing.type: Easing.InCubic }
                         NumberAnimation { id: bhOutOp; property: "opacity"; from: 1.0; to: 0.0; easing.type: Easing.InExpo }
                         SequentialAnimation {
                             PauseAnimation { id: bhInDelay }
                             ParallelAnimation {
-                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 0.65; to: 0.0; easing.type: Easing.OutCubic }
-                                NumberAnimation { id: bhInSc; property: "scale"; from: 0.04; to: 1.0; easing.type: Easing.OutBack; easing.overshoot: 0.85 }
+                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 0.92; to: 0.0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: bhInSc; property: "scale"; from: 1.0; to: 1.0 }
                                 NumberAnimation { id: bhInRot; property: "rotation"; to: 0; easing.type: Easing.OutCubic }
                                 NumberAnimation { id: bhInOp; property: "opacity"; from: 0.0; to: 1.0; easing.type: Easing.OutCubic }
                             }
@@ -4794,6 +4794,12 @@ ApplicationWindow {
                     Behavior on opacity { NumberAnimation { duration: 160 } }
                 }
 
+                Loader {
+                    anchors.fill: parent
+                    z: 95
+                    active: root.drawerActive && root.drawerMode === "settings" && Atmosphere && Atmosphere.inAppEnabled
+                    sourceComponent: Item {
+                        anchors.fill: parent
                 ShaderEffectSource {
                     id: pageSceneSource
                     readonly property bool activeCapture: root.drawerActive && root.drawerMode === "settings" && Atmosphere && Atmosphere.inAppEnabled && (Atmosphere.rainEnabled || Atmosphere.snowEnabled)
@@ -4885,6 +4891,8 @@ ApplicationWindow {
                     property variant u_overlayMap: inAppOverlayMapSource
                     property variant u_scene: pageSceneSource
                     fragmentShader: "qrc:/shaders/qml/shaders/atmosphere_fx.frag.qsb"
+                }
+                    }
                 }
             }
 

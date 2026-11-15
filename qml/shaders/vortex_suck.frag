@@ -21,13 +21,6 @@ float hash11(float p) {
     return fract(p);
 }
 
-vec2 swirlUV(vec2 delta, vec2 aspect, vec2 center, float shrink, float angle) {
-    float s = sin(angle);
-    float c = cos(angle);
-    vec2 rot = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c);
-    return center + (rot / shrink) / aspect;
-}
-
 void main() {
     float t = clamp(u_progress, 0.0, 1.0);
     if (t <= 0.001) {
@@ -43,40 +36,42 @@ void main() {
     vec2 aspect = vec2(res.x / res.y, 1.0);
     vec2 center = vec2(0.5, 0.5);
 
+    // =========================================================================
+    // РЕЖИМ 0: ВОРОНКА (Чистая глубокая спираль без расслоения и без колец)
+    // =========================================================================
     if (u_mode < 0.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
 
-        float shrink = max(0.004, pow(1.0 - t, 1.35));
-        float radialPull = mix(1.0, 0.72 + 0.28 * smoothstep(0.0, 0.65, r), t);
-        vec2 pulledDelta = delta * radialPull;
-        float sourceR = length(pulledDelta) / shrink;
+        // Плавное втягивание всей страницы в точку (0.5, 0.5)
+        float shrink = max(0.002, pow(1.0 - t, 1.55));
+        float origR = r / shrink;
 
-        float baseAngle = (t * 2.8 + t * t * 6.5) * u_direction * exp(-sourceR * 1.15);
-        float blurStep = t * 0.06 * u_direction;
+        // Чем ближе к центру воронки (меньше origR), тем сильнее угол закручивания (эффект водоворота)
+        float twistAngle = (t * 5.2 + t * t * 14.5) * u_direction * (1.15 + 4.20 * exp(-origR * 2.65));
+        float s = sin(twistAngle);
+        float c = cos(twistAngle);
+        vec2 rotDelta = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c);
 
-        vec2 uv0 = swirlUV(pulledDelta, aspect, center, shrink, baseAngle - blurStep);
-        vec2 uv1 = swirlUV(pulledDelta, aspect, center, shrink, baseAngle);
-        vec2 uv2 = swirlUV(pulledDelta, aspect, center, shrink, baseAngle + blurStep);
+        vec2 sampleUV = center + (rotDelta / shrink) / aspect;
 
-        vec2 edge = smoothstep(vec2(0.0), vec2(0.025), uv1) * smoothstep(vec2(0.0), vec2(0.025), vec2(1.0) - uv1);
+        vec2 edge = smoothstep(vec2(0.0), vec2(0.025), sampleUV) * smoothstep(vec2(0.0), vec2(0.025), vec2(1.0) - sampleUV);
         float mask = edge.x * edge.y;
         if (mask <= 0.001) {
             fragColor = vec4(0.0);
             return;
         }
 
-        vec4 c0 = texture(source, clamp(uv0, 0.0, 1.0));
-        vec4 c1 = texture(source, clamp(uv1, 0.0, 1.0));
-        vec4 c2 = texture(source, clamp(uv2, 0.0, 1.0));
-        vec4 col = (c0 * 0.25 + c1 * 0.50 + c2 * 0.25);
-
+        vec4 col = texture(source, clamp(sampleUV, 0.0, 1.0));
         float endFade = smoothstep(1.0, 0.82, t);
         float alpha = col.a * mask * endFade * qt_Opacity;
         fragColor = vec4(col.rgb * mask * endFade * qt_Opacity, alpha);
         return;
     }
 
+    // =========================================================================
+    // РЕЖИМ 1: СФЕРИЧЕСКИЙ ПОРТАЛ
+    // =========================================================================
     if (u_mode < 1.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
@@ -115,6 +110,9 @@ void main() {
         return;
     }
 
+    // =========================================================================
+    // РЕЖИМ 2: ТЕЛЕПОРТ
+    // =========================================================================
     float numSlices = 26.0;
     float sliceIdx = floor(qt_TexCoord0.y * numSlices);
     float rnd = hash11(sliceIdx + 17.0);

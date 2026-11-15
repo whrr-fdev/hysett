@@ -609,7 +609,7 @@ private:
     QStringList m_backupRightOrder;
     QString m_backupHiddenModules;
     QStringList m_leftBarOrder = {"launcher", "workspaces", "weather", "media"};
-    QStringList m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
+    QStringList m_rightBarOrder = {"sysinfo", "tray", "usb", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     QStringList m_demoTracks = {
         "The Weeknd — Blinding Lights",
         "Daft Punk — Instant Crush",

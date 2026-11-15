@@ -9,6 +9,8 @@ ScrollView {
     contentWidth: availableWidth
     clip: true
 
+    onVisibleChanged: if (visible && Devices) Devices.refreshUsbDrives()
+
     Item {
         width: devScroll.availableWidth
         implicitHeight: devCol.implicitHeight + 40
@@ -22,11 +24,154 @@ ScrollView {
             spacing: 10
 
             Text {
-                text: Config ? (Config.language, Config.trAuto("Устройства ввода (Devices)")) : "Устройства ввода (Devices)"
+                text: Config ? (Config.language, Config.trAuto("Устройства и накопители (Devices)")) : "Устройства и накопители (Devices)"
                 color: "#ffffff"
                 font.pixelSize: Config.fontSize + 3
                 font.bold: true
                 Layout.bottomMargin: 4
+            }
+
+            // 0a. USB-НАКОПИТЕЛИ И ФЛЕШКИ
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
+                implicitHeight: colUsb.implicitHeight + 24
+
+                ColumnLayout {
+                    id: colUsb
+                    anchors.fill: parent
+                    anchors.margins: 12
+                    spacing: 8
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text {
+                            text: "󱊟  USB-накопители и флешки • " + (Devices ? Devices.usbDrivesCount : 0)
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize + 1
+                            font.bold: true
+                            Layout.fillWidth: true
+                        }
+                        StyledButton {
+                            text: "󰑐  Обновить"
+                            implicitHeight: 24
+                            onClicked: if (Devices) Devices.refreshUsbDrives()
+                        }
+                    }
+
+                    Text {
+                        visible: Devices && Devices.usbStatusText.length > 0
+                        text: Devices ? Devices.usbStatusText : ""
+                        color: Config ? Config.m3Primary : "#a8c7fa"
+                        font.pixelSize: Config.fontSize - 1
+                        elide: Text.ElideRight
+                        Layout.fillWidth: true
+                    }
+
+                    Rectangle {
+                        visible: !Devices || Devices.usbDrivesCount === 0
+                        Layout.fillWidth: true
+                        implicitHeight: 46
+                        radius: (Theme && Theme.isRounded) ? 10 : 0
+                        color: Qt.rgba(1, 1, 1, 0.025)
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.08)
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Нет подключенных USB-флешек или внешних накопителей"
+                            color: "#888888"
+                            font.pixelSize: Config.fontSize
+                        }
+                    }
+
+                    Repeater {
+                        model: Devices ? Devices.usbDrives : []
+                        delegate: Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 54
+                            radius: (Theme && Theme.isRounded) ? 10 : 0
+                            color: Qt.rgba(1, 1, 1, 0.03)
+                            border.width: 1
+                            border.color: modelData.mounted
+                                          ? Qt.rgba(Config ? Config.m3Primary.r : 0.6, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 1.0, 0.35)
+                                          : Qt.rgba(1, 1, 1, 0.10)
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 12
+                                anchors.rightMargin: 12
+                                spacing: 10
+
+                                Rectangle {
+                                    Layout.preferredWidth: 34
+                                    Layout.preferredHeight: 34
+                                    radius: (Theme && Theme.isRounded) ? 10 : 0
+                                    color: modelData.mounted
+                                           ? Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.16)
+                                           : Qt.rgba(1, 1, 1, 0.06)
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󱊟"
+                                        color: modelData.mounted ? (Config ? Config.m3Primary : "#ffffff") : "#888888"
+                                        font.pixelSize: 16
+                                    }
+                                }
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    RowLayout {
+                                        spacing: 8
+                                        Text {
+                                            text: modelData.name
+                                            color: "#ffffff"
+                                            font.pixelSize: Config.fontSize
+                                            font.bold: true
+                                        }
+                                        Text {
+                                            text: modelData.size + " • " + modelData.fstype + " (" + modelData.dev + ")"
+                                            color: "#999999"
+                                            font.pixelSize: Config.fontSize - 1
+                                        }
+                                    }
+                                    Text {
+                                        text: modelData.mounted ? ("Точка монтирования: " + modelData.mountpoint) : "Не смонтирована (готова к извлечению или монтированию)"
+                                        color: modelData.mounted ? (Config ? Config.m3Primary : "#a8c7fa") : "#777777"
+                                        font.pixelSize: Config.fontSize - 2
+                                        elide: Text.ElideRight
+                                        Layout.fillWidth: true
+                                    }
+                                }
+
+                                StyledButton {
+                                    visible: modelData.mounted
+                                    text: "󰉋  Открыть"
+                                    implicitHeight: 28
+                                    onClicked: if (Devices) Devices.openUsbDriveFolder(modelData.mountpoint)
+                                }
+
+                                StyledButton {
+                                    text: modelData.mounted ? "⏏  Отмонтировать" : "󰕒  Смонтировать"
+                                    implicitHeight: 28
+                                    isActive: modelData.mounted
+                                    onClicked: {
+                                        if (!Devices) return
+                                        if (modelData.mounted) Devices.unmountUsbDrive(modelData.dev)
+                                        else Devices.mountUsbDrive(modelData.dev)
+                                    }
+                                }
+
+                                StyledButton {
+                                    text: "󰅚  Извлечь"
+                                    implicitHeight: 28
+                                    onClicked: if (Devices) Devices.ejectUsbDrive(modelData.dev)
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             // 0. ЗВУК И АУДИО (AUDIO)

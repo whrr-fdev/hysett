@@ -1,6 +1,8 @@
 #pragma once
 #include <QObject>
 #include <QString>
+#include <QVariantList>
+#include <QTimer>
 
 class DevicesManager : public QObject {
     Q_OBJECT
@@ -23,6 +25,11 @@ class DevicesManager : public QObject {
 
     // Тачпад
     Q_PROPERTY(bool hasTouchpad READ hasTouchpad NOTIFY deviceChanged)
+
+    // USB-флешки и съемные накопители
+    Q_PROPERTY(QVariantList usbDrives READ usbDrives NOTIFY usbDrivesChanged)
+    Q_PROPERTY(int usbDrivesCount READ usbDrivesCount NOTIFY usbDrivesChanged)
+    Q_PROPERTY(QString usbStatusText READ usbStatusText NOTIFY usbDrivesChanged)
 
 public:
     explicit DevicesManager(QObject *parent = nullptr);
@@ -65,18 +72,30 @@ public:
 
     bool hasTouchpad() const { return m_hasTouchpad; }
 
+    QVariantList usbDrives() const { return m_usbDrives; }
+    int usbDrivesCount() const { return m_usbDrives.size(); }
+    QString usbStatusText() const { return m_usbStatusText; }
+
     Q_INVOKABLE void stepRepeatRate(int delta);
     Q_INVOKABLE void stepRepeatDelay(int delta);
     Q_INVOKABLE void stepSensitivity(qreal delta);
     Q_INVOKABLE void stepScrollFactor(qreal delta);
 
+    Q_INVOKABLE void refreshUsbDrives();
+    Q_INVOKABLE void mountUsbDrive(const QString &devPath);
+    Q_INVOKABLE void unmountUsbDrive(const QString &devPath);
+    Q_INVOKABLE void ejectUsbDrive(const QString &devPath);
+    Q_INVOKABLE void openUsbDriveFolder(const QString &mountPoint);
+
 signals:
     void deviceChanged();
+    void usbDrivesChanged();
 
 private:
     void loadSettings();
     void saveAndApply();
     void checkTouchpad();
+    void pollUsbSignature();
 
     QString m_kbLayout = "us,ru";
     QString m_kbOptions = "grp:alt_shift_toggle";
@@ -94,4 +113,8 @@ private:
     int m_floatSwitchOverride = 1;
 
     bool m_hasTouchpad = false;
+    QVariantList m_usbDrives;
+    QString m_usbStatusText;
+    QByteArray m_lastPartitionsSig;
+    QTimer *m_usbPollTimer = nullptr;
 };

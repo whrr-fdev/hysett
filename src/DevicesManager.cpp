@@ -3,11 +3,177 @@
 #include <QFile>
 #include <QTextStream>
 #include <QProcess>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include <algorithm>
 
 DevicesManager::DevicesManager(QObject *parent) : QObject(parent) {
     checkTouchpad();
     loadSettings();
+    refreshUsbDrives();
+
+    m_usbPollTimer = new QTimer(this);
+    m_usbPollTimer->setInterval(2500);
+    connect(m_usbPollTimer, &QTimer::timeout, this, &DevicesManager::pollUsbSignature);
+    m_usbPollTimer->start();
+}
+
+void DevicesManager::pollUsbSignature() {
+    QByteArray sig;
+    QFile fp("/proc/partitions");
+    if (fp.open(QIODevice::ReadOnly)) {
+        sig += fp.readAll();
+        fp.close();
+    }
+    QFile fm("/proc/mounts");
+    if (fm.open(QIODevice::ReadOnly)) {
+        const QByteArray lines = fm.readAll();
+        for (const QByteArray &ln : lines.split('\n')) {
+            if (ln.startsWith("/dev/sd") || ln.startsWith("/dev/nvme") || ln.contains("/run/media") || ln.contains("/mnt")) {
+                sig += ln + "\n";
+            }
+        }
+        fm.close();
+    }
+    if (sig != m_lastPartitionsSig) {
+        m_lastPartitionsSig = sig;
+        refreshUsbDrives();
+    }
+}
+
+static bool isSystemMountPoint(const QString &mp) {
+    if (mp == "/" || mp == "/boot" || mp == "/boot/efi" || mp == "/home" || mp == "[SWAP]") return true;
+    return false;
+}
+
+void DevicesManager::refreshUsbDrives() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QByteArray out = p->readAllStandardOutput();
+        p->deleteLater();
+
+        QJsonObject rootObj = QJsonDocument::fromJson(out).object();
+        QJsonArray blockdevs = rootObj["blockdevices"].toArray();
+        QVariantList result;
+
+        auto parsePartObj = [&](const QJsonObject &part, const QString &diskModel, const QString &diskVendor, bool diskRemovable) {
+            QString devPath = part["path"].toString();
+            QString name = part["name"].toString();
+            if (name.startsWith("zram") || name.startsWith("loop")) return;
+
+            QString fstype = part["fstype"].toString().trimmed();
+            QString mp = part["mountpoint"].toString().trimmed();
+            if (mp.isEmpty() && part.contains("mountpoints")) {
+                QJsonArray mps = part["mountpoints"].toArray();
+                for (const QJsonValue &v : mps) {
+                    if (!v.isNull() && !v.toString().trimmed().isEmpty()) {
+                        mp = v.toString().trimmed();
+                        break;
+                    }
+                }
+            }
+            if (isSystemMountPoint(mp)) return;
+
+            bool isRm = part["rm"].toBool(false) || part["hotplug"].toBool(false) || diskRemovable;
+            if (!isRm && !mp.startsWith("/run/media/")) return;
+            if (fstype.isEmpty() && mp.isEmpty()) return;
+            if (fstype == "swap") return;
+
+            QString label = part["label"].toString().trimmed();
+            QString size = part["size"].toString().trimmed();
+            QString displayTitle = label;
+            if (displayTitle.isEmpty()) {
+                QString mv = (diskVendor + " " + diskModel).trimmed();
+                displayTitle = mv.isEmpty() ? name : mv;
+            }
+
+            QVariantMap item;
+            item["dev"] = devPath;
+            item["name"] = displayTitle;
+            item["shortDev"] = name;
+            item["size"] = size;
+            item["fstype"] = fstype.isEmpty() ? "USB" : fstype.toUpper();
+            item["mountpoint"] = mp;
+            item["mounted"] = !mp.isEmpty();
+            result.append(item);
+        };
+
+        for (const QJsonValue &dv : blockdevs) {
+            QJsonObject d = dv.toObject();
+            QString dName = d["name"].toString();
+            if (dName.startsWith("zram") || dName.startsWith("loop") || dName.startsWith("sr")) continue;
+
+            QString tran = d["tran"].toString().toLower();
+            bool diskRm = d["rm"].toBool(false) || d["hotplug"].toBool(false) || (tran == "usb") || (tran == "mmc");
+            QString model = d["model"].toString().trimmed();
+            QString vendor = d["vendor"].toString().trimmed();
+
+            QJsonArray children = d["children"].toArray();
+            if (children.isEmpty()) {
+                parsePartObj(d, model, vendor, diskRm);
+            } else {
+                for (const QJsonValue &cv : children) {
+                    parsePartObj(cv.toObject(), model, vendor, diskRm);
+                }
+            }
+        }
+
+        if (m_usbDrives != result) {
+            m_usbDrives = result;
+            emit usbDrivesChanged();
+        }
+    });
+    p->start("lsblk", {"-J", "-o", "NAME,PATH,LABEL,MODEL,VENDOR,SIZE,FSTYPE,MOUNTPOINT,MOUNTPOINTS,RM,TRAN,TYPE,HOTPLUG"});
+}
+
+void DevicesManager::mountUsbDrive(const QString &devPath) {
+    if (devPath.trimmed().isEmpty()) return;
+    m_usbStatusText = "Монтирование " + devPath + "...";
+    emit usbDrivesChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p, devPath]() {
+        QString err = QString::fromUtf8(p->readAllStandardError()).trimmed();
+        QString out = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
+        p->deleteLater();
+        m_usbStatusText = err.isEmpty() ? (out.isEmpty() ? ("Смонтировано: " + devPath) : out) : err;
+        refreshUsbDrives();
+    });
+    p->start("udisksctl", {"mount", "-b", devPath.trimmed(), "--no-user-interaction"});
+}
+
+void DevicesManager::unmountUsbDrive(const QString &devPath) {
+    if (devPath.trimmed().isEmpty()) return;
+    m_usbStatusText = "Сброс кэша и отмонтирование " + devPath + "...";
+    emit usbDrivesChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p, devPath]() {
+        QString err = QString::fromUtf8(p->readAllStandardError()).trimmed();
+        QString out = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
+        p->deleteLater();
+        m_usbStatusText = err.isEmpty() ? (out.isEmpty() ? ("Отмонтировано: " + devPath + " (можно извлекать)") : out) : err;
+        refreshUsbDrives();
+    });
+    p->start("/bin/sh", {"-c", QString("sync && udisksctl unmount -b '%1' --no-user-interaction").arg(devPath.trimmed())});
+}
+
+void DevicesManager::ejectUsbDrive(const QString &devPath) {
+    if (devPath.trimmed().isEmpty()) return;
+    m_usbStatusText = "Безопасное извлечение " + devPath + "...";
+    emit usbDrivesChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p, devPath]() {
+        QString err = QString::fromUtf8(p->readAllStandardError()).trimmed();
+        p->deleteLater();
+        m_usbStatusText = err.isEmpty() ? ("Накопитель " + devPath + " безопасно отключен") : err;
+        refreshUsbDrives();
+    });
+    p->start("/bin/sh", {"-c", QString("sync && udisksctl unmount -b '%1' --no-user-interaction >/dev/null 2>&1 || true; udisksctl power-off -b '%1' --no-user-interaction").arg(devPath.trimmed())});
+}
+
+void DevicesManager::openUsbDriveFolder(const QString &mountPoint) {
+    if (mountPoint.trimmed().isEmpty()) return;
+    QProcess::startDetached("xdg-open", {mountPoint.trimmed()});
 }
 
 void DevicesManager::checkTouchpad() {

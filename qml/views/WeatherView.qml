@@ -137,12 +137,6 @@ ScrollView {
                     }
                 }
                 Item { Layout.fillWidth: true }
-                SegmentedButton {
-                    Layout.preferredWidth: 220
-                    options: ["Авто", "󰖙 Ясно", "󰖗 Дождь", "󰼶 Снег"]
-                    selectedIndex: weatherScroll.previewWeatherMode
-                    onSelected: (idx) => weatherScroll.previewWeatherMode = idx
-                }
                 StyledButton {
                     text: "󰇧  Gismeteo"
                     implicitHeight: 28

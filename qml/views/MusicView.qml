@@ -1598,7 +1598,7 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "Свернуть виджет музыки на панели (компактный вид):"
+                                        text: "Свернуть плеер на панели до кнопок перемотки (󰒮 󰐊 󰒭):"
                                         color: "#cccccc"
                                         font.pixelSize: Config.fontSize
                                         Layout.fillWidth: true

@@ -249,7 +249,7 @@ ApplicationWindow {
 
     property real barExpandProgress: 0.0
     property real drawerProgress: 0.0
-    readonly property bool drawerActive: drawerProgress > 0.005 || barExpandProgress > 0.005
+    readonly property bool drawerActive: drawerProgress > 0.005 || barExpandProgress > 0.005 || switchDrawerAnim.running
 
     property real drawerWidthScale: 1.0
     readonly property string openFxMode: Config ? Config.windowOpenAnimType : "vortex"
@@ -274,7 +274,7 @@ ApplicationWindow {
         id: openSeqAnim
         NumberAnimation {
             target: root; property: "barExpandProgress"
-            to: 1.0
+            to: (!root.isCompactPopup && (!root.isFloatingMode || root.isDockedToBar)) ? 1.0 : 0.0
             duration: (!root.isCompactPopup && (!root.isFloatingMode || root.isDockedToBar) && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutCubic
         }
@@ -740,7 +740,7 @@ ApplicationWindow {
 
     onDrawerActiveChanged: {
         syncInputMask()
-        if (!drawerActive) {
+        if (!drawerActive && !root.drawerOpen && !switchDrawerAnim.running) {
             if (Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
             if (Apps) { Apps.clearFileSearch(); Apps.clearPackageSearch() }
             if (Atmosphere) Atmosphere.releaseInAppCaches()
@@ -1438,13 +1438,11 @@ ApplicationWindow {
                                                        ? (Config ? Config.m3Primary : "#ffffff")
                                                        : (parent.hov
                                                           ? (Theme && Theme.isRounded && Config
-                                                             ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.80)
-                                                             : Qt.rgba(1, 1, 1, 0.85))
+                                                             ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.75)
+                                                             : Qt.rgba(1, 1, 1, 0.78))
                                                           : (parent.occ
-                                                             ? (Theme && Theme.isRounded && Config
-                                                                ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.65)
-                                                                : Qt.rgba(1, 1, 1, 0.65))
-                                                             : Qt.rgba(1, 1, 1, 0.25)))
+                                                             ? Qt.rgba(0.36, 0.39, 0.46, 0.92)
+                                                             : Qt.rgba(0.22, 0.24, 0.29, 0.88)))
                                                 Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                                 Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                             }
@@ -2936,13 +2934,11 @@ ApplicationWindow {
                                                ? (Config ? Config.m3Primary : "#ffffff")
                                                : (parent.hov
                                                   ? (Theme && Theme.isRounded && Config
-                                                     ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.80)
-                                                     : Qt.rgba(1, 1, 1, 0.85))
+                                                     ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.75)
+                                                     : Qt.rgba(1, 1, 1, 0.78))
                                                   : (parent.occ
-                                                     ? (Theme && Theme.isRounded && Config
-                                                        ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.65)
-                                                        : Qt.rgba(1, 1, 1, 0.65))
-                                                     : Qt.rgba(1, 1, 1, 0.25)))
+                                                     ? Qt.rgba(0.36, 0.39, 0.46, 0.92)
+                                                     : Qt.rgba(0.22, 0.24, 0.29, 0.88)))
                                         Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                         Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     }
@@ -4924,7 +4920,7 @@ ApplicationWindow {
                             if (p) {
                                 p.visible = (i === targetIdx)
                                 p.opacity = (i === targetIdx) ? 1.0 : 0.0
-                                p.x = Qt.binding(function() { return i === 0 ? 0 : pageController.sidebarW })
+                                p.x = (i === 0) ? 0 : Qt.binding(function() { return pageController.sidebarW })
                                 p.y = 0
                                 p.scale = 1.0
                                 p.rotation = 0

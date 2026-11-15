@@ -4620,17 +4620,17 @@ ApplicationWindow {
                     }
                 }
 
-                // Кнопка-глазик «Режим стримера» в правом верхнем углу
+                // Кнопка-глазик «Режим стримера» в правом верхнем углу экрана приветствия
                 Rectangle {
                     id: streamerTopBtn
                     z: 220
+                    visible: pageController.currentIndex === 0
                     anchors.top: parent.top
                     anchors.right: parent.right
-                    anchors.topMargin: 8
-                    anchors.rightMargin: 12
+                    anchors.topMargin: 10
+                    anchors.rightMargin: 14
                     readonly property bool isOn: Config ? Config.streamerMode : false
-                    readonly property bool isWelcome: pageController.currentIndex === 0
-                    width: isWelcome ? (streamerBtnRow.implicitWidth + 18) : 28
+                    width: 28
                     height: 26
                     radius: (Theme && Theme.isRounded) ? 13 : 0
                     color: isOn
@@ -4638,27 +4638,13 @@ ApplicationWindow {
                            : (streamerBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28))
                     border.width: 1
                     border.color: isOn ? "transparent" : Qt.rgba(1, 1, 1, 0.18)
-                    Behavior on width { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
                     Behavior on color { ColorAnimation { duration: 140 } }
 
-                    Row {
-                        id: streamerBtnRow
+                    Text {
                         anchors.centerIn: parent
-                        spacing: 6
-                        Text {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: streamerTopBtn.isOn ? "󰈉" : "󰈈"
-                            font.pixelSize: 13
-                            color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                        }
-                        Text {
-                            visible: streamerTopBtn.isWelcome
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: streamerTopBtn.isOn ? "Стример: ВКЛ" : "Стример"
-                            font.pixelSize: 10
-                            font.bold: true
-                            color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#dddddd"
-                        }
+                        text: streamerTopBtn.isOn ? "󰈉" : "󰈈"
+                        font.pixelSize: 13
+                        color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                     }
 
                     MouseArea {

@@ -4435,22 +4435,22 @@ ApplicationWindow {
 
                             newPage.vortexMode = 0.0
                             newPage.vortexDir = -dir
-                            newPage.vortexProgress = 0.92
-                            newPage.scale = 1.0
-                            newPage.rotation = 0
+                            newPage.vortexProgress = 0.72
+                            newPage.scale = 0.03
+                            newPage.rotation = -200 * dir
                             newPage.opacity = 0.0
                             newPage.visible = true
 
-                            bhOutVortex.target = oldPage; bhOutVortex.duration = 420
-                            bhOutSc.target = oldPage; bhOutSc.duration = 420
-                            bhOutRot.target = oldPage; bhOutRot.to = 0; bhOutRot.duration = 420
-                            bhOutOp.target = oldPage; bhOutOp.duration = 420
+                            bhOutVortex.target = oldPage; bhOutVortex.duration = 380
+                            bhOutSc.target = oldPage; bhOutSc.duration = 380
+                            bhOutRot.target = oldPage; bhOutRot.to = 260 * dir; bhOutRot.duration = 380
+                            bhOutOp.target = oldPage; bhOutOp.duration = 380
 
-                            bhInDelay.duration = 220
-                            bhInVortex.target = newPage; bhInVortex.duration = 420
-                            bhInSc.target = newPage; bhInSc.duration = 420
-                            bhInRot.target = newPage; bhInRot.from = 0; bhInRot.duration = 420
-                            bhInOp.target = newPage; bhInOp.duration = 260
+                            bhInDelay.duration = 260
+                            bhInVortex.target = newPage; bhInVortex.duration = 380
+                            bhInSc.target = newPage; bhInSc.duration = 380
+                            bhInRot.target = newPage; bhInRot.from = -200 * dir; bhInRot.duration = 380
+                            bhInOp.target = newPage; bhInOp.duration = 240
 
                             blackholeTransition.start()
                         } else if (mode === "portal") {
@@ -4618,15 +4618,15 @@ ApplicationWindow {
                     }
                     ParallelAnimation {
                         id: blackholeTransition
-                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InOutCubic }
-                        NumberAnimation { id: bhOutSc; property: "scale"; from: 1.0; to: 1.0 }
+                        NumberAnimation { id: bhOutVortex; property: "vortexProgress"; from: 0.0; to: 1.0; easing.type: Easing.InCubic }
+                        NumberAnimation { id: bhOutSc; property: "scale"; from: 1.0; to: 0.02; easing.type: Easing.InBack; easing.overshoot: 0.6 }
                         NumberAnimation { id: bhOutRot; property: "rotation"; from: 0; easing.type: Easing.InCubic }
                         NumberAnimation { id: bhOutOp; property: "opacity"; from: 1.0; to: 0.0; easing.type: Easing.InExpo }
                         SequentialAnimation {
                             PauseAnimation { id: bhInDelay }
                             ParallelAnimation {
-                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 0.92; to: 0.0; easing.type: Easing.OutCubic }
-                                NumberAnimation { id: bhInSc; property: "scale"; from: 1.0; to: 1.0 }
+                                NumberAnimation { id: bhInVortex; property: "vortexProgress"; from: 0.72; to: 0.0; easing.type: Easing.OutCubic }
+                                NumberAnimation { id: bhInSc; property: "scale"; from: 0.03; to: 1.0; easing.type: Easing.OutBack; easing.overshoot: 0.85 }
                                 NumberAnimation { id: bhInRot; property: "rotation"; to: 0; easing.type: Easing.OutCubic }
                                 NumberAnimation { id: bhInOp; property: "opacity"; from: 0.0; to: 1.0; easing.type: Easing.OutCubic }
                             }

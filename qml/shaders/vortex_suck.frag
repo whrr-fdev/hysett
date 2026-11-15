@@ -37,25 +37,22 @@ void main() {
     vec2 center = vec2(0.5, 0.5);
 
     // =========================================================================
-    // РЕЖИМ 0: ВОРОНКА (Чистая глубокая спираль без расслоения и без колец)
+    // РЕЖИМ 0: ВОРОНКА (Закручивание в спираль + втягивание в центр без кольца)
     // =========================================================================
     if (u_mode < 0.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
 
-        // Плавное втягивание всей страницы в точку (0.5, 0.5)
-        float shrink = max(0.002, pow(1.0 - t, 1.55));
-        float origR = r / shrink;
+        // Втягивание краев к центру + сильная спиральная закрутка ближе к ядру воронки
+        float pinch = mix(1.0, 0.55 + 0.45 * smoothstep(0.0, 0.65, r), t * 0.85);
+        float swirlAngle = (t * 4.8 + t * t * 9.5) * u_direction * exp(-r * 2.35);
+        float s = sin(swirlAngle);
+        float c = cos(swirlAngle);
+        vec2 rotDelta = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c) / max(0.15, pinch);
 
-        // Чем ближе к центру воронки (меньше origR), тем сильнее угол закручивания (эффект водоворота)
-        float twistAngle = (t * 5.2 + t * t * 14.5) * u_direction * (1.15 + 4.20 * exp(-origR * 2.65));
-        float s = sin(twistAngle);
-        float c = cos(twistAngle);
-        vec2 rotDelta = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c);
+        vec2 sampleUV = center + rotDelta / aspect;
 
-        vec2 sampleUV = center + (rotDelta / shrink) / aspect;
-
-        vec2 edge = smoothstep(vec2(0.0), vec2(0.025), sampleUV) * smoothstep(vec2(0.0), vec2(0.025), vec2(1.0) - sampleUV);
+        vec2 edge = smoothstep(vec2(0.0), vec2(0.03), sampleUV) * smoothstep(vec2(0.0), vec2(0.03), vec2(1.0) - sampleUV);
         float mask = edge.x * edge.y;
         if (mask <= 0.001) {
             fragColor = vec4(0.0);
@@ -63,9 +60,9 @@ void main() {
         }
 
         vec4 col = texture(source, clamp(sampleUV, 0.0, 1.0));
-        float endFade = smoothstep(1.0, 0.82, t);
-        float alpha = col.a * mask * endFade * qt_Opacity;
-        fragColor = vec4(col.rgb * mask * endFade * qt_Opacity, alpha);
+        float endFade = smoothstep(1.0, 0.86, t);
+        float outA = col.a * mask * endFade * qt_Opacity;
+        fragColor = vec4(col.rgb * mask * endFade * qt_Opacity, outA);
         return;
     }
 

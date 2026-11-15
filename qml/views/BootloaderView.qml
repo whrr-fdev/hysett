@@ -200,24 +200,7 @@ Item {
                                 }
                             }
 
-                            RowLayout {
-                                Layout.fillWidth: true
-                                Text {
-                                    text: "Открыть настройки BIOS / UEFI при следующей обычной перезагрузке:"
-                                    color: "#cccccc"
-                                    font.pixelSize: Config ? Config.fontSize : 11
-                                    Layout.fillWidth: true
-                                }
-                                StyledSwitch {
-                                    checked: Config ? Config.bootloaderFwNext : false
-                                    onToggled: {
-                                        var c = checked
-                                        bootRoot.runWithAdminAuth(function() {
-                                            if (Config) Config.setFirmwareNextBoot(c)
-                                        })
-                                    }
-                                }
-                            }
+
 
                             RowLayout {
                                 visible: !Config || Config.bootloaderType === "systemd-boot"
@@ -580,17 +563,7 @@ Item {
 
                             Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
 
-                            StyledButton {
-                                Layout.fillWidth: true
-                                allowFullWidth: true
-                                implicitHeight: 32
-                                text: "󰍛  Перезагрузиться в BIOS"
-                                onClicked: {
-                                    bootRoot.runWithAdminAuth(function() {
-                                        if (Config) Config.rebootToFirmware()
-                                    })
-                                }
-                            }
+
 
                             RowLayout {
                                 Layout.fillWidth: true

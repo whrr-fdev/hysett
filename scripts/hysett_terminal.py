@@ -40,32 +40,32 @@ DEFAULT_SETTINGS = {
 }
 
 PRESET_PALETTES = {
-    1: { # Catppuccin Mocha
+    1: {
         "name": "Catppuccin Mocha",
         "bg": "#1e1e2e", "fg": "#cdd6f4", "cont": "#313244", "high": "#45475a",
         "pri": "#cba6f7", "sec": "#89b4fa", "ter": "#f5c2e7", "ok": "#a6e3a1", "warn": "#f9e2af", "err": "#f38ba8"
     },
-    2: { # Tokyo Night
+    2: {
         "name": "Tokyo Night",
         "bg": "#1a1b26", "fg": "#c0caf5", "cont": "#24283b", "high": "#414868",
         "pri": "#7aa2f7", "sec": "#bb9af7", "ter": "#7dcfff", "ok": "#9ece6a", "warn": "#e0af68", "err": "#f7768e"
     },
-    3: { # Gruvbox Dark
+    3: {
         "name": "Gruvbox Dark",
         "bg": "#1d2021", "fg": "#ebdbb2", "cont": "#282828", "high": "#3c3836",
         "pri": "#fabd2f", "sec": "#83a598", "ter": "#d3869b", "ok": "#b8bb26", "warn": "#fe8019", "err": "#fb4934"
     },
-    4: { # Nord
+    4: {
         "name": "Nord",
         "bg": "#2e3440", "fg": "#eceff4", "cont": "#3b4252", "high": "#4c566a",
         "pri": "#88c0d0", "sec": "#81a1c1", "ter": "#b48ead", "ok": "#a3be8c", "warn": "#ebcb8b", "err": "#bf616a"
     },
-    5: { # Dracula
+    5: {
         "name": "Dracula",
         "bg": "#282a36", "fg": "#f8f8f2", "cont": "#343746", "high": "#44475a",
         "pri": "#bd93f9", "sec": "#8be9fd", "ter": "#ff79c6", "ok": "#50fa7b", "warn": "#f1fa8c", "err": "#ff5555"
     },
-    6: { # Cyberpunk Neon
+    6: {
         "name": "Cyberpunk Neon",
         "bg": "#0b0c16", "fg": "#e8f0ff", "cont": "#16192b", "high": "#252945",
         "pri": "#00f0ff", "sec": "#ff007f", "ter": "#fcee09", "ok": "#00ff9f", "warn": "#fcee09", "err": "#ff2a6d"
@@ -83,6 +83,9 @@ def rgb_to_hex(r, g, b):
 
 def blend(c1, c2, t):
     return (c1[0]*(1-t)+c2[0]*t, c1[1]*(1-t)+c2[1]*t, c1[2]*(1-t)+c2[2]*t)
+
+def fish_q(val):
+    return "'" + str(val).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 def get_m3_palette():
     is_rounded = True
@@ -137,35 +140,8 @@ def load_state():
                 st.update(data)
         except Exception:
             pass
-    else:
-        # Read initial values from kitty.conf if available
-        if os.path.exists(KITTY_CONF):
-            for line in open(KITTY_CONF, errors="ignore"):
-                s = line.strip()
-                if s.startswith("font_family "):
-                    st["fontFamily"] = s.split(" ", 1)[1].strip()
-                elif s.startswith("font_size "):
-                    try:
-                        st["fontSize"] = int(float(s.split(" ", 1)[1].strip()))
-                    except Exception:
-                        pass
-                elif s.startswith("window_padding_width "):
-                    try:
-                        st["paddingWidth"] = int(float(s.split(" ", 1)[1].strip()))
-                    except Exception:
-                        pass
-                elif s.startswith("background_opacity "):
-                    try:
-                        st["bgOpacity"] = float(s.split(" ", 1)[1].strip())
-                    except Exception:
-                        pass
-                elif s.startswith("cursor_shape "):
-                    st["cursorShape"] = s.split(" ", 1)[1].strip()
-                elif s.startswith("cursor_trail "):
-                    try:
-                        st["cursorTrail"] = int(float(s.split(" ", 1)[1].strip()))
-                    except Exception:
-                        pass
+    if st.get("tideChar", "").startswith("\\u"):
+        st["tideChar"] = "❯"
     return st
 
 def save_state(st):
@@ -182,7 +158,7 @@ def list_monospace_fonts():
         "CaskaydiaCove Nerd Font",
         "Iosevka Nerd Font",
         "UbuntuMono Nerd Font",
-        " DejaVuSansM Nerd Font",
+        "DejaVuSansM Nerd Font",
         "JetBrains Mono",
         "Fira Code",
         "Cascadia Code",
@@ -200,9 +176,8 @@ def list_monospace_fonts():
                 if name:
                     all_fams.add(name)
         for p in preferred:
-            p_clean = p.strip()
-            if p_clean in all_fams and p_clean not in found:
-                found.append(p_clean)
+            if p in all_fams and p not in found:
+                found.append(p)
         mono_kw = ("mono", "nerd", "code", "console", "iosevka", "meslo", "hack", "terminus", "courier", "fixed")
         for fam in sorted(all_fams):
             low = fam.lower()
@@ -243,7 +218,10 @@ def apply_fish_tide_activation(enabled):
     fmp_disabled = os.path.join(FISH_FUNCS, "fish_mode_prompt.fish.tide_disabled")
     confd_hook = os.path.join(FISH_CONFD, "zz_hysett_tide.fish")
 
-    # Clean old marker from config.fish
+    # Удаляем старый хук в conf.d, чтобы не было двойной инициализации
+    if os.path.exists(confd_hook):
+        os.remove(confd_hook)
+
     if os.path.exists(FISH_CONF):
         raw = open(FISH_CONF, errors="ignore").read()
         raw = re.sub(r"\n*# HYSETT_TIDE_START.*?# HYSETT_TIDE_END\n*", "\n", raw, flags=re.S)
@@ -259,36 +237,37 @@ def apply_fish_tide_activation(enabled):
         if not os.path.exists(fp_active):
             subprocess.run(["fish", "-c", "fisher install IlanCosman/tide@v6"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
+        # Стираем fish_prompt от cachyos-config.fish, чтобы Fish штатно автозагрузил ~/.config/fish/functions/fish_prompt.fish
         hook_block = (
             "\n# HYSETT_TIDE_START\n"
             "if status is-interactive\n"
-            "    test -f ~/.config/fish/functions/fish_prompt.fish && source ~/.config/fish/functions/fish_prompt.fish\n"
+            "    functions -e fish_prompt\n"
             "end\n"
             "# HYSETT_TIDE_END\n"
         )
         raw = raw.rstrip() + "\n" + hook_block
         with open(FISH_CONF, "w") as f:
             f.write(raw)
-        with open(confd_hook, "w") as f:
-            f.write("if status is-interactive; test -f ~/.config/fish/functions/fish_prompt.fish && source ~/.config/fish/functions/fish_prompt.fish; end\n")
     else:
         if os.path.exists(fp_active):
             shutil.move(fp_active, fp_disabled)
         if os.path.exists(fmp_active):
             shutil.move(fmp_active, fmp_disabled)
-        if os.path.exists(confd_hook):
-            os.remove(confd_hook)
         hook_block = (
             "\n# HYSETT_TIDE_START\n"
-            "# Tide prompt disabled via HySett (using default CachyOS / fish prompt)\n"
+            "# Tide prompt disabled via HySett (using default CachyOS prompt)\n"
             "# HYSETT_TIDE_END\n"
         )
         raw = raw.rstrip() + "\n" + hook_block
         with open(FISH_CONF, "w") as f:
             f.write(raw)
 
-def build_tide_auto_args(st):
+def configure_tide_variables(st, pal, full_reconf=True):
+    if not st.get("tideEnabled", True):
+        return
+
     style = st.get("tideStyle", "Rainbow")
+    style_low = style.lower() if style.lower() in ("lean", "classic", "rainbow") else "rainbow"
     colors = st.get("tideColors", "True color")
     show_time = st.get("tideTime", "24-hour format")
     seps = st.get("tideSeparators", "Round")
@@ -299,88 +278,189 @@ def build_tide_auto_args(st):
     conn = st.get("tideConnection", "Dotted")
     spacing = st.get("tideSpacing", "Compact")
     icons = st.get("tideIcons", "Many icons")
-    transient = "Yes" if st.get("tideTransient", False) else "No"
-
-    args = [
-        f"--style={style}",
-        f"--prompt_colors={colors}",
-    ]
-    if style == "Classic" and colors == "True color":
-        args.append("--classic_prompt_color=Dark")
-    args.append(f"--show_time={show_time}")
-
-    if style == "Lean":
-        args.append(f"--lean_prompt_height={height}")
-        if height == "Two lines":
-            args.append(f"--prompt_connection={conn}")
-            if conn != "Disconnected" and colors == "True color":
-                args.append("--prompt_connection_andor_frame_color=Dark")
-    else:
-        if style == "Rainbow":
-            args.append(f"--rainbow_prompt_separators={seps}")
-        else:
-            args.append(f"--classic_prompt_separators={seps}")
-        args.append(f"--powerline_prompt_heads={heads}")
-        args.append(f"--powerline_prompt_tails={tails}")
-        if height == "One line":
-            args.append("--powerline_prompt_style=One line")
-        else:
-            pstyle = "Two lines, character and frame" if frame else "Two lines, character"
-            args.append(f"--powerline_prompt_style={pstyle}")
-            args.append(f"--prompt_connection={conn}")
-            args.append(f"--powerline_right_prompt_frame={'Yes' if frame else 'No'}")
-            if (frame or conn != "Disconnected") and colors == "True color":
-                args.append("--prompt_connection_andor_frame_color=Dark")
-
-    args.append(f"--prompt_spacing={spacing}")
-    args.append(f"--icons={icons}")
-    args.append(f"--transient={transient}")
-    return args
-
-def apply_tide_colors_and_vars(st, pal):
-    if not st.get("tideEnabled", True):
-        return
+    transient = "true" if st.get("tideTransient", False) else "false"
     char_icon = st.get("tideChar", "❯") or "❯"
+    if char_icon.startswith("\\u"):
+        char_icon = "❯"
+
+    fish_cmds = []
+
+    if full_reconf:
+        # 1. Загружаем базовые переменные из штатных файлов Tide (icons.fish и configs/<style>.fish)
+        icons_file = os.path.join(FISH_FUNCS, "tide/configure/icons.fish")
+        cfg_name = f"{style_low}_16color.fish" if colors == "16 colors" else f"{style_low}.fish"
+        cfg_file = os.path.join(FISH_FUNCS, "tide/configure/configs", cfg_name)
+        for fpath in (icons_file, cfg_file):
+            if os.path.exists(fpath):
+                for line in open(fpath, errors="ignore"):
+                    s = line.strip()
+                    if s and not s.startswith("#"):
+                        fish_cmds.append(f"set -U {s}")
+
+        # 2. OS branding (логотип и цвета ОС)
+        fish_cmds.append(
+            "if functions -q _tide_detect_os; "
+            "_tide_detect_os | read -l os_icon os_col os_bg; "
+            "test -n \"$os_icon\" && set -U tide_os_icon $os_icon; "
+            "test -n \"$os_col\" && set -U tide_os_color $os_col; "
+            "test -n \"$os_bg\" && set -U tide_os_bg_color $os_bg; "
+            "end"
+        )
+
+        # 3. Иконки
+        if icons == "Many icons":
+            fish_cmds += [
+                "set -U tide_pwd_icon ''",
+                "set -U tide_pwd_icon_home ''",
+                "set -U tide_cmd_duration_icon ''",
+                "set -U tide_git_icon ''",
+            ]
+        else:
+            fish_cmds += [
+                "set -U tide_pwd_icon ''",
+                "set -U tide_pwd_icon_home ''",
+                "set -U tide_cmd_duration_icon ''",
+                "set -U tide_git_icon ''",
+            ]
+
+        # 4. Левые и правые элементы промпта в СТРОГО правильном порядке!
+        # В первой строке: [os] pwd git, после newline во второй строке: character (❯)
+        left_items = []
+        if icons == "Many icons":
+            left_items.append("os")
+        left_items += ["pwd", "git"]
+        if height == "Two lines":
+            left_items.append("newline")
+        left_items.append("character")
+        fish_cmds.append("set -U tide_left_prompt_items " + " ".join(left_items))
+
+        right_items = [
+            "status", "cmd_duration", "context", "jobs", "direnv", "node", "python",
+            "rustc", "java", "php", "pulumi", "ruby", "go", "gcloud", "kubectl",
+            "distrobox", "toolbox", "terraform", "aws", "nix_shell", "crystal", "elixir", "zig"
+        ]
+        if show_time != "No":
+            right_items.append("time")
+            fish_cmds.append("set -U tide_time_format '%r'" if show_time == "12-hour format" else "set -U tide_time_format '%T'")
+        else:
+            fish_cmds.append("set -U tide_time_format ''")
+        fish_cmds.append("set -U tide_right_prompt_items " + " ".join(right_items))
+
+        # 5. Разделители, наконечники и хвосты
+        if style_low == "lean":
+            fish_cmds += [
+                "set -U tide_left_prompt_frame_enabled false",
+                "set -U tide_right_prompt_frame_enabled false",
+                "set -U tide_left_prompt_prefix ''",
+                "set -U tide_right_prompt_suffix ''",
+                f"set -U tide_left_prompt_suffix {'\" \"' if height == 'Two lines' else '\"\"'}",
+                "set -U tide_right_prompt_prefix ''",
+            ]
+        else:
+            # Separators
+            if style_low == "rainbow":
+                sep_map = {
+                    "Angled": ("", ""),
+                    "Vertical": ("", ""),
+                    "Slanted": ("", ""),
+                    "Round": ("", ""),
+                }
+                l_sep, r_sep = sep_map.get(seps, ("", ""))
+                fish_cmds += [
+                    f"set -U tide_left_prompt_separator_diff_color {fish_q(l_sep)}",
+                    f"set -U tide_right_prompt_separator_diff_color {fish_q(r_sep)}",
+                ]
+            else:  # classic
+                csep_map = {
+                    "Angled": ("", ""),
+                    "Vertical": ("│", "│"),
+                    "Slanted": ("╱", "╱"),
+                    "Round": ("", ""),
+                }
+                l_csep, r_csep = csep_map.get(seps, ("", ""))
+                fish_cmds += [
+                    f"set -U tide_left_prompt_separator_same_color {fish_q(l_csep)}",
+                    f"set -U tide_right_prompt_separator_same_color {fish_q(r_csep)}",
+                ]
+
+            # Heads
+            head_map = {
+                "Sharp": ("", ""),
+                "Slanted": ("", ""),
+                "Round": ("", ""),
+            }
+            l_head, r_head = head_map.get(heads, ("", ""))
+            fish_cmds += [
+                f"set -U tide_left_prompt_suffix {fish_q(l_head)}",
+                f"set -U tide_right_prompt_prefix {fish_q(r_head)}",
+            ]
+
+            # Tails
+            tail_map = {
+                "Flat": ("", ""),
+                "Sharp": ("", ""),
+                "Slanted": ("", ""),
+                "Round": ("", ""),
+            }
+            l_tail, r_tail = tail_map.get(tails, ("", ""))
+            fish_cmds += [
+                f"set -U tide_left_prompt_prefix {fish_q(l_tail)}",
+                f"set -U tide_right_prompt_suffix {fish_q(r_tail)}",
+            ]
+
+            # Frame
+            en_frame = "true" if (height == "Two lines" and frame) else "false"
+            fish_cmds += [
+                f"set -U tide_left_prompt_frame_enabled {en_frame}",
+                f"set -U tide_right_prompt_frame_enabled {en_frame}",
+            ]
+
+        # 6. Линия соединения, отступ, transient
+        conn_char = "·" if conn == "Dotted" else ("─" if conn == "Solid" else " ")
+        fish_cmds += [
+            f"set -U tide_prompt_icon_connection {fish_q(conn_char)}",
+            f"set -U tide_prompt_add_newline_before {'true' if spacing == 'Sparse' else 'false'}",
+            f"set -U tide_prompt_transient_enabled {transient}",
+        ]
+
+    # 7. Символ приглашения к вводу и динамические цвета темы
     pri = pal["pri"].lstrip("#")
     sec = pal["sec"].lstrip("#")
     ter = pal["ter"].lstrip("#")
-    bg = pal["bg"].lstrip("#")
     cont = pal["cont"].lstrip("#")
     high = pal["high"].lstrip("#")
     ok = pal["ok"].lstrip("#")
     err = pal["err"].lstrip("#")
 
-    style = st.get("tideStyle", "Rainbow")
-    use_theme_colors = st.get("dynamicTheme", True) or int(st.get("themePreset", 0)) > 0
-
-    fish_cmds = [
-        f"set -U tide_character_icon {json.dumps(char_icon)}",
+    fish_cmds += [
+        f"set -U tide_character_icon {fish_q(char_icon)}",
         f"set -U tide_character_color {pri}",
         f"set -U tide_character_color_failure {err}",
     ]
 
-    if use_theme_colors and st.get("tideColors", "True color") == "True color":
-        if style == "Lean":
+    use_theme_colors = st.get("dynamicTheme", True) or int(st.get("themePreset", 0)) > 0
+    if use_theme_colors and colors == "True color":
+        if style_low == "lean":
             fish_cmds += [
-                f"set -U tide_pwd_bg_color normal",
+                "set -U tide_pwd_bg_color normal",
                 f"set -U tide_pwd_color_anchors {pri}",
                 f"set -U tide_pwd_color_dirs {sec}",
                 f"set -U tide_pwd_color_truncated_dirs {sec}",
-                f"set -U tide_git_bg_color normal",
+                "set -U tide_git_bg_color normal",
                 f"set -U tide_git_color_branch {ter}",
-                f"set -U tide_os_bg_color normal",
+                "set -U tide_os_bg_color normal",
                 f"set -U tide_os_color {pri}",
-                f"set -U tide_time_bg_color normal",
+                "set -U tide_time_bg_color normal",
                 f"set -U tide_time_color {sec}",
-                f"set -U tide_cmd_duration_bg_color normal",
+                "set -U tide_cmd_duration_bg_color normal",
                 f"set -U tide_cmd_duration_color {ter}",
                 f"set -U tide_prompt_color_frame_and_connection {high}",
             ]
-        elif style == "Classic":
+        elif style_low == "classic":
             fish_cmds += [
                 f"set -U tide_pwd_bg_color {cont}",
                 f"set -U tide_pwd_color_anchors {pri}",
-                f"set -U tide_pwd_color_dirs E6E8EE",
+                "set -U tide_pwd_color_dirs E6E8EE",
                 f"set -U tide_pwd_color_truncated_dirs {sec}",
                 f"set -U tide_git_bg_color {cont}",
                 f"set -U tide_git_color_branch {ter}",
@@ -392,8 +472,7 @@ def apply_tide_colors_and_vars(st, pal):
                 f"set -U tide_cmd_duration_color {ter}",
                 f"set -U tide_prompt_color_frame_and_connection {high}",
             ]
-        else:  # Rainbow synced with theme palette!
-            # Check brightness of pri for contrast text
+        else:  # rainbow
             r, g, b = hex_to_rgb("#" + pri)
             dark_txt = "0B0D12" if (r*0.299 + g*0.587 + b*0.114) > 135 else "FFFFFF"
             fish_cmds += [
@@ -417,9 +496,11 @@ def apply_tide_colors_and_vars(st, pal):
                 f"set -U tide_prompt_color_frame_and_connection {high}",
             ]
 
+    # 8. Пересчитываем _tide_left_items / _tide_right_items и сбрасываем кэш промптов
     fish_cmds.append(
-        "for v in (set -U --names | string match '_tide_prompt_*'); set -U -e $v; end; "
-        "test -f ~/.config/fish/functions/fish_prompt.fish && source ~/.config/fish/functions/fish_prompt.fish"
+        "_tide_remove_unusable_items; "
+        "_tide_cache_variables; "
+        "for v in (set -U --names | string match '_tide_prompt_*'); set -U -e $v; end"
     )
     subprocess.run(["fish", "-c", "; ".join(fish_cmds)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
@@ -504,12 +585,7 @@ def full_apply(st, run_tide_configure=True):
     tide_on = bool(st.get("tideEnabled", True))
     apply_fish_tide_activation(tide_on)
     if tide_on:
-        if run_tide_configure:
-            t_args = build_tide_auto_args(st)
-            quoted = " ".join(json.dumps(a) for a in t_args)
-            cmd = f"source ~/.config/fish/functions/tide.fish; source ~/.config/fish/functions/_tide_sub_configure.fish; _tide_sub_configure --auto {quoted}"
-            subprocess.run(["fish", "-c", cmd], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        apply_tide_colors_and_vars(st, pal)
+        configure_tide_variables(st, pal, full_reconf=run_tide_configure)
 
 def make_status_json(st):
     st_out = dict(st)
@@ -525,12 +601,11 @@ def main():
     if cmd == "status":
         print(make_status_json(st))
     elif cmd == "sync_theme":
-        # Called by sync_m3_windows.py on wallpaper/theme change
         if st.get("dynamicTheme", True) or int(st.get("themePreset", 0)) == 0:
             pal = get_m3_palette()
             apply_kitty_config(st, pal)
             if st.get("tideEnabled", True) and is_tide_installed():
-                apply_tide_colors_and_vars(st, pal)
+                configure_tide_variables(st, pal, full_reconf=False)
         print(make_status_json(st))
     elif cmd == "apply_json":
         if len(sys.argv) > 2:

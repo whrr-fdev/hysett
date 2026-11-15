@@ -475,8 +475,8 @@ void AppConfig::load() {
 
             if (key == "font_size") m_fontSize = std::clamp(val.toInt(), 9, 14);
             else if (key == "ui_scale") m_uiScale = std::clamp(val.toDouble(), 0.8, 1.3);
-            else if (key == "window_width") m_windowWidth = std::clamp(val.toInt(), 680, 1880);
-            else if (key == "window_height") m_windowHeight = std::clamp(val.toInt(), 440, 1020);
+            else if (key == "window_width") m_windowWidth = std::clamp(val.toInt(), 820, 1880);
+            else if (key == "window_height") m_windowHeight = std::clamp(val.toInt(), 500, 1000);
             else if (key == "align_center") m_alignCenter = (val == "1" || val == "true");
             else if (key == "welcome_align_mode") m_welcomeAlignMode = std::clamp(val.toInt(), 0, 2);
             else if (key == "sidebar_width") m_sidebarWidth = std::clamp(val.toInt(), 110, 260);
@@ -632,7 +632,10 @@ void AppConfig::save() {
                 for (auto it = extra.begin(); it != extra.end(); ++it) out << it.key() << "=" << it.value() << "\n";
                 wfile.close();
             }
-            QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
+            if (m_colorsDirty) {
+                m_colorsDirty = false;
+                QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
+            }
         });
     }
     s_cfgSaveTimer->start();
@@ -668,8 +671,8 @@ void AppConfig::setLanguage(const QString &v) {
 
 void AppConfig::setFontSize(int v) { v = std::clamp(v, 9, 14); if (m_fontSize != v) { m_fontSize = v; emit fontSizeChanged(); save(); } }
 void AppConfig::setUiScale(qreal v) { v = std::clamp(v, 0.8, 1.3); if (!qFuzzyCompare(m_uiScale, v)) { m_uiScale = v; emit uiScaleChanged(); save(); } }
-void AppConfig::setWindowWidth(int v) { v = std::clamp(v, 680, 1880); if (m_windowWidth != v) { m_windowWidth = v; emit windowWidthChanged(); save(); } }
-void AppConfig::setWindowHeight(int v) { v = std::clamp(v, 440, 1020); if (m_windowHeight != v) { m_windowHeight = v; emit windowHeightChanged(); save(); syncHyprlandLuaHeight(v); } }
+void AppConfig::setWindowWidth(int v) { v = std::clamp(v, 820, 1880); if (m_windowWidth != v) { m_windowWidth = v; emit windowWidthChanged(); save(); } }
+void AppConfig::setWindowHeight(int v) { v = std::clamp(v, 500, 1000); if (m_windowHeight != v) { m_windowHeight = v; emit windowHeightChanged(); save(); } }
 void AppConfig::setAlignCenter(bool v) { if (m_alignCenter != v) { m_alignCenter = v; emit alignCenterChanged(); save(); } }
 void AppConfig::setWelcomeAlignMode(int v) { v = std::clamp(v, 0, 2); if (m_welcomeAlignMode != v) { m_welcomeAlignMode = v; emit welcomeAlignModeChanged(); save(); } }
 void AppConfig::setSidebarWidth(int v) { v = std::clamp(v, 110, 260); if (m_sidebarWidth != v) { m_sidebarWidth = v; emit sidebarWidthChanged(); save(); } }
@@ -726,7 +729,7 @@ void AppConfig::setSyncColorsWithAccent(bool v) {
 void AppConfig::setAccentColor(const QColor &c) {
     if (!c.isValid() || m_accentColor == c) return;
     m_accentColor = c;
-    emit accentColorChanged();
+    m_colorsDirty = true; emit accentColorChanged();
     if (m_syncColorsWithAccent) {
         m_borderGlowCustomColor = c;
         m_cursorCustomColor = c;
@@ -757,14 +760,14 @@ void AppConfig::setCursorCustomColor(const QColor &c) {
 void AppConfig::setWindowBgColor(const QColor &c) {
     if (!c.isValid() || m_windowBgColor == c) return;
     m_windowBgColor = c;
-    emit windowBgColorChanged();
+    m_colorsDirty = true; emit windowBgColorChanged();
     save();
 }
 
 void AppConfig::setCardBgColor(const QColor &c) {
     if (!c.isValid() || m_cardBgColor == c) return;
     m_cardBgColor = c;
-    emit cardBgColorChanged();
+    m_colorsDirty = true; emit cardBgColorChanged();
     save();
 }
 
@@ -777,11 +780,11 @@ void AppConfig::resetColors() {
     m_cardBgColor = QColor("#141419");
     m_borderGlowColorMode = 0;
     emit syncColorsWithAccentChanged();
-    emit accentColorChanged();
+    m_colorsDirty = true; emit accentColorChanged();
     emit borderGlowCustomColorChanged();
     emit cursorCustomColorChanged();
-    emit windowBgColorChanged();
-    emit cardBgColorChanged();
+    m_colorsDirty = true; emit windowBgColorChanged();
+    m_colorsDirty = true; emit cardBgColorChanged();
     emit borderGlowColorModeChanged();
     save();
 }
@@ -911,7 +914,7 @@ void AppConfig::setM3DynamicWallpaperColors(bool v) {
     if (m_m3DynamicWallpaperColors != v) {
         m_m3DynamicWallpaperColors = v;
         if (v) {
-            emit m3AttributesChanged();
+            m_colorsDirty = true; emit m3AttributesChanged();
             save();
             extractPaletteFromWallpaper();
         } else {
@@ -987,26 +990,26 @@ void AppConfig::extractPaletteFromWallpaper() {
         emit borderGlowCustomColorChanged();
         emit cursorCustomColorChanged();
     }
-    emit accentColorChanged();
-    emit windowBgColorChanged();
-    emit cardBgColorChanged();
-    emit m3AttributesChanged();
+    m_colorsDirty = true; emit accentColorChanged();
+    m_colorsDirty = true; emit windowBgColorChanged();
+    m_colorsDirty = true; emit cardBgColorChanged();
+    m_colorsDirty = true; emit m3AttributesChanged();
     save();
 }
 
 void AppConfig::setM3SecondaryColor(const QColor &c) {
     if (!c.isValid() || m_m3SecondaryColor == c) return;
     m_m3SecondaryColor = c;
-    emit accentColorChanged();
-    emit m3AttributesChanged();
+    m_colorsDirty = true; emit accentColorChanged();
+    m_colorsDirty = true; emit m3AttributesChanged();
     save();
 }
 
 void AppConfig::setM3TertiaryColor(const QColor &c) {
     if (!c.isValid() || m_m3TertiaryColor == c) return;
     m_m3TertiaryColor = c;
-    emit accentColorChanged();
-    emit m3AttributesChanged();
+    m_colorsDirty = true; emit accentColorChanged();
+    m_colorsDirty = true; emit m3AttributesChanged();
     save();
 }
 
@@ -1034,25 +1037,25 @@ void AppConfig::applyM3Preset(int idx) {
         emit borderGlowCustomColorChanged();
         emit cursorCustomColorChanged();
     }
-    emit accentColorChanged();
-    emit windowBgColorChanged();
-    emit cardBgColorChanged();
-    emit m3AttributesChanged();
+    m_colorsDirty = true; emit accentColorChanged();
+    m_colorsDirty = true; emit windowBgColorChanged();
+    m_colorsDirty = true; emit cardBgColorChanged();
+    m_colorsDirty = true; emit m3AttributesChanged();
     save();
 }
 
 void AppConfig::setM3ElevationStyle(int v) {
     v = std::clamp(v, 0, 2);
-    if (m_m3ElevationStyle != v) { m_m3ElevationStyle = v; emit m3AttributesChanged(); emit cardBgColorChanged(); save(); }
+    if (m_m3ElevationStyle != v) { m_m3ElevationStyle = v; m_colorsDirty = true; emit m3AttributesChanged(); m_colorsDirty = true; emit cardBgColorChanged(); save(); }
 }
 
 void AppConfig::setM3SurfaceTintStrength(qreal v) {
     v = std::clamp(v, 0.0, 1.0);
     if (!qFuzzyCompare(m_m3SurfaceTintStrength, v)) {
         m_m3SurfaceTintStrength = v;
-        emit m3AttributesChanged();
-        emit windowBgColorChanged();
-        emit cardBgColorChanged();
+        m_colorsDirty = true; emit m3AttributesChanged();
+        m_colorsDirty = true; emit windowBgColorChanged();
+        m_colorsDirty = true; emit cardBgColorChanged();
         save();
     }
 }
@@ -1061,36 +1064,36 @@ void AppConfig::setM3ContrastLevel(qreal v) {
     v = std::clamp(v, 0.0, 1.0);
     if (!qFuzzyCompare(m_m3ContrastLevel, v)) {
         m_m3ContrastLevel = v;
-        emit m3AttributesChanged();
-        emit accentColorChanged();
-        emit cardBgColorChanged();
+        m_colorsDirty = true; emit m3AttributesChanged();
+        m_colorsDirty = true; emit accentColorChanged();
+        m_colorsDirty = true; emit cardBgColorChanged();
         save();
     }
 }
 
 void AppConfig::setM3WindowRadius(int v) {
     v = std::clamp(v, 4, 32);
-    if (m_m3WindowRadius != v) { m_m3WindowRadius = v; emit m3AttributesChanged(); save(); }
+    if (m_m3WindowRadius != v) { m_m3WindowRadius = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 
 void AppConfig::setM3CardRadius(int v) {
     v = std::clamp(v, 4, 28);
-    if (m_m3CardRadius != v) { m_m3CardRadius = v; emit m3AttributesChanged(); save(); }
+    if (m_m3CardRadius != v) { m_m3CardRadius = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 
 void AppConfig::setM3ControlRadius(int v) {
     v = std::clamp(v, 2, 20);
-    if (m_m3ControlRadius != v) { m_m3ControlRadius = v; emit m3AttributesChanged(); save(); }
+    if (m_m3ControlRadius != v) { m_m3ControlRadius = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 
 void AppConfig::setM3OutlineWidth(qreal v) {
     v = std::clamp(v, 0.0, 3.0);
-    if (!qFuzzyCompare(m_m3OutlineWidth, v)) { m_m3OutlineWidth = v; emit m3AttributesChanged(); save(); }
+    if (!qFuzzyCompare(m_m3OutlineWidth, v)) { m_m3OutlineWidth = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 
 void AppConfig::setM3OutlineOpacity(qreal v) {
     v = std::clamp(v, 0.0, 1.0);
-    if (!qFuzzyCompare(m_m3OutlineOpacity, v)) { m_m3OutlineOpacity = v; emit m3AttributesChanged(); emit accentColorChanged(); save(); }
+    if (!qFuzzyCompare(m_m3OutlineOpacity, v)) { m_m3OutlineOpacity = v; m_colorsDirty = true; emit m3AttributesChanged(); m_colorsDirty = true; emit accentColorChanged(); save(); }
 }
 
 void AppConfig::resetM3Attributes() {
@@ -1120,31 +1123,31 @@ void AppConfig::resetToDefaultMonochrome() {
     m_cursorCustomColor = QColor("#ffffff");
     m_borderGlowColorMode = 0;
     emit syncColorsWithAccentChanged();
-    emit accentColorChanged();
+    m_colorsDirty = true; emit accentColorChanged();
     emit borderGlowCustomColorChanged();
     emit cursorCustomColorChanged();
-    emit windowBgColorChanged();
-    emit cardBgColorChanged();
+    m_colorsDirty = true; emit windowBgColorChanged();
+    m_colorsDirty = true; emit cardBgColorChanged();
     emit borderGlowColorModeChanged();
-    emit m3AttributesChanged();
+    m_colorsDirty = true; emit m3AttributesChanged();
     save();
 }
 
 void AppConfig::setSliderWaveSpeed(qreal v) {
     v = std::clamp(v, 0.0, 5.0);
-    if (!qFuzzyCompare(m_sliderWaveSpeed, v)) { m_sliderWaveSpeed = v; emit m3AttributesChanged(); save(); }
+    if (!qFuzzyCompare(m_sliderWaveSpeed, v)) { m_sliderWaveSpeed = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 void AppConfig::setSliderWaveAmplitude(qreal v) {
     v = std::clamp(v, 0.0, 7.0);
-    if (!qFuzzyCompare(m_sliderWaveAmplitude, v)) { m_sliderWaveAmplitude = v; emit m3AttributesChanged(); save(); }
+    if (!qFuzzyCompare(m_sliderWaveAmplitude, v)) { m_sliderWaveAmplitude = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 void AppConfig::setSliderWaveLength(qreal v) {
     v = std::clamp(v, 8.0, 64.0);
-    if (!qFuzzyCompare(m_sliderWaveLength, v)) { m_sliderWaveLength = v; emit m3AttributesChanged(); save(); }
+    if (!qFuzzyCompare(m_sliderWaveLength, v)) { m_sliderWaveLength = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 void AppConfig::setSliderThickness(qreal v) {
     v = std::clamp(v, 1.2, 6.0);
-    if (!qFuzzyCompare(m_sliderThickness, v)) { m_sliderThickness = v; emit m3AttributesChanged(); save(); }
+    if (!qFuzzyCompare(m_sliderThickness, v)) { m_sliderThickness = v; m_colorsDirty = true; emit m3AttributesChanged(); save(); }
 }
 
 void AppConfig::setFirstRunCompleted(bool v) {

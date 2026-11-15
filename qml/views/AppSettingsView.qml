@@ -522,15 +522,15 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Ширина окна (мин. 680px):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                                StyledSlider { Layout.fillWidth: true; from: 680; to: 1880; stepSize: 10; value: Config.windowWidth; onMoved: Config.windowWidth = Math.round(value) }
+                                Text { text: "Ширина окна (мин. 820px):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                StyledSlider { Layout.fillWidth: true; from: 820; to: 1880; stepSize: 10; value: Config.windowWidth; onMoved: Config.windowWidth = Math.round(value) }
                                 Text { text: Config.windowWidth + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 
                             RowLayout {
                                 Layout.fillWidth: true
-                                Text { text: "Высота окна (мин. 440px):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
-                                StyledSlider { Layout.fillWidth: true; from: 440; to: 1020; stepSize: 10; value: Config.windowHeight; onMoved: Config.windowHeight = Math.round(value) }
+                                Text { text: "Высота окна (мин. 500px):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                StyledSlider { Layout.fillWidth: true; from: 500; to: 1000; stepSize: 10; value: Config.windowHeight; onMoved: Config.windowHeight = Math.round(value) }
                                 Text { text: Config.windowHeight + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }
                             }
 

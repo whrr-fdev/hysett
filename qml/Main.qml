@@ -25,6 +25,8 @@ ApplicationWindow {
     property real floatOffsetY: 0.0
     property bool isDraggingWindow: false
     property bool isResizingWindow: false
+    property int liveResizeW: 1040
+    property int liveResizeH: 640
     property real dockTransition: (Config && !Config.floatingWindowMode) ? 1.0 : 0.0
     Behavior on dockTransition {
         enabled: !root.isDraggingWindow
@@ -471,13 +473,13 @@ ApplicationWindow {
         if (drawerMode === "calendar") return isM3 ? 310 : 295
         if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 360 : 340
         if (drawerMode === "clipboard") return isM3 ? 440 : 410
-        return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : (Config ? Math.max(680, Math.min(maxAvailBarW, Config.windowWidth)) : (isM3 ? 1040 : 860))
+        return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.max(820, Math.min(maxAvailBarW, root.isResizingWindow ? root.liveResizeW : (Config ? Config.windowWidth : (isM3 ? 1040 : 860))))
     }
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
         if (drawerMode === "filedrop") return isM3 ? 270 : 252
-        if (drawerMode === "power") return isM3 ? 305 : 285
+        if (drawerMode === "power") return isM3 ? 360 : 340
         if (drawerMode === "calendar") return isM3 ? 298 : 280
         if (drawerMode === "volume") {
             var sCnt = (Waybar && Waybar.audioStreams) ? Waybar.audioStreams.length : 0
@@ -498,7 +500,7 @@ ApplicationWindow {
         if (isWallpaperExpanded || isSettingsMaximized) {
             return isVertBar ? (root.height - 12) : (root.height - (barRectY + barH) - Math.max(4, fullBarLeft))
         }
-        return Config ? Math.max(440, Math.min(root.height - 42, Config.windowHeight)) : (isM3 ? 640 : 520)
+        return Math.max(500, Math.min(root.height - 42, root.isResizingWindow ? root.liveResizeH : (Config ? Config.windowHeight : (isM3 ? 640 : 520))))
     }
 
     property real animDrawerW: targetDrawerW
@@ -3528,223 +3530,264 @@ ApplicationWindow {
                     }
                 }
 
-                // Интерактивное изменение размера окна мышью (до минимального 680x440)
-                Item {
-                    id: windowResizeLayer
-                    anchors.fill: parent
+                // Визуальный индикатор изменения размера в правом нижнем углу окна
+                Canvas {
+                    id: resizeCornerIndicator
                     visible: root.drawerMode === "settings" && !root.isSettingsMaximized && !root.isWallpaperExpanded
-                    z: 1060
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    anchors.rightMargin: 4
+                    anchors.bottomMargin: 4
+                    width: 14
+                    height: 14
+                    z: 1055
+                    opacity: root.isResizingWindow ? 0.9 : 0.35
+                    onPaint: {
+                        var ctx = getContext("2d")
+                        ctx.clearRect(0, 0, width, height)
+                        ctx.strokeStyle = "#ffffff"
+                        ctx.lineWidth = 1.6
+                        ctx.lineCap = "round"
+                        ctx.beginPath()
+                        ctx.moveTo(width - 2, height - 9)
+                        ctx.lineTo(width - 9, height - 2)
+                        ctx.moveTo(width - 2, height - 5)
+                        ctx.lineTo(width - 5, height - 2)
+                        ctx.stroke()
+                    }
+                }
+
+                // Неподвижные ручки изменения размера в координатах экрана (мин. 820x500)
+                Item {
+                    id: windowResizeHandles
+                    parent: sceneRoot
+                    anchors.fill: parent
+                    visible: root.drawerOpen && root.drawerMode === "settings" && !root.isSettingsMaximized && !root.isWallpaperExpanded && root.drawerProgress > 0.95
+                    z: 25
 
                     // Правая грань
                     MouseArea {
-                        anchors.right: parent.right
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 18
-                        anchors.bottomMargin: 18
-                        width: 9
+                        property real lockX: 0
+                        property real lockY: 0
+                        property real lockH: 100
+                        x: pressed ? lockX : (root.drawerX + root.effDrawerW - 6)
+                        y: pressed ? lockY : (root.drawerY + 18)
+                        width: 12
+                        height: pressed ? lockH : Math.max(40, root.animDrawerH - 36)
                         cursorShape: Qt.SizeHorCursor
-                        property real startGlobalX: 0
+                        property real startScreenX: 0
                         property int startW: 1040
                         property real startOffX: 0
                         onPressed: (mouse) => {
-                            root.isResizingWindow = true
-                            startGlobalX = mapToItem(sceneRoot, mouse.x, mouse.y).x
+                            lockX = x; lockY = y; lockH = height
+                            startScreenX = lockX + mouse.x
                             startW = Config ? Config.windowWidth : root.targetDrawerW
                             startOffX = root.floatOffsetX
+                            root.liveResizeW = startW
+                            root.liveResizeH = Config ? Config.windowHeight : root.targetDrawerH
+                            root.isResizingWindow = true
                         }
                         onPositionChanged: (mouse) => {
-                            if (!pressed || !Config) return
-                            var gx = mapToItem(sceneRoot, mouse.x, mouse.y).x
-                            var dx = gx - startGlobalX
+                            if (!pressed) return
+                            var dx = (lockX + mouse.x) - startScreenX
                             if (root.isFloatingMode) {
-                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
-                                var realDx = nw - startW
-                                Config.windowWidth = nw
-                                root.floatOffsetX = startOffX + realDx * 0.5
+                                var nw = Math.max(820, Math.min(1880, Math.round(startW + dx)))
+                                root.liveResizeW = nw
+                                root.floatOffsetX = startOffX + (nw - startW) * 0.5
                             } else {
-                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                                root.liveResizeW = Math.max(820, Math.min(1880, Math.round(startW + dx * 2.0)))
                             }
                         }
-                        onReleased: root.isResizingWindow = false
+                        onReleased: {
+                            if (Config) Config.windowWidth = root.liveResizeW
+                            root.isResizingWindow = false
+                        }
                         onCanceled: root.isResizingWindow = false
                     }
 
                     // Левая грань
                     MouseArea {
-                        anchors.left: parent.left
-                        anchors.top: parent.top
-                        anchors.bottom: parent.bottom
-                        anchors.topMargin: 18
-                        anchors.bottomMargin: 18
-                        width: 9
+                        property real lockX: 0
+                        property real lockY: 0
+                        property real lockH: 100
+                        x: pressed ? lockX : (root.drawerX - 6)
+                        y: pressed ? lockY : (root.drawerY + 18)
+                        width: 12
+                        height: pressed ? lockH : Math.max(40, root.animDrawerH - 36)
                         cursorShape: Qt.SizeHorCursor
-                        property real startGlobalX: 0
+                        property real startScreenX: 0
                         property int startW: 1040
                         property real startOffX: 0
                         onPressed: (mouse) => {
-                            root.isResizingWindow = true
-                            startGlobalX = mapToItem(sceneRoot, mouse.x, mouse.y).x
+                            lockX = x; lockY = y; lockH = height
+                            startScreenX = lockX + mouse.x
                             startW = Config ? Config.windowWidth : root.targetDrawerW
                             startOffX = root.floatOffsetX
+                            root.liveResizeW = startW
+                            root.liveResizeH = Config ? Config.windowHeight : root.targetDrawerH
+                            root.isResizingWindow = true
                         }
                         onPositionChanged: (mouse) => {
-                            if (!pressed || !Config) return
-                            var gx = mapToItem(sceneRoot, mouse.x, mouse.y).x
-                            var dx = startGlobalX - gx
+                            if (!pressed) return
+                            var dx = startScreenX - (lockX + mouse.x)
                             if (root.isFloatingMode) {
-                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
-                                var realDx = nw - startW
-                                Config.windowWidth = nw
-                                root.floatOffsetX = startOffX - realDx * 0.5
+                                var nw = Math.max(820, Math.min(1880, Math.round(startW + dx)))
+                                root.liveResizeW = nw
+                                root.floatOffsetX = startOffX - (nw - startW) * 0.5
                             } else {
-                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                                root.liveResizeW = Math.max(820, Math.min(1880, Math.round(startW + dx * 2.0)))
                             }
                         }
-                        onReleased: root.isResizingWindow = false
+                        onReleased: {
+                            if (Config) Config.windowWidth = root.liveResizeW
+                            root.isResizingWindow = false
+                        }
                         onCanceled: root.isResizingWindow = false
                     }
 
                     // Нижняя грань
                     MouseArea {
-                        anchors.left: parent.left
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        anchors.leftMargin: 18
-                        anchors.rightMargin: 18
-                        height: 9
+                        property real lockX: 0
+                        property real lockY: 0
+                        property real lockW: 100
+                        x: pressed ? lockX : (root.drawerX + 18)
+                        y: pressed ? lockY : (root.drawerY + root.animDrawerH - 6)
+                        width: pressed ? lockW : Math.max(40, root.effDrawerW - 36)
+                        height: 12
                         cursorShape: Qt.SizeVerCursor
-                        property real startGlobalY: 0
+                        property real startScreenY: 0
                         property int startH: 640
                         property real startOffY: 0
                         onPressed: (mouse) => {
-                            root.isResizingWindow = true
-                            startGlobalY = mapToItem(sceneRoot, mouse.x, mouse.y).y
+                            lockX = x; lockY = y; lockW = width
+                            startScreenY = lockY + mouse.y
                             startH = Config ? Config.windowHeight : root.targetDrawerH
                             startOffY = root.floatOffsetY
+                            root.liveResizeW = Config ? Config.windowWidth : root.targetDrawerW
+                            root.liveResizeH = startH
+                            root.isResizingWindow = true
                         }
                         onPositionChanged: (mouse) => {
-                            if (!pressed || !Config) return
-                            var gy = mapToItem(sceneRoot, mouse.x, mouse.y).y
-                            var dy = gy - startGlobalY
-                            var nh = Math.max(440, Math.min(1020, Math.round(startH + dy)))
-                            var realDy = nh - startH
-                            Config.windowHeight = nh
+                            if (!pressed) return
+                            var dy = (lockY + mouse.y) - startScreenY
+                            var nh = Math.max(500, Math.min(1000, Math.round(startH + dy)))
+                            root.liveResizeH = nh
                             if (root.isFloatingMode) {
-                                root.floatOffsetY = startOffY + realDy * 0.5
+                                root.floatOffsetY = startOffY + (nh - startH) * 0.5
                             }
                         }
-                        onReleased: root.isResizingWindow = false
+                        onReleased: {
+                            if (Config) Config.windowHeight = root.liveResizeH
+                            root.isResizingWindow = false
+                        }
                         onCanceled: root.isResizingWindow = false
                     }
 
-                    // Правый нижний угол (с индикатором уголка)
+                    // Правый нижний угол
                     MouseArea {
-                        id: brCornerMa
-                        anchors.right: parent.right
-                        anchors.bottom: parent.bottom
-                        width: 18
-                        height: 18
-                        hoverEnabled: true
+                        property real lockX: 0
+                        property real lockY: 0
+                        x: pressed ? lockX : (root.drawerX + root.effDrawerW - 14)
+                        y: pressed ? lockY : (root.drawerY + root.animDrawerH - 14)
+                        width: 22
+                        height: 22
                         cursorShape: Qt.SizeFDiagCursor
-                        property point startGlobal: Qt.point(0, 0)
+                        property real startScreenX: 0
+                        property real startScreenY: 0
                         property int startW: 1040
                         property int startH: 640
                         property real startOffX: 0
                         property real startOffY: 0
-
-                        Canvas {
-                            anchors.fill: parent
-                            opacity: (brCornerMa.containsMouse || brCornerMa.pressed) ? 0.85 : 0.28
-                            Behavior on opacity { NumberAnimation { duration: 140 } }
-                            onPaint: {
-                                var ctx = getContext("2d")
-                                ctx.clearRect(0, 0, width, height)
-                                ctx.strokeStyle = "#ffffff"
-                                ctx.lineWidth = 1.6
-                                ctx.lineCap = "round"
-                                ctx.beginPath()
-                                ctx.moveTo(width - 5, height - 11)
-                                ctx.lineTo(width - 11, height - 5)
-                                ctx.moveTo(width - 5, height - 7)
-                                ctx.lineTo(width - 7, height - 5)
-                                ctx.stroke()
-                            }
-                        }
-
                         onPressed: (mouse) => {
-                            root.isResizingWindow = true
-                            startGlobal = mapToItem(sceneRoot, mouse.x, mouse.y)
+                            lockX = x; lockY = y
+                            startScreenX = lockX + mouse.x
+                            startScreenY = lockY + mouse.y
                             startW = Config ? Config.windowWidth : root.targetDrawerW
                             startH = Config ? Config.windowHeight : root.targetDrawerH
                             startOffX = root.floatOffsetX
                             startOffY = root.floatOffsetY
+                            root.liveResizeW = startW
+                            root.liveResizeH = startH
+                            root.isResizingWindow = true
                         }
                         onPositionChanged: (mouse) => {
-                            if (!pressed || !Config) return
-                            var gp = mapToItem(sceneRoot, mouse.x, mouse.y)
-                            var dx = gp.x - startGlobal.x
-                            var dy = gp.y - startGlobal.y
+                            if (!pressed) return
+                            var dx = (lockX + mouse.x) - startScreenX
+                            var dy = (lockY + mouse.y) - startScreenY
                             if (root.isFloatingMode) {
-                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
-                                var realDx = nw - startW
-                                Config.windowWidth = nw
-                                root.floatOffsetX = startOffX + realDx * 0.5
+                                var nw = Math.max(820, Math.min(1880, Math.round(startW + dx)))
+                                root.liveResizeW = nw
+                                root.floatOffsetX = startOffX + (nw - startW) * 0.5
                             } else {
-                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                                root.liveResizeW = Math.max(820, Math.min(1880, Math.round(startW + dx * 2.0)))
                             }
-                            var nh = Math.max(440, Math.min(1020, Math.round(startH + dy)))
-                            var realDy = nh - startH
-                            Config.windowHeight = nh
+                            var nh = Math.max(500, Math.min(1000, Math.round(startH + dy)))
+                            root.liveResizeH = nh
                             if (root.isFloatingMode) {
-                                root.floatOffsetY = startOffY + realDy * 0.5
+                                root.floatOffsetY = startOffY + (nh - startH) * 0.5
                             }
                         }
-                        onReleased: root.isResizingWindow = false
+                        onReleased: {
+                            if (Config) {
+                                Config.windowWidth = root.liveResizeW
+                                Config.windowHeight = root.liveResizeH
+                            }
+                            root.isResizingWindow = false
+                        }
                         onCanceled: root.isResizingWindow = false
                     }
 
                     // Левый нижний угол
                     MouseArea {
-                        anchors.left: parent.left
-                        anchors.bottom: parent.bottom
-                        width: 18
-                        height: 18
+                        property real lockX: 0
+                        property real lockY: 0
+                        x: pressed ? lockX : (root.drawerX - 8)
+                        y: pressed ? lockY : (root.drawerY + root.animDrawerH - 14)
+                        width: 22
+                        height: 22
                         cursorShape: Qt.SizeBDiagCursor
-                        property point startGlobal: Qt.point(0, 0)
+                        property real startScreenX: 0
+                        property real startScreenY: 0
                         property int startW: 1040
                         property int startH: 640
                         property real startOffX: 0
                         property real startOffY: 0
                         onPressed: (mouse) => {
-                            root.isResizingWindow = true
-                            startGlobal = mapToItem(sceneRoot, mouse.x, mouse.y)
+                            lockX = x; lockY = y
+                            startScreenX = lockX + mouse.x
+                            startScreenY = lockY + mouse.y
                             startW = Config ? Config.windowWidth : root.targetDrawerW
                             startH = Config ? Config.windowHeight : root.targetDrawerH
                             startOffX = root.floatOffsetX
                             startOffY = root.floatOffsetY
+                            root.liveResizeW = startW
+                            root.liveResizeH = startH
+                            root.isResizingWindow = true
                         }
                         onPositionChanged: (mouse) => {
-                            if (!pressed || !Config) return
-                            var gp = mapToItem(sceneRoot, mouse.x, mouse.y)
-                            var dx = startGlobal.x - gp.x
-                            var dy = gp.y - startGlobal.y
+                            if (!pressed) return
+                            var dx = startScreenX - (lockX + mouse.x)
+                            var dy = (lockY + mouse.y) - startScreenY
                             if (root.isFloatingMode) {
-                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
-                                var realDx = nw - startW
-                                Config.windowWidth = nw
-                                root.floatOffsetX = startOffX - realDx * 0.5
+                                var nw = Math.max(820, Math.min(1880, Math.round(startW + dx)))
+                                root.liveResizeW = nw
+                                root.floatOffsetX = startOffX - (nw - startW) * 0.5
                             } else {
-                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                                root.liveResizeW = Math.max(820, Math.min(1880, Math.round(startW + dx * 2.0)))
                             }
-                            var nh = Math.max(440, Math.min(1020, Math.round(startH + dy)))
-                            var realDy = nh - startH
-                            Config.windowHeight = nh
+                            var nh = Math.max(500, Math.min(1000, Math.round(startH + dy)))
+                            root.liveResizeH = nh
                             if (root.isFloatingMode) {
-                                root.floatOffsetY = startOffY + realDy * 0.5
+                                root.floatOffsetY = startOffY + (nh - startH) * 0.5
                             }
                         }
-                        onReleased: root.isResizingWindow = false
+                        onReleased: {
+                            if (Config) {
+                                Config.windowWidth = root.liveResizeW
+                                Config.windowHeight = root.liveResizeH
+                            }
+                            root.isResizingWindow = false
+                        }
                         onCanceled: root.isResizingWindow = false
                     }
                 }
@@ -3806,7 +3849,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            readonly property int itemCount: 5
+                            readonly property int itemCount: 6
                             readonly property real gap: 5
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 

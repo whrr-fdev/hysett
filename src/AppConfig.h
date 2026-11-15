@@ -448,6 +448,7 @@ private:
     qreal m_uiScale = 1.0;
     int m_windowWidth = 1040;
     int m_windowHeight = 640;
+    bool m_colorsDirty = false;
     bool m_alignCenter = false;
     int m_welcomeAlignMode = 1;
     int m_sidebarWidth = 136;

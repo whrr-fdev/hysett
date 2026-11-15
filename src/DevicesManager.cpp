@@ -1,3 +1,4 @@
+#include <QRegularExpression>
 #include "DevicesManager.h"
 #include <QDir>
 #include <QFile>
@@ -207,8 +208,16 @@ void DevicesManager::mountUsbDrive(const QString &devPath) {
     p->start("udisksctl", {"mount", "-b", devPath.trimmed(), "--no-user-interaction"});
 }
 
+static QString baseDiskPrefix(const QString &devPath) {
+    QString clean = devPath.trimmed();
+    QRegularExpression re("^(/dev/(?:sd[a-z]+|nvme\d+n\d+|mmcblk\d+))");
+    auto m = re.match(clean);
+    return m.hasMatch() ? m.captured(1) : clean;
+}
+
 void DevicesManager::unmountUsbDrive(const QString &devPath) {
     if (devPath.trimmed().isEmpty()) return;
+    QString baseDisk = baseDiskPrefix(devPath);
     m_usbStatusText = "Сброс кэша и отмонтирование " + devPath + "...";
     emit usbDrivesChanged();
     QProcess *p = new QProcess(this);
@@ -219,11 +228,15 @@ void DevicesManager::unmountUsbDrive(const QString &devPath) {
         m_usbStatusText = err.isEmpty() ? (out.isEmpty() ? ("Отмонтировано: " + devPath + " (можно извлекать)") : out) : err;
         refreshUsbDrives();
     });
-    p->start("/bin/sh", {"-c", QString("sync && udisksctl unmount -b '%1' --no-user-interaction").arg(devPath.trimmed())});
+    QString cmd = QString("sync && udisksctl unmount -b '%1' --no-user-interaction; "
+                          "for p in %2?* ; do [ "$p" != '%1' ] && udisksctl unmount -b "$p" --no-user-interaction >/dev/null 2>&1 || true; done")
+                  .arg(devPath.trimmed(), baseDisk);
+    p->start("/bin/sh", {"-c", cmd});
 }
 
 void DevicesManager::ejectUsbDrive(const QString &devPath) {
     if (devPath.trimmed().isEmpty()) return;
+    QString baseDisk = baseDiskPrefix(devPath);
     m_usbStatusText = "Безопасное извлечение " + devPath + "...";
     emit usbDrivesChanged();
     QProcess *p = new QProcess(this);
@@ -233,7 +246,10 @@ void DevicesManager::ejectUsbDrive(const QString &devPath) {
         m_usbStatusText = err.isEmpty() ? ("Накопитель " + devPath + " безопасно отключен") : err;
         refreshUsbDrives();
     });
-    p->start("/bin/sh", {"-c", QString("sync && udisksctl unmount -b '%1' --no-user-interaction >/dev/null 2>&1 || true; udisksctl power-off -b '%1' --no-user-interaction").arg(devPath.trimmed())});
+    QString cmd = QString("sync; for p in %2?* ; do udisksctl unmount -b "$p" --no-user-interaction >/dev/null 2>&1 || true; done; "
+                          "udisksctl unmount -b '%1' --no-user-interaction >/dev/null 2>&1 || true; "
+                          "udisksctl power-off -b '%1' --no-user-interaction").arg(devPath.trimmed(), baseDisk);
+    p->start("/bin/sh", {"-c", cmd});
 }
 
 void DevicesManager::openUsbDriveFolder(const QString &mountPoint) {

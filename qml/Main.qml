@@ -2244,6 +2244,7 @@ ApplicationWindow {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "sysinfo") return sysRow.implicitWidth + 24
                                 if (modKey === "tray") return Math.max(28, trayRow.implicitWidth + 22)
+                                if (modKey === "usb") return ((Devices && Devices.usbDrivesCount > 0) ? (usbPillInnerRow.implicitWidth + 14) : 16) + clusterEdgePad
                                 if (modKey === "bluetooth") return ((Waybar && Waybar.btConnectedCount > 0) ? (btPillInnerRow.implicitWidth + 14) : 16) + clusterEdgePad
                                 if (modKey === "network" || modKey === "clipboard") return 16 + clusterEdgePad
                                 if (modKey === "volume") return volInnerRow.implicitWidth + 6 + clusterEdgePad

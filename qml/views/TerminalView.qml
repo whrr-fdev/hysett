@@ -13,6 +13,15 @@ Item {
         pri: Config ? Config.m3Primary.toString() : "#a8c7fa",
         sec: "#bec6dc", ter: "#debcdf", ok: "#69f0ae", err: "#ff6b6b"
     })
+    readonly property color livePri: (root.dynamicTheme && Config) ? Config.m3Primary : (pal.pri || "#a8c7fa")
+    readonly property color liveSec: (root.dynamicTheme && Config) ? Config.m3SecondaryColor : (pal.sec || "#bec6dc")
+    readonly property color liveTer: (root.dynamicTheme && Config) ? Config.m3TertiaryColor : (pal.ter || "#debcdf")
+    readonly property color liveBg: (root.dynamicTheme && Config) ? Config.m3Surface : (pal.bg || "#0e1015")
+    readonly property color liveCont: (root.dynamicTheme && Config) ? Config.m3SurfaceContainer : (pal.cont || "#181b24")
+    readonly property color liveHigh: (root.dynamicTheme && Config) ? Config.m3SurfaceContainerHigh : (pal.high || "#252936")
+    readonly property color prevOsBg: root.tideStyle === "Lean" ? "transparent" : Qt.rgba(liveHigh.r * 0.85 + livePri.r * 0.15, liveHigh.g * 0.85 + livePri.g * 0.15, liveHigh.b * 0.85 + livePri.b * 0.15, 1.0)
+    readonly property color prevPwdBg: root.tideStyle === "Lean" ? "transparent" : (root.tideStyle === "Classic" ? liveCont : livePri)
+    readonly property color prevGitBg: root.tideStyle === "Lean" ? "transparent" : Qt.rgba(liveCont.r * 0.9 + livePri.r * 0.1, liveCont.g * 0.9 + livePri.g * 0.1, liveCont.b * 0.9 + livePri.b * 0.1, 1.0)
 
     readonly property bool tideEnabled: st.tideEnabled !== undefined ? Boolean(st.tideEnabled) : true
     readonly property string tideStyle: st.tideStyle || "Rainbow"
@@ -129,14 +138,9 @@ Item {
                             Layout.fillWidth: true
                             implicitHeight: termSimContent.implicitHeight + Math.min(28, root.paddingWidth) * 2
                             radius: root.isM3 ? 12 : 0
-                            color: Qt.rgba(
-                                parseInt(root.pal.bg.slice(1,3), 16)/255.0,
-                                parseInt(root.pal.bg.slice(3,5), 16)/255.0,
-                                parseInt(root.pal.bg.slice(5,7), 16)/255.0,
-                                Math.max(0.45, root.bgOpacity)
-                            )
+                            color: Qt.rgba(root.liveBg.r, root.liveBg.g, root.liveBg.b, Math.max(0.55, root.bgOpacity))
                             border.width: 1.5
-                            border.color: root.pal.pri || "#a8c7fa"
+                            border.color: root.livePri
 
                             ColumnLayout {
                                 id: termSimContent
@@ -164,7 +168,7 @@ Item {
                                         text: "╭─"
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize + 1
-                                        color: root.pal.high
+                                        color: root.prevOsBg
                                     }
 
                                     // Левый каскад капсул (os -> pwd -> git) без артефактов высоты шрифта
@@ -184,14 +188,14 @@ Item {
                                                 height: parent.height
                                                 width: osSegTxt.implicitWidth + 16
                                                 radius: (root.tideStyle !== "Lean" && (root.tideTails === "Round" || root.tideHeads === "Round")) ? height / 2 : 0
-                                                color: osBg
+                                                color: root.prevOsBg
                                                 Text {
                                                     id: osSegTxt
                                                     anchors.centerIn: parent
                                                     text: ""
                                                     font.family: root.fontFamily
                                                     font.pixelSize: root.fontSize + 1
-                                                    color: root.pal.pri
+                                                    color: root.livePri
                                                 }
                                             }
 
@@ -207,7 +211,7 @@ Item {
                                                     width: parent.width + parent.overlapLeft
                                                     height: parent.height
                                                     radius: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? height / 2 : 0
-                                                    color: pwdBg
+                                                    color: root.prevPwdBg
 
                                                     Text {
                                                         id: pwdSegTxt
@@ -234,7 +238,7 @@ Item {
                                                     width: parent.width + parent.overlapLeft
                                                     height: parent.height
                                                     radius: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? height / 2 : 0
-                                                    color: gitBg
+                                                    color: root.prevGitBg
 
                                                     Text {
                                                         id: gitSegTxt
@@ -261,7 +265,7 @@ Item {
                                             font.family: root.fontFamily
                                             font.pixelSize: root.fontSize + 1
                                             font.bold: true
-                                            color: root.pal.pri
+                                            color: root.livePri
                                         }
                                         Text {
                                             text: "cmake --build build -j$(nproc)"
@@ -272,7 +276,7 @@ Item {
                                         Rectangle {
                                             width: root.cursorShape === "beam" ? 2 : 8
                                             height: root.cursorShape === "underline" ? 2 : (root.fontSize + 2)
-                                            color: root.pal.pri
+                                            color: root.livePri
                                         }
                                     }
 
@@ -287,7 +291,7 @@ Item {
                                               : ""
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize
-                                        color: root.pal.high
+                                        color: root.prevOsBg
                                         elide: Text.ElideRight
                                     }
 
@@ -304,7 +308,7 @@ Item {
                                             text: root.tideTime === "12-hour format" ? "11:24:00 PM" : "23:24:00"
                                             font.family: root.fontFamily
                                             font.pixelSize: root.fontSize - 1
-                                            color: root.pal.sec
+                                            color: root.liveSec
                                         }
                                     }
 
@@ -313,7 +317,7 @@ Item {
                                         text: "─╮"
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize + 1
-                                        color: root.pal.high
+                                        color: root.prevOsBg
                                     }
                                 }
 
@@ -328,14 +332,14 @@ Item {
                                         text: "╰─"
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize + 1
-                                        color: root.pal.high
+                                        color: root.prevOsBg
                                     }
                                     Text {
                                         text: root.tideChar
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize + 1
                                         font.bold: true
-                                        color: root.pal.pri
+                                        color: root.livePri
                                     }
                                     Text {
                                         text: "git status"
@@ -346,7 +350,7 @@ Item {
                                     Rectangle {
                                         width: root.cursorShape === "beam" ? 2 : 8
                                         height: root.cursorShape === "underline" ? 2 : (root.fontSize + 2)
-                                        color: root.pal.pri
+                                        color: root.livePri
                                     }
                                     Item { Layout.fillWidth: true }
                                     Text {
@@ -354,7 +358,7 @@ Item {
                                         text: "─╯"
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize + 1
-                                        color: root.pal.high
+                                        color: root.prevOsBg
                                     }
                                 }
 
@@ -367,7 +371,7 @@ Item {
                                         text: "[0.002s] --> [0]"
                                         font.family: root.fontFamily
                                         font.pixelSize: root.fontSize
-                                        color: root.pal.sec
+                                        color: root.liveSec
                                     }
                                     RowLayout {
                                         spacing: 6
@@ -376,7 +380,7 @@ Item {
                                             font.family: root.fontFamily
                                             font.pixelSize: root.fontSize
                                             font.bold: true
-                                            color: root.pal.pri
+                                            color: root.livePri
                                         }
                                         Text {
                                             text: "fastfetch"
@@ -387,7 +391,7 @@ Item {
                                         Rectangle {
                                             width: root.cursorShape === "beam" ? 2 : 8
                                             height: root.cursorShape === "underline" ? 2 : (root.fontSize + 2)
-                                            color: root.pal.pri
+                                            color: root.livePri
                                         }
                                     }
                                 }

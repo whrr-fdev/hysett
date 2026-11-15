@@ -28,6 +28,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(bool autoGlass READ autoGlass WRITE setAutoGlass NOTIFY autoGlassChanged)
     Q_PROPERTY(QString animType READ animType WRITE setAnimType NOTIFY animTypeChanged)
     Q_PROPERTY(QString welcomeAnimType READ welcomeAnimType WRITE setWelcomeAnimType NOTIFY welcomeAnimTypeChanged)
+    Q_PROPERTY(QString welcomeCardsAnimType READ welcomeCardsAnimType WRITE setWelcomeCardsAnimType NOTIFY welcomeCardsAnimTypeChanged)
     Q_PROPERTY(QString windowOpenAnimType READ windowOpenAnimType WRITE setWindowOpenAnimType NOTIFY windowOpenAnimTypeChanged)
     Q_PROPERTY(int animDuration READ animDuration WRITE setAnimDuration NOTIFY animDurationChanged)
     Q_PROPERTY(bool rememberLastTab READ rememberLastTab WRITE setRememberLastTab NOTIFY rememberLastTabChanged)
@@ -163,6 +164,8 @@ public:
     void setAnimType(const QString &v);
     QString welcomeAnimType() const { return m_welcomeAnimType; }
     void setWelcomeAnimType(const QString &v);
+    QString welcomeCardsAnimType() const { return m_welcomeCardsAnimType; }
+    void setWelcomeCardsAnimType(const QString &v);
     QString windowOpenAnimType() const {
         QSettings s("whrr", "HyprSettings");
         return s.value("windowOpenAnimType", m_windowOpenAnimType).toString();
@@ -404,6 +407,7 @@ signals:
     void autoGlassChanged();
     void animTypeChanged();
     void welcomeAnimTypeChanged();
+    void welcomeCardsAnimTypeChanged();
     void windowOpenAnimTypeChanged();
     void animDurationChanged();
     void rememberLastTabChanged();
@@ -462,6 +466,7 @@ private:
     bool m_autoGlass = true;
     QString m_animType = "bounce";
     QString m_welcomeAnimType = "blackhole";
+    QString m_welcomeCardsAnimType = "wave";
     QString m_windowOpenAnimType = "vortex";
     int m_animDuration = 150;
     bool m_rememberLastTab = false;

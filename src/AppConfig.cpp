@@ -490,6 +490,7 @@ void AppConfig::load() {
             else if (key == "auto_glass") m_autoGlass = (val == "1" || val == "true");
             else if (key == "anim_type") m_animType = val;
             else if (key == "welcome_anim_type") m_welcomeAnimType = val;
+            else if (key == "welcome_cards_anim_type") m_welcomeCardsAnimType = val;
             else if (key == "anim_duration") m_animDuration = std::clamp(val.toInt(), 0, 1000);
             else if (key == "remember_last_tab") m_rememberLastTab = (val == "1" || val == "true");
             else if (key == "floating_window_mode") m_floatingWindowMode = (val == "1" || val == "true");
@@ -576,6 +577,7 @@ void AppConfig::save() {
             extra["auto_glass"] = m_autoGlass ? "1" : "0";
             extra["anim_type"] = m_animType;
             extra["welcome_anim_type"] = m_welcomeAnimType;
+            extra["welcome_cards_anim_type"] = m_welcomeCardsAnimType;
             extra["anim_duration"] = QString::number(m_animDuration);
             extra["remember_last_tab"] = m_rememberLastTab ? "1" : "0";
             extra["floating_window_mode"] = m_floatingWindowMode ? "1" : "0";
@@ -686,6 +688,7 @@ void AppConfig::setDialogBlur(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzz
 void AppConfig::setAutoGlass(bool v) { if (m_autoGlass != v) { m_autoGlass = v; emit autoGlassChanged(); save(); } }
 void AppConfig::setAnimType(const QString &v) { if (m_animType != v) { m_animType = v; emit animTypeChanged(); save(); } }
 void AppConfig::setWelcomeAnimType(const QString &v) { if (m_welcomeAnimType != v) { m_welcomeAnimType = v; emit welcomeAnimTypeChanged(); save(); } }
+void AppConfig::setWelcomeCardsAnimType(const QString &v) { if (m_welcomeCardsAnimType != v) { m_welcomeCardsAnimType = v; emit welcomeCardsAnimTypeChanged(); save(); } }
 void AppConfig::setAnimDuration(int v) { v = std::clamp(v, 0, 1000); if (m_animDuration != v) { m_animDuration = v; emit animDurationChanged(); save(); } }
 void AppConfig::setRememberLastTab(bool v) { if (m_rememberLastTab != v) { m_rememberLastTab = v; emit rememberLastTabChanged(); save(); } }
 void AppConfig::setFloatingWindowMode(bool v) { if (m_floatingWindowMode != v) { m_floatingWindowMode = v; emit floatingWindowModeChanged(); save(); } }
@@ -807,6 +810,7 @@ void AppConfig::resetDefaults() {
     setAutoGlass(true);
     setAnimType("blackhole");
     setWelcomeAnimType("blackhole");
+    setWelcomeCardsAnimType("wave");
     setAnimDuration(150);
     setRememberLastTab(false);
     setFloatingWindowMode(true);

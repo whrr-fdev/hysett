@@ -635,6 +635,24 @@ RowLayout {
                                 }
                             }
 
+                            ColumnLayout {
+                                Layout.fillWidth: true; spacing: 6
+                                Text { text: "Анимация карточек экрана приветствия:"; color: "#cccccc"; font.pixelSize: Config.fontSize }
+                                SegmentedButton {
+                                    Layout.fillWidth: true
+                                    options: ["Волна", "От центра", "Каскад", "Пружина", "Сразу (Выкл)"]
+                                    selectedIndex: {
+                                        var t = Config ? Config.welcomeCardsAnimType : "wave"
+                                        if (t === "radial") return 1
+                                        if (t === "cascade") return 2
+                                        if (t === "zoom") return 3
+                                        if (t === "none") return 4
+                                        return 0
+                                    }
+                                    onSelected: (idx) => { if (Config) Config.welcomeCardsAnimType = ["wave", "radial", "cascade", "zoom", "none"][idx] }
+                                }
+                            }
+
                             RowLayout {
                                 Layout.fillWidth: true
                                 Text {

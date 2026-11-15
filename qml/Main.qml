@@ -5022,9 +5022,9 @@ ApplicationWindow {
                             x: index === 0 ? 0 : pageController.sidebarW
                             width: index === 0 ? pageController.width : (pageController.width - pageController.sidebarW)
                             height: pageController.height
-                            active: root.drawerActive && root.drawerMode === "settings" && (
+                            active: index === 0 || (root.drawerActive && root.drawerMode === "settings" && (
                                     index === pageController.currentIndex ||
-                                    (pageController.inTransition && index === pageController.previousIndex))
+                                    (pageController.inTransition && index === pageController.previousIndex)))
                             source: modelData
                             visible: index === 0
                             opacity: index === 0 ? 1.0 : 0.0

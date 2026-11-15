@@ -23,6 +23,7 @@ Item {
     readonly property int cardGap: isM3 ? (isMaximized ? 11 : 7) : (isMaximized ? 8 : 6)
     property int visibleCardsHeight: 280
     property real gridTopYPos: 170
+    property bool layoutReady: false
 
     readonly property int stageFixedW: 1640
     readonly property real effContainerW: {
@@ -55,10 +56,10 @@ Item {
         var gap = welcomeRoot.cardGap
 
         var cols = welcomeRoot.isMaximized ? (welcomeRoot.isM3 ? 5 : 6) : (welcomeRoot.isM3 ? 4 : 5)
+        var totalRows = Math.max(1, Math.ceil(visList.length / cols))
         if (welcomeRoot.isSearching) {
             welcomeRoot.visibleCardsHeight = Math.max(cardH, visList.length * (cardH + 8))
         } else {
-            var totalRows = Math.max(1, Math.ceil(visList.length / cols))
             welcomeRoot.visibleCardsHeight = totalRows * cardH + (totalRows - 1) * gap
         }
 
@@ -75,6 +76,10 @@ Item {
             var searchStartX = Math.round((welcomeRoot.stageFixedW - singleW) * 0.5)
             for (var m = 0; m < visList.length; ++m) {
                 var item = visList[m]
+                item.gridCol = 0
+                item.gridRow = m
+                item.gridCols = 1
+                item.gridRows = visList.length
                 item.targetX = searchStartX
                 item.targetY = gTop + m * (cardH + 8)
                 item.targetW = singleW
@@ -85,9 +90,26 @@ Item {
                 var card = visList[k]
                 var c = k % cols
                 var r = Math.floor(k / cols)
+                card.gridCol = c
+                card.gridRow = r
+                card.gridCols = cols
+                card.gridRows = totalRows
                 card.targetX = baseStartX + c * (colW + gap)
                 card.targetY = gTop + r * (cardH + gap)
                 card.targetW = colW
+            }
+        }
+        welcomeRoot.layoutReady = true
+    }
+
+    function playCardsEntrance() {
+        recalcCardsLayout()
+        var mode = Config ? Config.welcomeCardsAnimType : "wave"
+        var cnt = welcomeCatRep.count
+        for (var i = 0; i < cnt; ++i) {
+            var b = welcomeCatRep.itemAt(i)
+            if (b && b.matchesFilter) {
+                b.triggerEntrance(mode)
             }
         }
     }
@@ -112,13 +134,17 @@ Item {
         target: welcomeRoot.winObj
         function onDrawerOpenChanged() {
             if (welcomeRoot.winObj && welcomeRoot.winObj.drawerOpen && welcomeRoot.visible) {
+                welcomeRoot.playCardsEntrance()
                 welcomeRoot.focusSearchInput()
             }
         }
     }
 
     onVisibleChanged: {
-        if (visible) focusSearchInput()
+        if (visible) {
+            recalcCardsLayout()
+            focusSearchInput()
+        }
     }
 
     onIsMaximizedChanged: {
@@ -129,12 +155,16 @@ Item {
     onTargetViewHChanged: recalcCardsLayout()
     onIsM3Changed: Qt.callLater(recalcCardsLayout)
     onSettingsSearchQueryChanged: recalcCardsLayout()
-    Component.onCompleted: { Qt.callLater(recalcCardsLayout); if (visible) focusSearchInput() }
+    Component.onCompleted: {
+        recalcCardsLayout()
+        if (visible) focusSearchInput()
+    }
 
     Connections {
         target: Config
         function onHiddenSidebarTabsChanged() { welcomeRoot.recalcCardsLayout() }
         function onLanguageChanged() { welcomeRoot.recalcCardsLayout() }
+        function onWelcomeCardsAnimTypeChanged() { welcomeRoot.playCardsEntrance() }
     }
 
     ScrollView {
@@ -146,7 +176,7 @@ Item {
 
         Timer {
             interval: 500
-            running: welcomeRoot.visible
+            running: welcomeRoot.visible && (!welcomeRoot.winObj || welcomeRoot.winObj.drawerOpen)
             repeat: true
             onTriggered: {
                 var now = new Date()
@@ -161,7 +191,7 @@ Item {
             implicitHeight: welcomeRoot.isSearching ? Math.max(welcomeRoot.height, welcomeRoot.gridTopYPos + welcomeRoot.visibleCardsHeight + 16) : welcomeRoot.height
             height: implicitHeight
 
-            // Неподвижная координатная сцена 1640px по центру экрана (исключает встречное движение родителя и карточек)
+            // Неподвижная координатная сцена 1640px по центру экрана
             Item {
                 id: mainContainer
                 width: welcomeRoot.stageFixedW
@@ -189,9 +219,9 @@ Item {
                     scale: (welcomeRoot.isMaximized ? 1.05 : 1.0) * welcomeRoot.maxPulseScale
                     transformOrigin: Item.Right
 
-                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
-                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
-                    Behavior on scale { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on x { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on y { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on scale { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
 
                     RowLayout {
                         spacing: 8
@@ -217,9 +247,9 @@ Item {
                     color: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.35) : Qt.rgba(1, 1, 1, 0.16)
                     scale: welcomeRoot.maxPulseScale
 
-                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
-                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
-                    Behavior on height { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on x { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on y { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on height { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
                 }
 
                 // 3. Правая часть шапки (Часы + Дата)
@@ -231,9 +261,9 @@ Item {
                     scale: (welcomeRoot.isMaximized ? 1.05 : 1.0) * welcomeRoot.maxPulseScale
                     transformOrigin: Item.Left
 
-                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
-                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
-                    Behavior on scale { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on x { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on y { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
+                    Behavior on scale { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.38 } }
 
                     Text {
                         id: timeLabel
@@ -254,7 +284,7 @@ Item {
                     }
                 }
 
-                // 4. Поле поиска (позиционируется напрямую от targetSearchW без перезапуска Behavior в каждом кадре)
+                // 4. Поле поиска
                 TextField {
                     id: welcomeSearchField
                     readonly property real targetSearchW: welcomeRoot.isSearching ? 480 : (welcomeRoot.isMaximized ? 560 : (welcomeRoot.isM3 ? 400 : 340))
@@ -278,9 +308,9 @@ Item {
                     placeholderTextColor: welcomeRoot.isM3 && Config ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.55) : "#777777"
                     scale: welcomeRoot.maxPulseScale
 
-                    Behavior on x { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
-                    Behavior on y { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
-                    Behavior on width { NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on x { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on y { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
+                    Behavior on width { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 430; easing.type: Easing.OutBack; easing.overshoot: 1.35 } }
 
                     background: GlassPanel {
                         radius: welcomeRoot.isM3 ? height / 2 : 0
@@ -298,7 +328,7 @@ Item {
                     }
                 }
 
-                // 5. Сетка карточек (y: 0, каждая карточка летит напрямую к своим абсолютным координатам targetX / targetY)
+                // 5. Сетка карточек
                 Item {
                     id: gridWrapper
                     width: parent.width
@@ -310,8 +340,8 @@ Item {
 
                     Rectangle {
                         id: welcomeHoverPill
-                        x: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetX : 0
-                        y: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetY : 0
+                        x: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetX : welcomeRoot.effStartX
+                        y: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetY : welcomeRoot.gridTopYPos
                         width: gridWrapper.lastHoveredCardObj ? gridWrapper.lastHoveredCardObj.targetW : 220
                         height: welcomeRoot.cardHeight
                         radius: welcomeRoot.isM3 ? (Config ? Config.m3CardRadius : 18) : 0
@@ -320,15 +350,15 @@ Item {
                         border.width: welcomeRoot.isM3 ? 1.5 : 1
                         opacity: gridWrapper.hoveredCardObj && gridWrapper.hoveredCardObj.matchesFilter ? 1.0 : 0.0
 
-                        Behavior on x { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-                        Behavior on y { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-                        Behavior on width { NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                        Behavior on x { enabled: welcomeHoverPill.opacity > 0.05; NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                        Behavior on y { enabled: welcomeHoverPill.opacity > 0.05; NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                        Behavior on width { enabled: welcomeHoverPill.opacity > 0.05; NumberAnimation { duration: 200; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
                         Behavior on opacity { NumberAnimation { duration: 110 } }
                     }
 
                     Repeater {
                         id: welcomeCatRep
-                        onCountChanged: Qt.callLater(welcomeRoot.recalcCardsLayout)
+                        onCountChanged: welcomeRoot.recalcCardsLayout()
                         model: [
                             { title: "󰍉  Поиск", desc: "Файлы системы и программы", idx: 16, kw: "поиск файлы папки система найти программы search files folders find fd" },
                             { title: "󰖙  Погода", desc: "Прогноз на день, неделю и месяц", idx: 20, kw: "погода дождь снег ветер температура прогноз gismeteo weather forecast" },
@@ -366,9 +396,88 @@ Item {
                         Button {
                             id: cardBtn
                             property int catIdx: modelData.idx
-                            property real targetX: 0
-                            property real targetY: 170
-                            property real targetW: 220
+                            property int gridCol: index % 4
+                            property int gridRow: Math.floor(index / 4)
+                            property int gridCols: 4
+                            property int gridRows: 8
+                            property real targetX: welcomeRoot.effStartX + (index % 4) * 250
+                            property real targetY: 170 + Math.floor(index / 4) * 50
+                            property real targetW: 240
+
+                            property real entranceOffX: 0.0
+                            property real entranceOffY: 0.0
+                            property real entranceScale: 1.0
+                            property real entranceAlpha: 1.0
+
+                            SequentialAnimation {
+                                id: cardEnterAnim
+                                PauseAnimation { id: cardEnterDelay; duration: 0 }
+                                ParallelAnimation {
+                                    NumberAnimation { id: cardAnimX; target: cardBtn; property: "entranceOffX"; to: 0.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                                    NumberAnimation { id: cardAnimY; target: cardBtn; property: "entranceOffY"; to: 0.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                                    NumberAnimation { id: cardAnimSc; target: cardBtn; property: "entranceScale"; to: 1.0; duration: 250; easing.type: Easing.OutBack; easing.overshoot: 1.35 }
+                                    NumberAnimation { id: cardAnimOp; target: cardBtn; property: "entranceAlpha"; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+                                }
+                            }
+
+                            function triggerEntrance(mode) {
+                                cardEnterAnim.stop()
+                                if (mode === "none") {
+                                    entranceOffX = 0.0
+                                    entranceOffY = 0.0
+                                    entranceScale = 1.0
+                                    entranceAlpha = 1.0
+                                    return
+                                }
+                                if (mode === "wave") {
+                                    entranceOffX = 0.0
+                                    entranceOffY = 18.0
+                                    entranceScale = 0.92
+                                    entranceAlpha = 0.0
+                                    cardEnterDelay.duration = gridRow * 18
+                                    cardAnimY.duration = 230
+                                    cardAnimSc.duration = 230
+                                    cardAnimOp.duration = 140
+                                    cardEnterAnim.start()
+                                } else if (mode === "radial") {
+                                    var cx = (gridCols - 1) * 0.5
+                                    var cy = (gridRows - 1) * 0.5
+                                    var dx = gridCol - cx
+                                    var dy = gridRow - cy
+                                    var dist = Math.sqrt(dx * dx + dy * dy)
+                                    entranceOffX = -dx * 22.0
+                                    entranceOffY = -dy * 16.0
+                                    entranceScale = 0.78
+                                    entranceAlpha = 0.0
+                                    cardEnterDelay.duration = Math.round(dist * 22)
+                                    cardAnimX.duration = 270
+                                    cardAnimY.duration = 270
+                                    cardAnimSc.duration = 280
+                                    cardAnimOp.duration = 150
+                                    cardEnterAnim.start()
+                                } else if (mode === "cascade") {
+                                    entranceOffX = -16.0
+                                    entranceOffY = 14.0
+                                    entranceScale = 0.86
+                                    entranceAlpha = 0.0
+                                    cardEnterDelay.duration = (gridRow * 2 + gridCol) * 12
+                                    cardAnimX.duration = 230
+                                    cardAnimY.duration = 230
+                                    cardAnimSc.duration = 240
+                                    cardAnimOp.duration = 130
+                                    cardEnterAnim.start()
+                                } else {
+                                    // "zoom" (Пружина)
+                                    entranceOffX = 0.0
+                                    entranceOffY = 0.0
+                                    entranceScale = 0.82
+                                    entranceAlpha = 0.0
+                                    cardEnterDelay.duration = 0
+                                    cardAnimSc.duration = 260
+                                    cardAnimOp.duration = 140
+                                    cardEnterAnim.start()
+                                }
+                            }
 
                             readonly property string rawTitle: Config ? (Config.language, Config.trAuto(modelData.title)) : modelData.title
                             readonly property string iconPart: rawTitle.split(" ")[0]
@@ -387,21 +496,19 @@ Item {
 
                             onMatchesFilterChanged: Qt.callLater(welcomeRoot.recalcCardsLayout)
 
-                            x: targetX
-                            y: targetY
+                            x: targetX + entranceOffX
+                            y: targetY + entranceOffY
                             width: targetW
                             height: welcomeRoot.cardHeight
-                            opacity: matchesFilter ? 1.0 : 0.0
-                            scale: matchesFilter ? 1.0 : 0.88
+                            opacity: matchesFilter ? entranceAlpha : 0.0
+                            scale: (matchesFilter ? 1.0 : 0.88) * entranceScale
                             visible: opacity > 0.01
                             enabled: matchesFilter
                             flat: true
 
-                            Behavior on x { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-                            Behavior on y { NumberAnimation { duration: 300; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
-                            Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
-                            Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
-                            Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutCubic } }
+                            Behavior on targetX { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                            Behavior on targetY { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 280; easing.type: Easing.OutBack; easing.overshoot: 1.15 } }
+                            Behavior on targetW { enabled: welcomeRoot.layoutReady; NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
 
                             onHoveredChanged: {
                                 if (hovered && matchesFilter) {

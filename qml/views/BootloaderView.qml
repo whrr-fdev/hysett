@@ -320,10 +320,22 @@ Item {
 
                                             RowLayout {
                                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
-                                                Text {
-                                                    text: String(modelData.title).toLowerCase().indexOf("windows") !== -1 ? "󰍲" : "󰌽"
-                                                    color: modelData.is_default ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
-                                                    font.pixelSize: 17
+                                                Item {
+                                                    Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                                                    readonly property bool isCachy: String(modelData.title).toLowerCase().indexOf("cachy") !== -1
+                                                    Image {
+                                                        visible: parent.isCachy
+                                                        anchors.centerIn: parent
+                                                        width: 16; height: 16; sourceSize: Qt.size(32, 32); smooth: true
+                                                        source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                                                    }
+                                                    Text {
+                                                        visible: !parent.isCachy
+                                                        anchors.centerIn: parent
+                                                        text: String(modelData.title).toLowerCase().indexOf("windows") !== -1 ? "󰍲" : "󰌽"
+                                                        color: modelData.is_default ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
+                                                        font.pixelSize: 17
+                                                    }
                                                 }
                                                 ColumnLayout {
                                                     Layout.fillWidth: true; spacing: 2
@@ -350,8 +362,7 @@ Item {
                                                 StyledButton {
                                                     text: "󰜉 Загрузить сейчас"
                                                     implicitHeight: 24
-                                                    isActive: modelData.is_default
-                                                    onClicked: {
+                                                                                                        onClicked: {
                                                         var eid = modelData.id
                                                         bootRoot.runWithAdminAuth(function() { if (Config) Config.bootEntryOneshot(eid, true) })
                                                     }
@@ -416,10 +427,7 @@ Item {
                                     color: bootRoot.isM3 && Config
                                            ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, bootRoot.draggingRow >= 0 ? 0.26 : 0.14)
                                            : Qt.rgba(1, 1, 1, bootRoot.draggingRow >= 0 ? 0.18 : 0.10)
-                                    border.width: 1
-                                    border.color: bootRoot.isM3 && Config
-                                                  ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, bootRoot.draggingRow >= 0 ? 0.72 : 0.42)
-                                                  : Qt.rgba(1, 1, 1, 0.25)
+                                    border.width: 0
                                     Behavior on y { NumberAnimation { duration: 175; easing.type: Easing.OutQuint } }
                                     Behavior on opacity { NumberAnimation { duration: 115 } }
                                 }
@@ -444,7 +452,7 @@ Item {
                                         width: efiListView.width
                                         height: 44
                                         z: isBeingDragged ? 20 : 1
-                                        scale: isBeingDragged ? 1.01 : 1.0
+                                        scale: 1.0
                                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
 
                                         readonly property bool isBeingDragged: bootRoot.draggingRow === index
@@ -520,10 +528,22 @@ Item {
                                                 font.pixelSize: 14
                                             }
 
-                                            Text {
-                                                text: String(model.title).toLowerCase().indexOf("windows") !== -1 ? "󰍲" : "󰌽"
-                                                color: efiRowRect.isTopItem ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
-                                                font.pixelSize: 16
+                                            Item {
+                                                Layout.preferredWidth: 18; Layout.preferredHeight: 18
+                                                readonly property bool isCachy: String(model.title).toLowerCase().indexOf("cachy") !== -1
+                                                Image {
+                                                    visible: parent.isCachy
+                                                    anchors.centerIn: parent
+                                                    width: 16; height: 16; sourceSize: Qt.size(32, 32); smooth: true
+                                                    source: "file:///home/whrr/.config/hypr/scripts/cachyos_logo.svg"
+                                                }
+                                                Text {
+                                                    visible: !parent.isCachy
+                                                    anchors.centerIn: parent
+                                                    text: String(model.title).toLowerCase().indexOf("windows") !== -1 ? "󰍲" : "󰌽"
+                                                    color: efiRowRect.isTopItem ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
+                                                    font.pixelSize: 16
+                                                }
                                             }
 
                                             Text {
@@ -546,8 +566,7 @@ Item {
                                             StyledButton {
                                                 text: "󰜉 Загрузить сейчас"
                                                 implicitHeight: 24
-                                                isActive: efiRowRect.isTopItem
-                                                onClicked: {
+                                                                                                onClicked: {
                                                     var bnum = model.num
                                                     bootRoot.runWithAdminAuth(function() {
                                                         if (Config) Config.bootEfiNext(bnum, true)
@@ -565,7 +584,6 @@ Item {
                                 Layout.fillWidth: true
                                 allowFullWidth: true
                                 implicitHeight: 32
-                                isActive: true
                                 text: "󰍛  Перезагрузиться в BIOS"
                                 onClicked: {
                                     bootRoot.runWithAdminAuth(function() {

@@ -389,7 +389,7 @@ def root_boot_oneshot(entry_id, do_reboot):
     elif btype == "grub":
         subprocess.run(["grub-reboot", entry_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if do_reboot:
-        subprocess.Popen(["systemctl", "reboot"])
+        trigger_now_reboot(firmware=False)
 
 def root_efi_reorder(comma_nums):
     req_nums = [x.strip().upper() for x in comma_nums.split(",") if x.strip()]
@@ -402,14 +402,34 @@ def root_efi_reorder(comma_nums):
 def root_efi_boot_next(boot_num, do_reboot):
     subprocess.run(["efibootmgr", "-n", boot_num.upper()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if do_reboot:
-        subprocess.Popen(["systemctl", "reboot"])
+        trigger_now_reboot(firmware=False)
+
+def set_uefi_os_indications(enable=True):
+    efivar = "/sys/firmware/efi/efivars/OsIndications-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+    subprocess.run(["bootctl", "set-reboot-to-firmware", "true" if enable else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        if os.path.exists(efivar):
+            subprocess.run(["chattr", "-i", efivar], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        val = b"\x07\x00\x00\x00" + ((1 if enable else 0).to_bytes(8, "little"))
+        with open(efivar, "wb") as f:
+            f.write(val)
+    except Exception:
+        pass
+
+def trigger_now_reboot(firmware=False):
+    if firmware:
+        set_uefi_os_indications(True)
+        r = subprocess.run(["systemctl", "reboot", "--firmware-setup", "-i"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if r.returncode == 0:
+            return
+    subprocess.run(["systemctl", "reboot", "-i"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["reboot"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def root_set_fw_next(enable):
-    subprocess.run(["bootctl", "set-reboot-to-firmware", "true" if enable else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    set_uefi_os_indications(enable)
 
 def root_reboot_bios():
-    subprocess.run(["bootctl", "set-reboot-to-firmware", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.Popen(["systemctl", "reboot", "--firmware-setup"])
+    trigger_now_reboot(firmware=True)
 
 def root_boot_usb(disk_path="", part_str="1", efi_num="", usb_label="USB"):
     efi_list, _ = parse_efibootmgr()
@@ -422,7 +442,7 @@ def root_boot_usb(disk_path="", part_str="1", efi_num="", usb_label="USB"):
 
     if efi_num:
         subprocess.run(["efibootmgr", "-n", efi_num.upper()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.Popen(["systemctl", "reboot"])
+        trigger_now_reboot(firmware=False)
         return
 
     if disk_path:
@@ -435,7 +455,7 @@ def root_boot_usb(disk_path="", part_str="1", efi_num="", usb_label="USB"):
         efi_after, _ = parse_efibootmgr()
         if efi_after:
             subprocess.run(["efibootmgr", "-n", efi_after[0]["num"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.Popen(["systemctl", "reboot"])
+        trigger_now_reboot(firmware=False)
         return
     sys.exit(2)
 

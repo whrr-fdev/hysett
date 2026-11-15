@@ -592,32 +592,50 @@ Item {
                                 }
                             }
 
-                            Repeater {
-                                model: Config ? Config.bootloaderUsbDrives : []
-                                delegate: StyledButton {
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Text {
+                                    text: "󰕓"
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    font.pixelSize: Config ? Config.fontSize + 2 : 13
+                                }
+                                Text {
+                                    text: (Config && Config.bootloaderUsbDrives.length > 0)
+                                          ? "Загрузиться с флешки:"
+                                          : "Загрузиться с флешки (не обнаружена)"
+                                    color: (Config && Config.bootloaderUsbDrives.length > 0) ? "#cccccc" : "#777777"
+                                    font.pixelSize: Config ? Config.fontSize : 11
+                                    font.bold: true
                                     Layout.fillWidth: true
-                                    allowFullWidth: true
-                                    implicitHeight: 32
-                                    text: "󰕓  Загрузиться с флешки: " + modelData.name
-                                    onClicked: {
-                                        var d = modelData.disk || ""
-                                        var p = modelData.part || 1
-                                        var e = modelData.efi_num || ""
-                                        var n = modelData.name || "USB"
-                                        bootRoot.runWithAdminAuth(function() {
-                                            if (Config) Config.bootFromSpecificUsb(d, p, e, n)
-                                        })
-                                    }
                                 }
                             }
 
-                            StyledButton {
-                                visible: !Config || Config.bootloaderUsbDrives.length === 0
+                            GridLayout {
+                                visible: Config && Config.bootloaderUsbDrives.length > 0
                                 Layout.fillWidth: true
-                                allowFullWidth: true
-                                implicitHeight: 32
-                                text: "󰕓  Загрузиться с загрузочной флешки (не обнаружена)"
-                                onClicked: if (Config) Config.refreshBootloaderState()
+                                columns: Math.min(3, Math.max(1, Config ? Config.bootloaderUsbDrives.length : 1))
+                                columnSpacing: 8
+                                rowSpacing: 8
+
+                                Repeater {
+                                    model: Config ? Config.bootloaderUsbDrives : []
+                                    delegate: StyledButton {
+                                        Layout.fillWidth: true
+                                        allowFullWidth: true
+                                        implicitHeight: 32
+                                        text: "󰕓  " + modelData.name
+                                        onClicked: {
+                                            var d = modelData.disk || ""
+                                            var p = modelData.part || 1
+                                            var e = modelData.efi_num || ""
+                                            var n = modelData.name || "USB"
+                                            bootRoot.runWithAdminAuth(function() {
+                                                if (Config) Config.bootFromSpecificUsb(d, p, e, n)
+                                            })
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

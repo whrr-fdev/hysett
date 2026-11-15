@@ -27,12 +27,12 @@ float sdRoundRect(vec2 p, vec2 b, float r) {
 }
 
 void main() {
-    float t = clamp(u_progress, 0.0, 1.0);
+    float rawT = clamp(u_progress, 0.0, 1.0);
     vec2 center = vec2(0.5, 0.5);
     float quadScale = (u_mode < -0.5) ? 2.0 : 1.0;
     vec2 baseUV = center + (qt_TexCoord0 - center) * quadScale;
 
-    if (t <= 0.001) {
+    if (rawT <= 0.001) {
         if (baseUV.x < 0.0 || baseUV.x > 1.0 || baseUV.y < 0.0 || baseUV.y > 1.0) {
             fragColor = vec4(0.0);
             return;
@@ -40,10 +40,14 @@ void main() {
         fragColor = texture(source, baseUV) * qt_Opacity;
         return;
     }
-    if (t >= 0.995) {
+    if (rawT >= 0.995) {
         fragColor = vec4(0.0);
         return;
     }
+
+    // Гладкая Эрмитова фаза без рывка в начале и конце
+    float hermiteT = rawT * rawT * (3.0 - 2.0 * rawT);
+    float t = mix(rawT, hermiteT, 0.60);
 
     vec2 res = max(u_resolution, vec2(1.0));
     vec2 aspect = vec2(res.x / res.y, 1.0);
@@ -57,28 +61,25 @@ void main() {
         float maxR = length(vec2(0.5, 0.5) * aspect);
         float rnScreen = r / maxR;
 
-        // Спиральные рукава вихря, затягивающие края к центру
+        // Плавные спиральные рукава вихря
         float baseAngle = atan(delta.y, delta.x);
-        float spiralArmWave = sin(baseAngle * 3.0 - u_direction * (14.0 * pow(1.0 - clamp(rnScreen, 0.0, 1.0), 1.6) + t * 10.0));
+        float spiralArmWave = sin(baseAngle * 3.0 - u_direction * (12.0 * pow(1.0 - clamp(rnScreen, 0.0, 1.0), 1.5) + t * 8.5));
 
-        // 1. Уравнение стока (drain sink): swallowedR(t) — радиус области окна, которая УЖЕ
-        // всосалась в центральную точку r=0. Пиксели реально затекают в r=0 и поглощаются центром!
-        float swallowedR = pow(t, 1.06) * maxR * 1.06;
-        float outerPull = max(0.06, 1.0 - 0.72 * pow(t, 1.15));
-        float rPulled = (r / outerPull) * (1.0 + 0.08 * t * spiralArmWave * exp(-1.8 * rnScreen));
+        // 1. Гладкий гидродинамический сток в центральную точку r=0
+        float swallowedR = pow(t, 1.12) * maxR * 1.05;
+        float outerPull = max(0.07, 1.0 - 0.70 * pow(t, 1.18));
+        float rPulled = (r / outerPull) * (1.0 + 0.065 * t * spiralArmWave * exp(-1.85 * rnScreen));
 
         float srcR = sqrt(rPulled * rPulled + swallowedR * swallowedR);
 
-        // 2. Гиперболическое закручивание (v_theta ~ 1/r): чем ближе пиксель подтянулся к точке стока (r -> 0),
-        // тем сильнее он закручивается по спирали в саму воронку
-        float swirlStrength = pow(t, 0.88);
-        float swirlAngle = u_direction * swirlStrength * (2.75 / (rnScreen + 0.08) - 1.35 * rnScreen);
+        // 2. Плавное спиральное закручивание к центру
+        float swirlStrength = pow(t, 0.92);
+        float swirlAngle = u_direction * swirlStrength * (2.55 / (rnScreen + 0.095) - 1.25 * rnScreen);
 
         float targetAngle = baseAngle + swirlAngle;
         vec2 sampleDelta = vec2(cos(targetAngle), sin(targetAngle)) * srcR;
         vec2 sampleUV = center + sampleDelta / aspect;
 
-        // Антиалиасинг внешних границ окна, затягиваемых по спирали в центр
         vec2 px = (sampleUV - center) * res;
         float dBox = sdRoundRect(px, 0.5 * res - vec2(1.0), 16.0);
         float boxMask = 1.0 - smoothstep(-1.5, 1.5, dBox);
@@ -89,10 +90,9 @@ void main() {
 
         vec4 col = texture(source, clamp(sampleUV, 0.0, 1.0));
 
-        // Глубокое затемнение внутри самой точки всасывания в центре (r -> 0)
-        float drainHole = exp(-rnScreen * rnScreen / max(0.0006, 0.032 * (1.0 - t * 0.75)));
-        float throatShadow = 1.0 - 0.76 * drainHole * sin(t * 3.14159265);
-        float endFade = smoothstep(1.0, 0.88, t);
+        float drainHole = exp(-rnScreen * rnScreen / max(0.0007, 0.032 * (1.0 - t * 0.72)));
+        float throatShadow = 1.0 - 0.72 * drainHole * sin(t * 3.14159265);
+        float endFade = smoothstep(1.0, 0.86, t);
         float outA = col.a * boxMask * endFade * qt_Opacity;
         fragColor = vec4(col.rgb * throatShadow * boxMask * endFade * qt_Opacity, outA);
         return;
@@ -162,7 +162,7 @@ void main() {
     float chroma = pow(localT, 1.3) * 0.038 * dirSign;
     vec4 colR = texture(source, clamp(uv + vec2(chroma, 0.0), 0.0, 1.0));
     vec4 colG = texture(source, clamp(uv, 0.0, 1.0));
-    vec4 colB = texture(source, clamp(uv - vec2(chroma, 0.0), 0.0, 1.0));
+    vec4 colB = texture(source, clamp(uv - vec2(chroma, 0.0), 1.0, 1.0));
 
     vec3 rgb = vec3(colR.r, colG.g, colB.b);
     float flash = pow(sin(localT * 3.14159), 2.0) * 0.38;

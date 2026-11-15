@@ -263,7 +263,7 @@ ApplicationWindow {
         return Easing.OutBack
     }
     readonly property int openFxDuration: {
-        if (openFxMode === "vortex") return 430
+        if (openFxMode === "vortex") return 470
         if (openFxMode === "elastic") return 520
         if (openFxMode === "bounce") return 450
         if (openFxMode === "smooth") return 280
@@ -345,6 +345,8 @@ ApplicationWindow {
                 root.isWallpaperExpanded = false
                 root.drawerMode = root.pendingDrawerMode
                 root.popupTargetX = root.pendingPopupX
+                root.animDrawerW = root.targetDrawerW
+                root.smoothTargetH = root.targetDrawerH
                 if (root.pendingDrawerMode === "traymenu") {
                     root.trayMenuClass = root.pendingTrayClass
                     root.trayMenuName = root.pendingTrayName
@@ -364,24 +366,29 @@ ApplicationWindow {
                 } else if (root.pendingDrawerMode === "power") {
                     root.powerSelectedIndex = 0
                 } else if (root.pendingDrawerMode === "settings") {
+                    if (Config && Config.floatingWindowMode) {
+                        root.isDockedToBar = false
+                        root.floatOffsetX = 0
+                        root.floatOffsetY = 0
+                    }
                     if (root.pendingTabIdx === 21 && Waybar) Waybar.refreshProcesses()
                     if (root.pendingTabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
                     pageController.jumpToPageInstant(root.pendingTabIdx)
                 }
-                root.syncTabBlur()
+                Qt.callLater(root.syncTabBlur)
             }
         }
         NumberAnimation {
             target: root; property: "barExpandProgress"
-            to: 1.0
-            duration: (!root.isCompactPopup && root.baseBarW < root.targetDrawerW && root.barExpandProgress < 0.99) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
+            to: (!root.isCompactPopup && (!root.isFloatingMode || root.isDockedToBar)) ? 1.0 : 0.0
+            duration: (!root.isCompactPopup && (!root.isFloatingMode || root.isDockedToBar) && root.baseBarW < root.targetDrawerW && root.barExpandProgress < 0.99) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutCubic
         }
         ParallelAnimation {
             NumberAnimation {
                 target: root; property: "drawerProgress"
                 to: 1.0
-                duration: Math.round(root.openFxDuration * 0.9)
+                duration: root.openFxDuration
                 easing.type: root.openFxEasing
                 easing.overshoot: 1.20
                 easing.amplitude: 1.0
@@ -391,7 +398,7 @@ ApplicationWindow {
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     from: 1.0
-                    to: (root.openFxMode === "smooth" || (Waybar && !Waybar.windowSideStretch)) ? 1.0 : 1.045
+                    to: (root.openFxMode === "smooth" || root.openFxMode === "vortex" || (Waybar && !Waybar.windowSideStretch)) ? 1.0 : 1.045
                     duration: Math.round(root.openFxDuration * 0.55)
                     easing.type: Easing.OutQuad
                 }
@@ -615,19 +622,26 @@ ApplicationWindow {
             root.pendingPopupX = root.popupTargetX
         }
         if (root.drawerOpen) {
+            // Если уже открыто другое выпадающее окно (например, компактный попап) и мы открываем настройки (или наоборот) —
+            // всегда закрываем предыдущее окно и открываем новое с полноценной анимацией открытия (включая воронку)
+            if (root.drawerMode !== mode) {
+                root.pendingDrawerMode = mode
+                root.pendingTabIdx = (tabIdx !== undefined) ? tabIdx : ((Config && Config.rememberLastTab) ? pageController.currentIndex : 0)
+                openSeqAnim.stop()
+                closeSeqAnim.stop()
+                switchDrawerAnim.restart()
+                return
+            }
             if (mode === "settings" && tabIdx !== undefined) {
-                if (root.drawerMode === "settings" && pageController.currentIndex === tabIdx) {
+                if (pageController.currentIndex === tabIdx) {
                     root.drawerOpen = false
                     return
                 }
-                var wasSettings = (root.drawerMode === "settings")
                 root.isWallpaperExpanded = false
-                root.drawerMode = "settings"
                 if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
                 if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
-                if (wasSettings) pageController.switchPage(tabIdx)
-                else pageController.jumpToPageInstant(tabIdx)
-                root.syncTabBlur()
+                pageController.switchPage(tabIdx)
+                Qt.callLater(root.syncTabBlur)
                 return
             }
             if (root.drawerMode === mode && tabIdx === undefined) {
@@ -638,6 +652,8 @@ ApplicationWindow {
 
         root.isWallpaperExpanded = false
         root.drawerMode = mode
+        root.animDrawerW = root.targetDrawerW
+        root.smoothTargetH = root.targetDrawerH
         if (mode === "volume" && Waybar) Qt.callLater(() => Waybar.refreshAudioStreams())
         if (mode === "bluetooth" && Bluetooth) Qt.callLater(() => Bluetooth.refresh())
         if (mode === "clipboard" && Waybar) {
@@ -656,7 +672,7 @@ ApplicationWindow {
             pageController.jumpToPageInstant(initTab)
         }
         root.drawerOpen = true
-        root.syncTabBlur()
+        Qt.callLater(root.syncTabBlur)
     }
 
     function openTrayContextMenu(appData, globalX) {

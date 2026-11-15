@@ -137,18 +137,22 @@ active_tab_foreground #0b0d12
 inactive_tab_background {cont_hex}
 inactive_tab_foreground #b8bece
 tab_bar_background {surf_hex}
-color0 {surf_hex}
+color0 #0b0d12
 color8 {high_hex}
-color2 {pri_hex}
+color1 #ff6b6b
+color9 #ff6b6b
+color2 #69f0ae
 color10 {pri_hex}
 color3 {sec_hex}
 color11 {sec_hex}
 color4 {pri_hex}
-color12 {pri_hex}
+color12 {cont_hex}
 color5 {ter_hex}
 color13 {ter_hex}
 color6 {sec_hex}
 color14 {sec_hex}
+color7 #e6e8ee
+color15 #ffffff
 """)
 subprocess.run("kill -USR1 $(pgrep -x kitty) 2>/dev/null || true", shell=True)
 

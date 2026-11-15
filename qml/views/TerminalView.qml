@@ -151,27 +151,23 @@ Item {
                                 anchors.rightMargin: Math.min(28, Math.max(10, root.paddingWidth))
                                 spacing: root.tideSpacing === "Sparse" ? 10 : 4
 
-                                // Верхняя строка промпта (Tide включен — 1-в-1 как в терминале)
+                                // Верхняя строка промпта (Tide включен — единая монолитная капсула без вмятин на стыках)
                                 RowLayout {
                                     visible: root.tideEnabled
                                     Layout.fillWidth: true
                                     spacing: 0
 
-                                    readonly property int segH: root.fontSize + 9
+                                    readonly property int segH: root.fontSize + 5
                                     readonly property int segR: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? Math.round(segH / 2) : 0
-                                    readonly property color osBg: root.tideStyle === "Lean" ? "transparent" : root.pal.high
-                                    readonly property color pwdBg: root.tideStyle === "Lean" ? "transparent" : (root.tideStyle === "Classic" ? root.pal.cont : root.pal.pri)
-                                    readonly property color gitBg: root.tideStyle === "Lean" ? "transparent" : root.pal.cont
 
                                     Text {
                                         visible: root.tideHeight === "Two lines" && root.tideFrame
                                         text: "╭─"
                                         font.family: root.fontFamily
-                                        font.pixelSize: root.fontSize + 1
+                                        font.pixelSize: root.fontSize
                                         color: root.prevOsBg
                                     }
 
-                                    // Левый каскад капсул (os -> pwd -> git) без артефактов высоты шрифта
                                     Item {
                                         implicitWidth: leftCapsRow.implicitWidth
                                         implicitHeight: parent.segH
@@ -181,81 +177,60 @@ Item {
                                             height: parent.height
                                             spacing: 0
 
-                                            // 1. Сегмент ОС (CachyOS ) — сверху (z: 3), выпуклый правый край заходит на PWD
+                                            // 1. Сегмент ОС (CachyOS )
                                             Rectangle {
                                                 z: 3
                                                 visible: root.tideIcons === "Many icons"
                                                 height: parent.height
-                                                width: osSegTxt.implicitWidth + 16
-                                                radius: (root.tideStyle !== "Lean" && (root.tideTails === "Round" || root.tideHeads === "Round")) ? height / 2 : 0
+                                                width: osSegTxt.implicitWidth + 14
+                                                topLeftRadius: (root.tideStyle !== "Lean" && root.tideTails === "Round") ? height / 2 : 0
+                                                bottomLeftRadius: topLeftRadius
+                                                topRightRadius: (root.tideStyle !== "Lean" && (root.tideSeparators === "Round" || root.tideHeads === "Round")) ? height / 2 : 0
+                                                bottomRightRadius: topRightRadius
                                                 color: root.prevOsBg
                                                 Text {
                                                     id: osSegTxt
                                                     anchors.centerIn: parent
                                                     text: ""
                                                     font.family: root.fontFamily
-                                                    font.pixelSize: root.fontSize + 1
+                                                    font.pixelSize: root.fontSize
                                                     color: root.livePri
                                                 }
                                             }
 
-                                            // 2. Сегмент папки ( ~) — под правым краем ОС (z: 2), выпуклый правый край заходит на Git
+                                            // 2. Сегмент папки ( ~) — прямые левые углы под полукругом ОС (единая прямая кромка сверху и снизу!)
                                             Item {
                                                 z: 2
                                                 height: parent.height
                                                 readonly property int overlapLeft: (root.tideIcons === "Many icons" && root.tideStyle !== "Lean") ? Math.round(height / 2) : 0
-                                                width: pwdSegTxt.implicitWidth + 18
+                                                width: pwdSegTxt.implicitWidth + 14
 
                                                 Rectangle {
                                                     x: -parent.overlapLeft
                                                     width: parent.width + parent.overlapLeft
                                                     height: parent.height
-                                                    radius: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? height / 2 : 0
+                                                    topLeftRadius: (root.tideIcons !== "Many icons" && root.tideStyle !== "Lean" && root.tideTails === "Round") ? height / 2 : 0
+                                                    bottomLeftRadius: topLeftRadius
+                                                    topRightRadius: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? height / 2 : 0
+                                                    bottomRightRadius: topRightRadius
                                                     color: root.prevPwdBg
 
                                                     Text {
                                                         id: pwdSegTxt
-                                                        x: parent.parent.overlapLeft + 8
+                                                        x: parent.parent.overlapLeft + 7
                                                         anchors.verticalCenter: parent.verticalCenter
                                                         text: (root.tideIcons === "Many icons" ? " " : "") + "~"
                                                         font.family: root.fontFamily
                                                         font.pixelSize: root.fontSize
                                                         font.bold: true
-                                                        color: root.tideStyle === "Rainbow" ? "#0b0d12" : root.pal.pri
-                                                    }
-                                                }
-                                            }
-
-                                            // 3. Сегмент Git ( main +1) — под правым краем PWD (z: 1)
-                                            Item {
-                                                z: 1
-                                                height: parent.height
-                                                readonly property int overlapLeft: root.tideStyle !== "Lean" ? Math.round(height / 2) : 0
-                                                width: gitSegTxt.implicitWidth + 18
-
-                                                Rectangle {
-                                                    x: -parent.overlapLeft
-                                                    width: parent.width + parent.overlapLeft
-                                                    height: parent.height
-                                                    radius: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? height / 2 : 0
-                                                    color: root.prevGitBg
-
-                                                    Text {
-                                                        id: gitSegTxt
-                                                        x: parent.parent.overlapLeft + 8
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        text: (root.tideIcons === "Many icons" ? " " : "") + "main +1"
-                                                        font.family: root.fontFamily
-                                                        font.pixelSize: root.fontSize
-                                                        font.bold: true
-                                                        color: root.pal.ok || "#69f0ae"
+                                                        color: root.tideStyle === "Rainbow" ? "#0b0d12" : root.livePri
                                                     }
                                                 }
                                             }
                                         }
                                     }
 
-                                    // Однострочный ввод (если One line)
+                                // Однострочный ввод (если One line)
                                     RowLayout {
                                         visible: root.tideHeight === "One line"
                                         spacing: 6

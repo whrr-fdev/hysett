@@ -252,14 +252,18 @@ ApplicationWindow {
     readonly property bool drawerActive: drawerProgress > 0.005 || barExpandProgress > 0.005
 
     property real drawerWidthScale: 1.0
-    readonly property string openFxMode: Config ? Config.windowOpenAnimType : "spring"
+    readonly property string openFxMode: Config ? Config.windowOpenAnimType : "vortex"
+    readonly property bool isVortexWindowAnim: root.isFreeFloating && root.openFxMode === "vortex"
+    readonly property bool isVortexWindowAnimActive: root.isVortexWindowAnim && root.drawerActive && root.drawerProgress < 0.995
     readonly property int openFxEasing: {
+        if (openFxMode === "vortex") return Easing.OutCubic
         if (openFxMode === "elastic") return Easing.OutElastic
         if (openFxMode === "bounce") return Easing.OutBounce
         if (openFxMode === "smooth") return Easing.OutQuint
         return Easing.OutBack
     }
     readonly property int openFxDuration: {
+        if (openFxMode === "vortex") return 430
         if (openFxMode === "elastic") return 520
         if (openFxMode === "bounce") return 450
         if (openFxMode === "smooth") return 280
@@ -288,7 +292,7 @@ ApplicationWindow {
                 NumberAnimation {
                     target: root; property: "drawerWidthScale"
                     from: 1.0
-                    to: (root.openFxMode === "smooth" || (Waybar && !Waybar.windowSideStretch)) ? 1.0 : 1.05
+                    to: (root.openFxMode === "smooth" || root.openFxMode === "vortex" || (Waybar && !Waybar.windowSideStretch)) ? 1.0 : 1.05
                     duration: Math.round(root.openFxDuration * 0.55)
                     easing.type: Easing.OutQuad
                 }
@@ -307,7 +311,7 @@ ApplicationWindow {
         ParallelAnimation {
             NumberAnimation {
                 target: root; property: "drawerProgress"
-                to: 0.0; duration: 220; easing.type: Easing.InOutCubic
+                to: 0.0; duration: root.isVortexWindowAnim ? 380 : 220; easing.type: Easing.InOutCubic
             }
             NumberAnimation {
                 target: root; property: "drawerWidthScale"
@@ -506,7 +510,7 @@ ApplicationWindow {
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
     readonly property bool isFreeFloating: root.isFloatingMode && !root.isDockedToBar
-    readonly property real floatScaleProgress: isFreeFloating ? Math.max(0.0, drawerProgress) : 1.0
+    readonly property real floatScaleProgress: isFreeFloating ? (root.isVortexWindowAnim ? 1.0 : Math.max(0.0, drawerProgress)) : 1.0
     readonly property real effDrawerW: isFreeFloating
                                        ? (animDrawerW * root.drawerWidthScale * floatScaleProgress)
                                        : (isVertBar
@@ -956,7 +960,7 @@ ApplicationWindow {
 
             property vector2d u_resolution: Qt.vector2d(width, height)
             property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.actualBarH)
-            property vector4d u_drawer_rect: Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
+            property vector4d u_drawer_rect: root.isVortexWindowAnimActive ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.drawerX, root.drawerY, root.effDrawerW, root.animDrawerH)
             property vector4d u_notif_rect: notifClipBox.overlapsOpenDrawer ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
@@ -3429,10 +3433,32 @@ ApplicationWindow {
                 transform: Scale {
                     origin.x: drawerInner.width * 0.5
                     origin.y: root.isFreeFloating ? (drawerInner.height * 0.5) : 0
-                    xScale: root.contentMaxBounce * root.drawerWidthScale * (root.isFreeFloating ? Math.max(0.001, root.floatScaleProgress) : ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0))
-                    yScale: root.contentMaxBounce * (root.isFreeFloating ? Math.max(0.001, root.floatScaleProgress) : (0.90 + 0.10 * root.drawerProgress))
+                    xScale: root.contentMaxBounce * root.drawerWidthScale * (root.isVortexWindowAnim ? 1.0 : (root.isFreeFloating ? Math.max(0.001, root.floatScaleProgress) : ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)))
+                    yScale: root.contentMaxBounce * (root.isVortexWindowAnim ? 1.0 : (root.isFreeFloating ? Math.max(0.001, root.floatScaleProgress) : (0.90 + 0.10 * root.drawerProgress)))
                 }
-                opacity: Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
+                opacity: root.isVortexWindowAnim ? 1.0 : Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
+
+                layer.enabled: root.isVortexWindowAnimActive
+                layer.smooth: true
+                layer.effect: ShaderEffect {
+                    property var source: drawerInner
+                    property vector2d u_resolution: Qt.vector2d(Math.max(1, drawerInner.width), Math.max(1, drawerInner.height))
+                    property real u_progress: Math.max(0.0, Math.min(1.0, 1.0 - root.drawerProgress))
+                    property real u_direction: root.drawerOpen ? -1.0 : 1.0
+                    property real u_mode: 0.0
+                    fragmentShader: "qrc:/shaders/qml/shaders/vortex_suck.frag.qsb"
+                }
+
+                Rectangle {
+                    id: vortexFloatingShellBg
+                    visible: root.isVortexWindowAnimActive
+                    anchors.fill: parent
+                    z: -10
+                    radius: mergedShellBg.u_radius * 1.35
+                    color: Qt.rgba(mergedShellBg.surfCol.r, mergedShellBg.surfCol.g, mergedShellBg.surfCol.b, mergedShellBg.currentOpacity)
+                    border.width: 1
+                    border.color: Qt.rgba(mergedShellBg.outCol.r, mergedShellBg.outCol.g, mergedShellBg.outCol.b, 0.32)
+                }
 
                 MouseArea {
                     anchors.fill: parent; z: 1000

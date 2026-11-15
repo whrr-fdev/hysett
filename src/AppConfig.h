@@ -462,7 +462,7 @@ private:
     bool m_autoGlass = true;
     QString m_animType = "bounce";
     QString m_welcomeAnimType = "blackhole";
-    QString m_windowOpenAnimType = "spring";
+    QString m_windowOpenAnimType = "vortex";
     int m_animDuration = 150;
     bool m_rememberLastTab = false;
     bool m_floatingWindowMode = true;

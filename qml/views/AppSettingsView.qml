@@ -621,16 +621,17 @@ RowLayout {
                                 Text { text: "Эффект появления окна настроек:"; color: "#cccccc"; font.pixelSize: Config.fontSize }
                                 SegmentedButton {
                                     Layout.fillWidth: true
-                                    options: ["Пружина", "Упругое желе", "Отскок", "Зум-пружина", "Плавный"]
+                                    options: ["Пружина", "Упругое желе", "Отскок", "Зум-пружина", "Плавный", "Воронка"]
                                     selectedIndex: {
-                                        var t = Config ? Config.windowOpenAnimType : "spring"
+                                        var t = Config ? Config.windowOpenAnimType : "vortex"
                                         if (t === "elastic") return 1
                                         if (t === "bounce") return 2
                                         if (t === "zoom_spring") return 3
                                         if (t === "smooth") return 4
+                                        if (t === "vortex") return 5
                                         return 0
                                     }
-                                    onSelected: (idx) => { if (Config) Config.windowOpenAnimType = ["spring", "elastic", "bounce", "zoom_spring", "smooth"][idx] }
+                                    onSelected: (idx) => { if (Config) Config.windowOpenAnimType = ["spring", "elastic", "bounce", "zoom_spring", "smooth", "vortex"][idx] }
                                 }
                             }
 

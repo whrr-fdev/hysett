@@ -57,23 +57,6 @@ ScrollView {
         )
     }
 
-    function weatherIconColor(rawIcon, descText) {
-        var ic = toNerdWeatherIcon(rawIcon, descText)
-        var base
-        if (ic === "󰖙") base = Qt.rgba(1.0, 0.84, 0.42, 1.0)
-        else if (ic === "󰖕") base = Qt.rgba(0.96, 0.82, 0.52, 1.0)
-        else if (ic === "󰖗" || ic === "󰖖") base = Qt.rgba(0.52, 0.78, 1.0, 1.0)
-        else if (ic === "󰼶") base = Qt.rgba(0.76, 0.91, 1.0, 1.0)
-        else if (ic === "󰖓") base = Qt.rgba(0.84, 0.68, 1.0, 1.0)
-        else base = Qt.rgba(0.78, 0.84, 0.92, 1.0)
-        return Qt.rgba(
-            base.r * 0.78 + weatherScroll.priCol.r * 0.22,
-            base.g * 0.78 + weatherScroll.priCol.g * 0.22,
-            base.b * 0.78 + weatherScroll.priCol.b * 0.22,
-            1.0
-        )
-    }
-
     function parseTempNum(str) {
         if (!str) return 0
         var m = String(str).replace("−", "-").match(/-?\d+/)
@@ -154,6 +137,12 @@ ScrollView {
                     }
                 }
                 Item { Layout.fillWidth: true }
+                SegmentedButton {
+                    Layout.preferredWidth: 220
+                    options: ["Авто", "󰖙 Ясно", "󰖗 Дождь", "󰼶 Снег"]
+                    selectedIndex: weatherScroll.previewWeatherMode
+                    onSelected: (idx) => weatherScroll.previewWeatherMode = idx
+                }
                 StyledButton {
                     text: "󰇧  Gismeteo"
                     implicitHeight: 28
@@ -399,7 +388,6 @@ ScrollView {
                             var g = Math.round(weatherScroll.priCol.g * 255)
                             var b = Math.round(weatherScroll.priCol.b * 255)
 
-                            // Мягкая заливка под кривой
                             var grad = ctx.createLinearGradient(0, 0, 0, height)
                             grad.addColorStop(0.0, "rgba(" + r + "," + g + "," + b + ",0.24)")
                             grad.addColorStop(1.0, "rgba(" + r + "," + g + "," + b + ",0.0)")
@@ -417,7 +405,6 @@ ScrollView {
                             ctx.fillStyle = grad
                             ctx.fill()
 
-                            // Линия графика
                             ctx.beginPath()
                             ctx.moveTo(pts[0].x, pts[0].y)
                             for (var m = 0; m < pts.length - 1; ++m) {
@@ -430,7 +417,6 @@ ScrollView {
                             ctx.lineWidth = 2.0
                             ctx.stroke()
 
-                            // Точки на каждом часе
                             for (var p = 0; p < pts.length; ++p) {
                                 ctx.beginPath()
                                 ctx.arc(pts[p].x, pts[p].y, 3.2, 0, Math.PI * 2)
@@ -492,7 +478,7 @@ ScrollView {
                                         Layout.alignment: Qt.AlignHCenter
                                         Text {
                                             text: "󰖗"
-                                            color: weatherScroll.priCol
+                                            color: "#78b8ff"
                                             font.pixelSize: 10
                                             anchors.verticalCenter: parent.verticalCenter
                                         }
@@ -607,7 +593,7 @@ ScrollView {
                                         Layout.preferredWidth: 56
                                         Text {
                                             text: "󰖗"
-                                            color: weatherScroll.priCol
+                                            color: "#78b8ff"
                                             font.pixelSize: 11
                                             anchors.verticalCenter: parent.verticalCenter
                                         }
@@ -671,7 +657,7 @@ ScrollView {
                 }
             }
 
-            // 3. НА МЕСЯЦ (28 ДНЕЙ СЕТКА 7x4 С ШАПКОЙ ДНЕЙ НЕДЕЛИ)
+            // 3. НА МЕСЯЦ (28 ДНЕЙ СЕТКА 7x4 С ПЛАВНЫМ 2D-НАВЕДЕНИЕМ)
             GlassPanel {
                 visible: weatherScroll.periodTab === 3
                 Layout.fillWidth: true
@@ -700,29 +686,51 @@ ScrollView {
                         }
                     }
 
-                    GridLayout {
-                        id: monthGrid
+                    Item {
+                        id: monthGridArea
                         Layout.fillWidth: true
-                        columns: 7
-                        columnSpacing: 6
-                        rowSpacing: 6
+                        readonly property int cols: 7
+                        readonly property int cellH: 68
+                        readonly property int gap: 6
+                        readonly property int itemCount: (Waybar && Waybar.weatherMonth) ? Waybar.weatherMonth.length : 0
+                        readonly property int rows: Math.max(1, Math.ceil(itemCount / cols))
+                        readonly property real cellW: (width - gap * (cols - 1)) / cols
+                        implicitHeight: rows * cellH + (rows - 1) * gap
+
+                        // Плавно скользящая 2D-плашка наведения по ячейкам месяца
+                        Rectangle {
+                            id: monthHoverPill
+                            visible: monthGridArea.itemCount > 0
+                            x: (weatherScroll.lastMonthIdx % monthGridArea.cols) * (monthGridArea.cellW + monthGridArea.gap)
+                            y: Math.floor(weatherScroll.lastMonthIdx / monthGridArea.cols) * (monthGridArea.cellH + monthGridArea.gap)
+                            width: monthGridArea.cellW
+                            height: monthGridArea.cellH
+                            radius: weatherScroll.isM3 ? 10 : 0
+                            color: Qt.rgba(weatherScroll.priCol.r, weatherScroll.priCol.g, weatherScroll.priCol.b, 0.14)
+                            border.width: 1.5
+                            border.color: Qt.rgba(weatherScroll.priCol.r, weatherScroll.priCol.g, weatherScroll.priCol.b, 0.52)
+                            opacity: weatherScroll.hoveredMonthIdx >= 0 ? 1.0 : 0.0
+                            z: 2
+
+                            Behavior on x { enabled: monthHoverPill.opacity > 0.05; NumberAnimation { duration: 190; easing.type: Easing.OutBack; easing.overshoot: 1.12 } }
+                            Behavior on y { enabled: monthHoverPill.opacity > 0.05; NumberAnimation { duration: 190; easing.type: Easing.OutBack; easing.overshoot: 1.12 } }
+                            Behavior on opacity { NumberAnimation { duration: 110 } }
+                        }
 
                         Repeater {
                             model: Waybar ? Waybar.weatherMonth : []
                             delegate: Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: 68
+                                readonly property int colIdx: index % monthGridArea.cols
+                                readonly property int rowIdx: Math.floor(index / monthGridArea.cols)
+                                x: colIdx * (monthGridArea.cellW + monthGridArea.gap)
+                                y: rowIdx * (monthGridArea.cellH + monthGridArea.gap)
+                                width: monthGridArea.cellW
+                                height: monthGridArea.cellH
                                 radius: weatherScroll.isM3 ? 10 : 0
-                                readonly property bool isHov: weatherScroll.hoveredMonthIdx === index
-                                color: isHov
-                                       ? Qt.rgba(weatherScroll.priCol.r, weatherScroll.priCol.g, weatherScroll.priCol.b, 0.14)
-                                       : Qt.rgba(1, 1, 1, 0.025)
+                                color: Qt.rgba(1, 1, 1, 0.025)
                                 border.width: 1
-                                border.color: isHov
-                                              ? Qt.rgba(weatherScroll.priCol.r, weatherScroll.priCol.g, weatherScroll.priCol.b, 0.50)
-                                              : Qt.rgba(weatherScroll.outCol.r, weatherScroll.outCol.g, weatherScroll.outCol.b, 0.22)
-                                Behavior on color { ColorAnimation { duration: 120 } }
-                                Behavior on border.color { ColorAnimation { duration: 120 } }
+                                border.color: Qt.rgba(weatherScroll.outCol.r, weatherScroll.outCol.g, weatherScroll.outCol.b, 0.22)
+                                z: 1
 
                                 ColumnLayout {
                                     anchors.centerIn: parent

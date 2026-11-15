@@ -237,11 +237,18 @@ def apply_fish_tide_activation(enabled):
         if not os.path.exists(fp_active):
             subprocess.run(["fish", "-c", "fisher install IlanCosman/tide@v6"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-        # Стираем fish_prompt от cachyos-config.fish, чтобы Fish штатно автозагрузил ~/.config/fish/functions/fish_prompt.fish
+        # Загружаем fish_prompt.fish от Tide поверх cachyos-config.fish и сразу предзаполняем промпт для мгновенного старта
         hook_block = (
             "\n# HYSETT_TIDE_START\n"
             "if status is-interactive\n"
-            "    functions -e fish_prompt\n"
+            "    if test -f ~/.config/fish/functions/fish_prompt.fish\n"
+            "        source ~/.config/fish/functions/fish_prompt.fish\n"
+            "        if contains newline $_tide_left_items\n"
+            "            set -U _tide_prompt_$fish_pid (_tide_2_line_prompt)\n"
+            "        else\n"
+            "            set -U _tide_prompt_$fish_pid (_tide_1_line_prompt)\n"
+            "        end\n"
+            "    end\n"
             "end\n"
             "# HYSETT_TIDE_END\n"
         )

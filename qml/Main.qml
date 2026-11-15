@@ -2395,7 +2395,7 @@ ApplicationWindow {
                                         }
                                         Text {
                                             text: Devices ? String(Devices.usbDrivesCount) : "1"
-                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            color: "#ffffff"
                                             font.pixelSize: 9
                                             font.bold: true
                                             anchors.verticalCenter: parent.verticalCenter
@@ -2449,7 +2449,7 @@ ApplicationWindow {
                                         }
                                         Text {
                                             text: Waybar ? String(Waybar.btConnectedCount) : "1"
-                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            color: "#ffffff"
                                             font.pixelSize: 9
                                             font.bold: true
                                             anchors.verticalCenter: parent.verticalCenter

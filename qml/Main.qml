@@ -442,17 +442,17 @@ ApplicationWindow {
         return Math.max(0.0, (root.width - (barTop + barH + 6)) - (rawFloatX + animDrawerW))
     }
     readonly property real mergeProximity: (!root.isFloatingMode || root.isDockedToBar) ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - distToBarPx / 34.0))
-    readonly property real effBarExpand: isCompactPopup ? 0.0 : Math.max(barExpandProgress, dockTransition * drawerProgress)
+    readonly property real effBarExpand: (isCompactPopup || root.isFloatingMode) ? 0.0 : Math.max(barExpandProgress, dockTransition * drawerProgress)
 
     readonly property real baseBarW: smoothBaseBarW
-    readonly property real expandedBarW: isCompactPopup ? baseBarW : Math.max(baseBarW, effDrawerW)
+    readonly property real expandedBarW: (isCompactPopup || root.isFloatingMode) ? baseBarW : Math.max(baseBarW, animDrawerW)
     readonly property real barW: isVertBar ? Math.max(38, barH + 6 + root.barChewExtraH) : ((baseBarW + (expandedBarW - baseBarW) * effBarExpand) * root.barChewWidthScale)
 
     readonly property real maxAvailVertH: Math.max(400, root.height - 16)
     readonly property real vertIslandH: Math.min(maxAvailVertH, vertTopCol.implicitHeight + (winPillTargetW > 0 ? (winPillTargetW + 16) : 0) + vertBottomCol.implicitHeight + 28)
     property real smoothVertBarH: isCenteredBar ? vertIslandH : maxAvailVertH
     Behavior on smoothVertBarH { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
-    readonly property real expandedVertH: isCompactPopup ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
+    readonly property real expandedVertH: (isCompactPopup || root.isFloatingMode) ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
     readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * effBarExpand) : (barH + root.barChewExtraH)
 
     readonly property real barLeft: {
@@ -1012,7 +1012,7 @@ ApplicationWindow {
             readonly property int vPad: (Theme && Theme.isRounded) ? 8 : 4
             property int pillHeight: Math.max(20, (root.isVertBar ? width : height) - vPad)
             property int pillRadius: (Theme && Theme.isRounded) ? Math.max(5, Math.round(pillHeight * 0.32)) : 0
-                        readonly property real settingsOpenWeight: (root.drawerMode === "settings") ? root.drawerProgress : 0.0
+                        readonly property real settingsOpenWeight: (root.drawerMode === "settings" && !root.isFloatingMode) ? root.drawerProgress : 0.0
             property color pillColor: {
                 var pillOp = Waybar ? Waybar.pillOpacity : 0.85
                 if (pillOp <= 0.005) return "transparent"

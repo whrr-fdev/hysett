@@ -175,9 +175,25 @@ Rectangle {
         radius: bar.isM3 ? height / 2 : 0
         color: bar.isM3 && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12) : Qt.rgba(1, 1, 1, 0.08)
         readonly property bool isStaticTarget: bar.lastHoveredBtnObj === archHeaderItem || bar.lastHoveredBtnObj === setBtn || bar.lastHoveredBtnObj === closeBtn
+        property real targetStaticY: mainColLayout.y + setBtn.y + (setBtn.height - height) * 0.5
+        onIsStaticTargetChanged: {
+            if (isStaticTarget && bar.lastHoveredBtnObj) {
+                targetStaticY = mainColLayout.y + bar.lastHoveredBtnObj.y + (bar.lastHoveredBtnObj.height - height) * 0.5
+            }
+        }
+        Connections {
+            target: bar
+            function onLastHoveredBtnObjChanged() {
+                if (staticHoverPill.isStaticTarget && bar.lastHoveredBtnObj) {
+                    staticHoverPill.targetStaticY = mainColLayout.y + bar.lastHoveredBtnObj.y + (bar.lastHoveredBtnObj.height - staticHoverPill.height) * 0.5
+                }
+            }
+        }
         opacity: (bar.hoveredBtnObj && isStaticTarget && bar.hoveredBtnObj !== bar.activeBtnObj) ? 1.0 : 0.0
-        y: isStaticTarget ? (mainColLayout.y + bar.lastHoveredBtnObj.y + (bar.lastHoveredBtnObj.height - height) * 0.5) : 0
-        Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+        y: isStaticTarget && bar.lastHoveredBtnObj
+           ? (mainColLayout.y + bar.lastHoveredBtnObj.y + (bar.lastHoveredBtnObj.height - height) * 0.5)
+           : targetStaticY
+        Behavior on y { enabled: staticHoverPill.opacity > 0.05; NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
         Behavior on opacity { NumberAnimation { duration: 90 } }
     }
 
@@ -209,9 +225,20 @@ Rectangle {
             radius: bar.isM3 ? height / 2 : 0
             color: bar.isM3 && Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.12) : Qt.rgba(1, 1, 1, 0.08)
             readonly property bool isScrollTarget: bar.lastHoveredBtnObj && bar.lastHoveredBtnObj !== archHeaderItem && bar.lastHoveredBtnObj !== setBtn && bar.lastHoveredBtnObj !== closeBtn
+            property real lastScrollY: 0
+            Connections {
+                target: bar
+                function onLastHoveredBtnObjChanged() {
+                    if (globalHoverPill.isScrollTarget && bar.lastHoveredBtnObj) {
+                        globalHoverPill.lastScrollY = bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - globalHoverPill.height) * 0.5
+                    }
+                }
+            }
             opacity: (bar.hoveredBtnObj && isScrollTarget && bar.hoveredBtnObj !== bar.activeBtnObj) ? 1.0 : 0.0
-            y: isScrollTarget ? (bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - height) * 0.5) : 0
-            Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+            y: isScrollTarget && bar.lastHoveredBtnObj
+               ? (bar.lastHoveredBtnObj.y - catScroll.contentItem.contentY + (bar.itemH - height) * 0.5)
+               : lastScrollY
+            Behavior on y { enabled: globalHoverPill.opacity > 0.05; NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
             Behavior on opacity { NumberAnimation { duration: 90 } }
         }
 

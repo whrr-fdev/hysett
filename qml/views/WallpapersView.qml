@@ -18,6 +18,24 @@ Item {
     property bool isProgrammaticScroll: false
     property real maxVertCatW: 114
 
+    readonly property var stashedMediaFiles: {
+        var raw = Config ? Config.stashedFiles : []
+        var out = []
+        var exts = [".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".mp4", ".webm", ".mkv", ".mov", ".avi"]
+        for (var i = 0; i < raw.length; ++i) {
+            var it = raw[i]
+            if (it.isDir) continue
+            var nm = String(it.name || it.path || "").toLowerCase()
+            for (var k = 0; k < exts.length; ++k) {
+                if (nm.endsWith(exts[k])) {
+                    out.push(it)
+                    break
+                }
+            }
+        }
+        return out
+    }
+
     function recalcCatLayout() {
         var cnt = morphCatRepeater.count
         if (cnt === 0) return
@@ -290,6 +308,140 @@ Item {
                               ? ("󰇚  " + Wallpapers.ghSyncText + " (" + Wallpapers.ghSyncProgress + "%)")
                               : "󰇚   Скачать обои с GitHub (whrr-fdev/wallpapers)"
                         onClicked: Wallpapers.syncGithubWallpapers()
+                    }
+
+                    // Карточка сохраненных в панель задач фото и видео для быстрой установки обоев
+                    GlassPanel {
+                        visible: wallRoot.stashedMediaFiles.length > 0
+                        objectName: "atmoObstacle"
+                        Layout.fillWidth: true
+                        implicitHeight: colStashWall.implicitHeight + 16
+
+                        ColumnLayout {
+                            id: colStashWall
+                            anchors.fill: parent
+                            anchors.margins: 10
+                            spacing: 6
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 6
+                                Text {
+                                    text: "󰸉  Из буфера (" + wallRoot.stashedMediaFiles.length + ")"
+                                    color: "#ffffff"
+                                    font.pixelSize: Config.fontSize + 1
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                }
+                                StyledButton {
+                                    text: "󰎟"
+                                    isIconOnly: true
+                                    implicitWidth: 20; implicitHeight: 20
+                                    onClicked: if (Config) Config.clearStashedFiles()
+                                }
+                            }
+
+                            Item {
+                                id: stashWallStage
+                                Layout.fillWidth: true
+                                implicitHeight: stashWallCol.implicitHeight
+                                property bool isHovering: false
+                                property real hovY: 0
+
+                                Timer {
+                                    id: stashWallHold
+                                    interval: 45
+                                    onTriggered: stashWallStage.isHovering = false
+                                }
+
+                                Rectangle {
+                                    z: 1
+                                    opacity: stashWallStage.isHovering ? 1.0 : 0.0
+                                    x: 0; y: stashWallStage.hovY
+                                    width: stashWallStage.width; height: 34
+                                    radius: (Theme && Theme.isRounded) ? 8 : 0
+                                    color: (Theme && Theme.isRounded && Config)
+                                           ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18)
+                                           : Qt.rgba(1, 1, 1, 0.12)
+                                    Behavior on y { NumberAnimation { duration: 170; easing.type: Easing.OutQuint } }
+                                    Behavior on opacity { NumberAnimation { duration: 110 } }
+                                }
+
+                                ColumnLayout {
+                                    id: stashWallCol
+                                    z: 2; width: parent.width; spacing: 4
+
+                                    Repeater {
+                                        model: wallRoot.stashedMediaFiles
+                                        delegate: Rectangle {
+                                            id: stashWallRow
+                                            Layout.fillWidth: true
+                                            implicitHeight: 34
+                                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.04)
+                                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                                            border.width: 1
+
+                                            MouseArea {
+                                                anchors.fill: parent
+                                                hoverEnabled: true
+                                                cursorShape: Qt.PointingHandCursor
+                                                onEntered: {
+                                                    stashWallHold.stop()
+                                                    stashWallStage.hovY = stashWallRow.y
+                                                    stashWallStage.isHovering = true
+                                                }
+                                                onExited: stashWallHold.restart()
+                                                onClicked: Wallpapers.applyWallpaper(modelData.path)
+                                            }
+
+                                            RowLayout {
+                                                anchors.fill: parent
+                                                anchors.leftMargin: 6
+                                                anchors.rightMargin: 6
+                                                spacing: 6
+
+                                                Rectangle {
+                                                    Layout.preferredWidth: 38
+                                                    Layout.preferredHeight: 24
+                                                    radius: (Theme && Theme.isRounded) ? 4 : 0
+                                                    color: Qt.rgba(0, 0, 0, 0.5)
+                                                    clip: true
+                                                    Image {
+                                                        anchors.fill: parent
+                                                        source: "image://wallthumb" + modelData.path
+                                                        sourceSize: Qt.size(80, 45)
+                                                        asynchronous: true
+                                                        fillMode: Image.PreserveAspectCrop
+                                                    }
+                                                }
+
+                                                Text {
+                                                    text: modelData.name
+                                                    color: "#ffffff"
+                                                    font.pixelSize: Config.fontSize - 1
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                StyledButton {
+                                                    text: "󰸉 Обои"
+                                                    implicitHeight: 22
+                                                    onClicked: Wallpapers.applyWallpaper(modelData.path)
+                                                }
+
+                                                StyledButton {
+                                                    text: "✕"
+                                                    isIconOnly: true
+                                                    implicitWidth: 20; implicitHeight: 22
+                                                    onClicked: if (Config) Config.removeStashedFile(modelData.path)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     GlassPanel {

@@ -1063,7 +1063,7 @@ void WaybarManager::removeBarItemAt(const QString &side, int idx) {
 
 void WaybarManager::resetBarOrder() {
     m_leftBarOrder = {"launcher", "workspaces", "weather", "media"};
-    m_rightBarOrder = {"sysinfo", "tray", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
+    m_rightBarOrder = {"sysinfo", "tray", "usb", "bluetooth", "network", "clipboard", "volume", "language", "clock", "power"};
     m_hiddenBarModules.clear();
     saveState(false);
 }

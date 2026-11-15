@@ -8,13 +8,37 @@
 #include <QJsonArray>
 #include <algorithm>
 
+static bool jsonToBool(const QJsonValue &v) {
+    if (v.isBool()) return v.toBool();
+    if (v.isDouble()) return v.toInt() != 0;
+    if (v.isString()) {
+        QString s = v.toString().trimmed().toLower();
+        return s == "1" || s == "true" || s == "yes";
+    }
+    return false;
+}
+
+static qint64 jsonToBytes(const QJsonValue &v) {
+    if (v.isDouble()) return static_cast<qint64>(v.toDouble());
+    if (v.isString()) return v.toString().trimmed().toLongLong();
+    return 0;
+}
+
+static QString formatDriveSize(qint64 bytes) {
+    if (bytes <= 0) return "";
+    double gb = bytes / (1024.0 * 1024.0 * 1024.0);
+    if (gb >= 1.0) return QString("%1 GB").arg(gb, 0, 'f', gb >= 10.0 ? 0 : 1);
+    double mb = bytes / (1024.0 * 1024.0);
+    return QString("%1 MB").arg(std::max(1.0, mb), 0, 'f', 0);
+}
+
 DevicesManager::DevicesManager(QObject *parent) : QObject(parent) {
     checkTouchpad();
     loadSettings();
     refreshUsbDrives();
 
     m_usbPollTimer = new QTimer(this);
-    m_usbPollTimer->setInterval(2500);
+    m_usbPollTimer->setInterval(2000);
     connect(m_usbPollTimer, &QTimer::timeout, this, &DevicesManager::pollUsbSignature);
     m_usbPollTimer->start();
 }
@@ -30,7 +54,7 @@ void DevicesManager::pollUsbSignature() {
     if (fm.open(QIODevice::ReadOnly)) {
         const QByteArray lines = fm.readAll();
         for (const QByteArray &ln : lines.split('\n')) {
-            if (ln.startsWith("/dev/sd") || ln.startsWith("/dev/nvme") || ln.contains("/run/media") || ln.contains("/mnt")) {
+            if (ln.startsWith("/dev/sd") || ln.startsWith("/dev/nvme") || ln.startsWith("/dev/mmc") || ln.contains("/run/media") || ln.contains("/mnt")) {
                 sig += ln + "\n";
             }
         }
@@ -47,6 +71,21 @@ static bool isSystemMountPoint(const QString &mp) {
     return false;
 }
 
+static bool isVentoyOrBootHelperPartition(const QJsonObject &part, qint64 partBytes, qint64 maxDiskPartBytes, int siblingCount) {
+    QString label = part["label"].toString().trimmed().toUpper();
+    QString partLabel = part["partlabel"].toString().trimmed().toUpper();
+    if (label == "VTOYEFI" || partLabel == "VTOYEFI" ||
+        label == "UEFI_NTFS" || partLabel == "UEFI_NTFS" ||
+        label == "MISO_EFI" || partLabel == "MISO_EFI") {
+        return true;
+    }
+    // Если на флешке несколько разделов и один из них <= 64 МБ (служебный EFI-раздел Ventoy/Rufus), скрываем его
+    if (siblingCount > 1 && partBytes > 0 && partBytes <= 68LL * 1024 * 1024 && maxDiskPartBytes > 256LL * 1024 * 1024) {
+        return true;
+    }
+    return false;
+}
+
 void DevicesManager::refreshUsbDrives() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
@@ -57,12 +96,18 @@ void DevicesManager::refreshUsbDrives() {
         QJsonArray blockdevs = rootObj["blockdevices"].toArray();
         QVariantList result;
 
-        auto parsePartObj = [&](const QJsonObject &part, const QString &diskModel, const QString &diskVendor, bool diskRemovable) {
-            QString devPath = part["path"].toString();
-            QString name = part["name"].toString();
-            if (name.startsWith("zram") || name.startsWith("loop")) return;
+        auto parsePartObj = [&](const QJsonObject &part, const QString &diskModel, const QString &diskVendor, bool diskRemovable, qint64 maxPartBytes, int siblingCount) {
+            QString name = part["name"].toString().trimmed();
+            if (name.isEmpty() || name.startsWith("zram") || name.startsWith("loop") || name.startsWith("sr")) return;
+            QString devPath = part["path"].toString().trimmed();
+            if (devPath.isEmpty()) devPath = "/dev/" + name;
+
+            qint64 szBytes = jsonToBytes(part["size"]);
+            if (szBytes > 0 && szBytes <= 65536) return; // пропускаем контейнер расширенного раздела
 
             QString fstype = part["fstype"].toString().trimmed();
+            if (fstype.toLower() == "swap") return;
+
             QString mp = part["mountpoint"].toString().trimmed();
             if (mp.isEmpty() && part.contains("mountpoints")) {
                 QJsonArray mps = part["mountpoints"].toArray();
@@ -75,14 +120,16 @@ void DevicesManager::refreshUsbDrives() {
             }
             if (isSystemMountPoint(mp)) return;
 
-            bool isRm = part["rm"].toBool(false) || part["hotplug"].toBool(false) || diskRemovable;
-            if (!isRm && !mp.startsWith("/run/media/")) return;
-            if (fstype.isEmpty() && mp.isEmpty()) return;
-            if (fstype == "swap") return;
+            bool isRm = jsonToBool(part["rm"]) || jsonToBool(part["hotplug"]) || diskRemovable;
+            if (!isRm && !mp.startsWith("/run/media/") && !mp.startsWith("/media/")) return;
+
+            // Отфильтровываем служебный раздел VTOYEFI у флешек с Ventoy
+            if (isVentoyOrBootHelperPartition(part, szBytes, maxPartBytes, siblingCount)) return;
 
             QString label = part["label"].toString().trimmed();
-            QString size = part["size"].toString().trimmed();
+            QString partLabel = part["partlabel"].toString().trimmed();
             QString displayTitle = label;
+            if (displayTitle.isEmpty()) displayTitle = partLabel;
             if (displayTitle.isEmpty()) {
                 QString mv = (diskVendor + " " + diskModel).trimmed();
                 displayTitle = mv.isEmpty() ? name : mv;
@@ -92,7 +139,7 @@ void DevicesManager::refreshUsbDrives() {
             item["dev"] = devPath;
             item["name"] = displayTitle;
             item["shortDev"] = name;
-            item["size"] = size;
+            item["size"] = formatDriveSize(szBytes);
             item["fstype"] = fstype.isEmpty() ? "USB" : fstype.toUpper();
             item["mountpoint"] = mp;
             item["mounted"] = !mp.isEmpty();
@@ -104,17 +151,35 @@ void DevicesManager::refreshUsbDrives() {
             QString dName = d["name"].toString();
             if (dName.startsWith("zram") || dName.startsWith("loop") || dName.startsWith("sr")) continue;
 
-            QString tran = d["tran"].toString().toLower();
-            bool diskRm = d["rm"].toBool(false) || d["hotplug"].toBool(false) || (tran == "usb") || (tran == "mmc");
+            QString tran = d["tran"].toString().trimmed().toLower();
+            bool diskRm = jsonToBool(d["rm"]) || jsonToBool(d["hotplug"]) || (tran == "usb") || (tran == "mmc");
             QString model = d["model"].toString().trimmed();
             QString vendor = d["vendor"].toString().trimmed();
 
             QJsonArray children = d["children"].toArray();
+            // Проверяем, нет ли на диске системных разделов (/, /boot, /home)
+            bool hasSysMount = false;
+            qint64 maxPartBytes = 0;
+            for (const QJsonValue &cv : children) {
+                QJsonObject cObj = cv.toObject();
+                qint64 cb = jsonToBytes(cObj["size"]);
+                if (cb > maxPartBytes) maxPartBytes = cb;
+                QString cmp = cObj["mountpoint"].toString().trimmed();
+                if (isSystemMountPoint(cmp)) hasSysMount = true;
+                if (cObj.contains("mountpoints")) {
+                    for (const QJsonValue &mv : cObj["mountpoints"].toArray()) {
+                        if (isSystemMountPoint(mv.toString().trimmed())) hasSysMount = true;
+                    }
+                }
+            }
+            if (hasSysMount) continue;
+
             if (children.isEmpty()) {
-                parsePartObj(d, model, vendor, diskRm);
+                parsePartObj(d, model, vendor, diskRm, jsonToBytes(d["size"]), 1);
             } else {
+                int sibCnt = children.size();
                 for (const QJsonValue &cv : children) {
-                    parsePartObj(cv.toObject(), model, vendor, diskRm);
+                    parsePartObj(cv.toObject(), model, vendor, diskRm, maxPartBytes, sibCnt);
                 }
             }
         }
@@ -124,7 +189,7 @@ void DevicesManager::refreshUsbDrives() {
             emit usbDrivesChanged();
         }
     });
-    p->start("lsblk", {"-J", "-o", "NAME,PATH,LABEL,MODEL,VENDOR,SIZE,FSTYPE,MOUNTPOINT,MOUNTPOINTS,RM,TRAN,TYPE,HOTPLUG"});
+    p->start("lsblk", {"-J", "-b", "-o", "NAME,PATH,LABEL,PARTLABEL,MODEL,VENDOR,SIZE,FSTYPE,MOUNTPOINT,MOUNTPOINTS,RM,TRAN,TYPE,HOTPLUG"});
 }
 
 void DevicesManager::mountUsbDrive(const QString &devPath) {

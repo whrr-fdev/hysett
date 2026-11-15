@@ -226,7 +226,7 @@ Item {
 
                     // 2. КАРТОЧКА ЗАГРУЗОЧНЫХ ЗАПИСЕЙ (ЕСЛИ SYSTEMD-BOOT / GRUB / LIMINE)
                     GlassPanel {
-                        visible: Config && Config.bootloaderEntries.length > 0
+                        visible: false
                         Layout.fillWidth: true
                         implicitHeight: entriesCol.implicitHeight + 28
 

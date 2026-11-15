@@ -559,7 +559,7 @@ ApplicationWindow {
                                     : (floatingDrawerY + (dockedDrawerY - floatingDrawerY) * root.dockTransition)
 
     readonly property int notifW: Mako ? Mako.width : 320
-    readonly property int notifTargetH: Math.max(46, notifStackCol.implicitHeight + 4)
+    readonly property int notifTargetH: Math.max(46, notifStackCol.implicitHeight + 16)
     property real smoothNotifTargetH: notifTargetH
     Behavior on smoothNotifTargetH { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
     readonly property real animNotifH: smoothNotifTargetH * notifProgress
@@ -573,8 +573,8 @@ ApplicationWindow {
     readonly property real closedBarLeft: (isCenteredBar || customBarW < maxAvailBarW) ? ((root.width - baseBarW) * 0.5) : fullBarLeft
     readonly property bool barOverlapsNotifX: !isVertBar && (closedBarLeft + baseBarW > notifX - 2) && (closedBarLeft < notifX + notifW + 2)
     readonly property real notifY: {
-        if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH) : (root.height - animNotifH - barTop)
-        if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH) : barRectY
+        if (barPos === 1) return barOverlapsNotifX ? (barRectY - animNotifH - 6) : (root.height - animNotifH - barTop)
+        if (barPos === 0) return barOverlapsNotifX ? (barRectY + barH + 6) : barRectY
         return barTop
     }
 

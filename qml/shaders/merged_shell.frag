@@ -252,13 +252,8 @@ float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend, out float
         vec2 nHalf = 0.5 * u_notif_rect.zw;
         vec2 nCenter = u_notif_rect.xy + nHalf;
         float dNotif = sdRoundedBox(p - nCenter, nHalf, u_radius * 1.25);
-        bool barTouchesNotif = (barVis > 0.05) &&
-                               (u_notif_rect.y >= u_bar_rect.y + u_bar_rect.w - 2.0 || u_notif_rect.y + u_notif_rect.w <= u_bar_rect.y + 2.0) &&
-                               (u_notif_rect.x < u_bar_rect.x + u_bar_rect.z - 2.0) && (u_notif_rect.x + u_bar_rect.z > u_bar_rect.x + 2.0);
-        float neckZone = barTouchesNotif ? (1.0 - smoothstep(u_bar_rect.y + u_bar_rect.w, u_bar_rect.y + u_bar_rect.w + u_fillet * 1.5, p.y)) : 0.0;
-        float nk = u_fillet * barVis * neckZone * smoothstep(u_bar_rect.y + 4.0, u_bar_rect.y + u_bar_rect.w, p.y) * clamp(u_notif_rect.w / 32.0, 0.0, 1.0);
         outNotifBlend = smoothstep(4.0, -4.0, dNotif - dBar);
-        d = smin(d, dNotif, nk);
+        d = min(d, dNotif);
     }
 
     return d;

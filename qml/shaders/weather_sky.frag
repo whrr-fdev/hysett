@@ -12,6 +12,8 @@ layout(std140, binding = 0) uniform buf {
     float u_is_rain;
     float u_is_snow;
     float u_radius;
+    vec3 u_accent;
+    vec3 u_surface;
 };
 
 float hash21(vec2 p) {
@@ -56,122 +58,78 @@ void main() {
     float mask = 1.0 - smoothstep(-0.8, 0.8, dBox);
     if (mask <= 0.001) { fragColor = vec4(0.0); return; }
 
-    // 1. Атмосферный градиент неба
-    vec3 skyTop, skyMid, skyBot;
-    if (u_mode > 1.5) {
-        skyTop = vec3(0.03, 0.05, 0.11);
-        skyMid = vec3(0.07, 0.11, 0.22);
-        skyBot = vec3(0.13, 0.19, 0.34);
-    } else if (u_mode > 0.5) {
-        skyTop = vec3(0.11, 0.10, 0.24);
-        skyMid = vec3(0.36, 0.20, 0.34);
-        skyBot = vec3(0.76, 0.38, 0.25);
-    } else {
-        skyTop = vec3(0.10, 0.28, 0.56);
-        skyMid = vec3(0.22, 0.44, 0.72);
-        skyBot = vec3(0.42, 0.64, 0.86);
-    }
+    // Тональный градиент в палитре текущей темы (без чужеродного ярко-синего фона)
+    vec3 baseDark = mix(u_surface * 0.85, u_accent * 0.16 + u_surface * 0.84, 0.5);
+    vec3 skyTop = baseDark * 0.78;
+    vec3 skyMid = mix(baseDark, u_accent * 0.24 + baseDark * 0.76, (u_mode > 1.5) ? 0.35 : 0.65);
+    vec3 skyBot = mix(baseDark, u_accent * 0.36 + baseDark * 0.64, 0.75);
+
     vec3 col = mix(skyTop, skyMid, smoothstep(0.0, 0.62, uv.y));
-    col = mix(col, skyBot, smoothstep(0.55, 1.0, uv.y));
+    col = mix(col, skyBot, smoothstep(0.50, 1.0, uv.y));
 
-    if (u_is_rain > 0.5 || u_is_snow > 0.5) {
-        vec3 overcast = mix(col, vec3(0.14, 0.18, 0.26), 0.45);
-        col = overcast;
-    }
-
-    // 2. Звезды и Луна (ночь) / Солнце (день)
-    vec2 orbPos = vec2(0.64 * aspect, 0.32);
+    // Мягкое атмосферное светило на фоне справа от центра
+    vec2 orbPos = vec2(0.46 * aspect, 0.36);
     float dOrb = length(uvA - orbPos);
+    float orbGlow = exp(-dOrb * 3.4) * 0.28 + exp(-dOrb * 9.5) * 0.18;
+    col += u_accent * orbGlow;
 
     if (u_mode > 1.5) {
-        // Мягкое свечение туманности
-        float milky = fbm(uvA * 2.2 + vec2(0.4, -0.2));
-        col += vec3(0.06, 0.10, 0.20) * smoothstep(0.42, 0.85, milky) * (1.0 - uv.y * 0.7);
-
-        // Спокойные звезды в двух слоях сетки (без резкого мигания!)
         for (int layer = 0; layer < 2; ++layer) {
-            float sc = (layer == 0) ? 18.0 : 28.0;
+            float sc = (layer == 0) ? 16.0 : 26.0;
             vec2 gUv = uvA * sc + float(layer) * 17.3;
             vec2 gid = floor(gUv);
             vec2 gf = fract(gUv) - 0.5;
             float h = hash21(gid);
-            if (h > 0.78) {
+            if (h > 0.80) {
                 vec2 starOff = (vec2(hash21(gid + 1.7), hash21(gid + 5.3)) - 0.5) * 0.65;
                 float ds = length(gf - starOff);
-                float slowBreathing = 0.86 + 0.14 * sin(u_time * 0.65 + h * 40.0);
-                float core = smoothstep(0.09, 0.0, ds);
-                float halo = exp(-ds * 18.0) * 0.35;
-                vec3 sCol = mix(vec3(0.82, 0.90, 1.0), vec3(1.0, 0.96, 0.88), fract(h * 13.0));
-                float fadeHorizon = smoothstep(0.95, 0.25, uv.y) * smoothstep(0.06, 0.18, dOrb);
-                col += sCol * (core + halo) * slowBreathing * fadeHorizon * (layer == 0 ? 0.95 : 0.60);
+                float slowBreathing = 0.82 + 0.18 * sin(u_time * 0.55 + h * 40.0);
+                float core = smoothstep(0.08, 0.0, ds);
+                float fadeHorizon = smoothstep(0.92, 0.20, uv.y);
+                col += mix(vec3(1.0), u_accent, 0.45) * core * slowBreathing * fadeHorizon * (layer == 0 ? 0.55 : 0.32);
             }
         }
-
-        // Объемная Луна с кратерами и гало
-        float moonR = 0.125;
-        float moonHalo = exp(-dOrb * 5.2) * 0.34 + exp(-dOrb * 14.0) * 0.25;
-        col += vec3(0.65, 0.78, 1.0) * moonHalo;
-
-        if (dOrb < moonR) {
-            vec2 mUv = (uvA - orbPos) / moonR;
-            float z = sqrt(max(0.0, 1.0 - dot(mUv, mUv)));
-            vec3 norm = normalize(vec3(mUv, z));
-            float diff = clamp(dot(norm, normalize(vec3(-0.35, -0.25, 0.9))), 0.15, 1.0);
-            float maria = smoothstep(0.45, 0.68, fbm(mUv * 3.2 + 2.4));
-            vec3 moonSurf = mix(vec3(0.96, 0.97, 1.0), vec3(0.70, 0.76, 0.86), maria * 0.55) * (0.65 + 0.38 * diff);
-            float edgeAA = 1.0 - smoothstep(moonR - 0.012, moonR, dOrb);
-            col = mix(col, moonSurf, edgeAA);
-        }
-    } else {
-        // Солнце и атмосферная корона
-        vec3 sunCol = (u_mode > 0.5) ? vec3(1.0, 0.68, 0.38) : vec3(1.0, 0.95, 0.82);
-        float sunGlow = exp(-dOrb * 4.2) * 0.55 + exp(-dOrb * 12.0) * 0.45;
-        col += sunCol * sunGlow;
-        float sunDisc = 1.0 - smoothstep(0.095, 0.115, dOrb);
-        col = mix(col, vec3(1.0, 0.99, 0.94), sunDisc * 0.92);
     }
 
-    // 3. Многослойные объемные FBM-облака с подсветкой краев
+    // Дымка облаков FBM в цвет темы
     for (int cl = 0; cl < 2; ++cl) {
-        float spd = (cl == 0) ? 0.035 : 0.060;
-        vec2 cUv = vec2(uvA.x * 1.4 - u_time * spd + float(cl) * 4.2, (uv.y - 0.25 - float(cl) * 0.18) * 3.2);
+        float spd = (cl == 0) ? 0.025 : 0.045;
+        vec2 cUv = vec2(uvA.x * 1.15 - u_time * spd + float(cl) * 4.2, (uv.y - 0.22 - float(cl) * 0.16) * 2.8);
         float n = fbm(cUv);
-        float cMask = smoothstep(0.46, 0.78, n) * smoothstep(0.0, 0.35, uv.y) * smoothstep(1.0, 0.45, uv.y);
-        vec3 cBright = (u_mode > 1.5) ? vec3(0.52, 0.62, 0.80) : ((u_mode > 0.5) ? vec3(0.98, 0.72, 0.62) : vec3(0.96, 0.98, 1.0));
-        vec3 cDark   = (u_mode > 1.5) ? vec3(0.14, 0.19, 0.32) : vec3(0.45, 0.54, 0.68);
-        vec3 cloudCol = mix(cDark, cBright, smoothstep(0.45, 0.75, n));
-        col = mix(col, cloudCol, cMask * (cl == 0 ? 0.38 : 0.26));
+        float cMask = smoothstep(0.45, 0.80, n) * smoothstep(0.0, 0.30, uv.y) * smoothstep(1.0, 0.35, uv.y);
+        vec3 cloudCol = mix(baseDark * 1.15, mix(vec3(1.0), u_accent, 0.55), smoothstep(0.45, 0.78, n) * 0.42);
+        col = mix(col, cloudCol, cMask * (cl == 0 ? 0.34 : 0.22));
     }
 
-    // 4. Осадки (дождь / снег) в шейдере
+    // Осадки (дождь / снег) в цвет акцента
     if (u_is_rain > 0.5) {
-        vec2 rUv = uvA * vec2(22.0, 5.5);
+        vec2 rUv = uvA * vec2(20.0, 5.0);
         rUv.x += rUv.y * 0.22;
-        rUv.y -= u_time * 3.6;
+        rUv.y -= u_time * 3.2;
         vec2 rid = floor(rUv);
         vec2 rf = fract(rUv) - 0.5;
         float rh = hash21(rid);
-        if (rh > 0.62) {
-            float drop = smoothstep(0.06, 0.0, abs(rf.x)) * smoothstep(0.45, -0.2, rf.y) * (0.5 + 0.5 * rf.y);
-            col += vec3(0.65, 0.82, 1.0) * drop * 0.45;
+        if (rh > 0.64) {
+            float drop = smoothstep(0.055, 0.0, abs(rf.x)) * smoothstep(0.45, -0.2, rf.y) * (0.5 + 0.5 * rf.y);
+            col += mix(vec3(1.0), u_accent, 0.5) * drop * 0.38;
         }
     } else if (u_is_snow > 0.5) {
         for (int sl = 0; sl < 2; ++sl) {
-            float sc = (sl == 0) ? 12.0 : 18.0;
+            float sc = (sl == 0) ? 11.0 : 17.0;
             vec2 sUv = uvA * sc;
-            sUv.y -= u_time * (0.55 + float(sl) * 0.25);
-            sUv.x += sin(u_time * 0.8 + sUv.y * 0.6) * 0.25;
+            sUv.y -= u_time * (0.48 + float(sl) * 0.22);
+            sUv.x += sin(u_time * 0.7 + sUv.y * 0.6) * 0.25;
             vec2 sid = floor(sUv);
             vec2 sf = fract(sUv) - 0.5;
             float sh = hash21(sid + float(sl) * 19.0);
-            if (sh > 0.68) {
+            if (sh > 0.70) {
                 vec2 sOff = (vec2(hash21(sid + 2.1), hash21(sid + 7.4)) - 0.5) * 0.5;
-                float flake = smoothstep(0.14, 0.0, length(sf - sOff));
-                col += vec3(0.92, 0.96, 1.0) * flake * (sl == 0 ? 0.65 : 0.42);
+                float flake = smoothstep(0.13, 0.0, length(sf - sOff));
+                col += mix(vec3(1.0), u_accent, 0.3) * flake * (sl == 0 ? 0.50 : 0.32);
             }
         }
     }
 
-    float finalAlpha = 0.86 * mask * qt_Opacity;
+    float finalAlpha = 0.52 * mask * qt_Opacity;
     fragColor = vec4(col * finalAlpha, finalAlpha);
 }

@@ -245,7 +245,7 @@ ApplicationWindow {
         }
     }
 
-    readonly property bool isCompactPopup: drawerMode === "traymenu" || drawerMode === "filedrop" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
+    readonly property bool isCompactPopup: drawerMode === "traymenu" || drawerMode === "filedrop" || drawerMode === "usb" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
 
     property real barExpandProgress: 0.0
     property real drawerProgress: 0.0
@@ -361,6 +361,8 @@ ApplicationWindow {
                     root.calMonth = now.getMonth()
                 } else if (root.pendingDrawerMode === "volume") {
                     if (Waybar) Qt.callLater(() => Waybar.refreshAudioStreams())
+                } else if (root.pendingDrawerMode === "usb") {
+                    if (Devices) Qt.callLater(() => Devices.refreshUsbDrives())
                 } else if (root.pendingDrawerMode === "bluetooth") {
                     if (Bluetooth) Qt.callLater(() => Bluetooth.refresh())
                 } else if (root.pendingDrawerMode === "power") {
@@ -482,7 +484,7 @@ ApplicationWindow {
         if (drawerMode === "filedrop") return isM3 ? 336 : 316
         if (drawerMode === "power") return isM3 ? 280 : 260
         if (drawerMode === "calendar") return isM3 ? 310 : 295
-        if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 360 : 340
+        if (drawerMode === "usb" || drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 368 : 346
         if (drawerMode === "clipboard") return isM3 ? 440 : 410
         return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.max(820, Math.min(maxAvailBarW, root.isResizingWindow ? root.liveResizeW : (Config ? Config.windowWidth : (isM3 ? 1040 : 860))))
     }
@@ -502,6 +504,11 @@ ApplicationWindow {
             var dCnt = Bluetooth.devices ? Bluetooth.devices.length : 0
             if (dCnt <= 0) return 158
             return Math.min(375, 125 + dCnt * 47)
+        }
+        if (drawerMode === "usb") {
+            var uCnt = Devices ? Devices.usbDrivesCount : 0
+            if (uCnt <= 0) return 138
+            return Math.min(380, 72 + uCnt * 66)
         }
         if (drawerMode === "clipboard") {
             var cCnt = (Waybar && Waybar.clipboardItems) ? Waybar.clipboardItems.length : 0
@@ -655,6 +662,7 @@ ApplicationWindow {
         root.animDrawerW = root.targetDrawerW
         root.smoothTargetH = root.targetDrawerH
         if (mode === "volume" && Waybar) Qt.callLater(() => Waybar.refreshAudioStreams())
+        if (mode === "usb" && Devices) Qt.callLater(() => Devices.refreshUsbDrives())
         if (mode === "bluetooth" && Bluetooth) Qt.callLater(() => Bluetooth.refresh())
         if (mode === "clipboard" && Waybar) {
             root.clipSearchQuery = ""
@@ -1077,7 +1085,13 @@ ApplicationWindow {
             readonly property real macroStepGap: baseGroupGap + (macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0)
 
             function isStatusClusterMod(k) {
-                return k === "bluetooth" || k === "network" || k === "clipboard" || k === "volume" || k === "language" || k === "clock"
+                return k === "usb" || k === "bluetooth" || k === "network" || k === "clipboard" || k === "volume" || k === "language" || k === "clock"
+            }
+            function isStatusModShown(k) {
+                if (!isStatusClusterMod(k)) return false
+                if (Waybar && !Waybar.isBarModuleVisible(k)) return false
+                if (k === "usb") return (Devices && Devices.usbDrivesCount > 0) || topBarContainer.editMode
+                return true
             }
 
             // Единая таблетка для системного лотка + часов (bluetooth, network, clipboard, volume, language, clock)
@@ -1545,7 +1559,7 @@ ApplicationWindow {
                                 id: mediaPillBox
                                 readonly property bool wantsVisible: modKey === "media" && ((Waybar && Waybar.mediaActive) || topBarContainer.editMode)
                                 readonly property bool isCollapsed: Waybar ? Waybar.mediaCollapsed : false
-                                readonly property real targetPillW: !wantsVisible ? 0.0 : (isCollapsed ? (topBarContainer.pillHeight + 8) : (mediaInnerRow.implicitWidth + 12))
+                                readonly property real targetPillW: !wantsVisible ? 0.0 : (mediaInnerRow.implicitWidth + 12)
                                 property real animPillW: targetPillW
                                 Behavior on animPillW { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                 visible: modKey === "media" && animPillW > 0.5
@@ -1623,52 +1637,7 @@ ApplicationWindow {
                                     }
                                 }
 
-                                // Свернутый режим (клик ЛКМ разворачивает, ПКМ пауза/играть)
-                                Item {
-                                    z: 10
-                                    anchors.fill: parent
-                                    opacity: mediaPillBox.isCollapsed ? 1.0 : 0.0
-                                    scale: mediaPillBox.isCollapsed ? 1.0 : 0.72
-                                    visible: opacity > 0.01
-                                    Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
-                                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
-
-                                    Row {
-                                        anchors.centerIn: parent
-                                        spacing: 3
-                                        Text {
-                                            text: (Waybar && Waybar.mediaPlaying) ? "󰎆" : "󰐊"
-                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
-                                            font.pixelSize: 11
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                        Text {
-                                            text: "›"
-                                            color: expandMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"
-                                            font.pixelSize: 13
-                                            font.bold: true
-                                            anchors.verticalCenter: parent.verticalCenter
-                                        }
-                                    }
-
-                                    MouseArea {
-                                        id: expandMediaMa
-                                        enabled: !topBarContainer.editMode
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        acceptedButtons: Qt.LeftButton | Qt.RightButton
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: (mouse) => {
-                                            if (mouse.button === Qt.RightButton) {
-                                                if (Waybar) Waybar.mediaPlayPause()
-                                            } else {
-                                                if (Waybar) Waybar.toggleMediaCollapsed()
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Развернутый режим (уменьшенные отступы, компактная длина и бегущая строка)
+                                // Режим плеера: кнопки 󰒮 󰐊/󰏤 󰒭 всегда доступны, при сворачивании скрывается только название трека
                                 Row {
                                     id: mediaInnerRow
                                     z: 5
@@ -1676,11 +1645,6 @@ ApplicationWindow {
                                     anchors.left: parent.left
                                     anchors.leftMargin: 6
                                     anchors.verticalCenter: parent.verticalCenter
-                                    opacity: !mediaPillBox.isCollapsed ? 1.0 : 0.0
-                                    scale: !mediaPillBox.isCollapsed ? 1.0 : 0.92
-                                    visible: opacity > 0.01
-                                    Behavior on opacity { NumberAnimation { duration: 170; easing.type: Easing.OutCubic } }
-                                    Behavior on scale { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
                                     spacing: 2
 
                                     Item {
@@ -1717,10 +1681,13 @@ ApplicationWindow {
                                                 pillTrackChangeAnim.restart()
                                             }
                                         }
-                                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                                         readonly property bool needMarquee: mediaTrackMeasure.implicitWidth > maxTitleW
                                         readonly property real scrollStepW: mediaTrackMeasure.implicitWidth + mediaSepMeasure.implicitWidth
-                                        width: Math.min(maxTitleW, Math.max(28, mediaTrackMeasure.implicitWidth))
+                                        width: mediaPillBox.isCollapsed ? 0 : Math.min(maxTitleW, Math.max(28, mediaTrackMeasure.implicitWidth))
+                                        opacity: mediaPillBox.isCollapsed ? 0.0 : 1.0
+                                        visible: width > 0.5
+                                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                        Behavior on opacity { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                                         height: topBarContainer.pillHeight
                                         clip: true
 
@@ -1831,7 +1798,7 @@ ApplicationWindow {
                                         width: 11; height: topBarContainer.pillHeight
                                         Text {
                                             anchors.centerIn: parent
-                                            text: "‹"
+                                            text: mediaPillBox.isCollapsed ? "›" : "‹"
                                             color: colMediaMa.containsMouse ? (Config ? Config.m3Primary : "#a8c7fa") : "#cccccc"
                                             font.pixelSize: 13
                                             font.bold: true
@@ -2217,31 +2184,33 @@ ApplicationWindow {
                         readonly property bool modVis: {
                             var _ = Waybar ? Waybar.hiddenBarModules : ""
                             var _t = Waybar ? Waybar.trayApps : []
+                            var _u = Devices ? Devices.usbDrivesCount : 0
                             if (modKey === "sep") return true
                             if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
                             if (modKey === "tray") return (Waybar && (Waybar.trayApps.length > 0 || Waybar.vpnActive)) || topBarContainer.editMode
+                            if (modKey === "usb") return _u > 0 || topBarContainer.editMode
                             return true
                         }
                         visible: modVis
 
                         readonly property bool isStatusMod: topBarContainer.isStatusClusterMod(modKey)
                         readonly property bool isFirstStatusMod: {
-                            if (!isStatusMod) return false
+                            var _u = Devices ? Devices.usbDrivesCount : 0
+                            if (!isStatusMod || !topBarContainer.isStatusModShown(modKey)) return false
                             var ord = Waybar ? Waybar.rightBarOrder : []
                             var _ = Waybar ? Waybar.hiddenBarModules : ""
                             for (var i = 0; i < index; ++i) {
-                                var k = ord[i]
-                                if (topBarContainer.isStatusClusterMod(k) && (!Waybar || Waybar.isBarModuleVisible(k))) return false
+                                if (topBarContainer.isStatusModShown(ord[i])) return false
                             }
                             return true
                         }
                         readonly property bool isLastStatusMod: {
-                            if (!isStatusMod) return false
+                            var _u = Devices ? Devices.usbDrivesCount : 0
+                            if (!isStatusMod || !topBarContainer.isStatusModShown(modKey)) return false
                             var ord = Waybar ? Waybar.rightBarOrder : []
                             var _ = Waybar ? Waybar.hiddenBarModules : ""
                             for (var i = index + 1; i < ord.length; ++i) {
-                                var k = ord[i]
-                                if (topBarContainer.isStatusClusterMod(k) && (!Waybar || Waybar.isBarModuleVisible(k))) return false
+                                if (topBarContainer.isStatusModShown(ord[i])) return false
                             }
                             return true
                         }
@@ -2383,6 +2352,58 @@ ApplicationWindow {
                                             }
                                         }
                                     }
+                                }
+                            }
+
+                            Item {
+                                visible: modKey === "usb"
+                                anchors.fill: parent
+
+                                Text {
+                                    visible: !Devices || Devices.usbDrivesCount <= 0
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: rightModBody.innerShiftX
+                                    text: "󱊟"
+                                    color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                    font.pixelSize: 12
+                                }
+
+                                Rectangle {
+                                    visible: Devices ? (Devices.usbDrivesCount > 0) : false
+                                    width: usbPillInnerRow.implicitWidth + 12
+                                    height: topBarContainer.pillHeight - 4
+                                    anchors.centerIn: parent
+                                    anchors.horizontalCenterOffset: rightModBody.innerShiftX
+                                    radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
+                                    color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
+                                    border.color: topBarContainer.isOutlinePills ? topBarContainer.pillBorderColor : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
+                                    border.width: 1
+
+                                    Row {
+                                        id: usbPillInnerRow
+                                        anchors.centerIn: parent
+                                        spacing: 3
+                                        Text {
+                                            text: "󱊟"
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            font.pixelSize: 10
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                        Text {
+                                            text: Devices ? String(Devices.usbDrivesCount) : "1"
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            anchors.verticalCenter: parent.verticalCenter
+                                        }
+                                    }
+                                }
+
+                                MouseArea {
+                                    enabled: !topBarContainer.editMode
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: root.openDrawerWithMode("usb", undefined, parent.mapToItem(sceneRoot, parent.width * 0.5, 0).x)
                                 }
                             }
 
@@ -4328,6 +4349,152 @@ ApplicationWindow {
                                         anchors.centerIn: parent; text: parent.cellInfo.day
                                         color: parent.cellInfo.today ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                         font.pixelSize: 11; font.bold: parent.cellInfo.today
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 3a. КОМПАКТНОЕ ОКНО USB-НАКОПИТЕЛЕЙ И ФЛЕШЕК
+                Item {
+                    id: usbPopupBox
+                    anchors.fill: parent
+                    visible: root.drawerMode === "usb"
+
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Text {
+                                text: "󱊟  Накопители и флешки • " + (Devices ? Devices.usbDrivesCount : 0)
+                                color: "#ffffff"
+                                font.pixelSize: 13
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            StyledButton {
+                                text: "󰑐"
+                                isIconOnly: true
+                                implicitWidth: 22; implicitHeight: 22
+                                onClicked: if (Devices) Devices.refreshUsbDrives()
+                            }
+                            StyledButton {
+                                text: "󰒓 Устройства"
+                                implicitHeight: 22
+                                onClicked: root.openDrawerWithMode("settings", 5)
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            ColumnLayout {
+                                visible: !Devices || Devices.usbDrivesCount === 0
+                                anchors.centerIn: parent
+                                spacing: 6
+                                Text {
+                                    text: "󱊟"
+                                    color: "#666666"
+                                    font.pixelSize: 22
+                                    Layout.alignment: Qt.AlignHCenter
+                                }
+                                Text {
+                                    text: "Нет подключенных USB-флешек"
+                                    color: "#888888"
+                                    font.pixelSize: 11
+                                    Layout.alignment: Qt.AlignHCenter
+                                }
+                            }
+
+                            ListView {
+                                anchors.fill: parent
+                                clip: true
+                                spacing: 6
+                                visible: Devices && Devices.usbDrivesCount > 0
+                                ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                                model: (root.drawerActive && root.drawerMode === "usb" && Devices) ? Devices.usbDrives : []
+
+                                delegate: GlassPanel {
+                                    width: ListView.view.width
+                                    implicitHeight: 58
+                                    height: 58
+                                    radius: (Theme && Theme.isRounded) ? 10 : 0
+
+                                    RowLayout {
+                                        anchors.fill: parent
+                                        anchors.leftMargin: 10
+                                        anchors.rightMargin: 10
+                                        spacing: 8
+
+                                        Rectangle {
+                                            Layout.preferredWidth: 32
+                                            Layout.preferredHeight: 32
+                                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                                            color: modelData.mounted
+                                                   ? Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.16)
+                                                   : Qt.rgba(1, 1, 1, 0.06)
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: "󱊟"
+                                                color: modelData.mounted ? (Config ? Config.m3Primary : "#ffffff") : "#888888"
+                                                font.pixelSize: 15
+                                            }
+                                        }
+
+                                        ColumnLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 1
+                                            Text {
+                                                text: modelData.name + " (" + modelData.size + ")"
+                                                color: "#ffffff"
+                                                font.pixelSize: 11
+                                                font.bold: true
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                            Text {
+                                                text: modelData.mounted ? modelData.mountpoint : (modelData.dev + " • Отмонтирована")
+                                                color: modelData.mounted ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
+                                                font.pixelSize: 9
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+                                        }
+
+                                        StyledButton {
+                                            visible: modelData.mounted
+                                            text: "󰉋"
+                                            isIconOnly: true
+                                            implicitWidth: 28; implicitHeight: 28
+                                            onClicked: {
+                                                if (Devices) Devices.openUsbDriveFolder(modelData.mountpoint)
+                                                root.drawerOpen = false
+                                            }
+                                        }
+
+                                        StyledButton {
+                                            text: modelData.mounted ? "⏏ Отмонтировать" : "󰕒 Смонтировать"
+                                            implicitHeight: 28
+                                            isActive: modelData.mounted
+                                            onClicked: {
+                                                if (!Devices) return
+                                                if (modelData.mounted) Devices.unmountUsbDrive(modelData.dev)
+                                                else Devices.mountUsbDrive(modelData.dev)
+                                            }
+                                        }
+
+                                        StyledButton {
+                                            text: "󰅚"
+                                            isIconOnly: true
+                                            implicitWidth: 28; implicitHeight: 28
+                                            onClicked: if (Devices) Devices.ejectUsbDrive(modelData.dev)
+                                        }
                                     }
                                 }
                             }

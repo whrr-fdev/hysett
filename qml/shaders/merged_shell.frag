@@ -172,8 +172,11 @@ float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend, out float
                     : max(0.0, u_bar_rect.x - (u_drawer_rect.x + u_drawer_rect.z));
         }
     }
-    float mergeProx = clamp(1.0 - gapPx / 28.0, 0.0, 1.0);
-    float dockProx  = clamp(1.0 - gapPx / 4.0, 0.0, 1.0);
+    float fitsInsideBar = (!isVertBar)
+                          ? (step(u_bar_rect.x - 2.0, u_drawer_rect.x) * step(u_drawer_rect.x + u_drawer_rect.z, u_bar_rect.x + u_bar_rect.z + 2.0))
+                          : (step(u_bar_rect.y - 2.0, u_drawer_rect.y) * step(u_drawer_rect.y + u_drawer_rect.w, u_bar_rect.y + u_bar_rect.w + 2.0));
+    float mergeProx = clamp(1.0 - gapPx / 12.0, 0.0, 1.0) * fitsInsideBar;
+    float dockProx  = clamp(1.0 - gapPx / 4.0, 0.0, 1.0) * fitsInsideBar;
     outBarMergeProx = mergeProx;
 
     float bigOpen = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0) * mergeProx;

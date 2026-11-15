@@ -475,7 +475,8 @@ void AppConfig::load() {
 
             if (key == "font_size") m_fontSize = std::clamp(val.toInt(), 9, 14);
             else if (key == "ui_scale") m_uiScale = std::clamp(val.toDouble(), 0.8, 1.3);
-            else if (key == "window_height") m_windowHeight = std::clamp(val.toInt(), 440, 960);
+            else if (key == "window_width") m_windowWidth = std::clamp(val.toInt(), 680, 1880);
+            else if (key == "window_height") m_windowHeight = std::clamp(val.toInt(), 440, 1020);
             else if (key == "align_center") m_alignCenter = (val == "1" || val == "true");
             else if (key == "welcome_align_mode") m_welcomeAlignMode = std::clamp(val.toInt(), 0, 2);
             else if (key == "sidebar_width") m_sidebarWidth = std::clamp(val.toInt(), 110, 260);
@@ -560,6 +561,7 @@ void AppConfig::save() {
             }
             extra["font_size"] = QString::number(m_fontSize);
             extra["ui_scale"] = QString::number(m_uiScale, 'f', 2);
+            extra["window_width"] = QString::number(m_windowWidth);
             extra["window_height"] = QString::number(m_windowHeight);
             extra["align_center"] = m_alignCenter ? "1" : "0";
             extra["welcome_align_mode"] = QString::number(m_welcomeAlignMode);
@@ -666,7 +668,8 @@ void AppConfig::setLanguage(const QString &v) {
 
 void AppConfig::setFontSize(int v) { v = std::clamp(v, 9, 14); if (m_fontSize != v) { m_fontSize = v; emit fontSizeChanged(); save(); } }
 void AppConfig::setUiScale(qreal v) { v = std::clamp(v, 0.8, 1.3); if (!qFuzzyCompare(m_uiScale, v)) { m_uiScale = v; emit uiScaleChanged(); save(); } }
-void AppConfig::setWindowHeight(int v) { v = std::clamp(v, 440, 960); if (m_windowHeight != v) { m_windowHeight = v; emit windowHeightChanged(); save(); syncHyprlandLuaHeight(v); } }
+void AppConfig::setWindowWidth(int v) { v = std::clamp(v, 680, 1880); if (m_windowWidth != v) { m_windowWidth = v; emit windowWidthChanged(); save(); } }
+void AppConfig::setWindowHeight(int v) { v = std::clamp(v, 440, 1020); if (m_windowHeight != v) { m_windowHeight = v; emit windowHeightChanged(); save(); syncHyprlandLuaHeight(v); } }
 void AppConfig::setAlignCenter(bool v) { if (m_alignCenter != v) { m_alignCenter = v; emit alignCenterChanged(); save(); } }
 void AppConfig::setWelcomeAlignMode(int v) { v = std::clamp(v, 0, 2); if (m_welcomeAlignMode != v) { m_welcomeAlignMode = v; emit welcomeAlignModeChanged(); save(); } }
 void AppConfig::setSidebarWidth(int v) { v = std::clamp(v, 110, 260); if (m_sidebarWidth != v) { m_sidebarWidth = v; emit sidebarWidthChanged(); save(); } }
@@ -786,7 +789,8 @@ void AppConfig::resetColors() {
 void AppConfig::resetDefaults() {
     setFontSize(11);
     setUiScale(1.0);
-    setWindowHeight(720);
+    setWindowWidth(1040);
+    setWindowHeight(640);
     setAlignCenter(false);
     setWelcomeAlignMode(1);
     setSidebarWidth(136);

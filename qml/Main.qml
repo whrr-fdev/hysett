@@ -24,6 +24,12 @@ ApplicationWindow {
     property real floatOffsetX: 0.0
     property real floatOffsetY: 0.0
     property bool isDraggingWindow: false
+    property bool isResizingWindow: false
+    property real dockTransition: (Config && !Config.floatingWindowMode) ? 1.0 : 0.0
+    Behavior on dockTransition {
+        enabled: !root.isDraggingWindow
+        NumberAnimation { duration: 300; easing.type: Easing.OutQuint }
+    }
     property real contentMaxBounce: 1.0
     SequentialAnimation {
         id: pageMaxSpringAnim
@@ -420,10 +426,10 @@ ApplicationWindow {
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
-    readonly property real rawFloatX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - animDrawerW, Math.round((root.width - animDrawerW) * 0.5 + root.floatOffsetX)))
+    readonly property real rawFloatX: Math.max(-animDrawerW + 120, Math.min(root.width - 120, Math.round((root.width - animDrawerW) * 0.5 + root.floatOffsetX)))
     readonly property real rawFloatY: {
-        var minY = (barPos === 0) ? (barRectY + barH) : 8
-        var maxY = (barPos === 1) ? (barRectY - smoothTargetH) : (root.height - smoothTargetH - 8)
+        var minY = (barPos === 0) ? (barRectY + barH) : (-smoothTargetH + 80)
+        var maxY = (barPos === 1) ? (barRectY - smoothTargetH) : (root.height - 48)
         return Math.max(minY, Math.min(maxY, Math.round((root.height - smoothTargetH) * 0.5 + root.floatOffsetY)))
     }
     readonly property real distToBarPx: {
@@ -433,8 +439,8 @@ ApplicationWindow {
         if (barPos === 2) return Math.max(0.0, rawFloatX - (barTop + barH + 6))
         return Math.max(0.0, (root.width - (barTop + barH + 6)) - (rawFloatX + animDrawerW))
     }
-    readonly property real mergeProximity: (!root.isFloatingMode || root.isDockedToBar) ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - distToBarPx / 46.0))
-    readonly property real effBarExpand: isCompactPopup ? 0.0 : ((root.isFloatingMode && !root.isDockedToBar) ? (mergeProximity * drawerProgress) : barExpandProgress)
+    readonly property real mergeProximity: (!root.isFloatingMode || root.isDockedToBar) ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - distToBarPx / 34.0))
+    readonly property real effBarExpand: isCompactPopup ? 0.0 : Math.max(barExpandProgress, dockTransition * drawerProgress)
 
     readonly property real baseBarW: smoothBaseBarW
     readonly property real expandedBarW: isCompactPopup ? baseBarW : Math.max(baseBarW, effDrawerW)
@@ -465,7 +471,7 @@ ApplicationWindow {
         if (drawerMode === "calendar") return isM3 ? 310 : 295
         if (drawerMode === "volume" || drawerMode === "bluetooth") return isM3 ? 360 : 340
         if (drawerMode === "clipboard") return isM3 ? 440 : 410
-        return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : Math.min(isM3 ? 1040 : 860, maxAvailBarW - 80)
+        return (isWallpaperExpanded || isSettingsMaximized) ? maxAvailBarW : (Config ? Math.max(680, Math.min(maxAvailBarW, Config.windowWidth)) : (isM3 ? 1040 : 860))
     }
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
@@ -492,7 +498,7 @@ ApplicationWindow {
         if (isWallpaperExpanded || isSettingsMaximized) {
             return isVertBar ? (root.height - 12) : (root.height - (barRectY + barH) - Math.max(4, fullBarLeft))
         }
-        return isM3 ? Math.min(680, Config ? Math.max(640, Config.windowHeight) : 640) : Math.min(540, Config ? Config.windowHeight : 520)
+        return Config ? Math.max(440, Math.min(root.height - 42, Config.windowHeight)) : (isM3 ? 640 : 520)
     }
 
     property real animDrawerW: targetDrawerW
@@ -517,13 +523,12 @@ ApplicationWindow {
         return root.width * 0.5
     }
     Behavior on centerAnchorX { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-    Behavior on animDrawerW { enabled: root.drawerProgress > 0.95; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-    Behavior on smoothTargetH { enabled: root.drawerProgress > 0.95; NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
-    Behavior on floatOffsetX { enabled: !root.isDraggingWindow; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
-    Behavior on floatOffsetY { enabled: !root.isDraggingWindow; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on animDrawerW { enabled: root.drawerProgress > 0.95 && !root.isResizingWindow; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on smoothTargetH { enabled: root.drawerProgress > 0.95 && !root.isResizingWindow; NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+    Behavior on floatOffsetX { enabled: !root.isDraggingWindow && !root.isResizingWindow; NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
+    Behavior on floatOffsetY { enabled: !root.isDraggingWindow && !root.isResizingWindow; NumberAnimation { duration: 280; easing.type: Easing.OutQuint } }
 
-    readonly property real drawerX: {
-        if (isFreeFloating) return rawFloatX + (animDrawerW - effDrawerW) * 0.5
+    readonly property real dockedDrawerX: {
         if (barPos === 2) return barLeft + barW
         if (barPos === 3) return barLeft - effDrawerW
         if (drawerMode === "power") {
@@ -531,13 +536,21 @@ ApplicationWindow {
         }
         var minBound = isCompactPopup ? Math.max(fullBarLeft, barLeft) : fullBarLeft
         var maxBound = isCompactPopup ? Math.min(fullBarLeft + maxAvailBarW - effDrawerW, barLeft + barW - effDrawerW) : (fullBarLeft + maxAvailBarW - effDrawerW)
-        return Math.max(minBound, Math.min(maxBound, (centerAnchorX + (root.isFloatingMode ? root.floatOffsetX : 0)) - effDrawerW * 0.5))
+        return Math.max(minBound, Math.min(maxBound, centerAnchorX - effDrawerW * 0.5))
     }
-    readonly property real drawerY: {
-        if (isFreeFloating) return rawFloatY + (smoothTargetH - effDrawerH) * 0.5
-        if (isVertBar) return Math.round((root.height - effDrawerH) * 0.5 + (root.isFloatingMode ? root.floatOffsetY : 0))
+    readonly property real dockedDrawerY: {
+        if (isVertBar) return Math.round((root.height - effDrawerH) * 0.5)
         return (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
     }
+    readonly property real floatingDrawerX: rawFloatX + (animDrawerW - effDrawerW) * 0.5
+    readonly property real floatingDrawerY: rawFloatY + (smoothTargetH - effDrawerH) * 0.5
+
+    readonly property real drawerX: (isCompactPopup || isSettingsMaximized || isWallpaperExpanded)
+                                    ? dockedDrawerX
+                                    : (floatingDrawerX + (dockedDrawerX - floatingDrawerX) * root.dockTransition)
+    readonly property real drawerY: (isCompactPopup || isSettingsMaximized || isWallpaperExpanded)
+                                    ? dockedDrawerY
+                                    : (floatingDrawerY + (dockedDrawerY - floatingDrawerY) * root.dockTransition)
 
     readonly property int notifW: Mako ? Mako.width : 320
     readonly property int notifTargetH: Math.max(46, notifStackCol.implicitHeight + 4)
@@ -658,15 +671,11 @@ ApplicationWindow {
         closeSeqAnim.stop()
         switchDrawerAnim.stop()
         if (drawerOpen) {
+            root.isDockedToBar = false
+            root.floatOffsetX = 0
+            root.floatOffsetY = 0
             if (Config && Config.floatingWindowMode) {
-                root.isDockedToBar = false
-                root.floatOffsetX = 0
-                root.floatOffsetY = 0
                 root.barExpandProgress = 0.0
-            } else {
-                root.isDockedToBar = false
-                root.floatOffsetX = 0
-                root.floatOffsetY = 0
             }
             openSeqAnim.start()
         }
@@ -3516,6 +3525,227 @@ ApplicationWindow {
                         onCanceled: {
                             root.isDraggingWindow = false
                         }
+                    }
+                }
+
+                // Интерактивное изменение размера окна мышью (до минимального 680x440)
+                Item {
+                    id: windowResizeLayer
+                    anchors.fill: parent
+                    visible: root.drawerMode === "settings" && !root.isSettingsMaximized && !root.isWallpaperExpanded
+                    z: 1060
+
+                    // Правая грань
+                    MouseArea {
+                        anchors.right: parent.right
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.topMargin: 18
+                        anchors.bottomMargin: 18
+                        width: 9
+                        cursorShape: Qt.SizeHorCursor
+                        property real startGlobalX: 0
+                        property int startW: 1040
+                        property real startOffX: 0
+                        onPressed: (mouse) => {
+                            root.isResizingWindow = true
+                            startGlobalX = mapToItem(sceneRoot, mouse.x, mouse.y).x
+                            startW = Config ? Config.windowWidth : root.targetDrawerW
+                            startOffX = root.floatOffsetX
+                        }
+                        onPositionChanged: (mouse) => {
+                            if (!pressed || !Config) return
+                            var gx = mapToItem(sceneRoot, mouse.x, mouse.y).x
+                            var dx = gx - startGlobalX
+                            if (root.isFloatingMode) {
+                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
+                                var realDx = nw - startW
+                                Config.windowWidth = nw
+                                root.floatOffsetX = startOffX + realDx * 0.5
+                            } else {
+                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                            }
+                        }
+                        onReleased: root.isResizingWindow = false
+                        onCanceled: root.isResizingWindow = false
+                    }
+
+                    // Левая грань
+                    MouseArea {
+                        anchors.left: parent.left
+                        anchors.top: parent.top
+                        anchors.bottom: parent.bottom
+                        anchors.topMargin: 18
+                        anchors.bottomMargin: 18
+                        width: 9
+                        cursorShape: Qt.SizeHorCursor
+                        property real startGlobalX: 0
+                        property int startW: 1040
+                        property real startOffX: 0
+                        onPressed: (mouse) => {
+                            root.isResizingWindow = true
+                            startGlobalX = mapToItem(sceneRoot, mouse.x, mouse.y).x
+                            startW = Config ? Config.windowWidth : root.targetDrawerW
+                            startOffX = root.floatOffsetX
+                        }
+                        onPositionChanged: (mouse) => {
+                            if (!pressed || !Config) return
+                            var gx = mapToItem(sceneRoot, mouse.x, mouse.y).x
+                            var dx = startGlobalX - gx
+                            if (root.isFloatingMode) {
+                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
+                                var realDx = nw - startW
+                                Config.windowWidth = nw
+                                root.floatOffsetX = startOffX - realDx * 0.5
+                            } else {
+                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                            }
+                        }
+                        onReleased: root.isResizingWindow = false
+                        onCanceled: root.isResizingWindow = false
+                    }
+
+                    // Нижняя грань
+                    MouseArea {
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        anchors.leftMargin: 18
+                        anchors.rightMargin: 18
+                        height: 9
+                        cursorShape: Qt.SizeVerCursor
+                        property real startGlobalY: 0
+                        property int startH: 640
+                        property real startOffY: 0
+                        onPressed: (mouse) => {
+                            root.isResizingWindow = true
+                            startGlobalY = mapToItem(sceneRoot, mouse.x, mouse.y).y
+                            startH = Config ? Config.windowHeight : root.targetDrawerH
+                            startOffY = root.floatOffsetY
+                        }
+                        onPositionChanged: (mouse) => {
+                            if (!pressed || !Config) return
+                            var gy = mapToItem(sceneRoot, mouse.x, mouse.y).y
+                            var dy = gy - startGlobalY
+                            var nh = Math.max(440, Math.min(1020, Math.round(startH + dy)))
+                            var realDy = nh - startH
+                            Config.windowHeight = nh
+                            if (root.isFloatingMode) {
+                                root.floatOffsetY = startOffY + realDy * 0.5
+                            }
+                        }
+                        onReleased: root.isResizingWindow = false
+                        onCanceled: root.isResizingWindow = false
+                    }
+
+                    // Правый нижний угол (с индикатором уголка)
+                    MouseArea {
+                        id: brCornerMa
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        width: 18
+                        height: 18
+                        hoverEnabled: true
+                        cursorShape: Qt.SizeFDiagCursor
+                        property point startGlobal: Qt.point(0, 0)
+                        property int startW: 1040
+                        property int startH: 640
+                        property real startOffX: 0
+                        property real startOffY: 0
+
+                        Canvas {
+                            anchors.fill: parent
+                            opacity: (brCornerMa.containsMouse || brCornerMa.pressed) ? 0.85 : 0.28
+                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.clearRect(0, 0, width, height)
+                                ctx.strokeStyle = "#ffffff"
+                                ctx.lineWidth = 1.6
+                                ctx.lineCap = "round"
+                                ctx.beginPath()
+                                ctx.moveTo(width - 5, height - 11)
+                                ctx.lineTo(width - 11, height - 5)
+                                ctx.moveTo(width - 5, height - 7)
+                                ctx.lineTo(width - 7, height - 5)
+                                ctx.stroke()
+                            }
+                        }
+
+                        onPressed: (mouse) => {
+                            root.isResizingWindow = true
+                            startGlobal = mapToItem(sceneRoot, mouse.x, mouse.y)
+                            startW = Config ? Config.windowWidth : root.targetDrawerW
+                            startH = Config ? Config.windowHeight : root.targetDrawerH
+                            startOffX = root.floatOffsetX
+                            startOffY = root.floatOffsetY
+                        }
+                        onPositionChanged: (mouse) => {
+                            if (!pressed || !Config) return
+                            var gp = mapToItem(sceneRoot, mouse.x, mouse.y)
+                            var dx = gp.x - startGlobal.x
+                            var dy = gp.y - startGlobal.y
+                            if (root.isFloatingMode) {
+                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
+                                var realDx = nw - startW
+                                Config.windowWidth = nw
+                                root.floatOffsetX = startOffX + realDx * 0.5
+                            } else {
+                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                            }
+                            var nh = Math.max(440, Math.min(1020, Math.round(startH + dy)))
+                            var realDy = nh - startH
+                            Config.windowHeight = nh
+                            if (root.isFloatingMode) {
+                                root.floatOffsetY = startOffY + realDy * 0.5
+                            }
+                        }
+                        onReleased: root.isResizingWindow = false
+                        onCanceled: root.isResizingWindow = false
+                    }
+
+                    // Левый нижний угол
+                    MouseArea {
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        width: 18
+                        height: 18
+                        cursorShape: Qt.SizeBDiagCursor
+                        property point startGlobal: Qt.point(0, 0)
+                        property int startW: 1040
+                        property int startH: 640
+                        property real startOffX: 0
+                        property real startOffY: 0
+                        onPressed: (mouse) => {
+                            root.isResizingWindow = true
+                            startGlobal = mapToItem(sceneRoot, mouse.x, mouse.y)
+                            startW = Config ? Config.windowWidth : root.targetDrawerW
+                            startH = Config ? Config.windowHeight : root.targetDrawerH
+                            startOffX = root.floatOffsetX
+                            startOffY = root.floatOffsetY
+                        }
+                        onPositionChanged: (mouse) => {
+                            if (!pressed || !Config) return
+                            var gp = mapToItem(sceneRoot, mouse.x, mouse.y)
+                            var dx = startGlobal.x - gp.x
+                            var dy = gp.y - startGlobal.y
+                            if (root.isFloatingMode) {
+                                var nw = Math.max(680, Math.min(1880, Math.round(startW + dx)))
+                                var realDx = nw - startW
+                                Config.windowWidth = nw
+                                root.floatOffsetX = startOffX - realDx * 0.5
+                            } else {
+                                Config.windowWidth = Math.max(680, Math.min(1880, Math.round(startW + dx * 2.0)))
+                            }
+                            var nh = Math.max(440, Math.min(1020, Math.round(startH + dy)))
+                            var realDy = nh - startH
+                            Config.windowHeight = nh
+                            if (root.isFloatingMode) {
+                                root.floatOffsetY = startOffY + realDy * 0.5
+                            }
+                        }
+                        onReleased: root.isResizingWindow = false
+                        onCanceled: root.isResizingWindow = false
                     }
                 }
 

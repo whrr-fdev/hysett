@@ -13,6 +13,7 @@ class AppConfig : public QObject {
 
     Q_PROPERTY(int fontSize READ fontSize WRITE setFontSize NOTIFY fontSizeChanged)
     Q_PROPERTY(qreal uiScale READ uiScale WRITE setUiScale NOTIFY uiScaleChanged)
+    Q_PROPERTY(int windowWidth READ windowWidth WRITE setWindowWidth NOTIFY windowWidthChanged)
     Q_PROPERTY(int windowHeight READ windowHeight WRITE setWindowHeight NOTIFY windowHeightChanged)
     Q_PROPERTY(bool alignCenter READ alignCenter WRITE setAlignCenter NOTIFY alignCenterChanged)
     Q_PROPERTY(int welcomeAlignMode READ welcomeAlignMode WRITE setWelcomeAlignMode NOTIFY welcomeAlignModeChanged)
@@ -132,6 +133,8 @@ public:
     void setFontSize(int v);
     qreal uiScale() const { return m_uiScale; }
     void setUiScale(qreal v);
+    int windowWidth() const { return m_windowWidth; }
+    void setWindowWidth(int v);
     int windowHeight() const { return m_windowHeight; }
     void setWindowHeight(int v);
     bool alignCenter() const { return m_alignCenter; }
@@ -386,6 +389,7 @@ public:
 signals:
     void fontSizeChanged();
     void uiScaleChanged();
+    void windowWidthChanged();
     void windowHeightChanged();
     void alignCenterChanged();
     void welcomeAlignModeChanged();
@@ -442,7 +446,8 @@ private:
 
     int m_fontSize = 11;
     qreal m_uiScale = 1.0;
-    int m_windowHeight = 720;
+    int m_windowWidth = 1040;
+    int m_windowHeight = 640;
     bool m_alignCenter = false;
     int m_welcomeAlignMode = 1;
     int m_sidebarWidth = 136;

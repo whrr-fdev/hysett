@@ -7,25 +7,22 @@ def run_out(cmd, timeout=5):
     except Exception:
         return ""
 
-def run_root(args):
+def run_root(args, sudo_pwd=""):
     if os.geteuid() == 0:
         return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    return subprocess.run(["pkexec", sys.executable, os.path.abspath(__file__)] + args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    cmd = ["sudo", "-S", "-p", "", sys.executable, os.path.abspath(__file__)] + args
+    return subprocess.run(cmd, input=(sudo_pwd + "\n"), stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
 
 def detect_bootloader():
-    # 1. Проверяем systemd-boot
     for esp in ("/boot", "/efi", "/boot/efi"):
         if os.path.exists(os.path.join(esp, "loader/loader.conf")):
             return "systemd-boot", esp
-    b_out = run_out(["bootctl", "is-installed"]).strip()
-    if b_out == "yes":
+    if run_out(["bootctl", "is-installed"]).strip() == "yes":
         return "systemd-boot", "/boot"
-    # 2. Проверяем Limine
     for lp in ("/boot/limine.conf", "/boot/limine/limine.conf", "/boot/EFI/limine/limine.conf", "/efi/EFI/limine/limine.conf"):
         if os.path.exists(lp):
             return "limine", lp
-    # 3. Проверяем GRUB
-    if os.path.exists("/etc/default/grub") and os.path.exists("/boot/grub/grub.cfg"):
+    if os.path.exists("/etc/default/grub"):
         return "grub", "/etc/default/grub"
     return "efibootmgr", ""
 
@@ -63,7 +60,49 @@ def parse_efibootmgr():
     if boot_order:
         order_map = {k.upper(): i for i, k in enumerate(boot_order)}
         entries.sort(key=lambda x: order_map.get(x["num"], 999))
+    for i, e in enumerate(entries):
+        e["is_first"] = (i == 0)
     return entries, efi_timeout
+
+def detect_bootable_usb(efi_entries):
+    # 1. Ищем USB в efibootmgr (кроме пустой заглушки USB HDD/FDD)
+    for e in efi_entries:
+        t = e["title"].lower()
+        if t in ("usb hdd", "usb fdd", "hard drive", "cd/dvd drive", "network"):
+            continue
+        if any(k in t for k in ("usb", "ventoy", "flash", "sandisk", "kingston", "transcend", "adata", "samsung flash", "cruzer")):
+            return {"type": "efi", "num": e["num"], "name": e["title"], "disk": "", "part": 1}
+
+    # 2. Ищем подключенные USB-флешки через lsblk
+    raw = run_out(["lsblk", "-J", "-o", "NAME,PKNAME,RM,TRAN,FSTYPE,LABEL,MODEL,PATH"])
+    if raw.strip().startswith("{"):
+        try:
+            data = json.loads(raw)
+            def walk_devs(devs, parent_tran="", parent_model="", parent_path=""):
+                found = []
+                for d in devs:
+                    tran = (d.get("tran") or parent_tran or "").lower()
+                    model = (d.get("model") or parent_model or "").strip()
+                    path = d.get("path") or ("/dev/" + d.get("name", ""))
+                    fstype = (d.get("fstype") or "").lower()
+                    label = (d.get("label") or "").strip()
+                    is_usb = (tran == "usb")
+                    ch = d.get("children", [])
+                    if is_usb and not ch and fstype in ("vfat", "fat32", "exfat", "iso9660", "ntfs"):
+                        pnum_m = re.search(r"(\d+)$", path)
+                        pnum = int(pnum_m.group(1)) if pnum_m else 1
+                        disk_path = parent_path or re.sub(r"\d+$", "", path)
+                        disp = f"{model} ({label})" if (model and label) else (model or label or os.path.basename(path))
+                        found.append({"type": "blk", "num": "", "name": disp, "disk": disk_path, "part": pnum})
+                    if ch:
+                        found.extend(walk_devs(ch, tran, model, path))
+                return found
+            usb_parts = walk_devs(data.get("blockdevices", []))
+            if usb_parts:
+                return usb_parts[0]
+        except Exception:
+            pass
+    return None
 
 def get_systemd_boot_state(esp):
     loader_conf = os.path.join(esp, "loader/loader.conf")
@@ -94,50 +133,20 @@ def get_systemd_boot_state(esp):
         try:
             arr = json.loads(raw_json)
             for item in arr:
-                etype = item.get("type", "")
-                if etype == "auto-reboot-to-firmware-setup":
+                if item.get("type", "") == "auto-reboot-to-firmware-setup":
                     continue
                 eid = item.get("id", "")
                 title = item.get("showTitle") or item.get("title") or eid
                 ver = item.get("version") or ""
-                is_def = bool(item.get("isDefault", False))
-                is_sel = bool(item.get("isSelected", False))
                 entries.append({
                     "id": eid,
                     "title": title,
                     "version": ver,
-                    "is_default": is_def,
-                    "is_booted": is_sel
+                    "is_default": bool(item.get("isDefault", False)),
+                    "is_booted": bool(item.get("isSelected", False))
                 })
         except Exception:
             pass
-
-    if not entries:
-        entries_dir = os.path.join(esp, "loader/entries")
-        if os.path.isdir(entries_dir):
-            for fn in sorted(os.listdir(entries_dir)):
-                if not fn.endswith(".conf"):
-                    continue
-                fp = os.path.join(entries_dir, fn)
-                title = fn[:-5]
-                ver = ""
-                try:
-                    for ln in open(fp, "r", encoding="utf-8", errors="ignore"):
-                        ln = ln.strip()
-                        if ln.startswith("title "):
-                            title = ln[6:].strip()
-                        elif ln.startswith("version "):
-                            ver = ln[8:].strip()
-                except Exception:
-                    pass
-                entries.append({
-                    "id": fn,
-                    "title": title,
-                    "version": ver,
-                    "is_default": (default_pattern == fn or default_pattern == fn[:-5]),
-                    "is_booted": False
-                })
-
     return {
         "type": "systemd-boot",
         "config_path": loader_conf,
@@ -173,19 +182,17 @@ def get_grub_state():
             idx = 0
             for m in re.finditer(r"menuentry\s+['\"]([^'\"]+)['\"]", cfg):
                 title = m.group(1).strip()
-                is_def = (default_val == str(idx) or default_val == title)
                 entries.append({
                     "id": title,
                     "index": idx,
                     "title": title,
                     "version": f"Запись #{idx + 1}",
-                    "is_default": is_def,
+                    "is_default": (default_val == str(idx) or default_val == title),
                     "is_booted": False
                 })
                 idx += 1
         except Exception:
             pass
-
     return {
         "type": "grub",
         "config_path": "/etc/default/grub",
@@ -230,7 +237,7 @@ def get_limine_state(conf_path):
         "entries": entries
     }
 
-def build_status(msg=""):
+def build_status(msg="", auth_err=False):
     btype, bpath = detect_bootloader()
     if btype == "systemd-boot":
         st = get_systemd_boot_state(bpath)
@@ -251,8 +258,11 @@ def build_status(msg=""):
     st["efi_entries"] = efi_list
     if st["type"] == "efibootmgr":
         st["timeout"] = efi_to
+    usb_info = detect_bootable_usb(efi_list)
+    st["usb_name"] = usb_info["name"] if usb_info else ""
     fw_out = run_out(["bootctl", "set-reboot-to-firmware"]).strip().lower()
     st["fw_next"] = (fw_out == "yes" or fw_out == "true")
+    st["auth_error"] = auth_err
     st["status"] = msg or f"Активный загрузчик: {st['type']} ({st['config_path']})"
     return st
 
@@ -261,9 +271,7 @@ def root_apply_settings(timeout_sec, saved_def, editor_on):
     t_val = max(0, min(60, int(timeout_sec)))
     if btype == "systemd-boot":
         loader_conf = os.path.join(bpath, "loader/loader.conf")
-        lines = []
-        if os.path.exists(loader_conf):
-            lines = open(loader_conf, "r", encoding="utf-8", errors="ignore").read().splitlines()
+        lines = open(loader_conf, "r", encoding="utf-8", errors="ignore").read().splitlines() if os.path.exists(loader_conf) else []
         out_lines = []
         has_to, has_ed, has_def = False, False, False
         for ln in lines:
@@ -275,10 +283,7 @@ def root_apply_settings(timeout_sec, saved_def, editor_on):
                 out_lines.append(f"editor {'yes' if editor_on else 'no'}")
                 has_ed = True
             elif clean.startswith("default ") or clean.startswith("default\t"):
-                if saved_def:
-                    out_lines.append("default @saved")
-                else:
-                    out_lines.append(ln)
+                out_lines.append("default @saved" if saved_def else ln)
                 has_def = True
             else:
                 out_lines.append(ln)
@@ -326,41 +331,15 @@ def root_set_default(entry_id):
     btype, bpath = detect_bootloader()
     if btype == "systemd-boot":
         subprocess.run(["bootctl", "set-default", entry_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        loader_conf = os.path.join(bpath, "loader/loader.conf")
-        if os.path.exists(loader_conf):
-            lines = open(loader_conf, "r", encoding="utf-8", errors="ignore").read().splitlines()
-            out_lines = []
-            found = False
-            for ln in lines:
-                if ln.split("#")[0].strip().lower().startswith("default"):
-                    out_lines.append(f"default {entry_id}")
-                    found = True
-                else:
-                    out_lines.append(ln)
-            if not found:
-                out_lines.append(f"default {entry_id}")
-            with open(loader_conf, "w", encoding="utf-8") as f:
-                f.write("\n".join(out_lines) + "\n")
     elif btype == "grub":
         subprocess.run(["grub-set-default", entry_id], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         gfile = "/etc/default/grub"
         if os.path.exists(gfile):
             txt = open(gfile, "r", encoding="utf-8", errors="ignore").read()
-            if re.search(r"^GRUB_DEFAULT=", txt, re.M):
-                txt = re.sub(r"^GRUB_DEFAULT=.*$", f'GRUB_DEFAULT="{entry_id}"', txt, flags=re.M)
-            else:
-                txt += f'\nGRUB_DEFAULT="{entry_id}"\n'
+            txt = re.sub(r"^GRUB_DEFAULT=.*$", f'GRUB_DEFAULT="{entry_id}"', txt, flags=re.M)
             with open(gfile, "w", encoding="utf-8") as f:
                 f.write(txt)
             subprocess.run(["grub-mkconfig", "-o", "/boot/grub/grub.cfg"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif btype == "limine":
-        txt = open(bpath, "r", encoding="utf-8", errors="ignore").read()
-        if re.search(r"^default_entry:\s*.*$", txt, re.M | re.I):
-            txt = re.sub(r"^default_entry:\s*.*$", f"default_entry: {entry_id}", txt, flags=re.M | re.I)
-        else:
-            txt = f"default_entry: {entry_id}\n" + txt
-        with open(bpath, "w", encoding="utf-8") as f:
-            f.write(txt)
 
 def root_boot_oneshot(entry_id, do_reboot):
     btype, _ = detect_bootloader()
@@ -371,17 +350,18 @@ def root_boot_oneshot(entry_id, do_reboot):
     if do_reboot:
         subprocess.Popen(["systemctl", "reboot"])
 
-def root_efi_set_first(boot_num):
+def root_efi_reorder(comma_nums):
+    req_nums = [x.strip().upper() for x in comma_nums.split(",") if x.strip()]
     entries, _ = parse_efibootmgr()
-    nums = [x["num"] for x in entries if x["num"] != boot_num.upper()]
-    new_order = ",".join([boot_num.upper()] + nums)
+    all_nums = [x["num"] for x in entries]
+    tail = [n for n in all_nums if n not in req_nums]
+    new_order = ",".join(req_nums + tail)
     subprocess.run(["efibootmgr", "-o", new_order], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def root_efi_boot_next(boot_num, do_reboot):
     subprocess.run(["efibootmgr", "-n", boot_num.upper()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if do_reboot:
         subprocess.Popen(["systemctl", "reboot"])
-
 
 def root_set_fw_next(enable):
     subprocess.run(["bootctl", "set-reboot-to-firmware", "true" if enable else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -390,18 +370,23 @@ def root_reboot_bios():
     subprocess.run(["bootctl", "set-reboot-to-firmware", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.Popen(["systemctl", "reboot", "--firmware-setup"])
 
-def root_reboot_bootmenu():
-    btype, bpath = detect_bootloader()
-    if btype == "systemd-boot":
-        subprocess.run(["bootctl", "set-timeout-oneshot", "30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif btype == "grub":
-        subprocess.run(["grub-editenv", "/boot/grub/grubenv", "set", "menu_show_once=1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        subprocess.run(["grub-editenv", "/boot/grub/grubenv", "set", " recordfail=1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    elif btype == "limine" and os.path.exists(bpath):
-        root_apply_settings(15, False, True)
-    else:
-        subprocess.run(["efibootmgr", "-t", "10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.Popen(["systemctl", "reboot"])
+def root_boot_usb():
+    efi_list, _ = parse_efibootmgr()
+    usb = detect_bootable_usb(efi_list)
+    if not usb:
+        sys.exit(2)
+    if usb["type"] == "efi" and usb.get("num"):
+        subprocess.run(["efibootmgr", "-n", usb["num"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["systemctl", "reboot"])
+    elif usb["type"] == "blk" and usb.get("disk"):
+        subprocess.run([
+            "efibootmgr", "-c", "-d", usb["disk"], "-p", str(usb["part"]),
+            "-L", f"USB: {usb['name']}", "-l", "\\EFI\\BOOT\\BOOTX64.EFI"
+        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        efi_after, _ = parse_efibootmgr()
+        if efi_after:
+            subprocess.run(["efibootmgr", "-n", efi_after[0]["num"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.Popen(["systemctl", "reboot"])
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
@@ -411,46 +396,44 @@ if __name__ == "__main__":
         root_set_default(sys.argv[2])
     elif cmd == "_root_oneshot":
         root_boot_oneshot(sys.argv[2], sys.argv[3] == "1")
-    elif cmd == "_root_efi_first":
-        root_efi_set_first(sys.argv[2])
+    elif cmd == "_root_efi_reorder":
+        root_efi_reorder(sys.argv[2])
     elif cmd == "_root_efi_next":
         root_efi_boot_next(sys.argv[2], sys.argv[3] == "1")
-    elif cmd == "apply":
-        run_root(["_root_apply", sys.argv[2], sys.argv[3], sys.argv[4]])
-        print(json.dumps(build_status("Настройки загрузчика сохранены ✓"), ensure_ascii=False))
-    elif cmd == "set_default":
-        eid = sys.argv[2] if len(sys.argv) > 2 else ""
-        run_root(["_root_default", eid])
-        print(json.dumps(build_status(f"Запись по умолчанию изменена: {eid} ✓"), ensure_ascii=False))
-    elif cmd == "oneshot":
-        eid = sys.argv[2] if len(sys.argv) > 2 else ""
-        reb = sys.argv[3] if len(sys.argv) > 3 else "0"
-        run_root(["_root_oneshot", eid, reb])
-        print(json.dumps(build_status(f"Следующая загрузка: {eid} ✓"), ensure_ascii=False))
-    elif cmd == "efi_first":
-        bnum = sys.argv[2] if len(sys.argv) > 2 else ""
-        run_root(["_root_efi_first", bnum])
-        print(json.dumps(build_status(f"Приоритет UEFI изменен: Boot{bnum} на 1-м месте ✓"), ensure_ascii=False))
-    elif cmd == "efi_next":
-        bnum = sys.argv[2] if len(sys.argv) > 2 else ""
-        reb = sys.argv[3] if len(sys.argv) > 3 else "0"
-        run_root(["_root_efi_next", bnum, reb])
-        print(json.dumps(build_status(f"Следующая загрузка UEFI: Boot{bnum} ✓"), ensure_ascii=False))
     elif cmd == "_root_fw_next":
         root_set_fw_next(sys.argv[2] == "1")
     elif cmd == "_root_reboot_bios":
         root_reboot_bios()
-    elif cmd == "_root_reboot_bootmenu":
-        root_reboot_bootmenu()
-    elif cmd == "set_fw_next":
-        en = sys.argv[2] if len(sys.argv) > 2 else "1"
-        run_root(["_root_fw_next", en])
-        print(json.dumps(build_status("Вход в BIOS при следующей перезагрузке включен ✓" if en == "1" else "Вход в BIOS при следующей перезагрузке отменен"), ensure_ascii=False))
-    elif cmd == "reboot_bios":
-        run_root(["_root_reboot_bios"])
-        print(json.dumps(build_status("Перезагрузка в BIOS / UEFI..."), ensure_ascii=False))
-    elif cmd == "reboot_bootmenu":
-        run_root(["_root_reboot_bootmenu"])
-        print(json.dumps(build_status("Перезагрузка в Boot-меню..."), ensure_ascii=False))
+    elif cmd == "_root_boot_usb":
+        root_boot_usb()
+    elif cmd in ("apply", "set_default", "oneshot", "efi_reorder", "efi_next", "set_fw_next", "reboot_bios", "boot_usb"):
+        pwd = sys.stdin.read().strip() if not sys.stdin.isatty() else ""
+        map_cmd = {
+            "apply": ["_root_apply", sys.argv[2] if len(sys.argv) > 2 else "5", sys.argv[3] if len(sys.argv) > 3 else "0", sys.argv[4] if len(sys.argv) > 4 else "1"],
+            "set_default": ["_root_default", sys.argv[2] if len(sys.argv) > 2 else ""],
+            "oneshot": ["_root_oneshot", sys.argv[2] if len(sys.argv) > 2 else "", sys.argv[3] if len(sys.argv) > 3 else "0"],
+            "efi_reorder": ["_root_efi_reorder", sys.argv[2] if len(sys.argv) > 2 else ""],
+            "efi_next": ["_root_efi_next", sys.argv[2] if len(sys.argv) > 2 else "", sys.argv[3] if len(sys.argv) > 3 else "0"],
+            "set_fw_next": ["_root_fw_next", sys.argv[2] if len(sys.argv) > 2 else "1"],
+            "reboot_bios": ["_root_reboot_bios"],
+            "boot_usb": ["_root_boot_usb"]
+        }
+        res = run_root(map_cmd[cmd], pwd)
+        if res.returncode == 2:
+            print(json.dumps(build_status("Загрузочная USB-флешка не обнаружена. Вставьте флешку и нажмите «Обновить».", False), ensure_ascii=False))
+        elif res.returncode != 0:
+            print(json.dumps(build_status("Неверный пароль администратора", True), ensure_ascii=False))
+        else:
+            ok_msgs = {
+                "apply": "Настройки загрузчика сохранены ✓",
+                "set_default": "Запись по умолчанию обновлена ✓",
+                "oneshot": "Выбрана запись для следующей загрузки ✓",
+                "efi_reorder": "Новый порядок загрузки BIOS / UEFI сохранен ✓",
+                "efi_next": "Перезагрузка в выбранную систему...",
+                "set_fw_next": "Параметр входа в BIOS обновлен ✓",
+                "reboot_bios": "Перезагрузка в BIOS / UEFI...",
+                "boot_usb": "Перезагрузка с загрузочной USB-флешки..."
+            }
+            print(json.dumps(build_status(ok_msgs.get(cmd, "Готово ✓"), False), ensure_ascii=False))
     else:
         print(json.dumps(build_status(), ensure_ascii=False))

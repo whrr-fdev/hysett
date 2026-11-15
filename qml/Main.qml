@@ -2318,7 +2318,7 @@ ApplicationWindow {
                                         width: 32; height: topBarContainer.pillHeight - 4
                                         anchors.verticalCenter: parent.verticalCenter
                                         radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
-                                        color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                        color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
                                         border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                         border.width: 1
                                         Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 9; font.bold: true }
@@ -2392,7 +2392,7 @@ ApplicationWindow {
                                     anchors.centerIn: parent
                                     anchors.horizontalCenterOffset: rightModBody.innerShiftX
                                     radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
-                                    color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                    color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
                                     border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                     border.width: 1
 
@@ -3063,7 +3063,7 @@ ApplicationWindow {
                                 width: topBarContainer.pillHeight - 4; height: 16
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 radius: (Theme && Theme.isRounded) ? 5 : 0
-                                color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                                color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
                                 border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; border.width: 1
                                 Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 7; font.bold: true }
                                 MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
@@ -3191,7 +3191,7 @@ ApplicationWindow {
                         width: topBarContainer.pillHeight; height: 28
                         anchors.horizontalCenter: parent.horizontalCenter
                         radius: topBarContainer.pillRadius
-                        color: (Theme && Theme.isRounded && Config) ? Config.m3SecondaryContainer : "transparent"
+                        color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
                         Text { anchors.centerIn: parent; text: "⏻"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 12 }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("power") }
                     }

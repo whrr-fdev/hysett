@@ -166,7 +166,7 @@ echo "==> Восстановление успешно завершено! ✓"
     for cname in ("hypr", "kitty", "btop", "gtk-3.0", "gtk-4.0"):
         src_c = os.path.join(HOME, ".config", cname)
         if os.path.exists(src_c):
-            shutil.copytree(src_c, os.path.join(cfg_stage, cname), symlinks=False, ignore=shutil.ignore_patterns("*.sock", "*.lock", "vpn_state.json", "singbox_vpn.json", "*.bak*"), dirs_exist_ok=True)
+            shutil.copytree(src_c, os.path.join(cfg_stage, cname), symlinks=False, ignore_dangling_symlinks=True, ignore=shutil.ignore_patterns("*.sock", "*.lock", "vpn_state.json", "singbox_vpn.json", "*.bak*"), dirs_exist_ok=True)
 
     write_prog(True, 65, "Копирование скриптов и профилей HySett...")
     hs_stage = os.path.join(stage_dir, "hysett_data")

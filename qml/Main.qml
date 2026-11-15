@@ -479,7 +479,7 @@ ApplicationWindow {
         var isM3 = (Theme && Theme.isRounded)
         if (drawerMode === "traymenu") return 196
         if (drawerMode === "filedrop") return isM3 ? 270 : 252
-        if (drawerMode === "power") return isM3 ? 360 : 340
+        if (drawerMode === "power") return isM3 ? 316 : 296
         if (drawerMode === "calendar") return isM3 ? 298 : 280
         if (drawerMode === "volume") {
             var sCnt = (Waybar && Waybar.audioStreams) ? Waybar.audioStreams.length : 0
@@ -3849,7 +3849,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            readonly property int itemCount: 6
+                            readonly property int itemCount: 5
                             readonly property real gap: 5
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 
@@ -3981,7 +3981,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
 
-                            readonly property int itemCount: 5
+                            readonly property int itemCount: 6
                             readonly property real gap: 6
                             readonly property real btnH: Math.max(28, (height - gap * (itemCount - 1)) / itemCount)
 

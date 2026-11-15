@@ -551,7 +551,7 @@ Item {
                                             }
                                         }
                                         Text {
-                                            text: (modelData.is_primary ? "★ Открывается по главной ссылке  •  " : "") + modelData.size + "  •  " + modelData.time
+                                            text: (modelData.is_primary ? "󰄬 Открывается по главной ссылке  •  " : "") + modelData.size + "  •  " + modelData.time
                                             color: modelData.is_primary ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
                                             font.pixelSize: Config ? Config.fontSize - 2 : 9
                                         }

@@ -646,13 +646,28 @@ ApplicationWindow {
             Qt.callLater(syncTabBlur)
         }
     }
+    Timer {
+        id: delayedRamTrimTimer
+        interval: 220
+        repeat: false
+        onTriggered: {
+            gc()
+            if (Hypr) {
+                if (!root.drawerActive) Hypr.deepCleanMemory()
+                else Hypr.trimMemory()
+            }
+        }
+    }
+
     onDrawerActiveChanged: {
         syncInputMask()
         if (!drawerActive) {
             if (Config && !Config.rememberLastTab) pageController.resetToWelcomeInstant()
             if (Apps) { Apps.clearFileSearch(); Apps.clearPackageSearch() }
             if (Atmosphere) Atmosphere.releaseInAppCaches()
+            gc()
             if (Hypr) Hypr.deepCleanMemory()
+            delayedRamTrimTimer.restart()
         }
     }
     onNotifActiveChanged: syncInputMask()
@@ -4450,6 +4465,7 @@ ApplicationWindow {
                         inTransition = false
                         if (cur && cur.item && cur.item.focusSearchInput) Qt.callLater(cur.item.focusSearchInput)
                         if (Hypr) Hypr.trimMemory()
+                        delayedRamTrimTimer.restart()
                     }
 
                     ParallelAnimation {
@@ -4590,9 +4606,9 @@ ApplicationWindow {
                             x: index === 0 ? 0 : pageController.sidebarW
                             width: index === 0 ? pageController.width : (pageController.width - pageController.sidebarW)
                             height: pageController.height
-                            active: index === 0 || (root.drawerActive && root.drawerMode === "settings" && (
+                            active: root.drawerActive && root.drawerMode === "settings" && (
                                     index === pageController.currentIndex ||
-                                    (pageController.inTransition && index === pageController.previousIndex)))
+                                    (pageController.inTransition && index === pageController.previousIndex))
                             source: modelData
                             visible: index === 0
                             opacity: index === 0 ? 1.0 : 0.0

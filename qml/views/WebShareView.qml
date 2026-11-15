@@ -9,7 +9,6 @@ Item {
     readonly property bool isM3: Theme && Theme.isRounded
     property bool hideUrl: false
     readonly property bool effHide: hideUrl || (Config && Config.streamerMode)
-    property bool showHtmlEditor: false
 
     Component.onCompleted: {
         if (Config) Config.refreshWebShareState()
@@ -58,7 +57,7 @@ Item {
                     Layout.fillWidth: true
                     spacing: 10
                     Text {
-                        text: "󰖟  Хостинг сайтов (.html) и раздача файлов другу"
+                        text: "󰖟  Хостинг сайтов и файлов"
                         color: "#ffffff"
                         font.pixelSize: Config ? Config.fontSize + 3 : 14
                         font.bold: true
@@ -89,8 +88,8 @@ Item {
                         spacing: 18
 
                         Rectangle {
-                            Layout.preferredWidth: 136
-                            Layout.preferredHeight: 136
+                            Layout.preferredWidth: 132
+                            Layout.preferredHeight: 132
                             radius: webRoot.isM3 ? 14 : 0
                             color: (!webRoot.effHide && Config && Config.webShareQrPath.length > 0) ? "#ffffff" : Qt.rgba(1, 1, 1, 0.06)
                             border.color: Config ? Config.m3Primary : "#ffffff"
@@ -190,20 +189,14 @@ Item {
                                 spacing: 10
                                 StyledButton {
                                     text: (Config && Config.webShareRunning) ? "󰅖  Остановить раздачу" : "󰖟  Запустить сервер"
-                                    isActive: !(Config && Config.webShareRunning)
                                     onClicked: if (Config) Config.toggleWebShare()
-                                }
-                                StyledButton {
-                                    text: webRoot.showHtmlEditor ? "󰌝  Скрыть HTML-редактор" : "󰌝  Создать сайт из HTML-кода"
-                                    isActive: webRoot.showHtmlEditor
-                                    onClicked: webRoot.showHtmlEditor = !webRoot.showHtmlEditor
                                 }
                             }
                         }
                     }
                 }
 
-                // 2. КАРТОЧКА ЗАГРУЗКИ САЙТА (.HTML / ПАПКА / ZIP) ИЛИ ФАЙЛА
+                // 2. КАРТОЧКА ЗАГРУЗКИ САЙТА ИЛИ ФАЙЛА
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: addCol.implicitHeight + 28
@@ -214,11 +207,21 @@ Item {
                         anchors.margins: 14
                         spacing: 10
 
-                        Text {
-                            text: "󰇚  Загрузить сайт (.html / папку / .zip) или любой файл (можно перетащить сюда мышкой)"
-                            color: "#ffffff"
-                            font.pixelSize: Config ? Config.fontSize + 1 : 12
-                            font.bold: true
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "󰇚"
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 2 : 13
+                            }
+                            Text {
+                                text: "Загрузить сайт (.html / папку / .zip) или файл"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
                         }
 
                         RowLayout {
@@ -258,94 +261,20 @@ Item {
 
                             StyledButton {
                                 text: "󰖟 Локально"
-                                isActive: true
                                 enabled: pathField.text.trim().length > 0
                                 onClicked: if (Config && pathField.text.trim().length > 0) Config.hostPathForFriend(pathField.text.trim())
                             }
 
                             StyledButton {
                                 text: "󰅧 Автономно 24/7"
-                                isActive: true
                                 enabled: pathField.text.trim().length > 0
                                 onClicked: if (Config && pathField.text.trim().length > 0) Config.cloudHostPathForFriend(pathField.text.trim())
-                            }
-                        }
-
-                        ColumnLayout {
-                            visible: webRoot.showHtmlEditor
-                            Layout.fillWidth: true
-                            spacing: 8
-
-                            Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                spacing: 8
-                                TextField {
-                                    id: htmlTitleField
-                                    Layout.preferredWidth: 220
-                                    implicitHeight: 28
-                                    leftPadding: 10; rightPadding: 10
-                                    color: "#ffffff"
-                                    font.pixelSize: Config ? Config.fontSize : 11
-                                    placeholderText: "Название (например site.html)"
-                                    placeholderTextColor: "#777777"
-                                    background: Rectangle {
-                                        radius: webRoot.isM3 ? 8 : 0
-                                        color: webRoot.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.06)
-                                        border.color: Qt.rgba(1, 1, 1, 0.16)
-                                        border.width: webRoot.isM3 ? 0 : 1
-                                    }
-                                }
-                                Item { Layout.fillWidth: true }
-                                StyledButton {
-                                    text: "󰖟 Локальный сайт"
-                                    isActive: true
-                                    enabled: htmlCodeArea.text.trim().length > 0
-                                    onClicked: {
-                                        if (Config && htmlCodeArea.text.trim().length > 0) {
-                                            Config.hostHtmlCodeForFriend(htmlCodeArea.text, htmlTitleField.text)
-                                            webRoot.showHtmlEditor = false
-                                        }
-                                    }
-                                }
-                                StyledButton {
-                                    text: "󰅧 Автономный сайт 24/7"
-                                    isActive: true
-                                    enabled: htmlCodeArea.text.trim().length > 0
-                                    onClicked: {
-                                        if (Config && htmlCodeArea.text.trim().length > 0) {
-                                            Config.cloudHostHtmlForFriend(htmlCodeArea.text, htmlTitleField.text)
-                                            webRoot.showHtmlEditor = false
-                                        }
-                                    }
-                                }
-                            }
-
-                            ScrollView {
-                                Layout.fillWidth: true
-                                Layout.preferredHeight: 130
-                                clip: true
-                                TextArea {
-                                    id: htmlCodeArea
-                                    color: "#ffffff"
-                                    font.family: "monospace"
-                                    font.pixelSize: 11
-                                    placeholderText: "<!DOCTYPE html>\n<html>\n<body>\n  <h1>Привет!</h1>\n</body>\n</html>"
-                                    placeholderTextColor: "#666666"
-                                    background: Rectangle {
-                                        radius: webRoot.isM3 ? 8 : 0
-                                        color: Qt.rgba(0, 0, 0, 0.28)
-                                        border.color: Qt.rgba(1, 1, 1, 0.14)
-                                        border.width: 1
-                                    }
-                                }
                             }
                         }
                     }
                 }
 
-                // 4. АВТОНОМНЫЕ ССЫЛКИ 24/7 (РАБОТАЮТ ПРИ ВЫКЛЮЧЕННОМ ПК)
+                // 3. АВТОНОМНЫЕ ССЫЛКИ 24/7 (РАБОТАЮТ ПРИ ВЫКЛЮЧЕННОМ ПК)
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: cloudListCol.implicitHeight + 28
@@ -358,8 +287,14 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
+                            spacing: 8
                             Text {
-                                text: "󰅧  Автономные сайты и файлы 24/7 • Работают при выкл. ПК (" + (Config ? Config.webShareCloudItems.length : 0) + ")"
+                                text: "󰅧"
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 2 : 13
+                            }
+                            Text {
+                                text: "Автономные сайты и файлы 24/7 (" + (Config ? Config.webShareCloudItems.length : 0) + ")"
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize + 1 : 12
                                 font.bold: true
@@ -367,98 +302,137 @@ Item {
                             }
                         }
 
-                        Text {
-                            visible: !Config || Config.webShareCloudItems.length === 0
-                            text: "Нажмите «󰅧 Автономно 24/7» выше, чтобы выложить сайт или файл, который будет открываться даже когда ваш ПК выключен."
-                            color: "#777777"
-                            wrapMode: Text.Wrap
+                        Item {
+                            id: cloudHoverWrap
+                            visible: Config && Config.webShareCloudItems.length > 0
                             Layout.fillWidth: true
-                            font.pixelSize: Config ? Config.fontSize : 11
-                        }
+                            implicitHeight: cloudInnerCol.implicitHeight
+                            property bool isHovering: false
+                            property real hovY: 0
+                            property real hovH: 48
 
-                        Repeater {
-                            model: Config ? Config.webShareCloudItems : []
-                            delegate: Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: 48
+                            Timer {
+                                id: cloudHoverHold
+                                interval: 45
+                                onTriggered: cloudHoverWrap.isHovering = false
+                            }
+
+                            Rectangle {
+                                z: 1
+                                opacity: cloudHoverWrap.isHovering ? 1.0 : 0.0
+                                x: 0; y: cloudHoverWrap.hovY
+                                width: cloudHoverWrap.width; height: cloudHoverWrap.hovH
                                 radius: webRoot.isM3 ? 10 : 0
-                                color: Qt.rgba(1, 1, 1, 0.04)
-                                border.color: Qt.rgba(0.41, 0.94, 0.68, 0.28)
-                                border.width: 1
+                                color: webRoot.isM3 && Config
+                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14)
+                                       : Qt.rgba(1, 1, 1, 0.10)
+                                Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 115 } }
+                            }
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 10
-                                    spacing: 10
+                            ColumnLayout {
+                                id: cloudInnerCol
+                                z: 2; width: parent.width; spacing: 6
 
-                                    Text {
-                                        text: modelData.kind === "site" ? "󰖟" : "󰅧"
-                                        color: "#69f0ae"
-                                        font.pixelSize: 16
-                                    }
-
-                                    ColumnLayout {
+                                Repeater {
+                                    model: Config ? Config.webShareCloudItems : []
+                                    delegate: Rectangle {
+                                        id: cloudRowRect
                                         Layout.fillWidth: true
-                                        spacing: 1
+                                        implicitHeight: 48
+                                        radius: webRoot.isM3 ? 10 : 0
+                                        color: Qt.rgba(1, 1, 1, 0.04)
+                                        border.color: Qt.rgba(0.41, 0.94, 0.68, 0.28)
+                                        border.width: 1
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            acceptedButtons: Qt.NoButton
+                                            onEntered: {
+                                                cloudHoverHold.stop()
+                                                cloudHoverWrap.hovY = cloudRowRect.y
+                                                cloudHoverWrap.hovH = cloudRowRect.height
+                                                cloudHoverWrap.isHovering = true
+                                            }
+                                            onExited: cloudHoverHold.restart()
+                                        }
+
                                         RowLayout {
-                                            spacing: 6
-                                            Rectangle {
-                                                width: cBadgeTxt.implicitWidth + 10
-                                                height: 17
-                                                radius: 4
-                                                color: Qt.rgba(0.4, 0.95, 0.68, 0.18)
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 12
+                                            anchors.rightMargin: 10
+                                            spacing: 10
+
+                                            Text {
+                                                text: modelData.kind === "site" ? "󰖟" : "󰅧"
+                                                color: "#69f0ae"
+                                                font.pixelSize: 16
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 1
+                                                RowLayout {
+                                                    spacing: 6
+                                                    Rectangle {
+                                                        width: cBadgeTxt.implicitWidth + 10
+                                                        height: 17
+                                                        radius: 4
+                                                        color: Qt.rgba(0.4, 0.95, 0.68, 0.18)
+                                                        Text {
+                                                            id: cBadgeTxt
+                                                            anchors.centerIn: parent
+                                                            text: modelData.kind === "site" ? "24/7 САЙТ" : "24/7 ФАЙЛ"
+                                                            color: "#69f0ae"
+                                                            font.pixelSize: 9
+                                                            font.bold: true
+                                                        }
+                                                    }
+                                                    Text {
+                                                        text: modelData.label
+                                                        color: "#ffffff"
+                                                        font.pixelSize: Config ? Config.fontSize : 11
+                                                        font.bold: true
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                    }
+                                                }
                                                 Text {
-                                                    id: cBadgeTxt
-                                                    anchors.centerIn: parent
-                                                    text: modelData.kind === "site" ? "24/7 САЙТ" : "24/7 ФАЙЛ"
-                                                    color: "#69f0ae"
-                                                    font.pixelSize: 9
-                                                    font.bold: true
+                                                    text: (webRoot.effHide ? "https://••••••••••••••••••••••••" : modelData.url) + "  •  " + modelData.size + "  •  " + modelData.time
+                                                    color: "#999999"
+                                                    elide: Text.ElideMiddle
+                                                    Layout.fillWidth: true
+                                                    font.pixelSize: Config ? Config.fontSize - 2 : 9
                                                 }
                                             }
-                                            Text {
-                                                text: modelData.label
-                                                color: "#ffffff"
-                                                font.pixelSize: Config ? Config.fontSize : 11
-                                                font.bold: true
-                                                elide: Text.ElideRight
-                                                Layout.fillWidth: true
+
+                                            StyledButton {
+                                                text: "󰐲 QR"
+                                                implicitHeight: 24
+                                                onClicked: if (Config) Config.selectCloudShareQr(modelData.id)
+                                            }
+
+                                            StyledButton {
+                                                text: "󰆏 Ссылка"
+                                                implicitHeight: 24
+                                                onClicked: if (Waybar) Waybar.runCommand("printf '%s' '" + modelData.url + "' | wl-copy")
+                                            }
+
+                                            StyledButton {
+                                                text: "󰖟 Открыть"
+                                                implicitHeight: 24
+                                                onClicked: if (Waybar) Waybar.runCommand("xdg-open '" + modelData.url + "'")
+                                            }
+
+                                            StyledButton {
+                                                text: "󰅖"
+                                                isIconOnly: true
+                                                implicitWidth: 24
+                                                implicitHeight: 24
+                                                onClicked: if (Config) Config.removeCloudShareItem(modelData.id)
                                             }
                                         }
-                                        Text {
-                                            text: (webRoot.effHide ? "https://••••••••••••••••••••••••" : modelData.url) + "  •  " + modelData.size + "  •  " + modelData.time
-                                            color: "#999999"
-                                            elide: Text.ElideMiddle
-                                            Layout.fillWidth: true
-                                            font.pixelSize: Config ? Config.fontSize - 2 : 9
-                                        }
-                                    }
-
-                                    StyledButton {
-                                        text: "󰐲 QR"
-                                        implicitHeight: 24
-                                        onClicked: if (Config) Config.selectCloudShareQr(modelData.id)
-                                    }
-
-                                    StyledButton {
-                                        text: "󰆏 Ссылка"
-                                        implicitHeight: 24
-                                        onClicked: if (Waybar) Waybar.runCommand("printf '%s' '" + modelData.url + "' | wl-copy")
-                                    }
-
-                                    StyledButton {
-                                        text: "󰖟 Открыть"
-                                        implicitHeight: 24
-                                        onClicked: if (Waybar) Waybar.runCommand("xdg-open '" + modelData.url + "'")
-                                    }
-
-                                    StyledButton {
-                                        text: "󰅖"
-                                        isIconOnly: true
-                                        implicitWidth: 24
-                                        implicitHeight: 24
-                                        onClicked: if (Config) Config.removeCloudShareItem(modelData.id)
                                     }
                                 }
                             }
@@ -466,7 +440,7 @@ Item {
                     }
                 }
 
-                // 3. ОПУБЛИКОВАННЫЕ САЙТЫ И ФАЙЛЫ
+                // 4. ОПУБЛИКОВАННЫЕ ЛОКАЛЬНЫЕ САЙТЫ И ФАЙЛЫ
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: listCol.implicitHeight + 28
@@ -479,8 +453,14 @@ Item {
 
                         RowLayout {
                             Layout.fillWidth: true
+                            spacing: 8
                             Text {
-                                text: "󰋚  Опубликованные сайты и файлы (" + (Config ? Config.webShareItems.length : 0) + ")"
+                                text: "󰋚"
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 2 : 13
+                            }
+                            Text {
+                                text: "Опубликованные сайты и файлы (" + (Config ? Config.webShareItems.length : 0) + ")"
                                 color: "#ffffff"
                                 font.pixelSize: Config ? Config.fontSize + 1 : 12
                                 font.bold: true
@@ -493,95 +473,136 @@ Item {
                             }
                         }
 
-                        Text {
-                            visible: !Config || Config.webShareItems.length === 0
-                            text: "Перетащите сюда .html файл сайта или любой файл — появится ссылка для друга."
-                            color: "#777777"
-                            font.pixelSize: Config ? Config.fontSize : 11
-                        }
+                        Item {
+                            id: localHoverWrap
+                            visible: Config && Config.webShareItems.length > 0
+                            Layout.fillWidth: true
+                            implicitHeight: localInnerCol.implicitHeight
+                            property bool isHovering: false
+                            property real hovY: 0
+                            property real hovH: 46
 
-                        Repeater {
-                            model: Config ? Config.webShareItems : []
-                            delegate: Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: 46
+                            Timer {
+                                id: localHoverHold
+                                interval: 45
+                                onTriggered: localHoverWrap.isHovering = false
+                            }
+
+                            Rectangle {
+                                z: 1
+                                opacity: localHoverWrap.isHovering ? 1.0 : 0.0
+                                x: 0; y: localHoverWrap.hovY
+                                width: localHoverWrap.width; height: localHoverWrap.hovH
                                 radius: webRoot.isM3 ? 10 : 0
-                                color: modelData.is_primary ? Qt.rgba(Config ? Config.m3Primary.r : 0.6, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 1.0, 0.14) : Qt.rgba(1, 1, 1, 0.04)
-                                border.color: modelData.is_primary ? (Config ? Config.m3Primary : "#a8c7fa") : Qt.rgba(1, 1, 1, 0.12)
-                                border.width: 1
+                                color: webRoot.isM3 && Config
+                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14)
+                                       : Qt.rgba(1, 1, 1, 0.10)
+                                Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 115 } }
+                            }
 
-                                RowLayout {
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 12
-                                    anchors.rightMargin: 10
-                                    spacing: 10
+                            ColumnLayout {
+                                id: localInnerCol
+                                z: 2; width: parent.width; spacing: 6
 
-                                    Text {
-                                        text: modelData.kind === "site" ? "󰖟" : "󰈔"
-                                        color: modelData.kind === "site" ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
-                                        font.pixelSize: 16
-                                    }
-
-                                    ColumnLayout {
+                                Repeater {
+                                    model: Config ? Config.webShareItems : []
+                                    delegate: Rectangle {
+                                        id: localRowRect
                                         Layout.fillWidth: true
-                                        spacing: 1
+                                        implicitHeight: 46
+                                        radius: webRoot.isM3 ? 10 : 0
+                                        color: modelData.is_primary ? Qt.rgba(Config ? Config.m3Primary.r : 0.6, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 1.0, 0.14) : Qt.rgba(1, 1, 1, 0.04)
+                                        border.color: modelData.is_primary ? (Config ? Config.m3Primary : "#a8c7fa") : Qt.rgba(1, 1, 1, 0.12)
+                                        border.width: 1
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            acceptedButtons: Qt.NoButton
+                                            onEntered: {
+                                                localHoverHold.stop()
+                                                localHoverWrap.hovY = localRowRect.y
+                                                localHoverWrap.hovH = localRowRect.height
+                                                localHoverWrap.isHovering = true
+                                            }
+                                            onExited: localHoverHold.restart()
+                                        }
+
                                         RowLayout {
-                                            spacing: 6
-                                            Rectangle {
-                                                width: kindBadgeTxt.implicitWidth + 10
-                                                height: 17
-                                                radius: 4
-                                                color: modelData.kind === "site" ? Qt.rgba(0.4, 0.95, 0.68, 0.18) : Qt.rgba(1, 1, 1, 0.12)
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 12
+                                            anchors.rightMargin: 10
+                                            spacing: 10
+
+                                            Text {
+                                                text: modelData.kind === "site" ? "󰖟" : "󰈔"
+                                                color: modelData.kind === "site" ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
+                                                font.pixelSize: 16
+                                            }
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 1
+                                                RowLayout {
+                                                    spacing: 6
+                                                    Rectangle {
+                                                        width: kindBadgeTxt.implicitWidth + 10
+                                                        height: 17
+                                                        radius: 4
+                                                        color: modelData.kind === "site" ? Qt.rgba(0.4, 0.95, 0.68, 0.18) : Qt.rgba(1, 1, 1, 0.12)
+                                                        Text {
+                                                            id: kindBadgeTxt
+                                                            anchors.centerIn: parent
+                                                            text: modelData.kind === "site" ? "САЙТ" : "ФАЙЛ"
+                                                            color: modelData.kind === "site" ? "#69f0ae" : "#dddddd"
+                                                            font.pixelSize: 9
+                                                            font.bold: true
+                                                        }
+                                                    }
+                                                    Text {
+                                                        text: modelData.label
+                                                        color: "#ffffff"
+                                                        font.pixelSize: Config ? Config.fontSize : 11
+                                                        font.bold: true
+                                                        elide: Text.ElideRight
+                                                        Layout.fillWidth: true
+                                                    }
+                                                }
                                                 Text {
-                                                    id: kindBadgeTxt
-                                                    anchors.centerIn: parent
-                                                    text: modelData.kind === "site" ? "САЙТ" : "ФАЙЛ"
-                                                    color: modelData.kind === "site" ? "#69f0ae" : "#dddddd"
-                                                    font.pixelSize: 9
-                                                    font.bold: true
+                                                    text: (modelData.is_primary ? "󰄬 Открывается по главной ссылке  •  " : "") + modelData.size + "  •  " + modelData.time
+                                                    color: modelData.is_primary ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
+                                                    font.pixelSize: Config ? Config.fontSize - 2 : 9
                                                 }
                                             }
-                                            Text {
-                                                text: modelData.label
-                                                color: "#ffffff"
-                                                font.pixelSize: Config ? Config.fontSize : 11
-                                                font.bold: true
-                                                elide: Text.ElideRight
-                                                Layout.fillWidth: true
+
+                                            StyledButton {
+                                                visible: !modelData.is_primary
+                                                text: "На главную"
+                                                implicitHeight: 24
+                                                onClicked: if (Config) Config.setPrimaryWebShareItem(modelData.id)
+                                            }
+
+                                            StyledButton {
+                                                text: "󰆏 Ссылка"
+                                                implicitHeight: 24
+                                                onClicked: {
+                                                    if (Waybar && Config && Config.webShareUrl.length > 0) {
+                                                        var base = Config.webShareUrl.replace(/\/$/, "")
+                                                        var direct = modelData.is_primary ? base : (modelData.kind === "site" ? (base + "/site/" + modelData.id + "/") : (base + "/f/" + modelData.id))
+                                                        Waybar.runCommand("printf '%s' '" + direct + "' | wl-copy")
+                                                    }
+                                                }
+                                            }
+
+                                            StyledButton {
+                                                text: "󰅖"
+                                                isIconOnly: true
+                                                implicitWidth: 24
+                                                implicitHeight: 24
+                                                onClicked: if (Config) Config.removeWebShareItem(modelData.id)
                                             }
                                         }
-                                        Text {
-                                            text: (modelData.is_primary ? "󰄬 Открывается по главной ссылке  •  " : "") + modelData.size + "  •  " + modelData.time
-                                            color: modelData.is_primary ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
-                                            font.pixelSize: Config ? Config.fontSize - 2 : 9
-                                        }
-                                    }
-
-                                    StyledButton {
-                                        visible: !modelData.is_primary
-                                        text: "На главную"
-                                        implicitHeight: 24
-                                        onClicked: if (Config) Config.setPrimaryWebShareItem(modelData.id)
-                                    }
-
-                                    StyledButton {
-                                        text: "󰆏 Ссылка"
-                                        implicitHeight: 24
-                                        onClicked: {
-                                            if (Waybar && Config && Config.webShareUrl.length > 0) {
-                                                var base = Config.webShareUrl.replace(/\/$/, "")
-                                                var direct = modelData.is_primary ? base : (modelData.kind === "site" ? (base + "/site/" + modelData.id + "/") : (base + "/f/" + modelData.id))
-                                                Waybar.runCommand("printf '%s' '" + direct + "' | wl-copy")
-                                            }
-                                        }
-                                    }
-
-                                    StyledButton {
-                                        text: "󰅖"
-                                        isIconOnly: true
-                                        implicitWidth: 24
-                                        implicitHeight: 24
-                                        onClicked: if (Config) Config.removeWebShareItem(modelData.id)
                                     }
                                 }
                             }

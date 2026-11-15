@@ -345,8 +345,6 @@ ApplicationWindow {
                 root.isWallpaperExpanded = false
                 root.drawerMode = root.pendingDrawerMode
                 root.popupTargetX = root.pendingPopupX
-                root.animDrawerW = root.targetDrawerW
-                root.smoothTargetH = root.targetDrawerH
                 if (root.pendingDrawerMode === "traymenu") {
                     root.trayMenuClass = root.pendingTrayClass
                     root.trayMenuName = root.pendingTrayName
@@ -660,8 +658,6 @@ ApplicationWindow {
 
         root.isWallpaperExpanded = false
         root.drawerMode = mode
-        root.animDrawerW = root.targetDrawerW
-        root.smoothTargetH = root.targetDrawerH
         if (mode === "volume" && Waybar) Qt.callLater(() => Waybar.refreshAudioStreams())
         if (mode === "usb" && Devices) Qt.callLater(() => Devices.refreshUsbDrives())
         if (mode === "bluetooth" && Bluetooth) Qt.callLater(() => Bluetooth.refresh())
@@ -818,7 +814,13 @@ ApplicationWindow {
         if (!Config) return
         var cmd = Config.consumeLaunchCmd()
         if (cmd === "wallpaper") {
-            root.drawerMode = "settings"; pageController.jumpToPageInstant(14); root.isWallpaperExpanded = true; root.drawerOpen = true; root.syncWallpapersModeState()
+            if (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && root.isWallpaperExpanded) {
+                root.drawerOpen = false
+            } else {
+                root.openDrawerWithMode("settings", 14)
+                root.isWallpaperExpanded = true
+                root.syncWallpapersModeState()
+            }
         } else if (cmd === "apps") {
             root.openDrawerWithMode("settings", 12)
         } else if (cmd === "search") {

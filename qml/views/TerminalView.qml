@@ -147,11 +147,20 @@ Item {
                                 anchors.rightMargin: Math.min(28, Math.max(10, root.paddingWidth))
                                 spacing: root.tideSpacing === "Sparse" ? 10 : 4
 
-                                // Верхняя строка промпта (Tide включен)
+                                // Верхняя строка промпта (Tide включен — реальные стыки Powerline как в терминале)
                                 RowLayout {
                                     visible: root.tideEnabled
                                     Layout.fillWidth: true
                                     spacing: 0
+
+                                    readonly property int segH: root.fontSize + 8
+                                    readonly property color osBg: root.tideStyle === "Lean" ? "transparent" : root.pal.high
+                                    readonly property color pwdBg: root.tideStyle === "Lean" ? "transparent" : (root.tideStyle === "Classic" ? root.pal.cont : root.pal.pri)
+                                    readonly property color gitBg: root.tideStyle === "Lean" ? "transparent" : root.pal.cont
+                                    readonly property string lTailGlyph: root.tideStyle === "Lean" ? "" : (root.tideTails === "Sharp" ? "" : (root.tideTails === "Slanted" ? "" : ""))
+                                    readonly property string lHeadGlyph: root.tideStyle === "Lean" ? "" : (root.tideHeads === "Sharp" ? "" : (root.tideHeads === "Slanted" ? "" : ""))
+                                    readonly property string rHeadGlyph: root.tideStyle === "Lean" ? "" : (root.tideHeads === "Sharp" ? "" : (root.tideHeads === "Slanted" ? "" : ""))
+                                    readonly property string rTailGlyph: root.tideStyle === "Lean" ? "" : (root.tideTails === "Sharp" ? "" : (root.tideTails === "Slanted" ? "" : ""))
 
                                     Text {
                                         visible: root.tideHeight === "Two lines" && root.tideFrame
@@ -161,33 +170,56 @@ Item {
                                         color: root.pal.high
                                     }
 
-                                    // Сегмент ОС (если Many icons)
+                                    // Левый хвост ( /  / )
+                                    Text {
+                                        visible: parent.lTailGlyph.length > 0
+                                        text: parent.lTailGlyph
+                                        font.family: root.fontFamily
+                                        font.pixelSize: parent.segH
+                                        color: root.tideIcons === "Many icons" ? parent.osBg : parent.pwdBg
+                                    }
+
+                                    // Сегмент ОС
                                     Rectangle {
                                         visible: root.tideIcons === "Many icons"
-                                        height: root.fontSize + 10
-                                        implicitWidth: osSegTxt.implicitWidth + 14
-                                        radius: (root.tideStyle !== "Lean" && (root.tideTails === "Round" || root.tideSeparators === "Round")) ? height / 2 : 0
-                                        color: root.tideStyle === "Lean" ? "transparent" : root.pal.high
+                                        height: parent.segH
+                                        implicitWidth: osSegTxt.implicitWidth + 10
+                                        color: parent.osBg
                                         Text {
                                             id: osSegTxt
                                             anchors.centerIn: parent
-                                            text: ""
+                                            text: ""
                                             font.family: root.fontFamily
                                             font.pixelSize: root.fontSize + 1
                                             color: root.pal.pri
                                         }
                                     }
 
+                                    // Переход ОС -> PWD (внутри капсулы Tide: левый полукруг/стрелка цвета pwdBg на фоне osBg)
+                                    Rectangle {
+                                        visible: root.tideIcons === "Many icons" && parent.rHeadGlyph.length > 0
+                                        height: parent.segH
+                                        implicitWidth: osPwdCap.implicitWidth
+                                        color: parent.osBg
+                                        Text {
+                                            id: osPwdCap
+                                            anchors.centerIn: parent
+                                            text: parent.parent.rHeadGlyph
+                                            font.family: root.fontFamily
+                                            font.pixelSize: parent.parent.segH
+                                            color: parent.parent.pwdBg
+                                        }
+                                    }
+
                                     // Сегмент текущей папки (PWD)
                                     Rectangle {
-                                        height: root.fontSize + 10
-                                        implicitWidth: pwdSegTxt.implicitWidth + 18
-                                        radius: (root.tideStyle !== "Lean" && (root.tideHeads === "Round" || root.tideSeparators === "Round")) ? height / 2 : 0
-                                        color: root.tideStyle === "Lean" ? "transparent" : (root.tideStyle === "Classic" ? root.pal.cont : root.pal.pri)
+                                        height: parent.segH
+                                        implicitWidth: pwdSegTxt.implicitWidth + 12
+                                        color: parent.pwdBg
                                         Text {
                                             id: pwdSegTxt
                                             anchors.centerIn: parent
-                                            text: (root.tideIcons === "Many icons" ? "  " : "") + "~/hysett"
+                                            text: (root.tideIcons === "Many icons" ? " " : "") + "~"
                                             font.family: root.fontFamily
                                             font.pixelSize: root.fontSize
                                             font.bold: true
@@ -195,21 +227,45 @@ Item {
                                         }
                                     }
 
+                                    // Переход PWD -> Git
+                                    Rectangle {
+                                        visible: parent.lHeadGlyph.length > 0
+                                        height: parent.segH
+                                        implicitWidth: pwdGitCap.implicitWidth
+                                        color: parent.gitBg
+                                        Text {
+                                            id: pwdGitCap
+                                            anchors.centerIn: parent
+                                            text: parent.parent.lHeadGlyph
+                                            font.family: root.fontFamily
+                                            font.pixelSize: parent.parent.segH
+                                            color: parent.parent.pwdBg
+                                        }
+                                    }
+
                                     // Сегмент Git
                                     Rectangle {
-                                        height: root.fontSize + 10
-                                        implicitWidth: gitSegTxt.implicitWidth + 18
-                                        radius: (root.tideStyle !== "Lean" && (root.tideHeads === "Round" || root.tideSeparators === "Round")) ? height / 2 : 0
-                                        color: root.tideStyle === "Lean" ? "transparent" : root.pal.cont
+                                        height: parent.segH
+                                        implicitWidth: gitSegTxt.implicitWidth + 12
+                                        color: parent.gitBg
                                         Text {
                                             id: gitSegTxt
                                             anchors.centerIn: parent
-                                            text: (root.tideIcons === "Many icons" ? "  " : "") + "main +1"
+                                            text: (root.tideIcons === "Many icons" ? " " : "") + "main +1"
                                             font.family: root.fontFamily
                                             font.pixelSize: root.fontSize
                                             font.bold: true
                                             color: root.pal.ok || "#69f0ae"
                                         }
+                                    }
+
+                                    // Правый наконечник левого блока ( /  / )
+                                    Text {
+                                        visible: parent.lHeadGlyph.length > 0
+                                        text: parent.lHeadGlyph
+                                        font.family: root.fontFamily
+                                        font.pixelSize: parent.segH
+                                        color: parent.gitBg
                                     }
 
                                     // Однострочный ввод (если One line)
@@ -230,6 +286,11 @@ Item {
                                             font.pixelSize: root.fontSize
                                             color: root.pal.fg
                                         }
+                                        Rectangle {
+                                            width: root.cursorShape === "beam" ? 2 : 8
+                                            height: root.cursorShape === "underline" ? 2 : (root.fontSize + 2)
+                                            color: root.pal.pri
+                                        }
                                     }
 
                                     // Линия соединения между левой и правой частью
@@ -247,28 +308,20 @@ Item {
                                         elide: Text.ElideRight
                                     }
 
-                                    // Правый сегмент: длительность
-                                    Rectangle {
-                                        height: root.fontSize + 10
-                                        implicitWidth: durSegTxt.implicitWidth + 14
-                                        radius: (root.tideStyle !== "Lean" && root.tideHeads === "Round") ? height / 2 : 0
-                                        color: root.tideStyle === "Lean" ? "transparent" : root.pal.cont
-                                        Text {
-                                            id: durSegTxt
-                                            anchors.centerIn: parent
-                                            text: (root.tideIcons === "Many icons" ? " " : "") + "1.2s"
-                                            font.family: root.fontFamily
-                                            font.pixelSize: root.fontSize - 1
-                                            color: root.pal.ter
-                                        }
+                                    // Правый блок: наконечник
+                                    Text {
+                                        visible: root.tideTime !== "No" && parent.rHeadGlyph.length > 0
+                                        text: parent.rHeadGlyph
+                                        font.family: root.fontFamily
+                                        font.pixelSize: parent.segH
+                                        color: root.tideStyle === "Lean" ? "transparent" : root.pal.high
                                     }
 
                                     // Правый сегмент: время
                                     Rectangle {
                                         visible: root.tideTime !== "No"
-                                        height: root.fontSize + 10
-                                        implicitWidth: timeSegTxt.implicitWidth + 14
-                                        radius: (root.tideStyle !== "Lean" && root.tideTails === "Round") ? height / 2 : 0
+                                        height: parent.segH
+                                        implicitWidth: timeSegTxt.implicitWidth + 12
                                         color: root.tideStyle === "Lean" ? "transparent" : root.pal.high
                                         Text {
                                             id: timeSegTxt
@@ -278,6 +331,15 @@ Item {
                                             font.pixelSize: root.fontSize - 1
                                             color: root.pal.sec
                                         }
+                                    }
+
+                                    // Правый хвост
+                                    Text {
+                                        visible: root.tideTime !== "No" && parent.rTailGlyph.length > 0
+                                        text: parent.rTailGlyph
+                                        font.family: root.fontFamily
+                                        font.pixelSize: parent.segH
+                                        color: root.tideStyle === "Lean" ? "transparent" : root.pal.high
                                     }
 
                                     Text {

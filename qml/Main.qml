@@ -1441,8 +1441,12 @@ ApplicationWindow {
                                                              ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.75)
                                                              : Qt.rgba(1, 1, 1, 0.78))
                                                           : (parent.occ
-                                                             ? Qt.rgba(0.74, 0.78, 0.86, 0.95)
-                                                             : Qt.rgba(0.20, 0.22, 0.27, 0.88)))
+                                                             ? (Theme && Theme.isRounded && Config
+                                                                ? Qt.rgba(Config.m3Primary.r * 0.72 + 0.10, Config.m3Primary.g * 0.72 + 0.10, Config.m3Primary.b * 0.72 + 0.10, 0.86)
+                                                                : Qt.rgba(1, 1, 1, 0.72))
+                                                             : (Theme && Theme.isRounded && Config
+                                                                ? Qt.rgba(Config.m3Primary.r * 0.22 + 0.08, Config.m3Primary.g * 0.22 + 0.08, Config.m3Primary.b * 0.22 + 0.08, 0.88)
+                                                                : Qt.rgba(1, 1, 1, 0.22))))
                                                 Behavior on width { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                                 Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                             }
@@ -2937,8 +2941,12 @@ ApplicationWindow {
                                                      ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.75)
                                                      : Qt.rgba(1, 1, 1, 0.78))
                                                   : (parent.occ
-                                                     ? Qt.rgba(0.74, 0.78, 0.86, 0.95)
-                                                     : Qt.rgba(0.20, 0.22, 0.27, 0.88)))
+                                                     ? (Theme && Theme.isRounded && Config
+                                                        ? Qt.rgba(Config.m3Primary.r * 0.72 + 0.10, Config.m3Primary.g * 0.72 + 0.10, Config.m3Primary.b * 0.72 + 0.10, 0.86)
+                                                        : Qt.rgba(1, 1, 1, 0.72))
+                                                     : (Theme && Theme.isRounded && Config
+                                                        ? Qt.rgba(Config.m3Primary.r * 0.22 + 0.08, Config.m3Primary.g * 0.22 + 0.08, Config.m3Primary.b * 0.22 + 0.08, 0.88)
+                                                        : Qt.rgba(1, 1, 1, 0.22))))
                                         Behavior on height { NumberAnimation { duration: 260; easing.type: Easing.OutQuint } }
                                         Behavior on color { ColorAnimation { duration: 200; easing.type: Easing.OutCubic } }
                                     }

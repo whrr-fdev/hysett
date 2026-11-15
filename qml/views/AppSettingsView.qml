@@ -503,6 +503,12 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
+                                Text { text: "Плавающий режим окна по центру экрана (примагничивание к панели):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                StyledSwitch { checked: Config.floatingWindowMode; onToggled: Config.floatingWindowMode = checked }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Высота окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 520; to: 960; stepSize: 10; value: Config.windowHeight; onMoved: Config.windowHeight = Math.round(value) }
                                 Text { text: Config.windowHeight + "px"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }

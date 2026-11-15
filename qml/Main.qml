@@ -19,6 +19,11 @@ ApplicationWindow {
     property string drawerMode: "settings"
     property bool isWallpaperExpanded: false
     property bool isSettingsMaximized: false
+    readonly property bool isFloatingMode: (Config ? Config.floatingWindowMode : true) && !root.isCompactPopup && !root.isSettingsMaximized && !root.isWallpaperExpanded
+    property bool isDockedToBar: false
+    property real floatOffsetX: 0.0
+    property real floatOffsetY: 0.0
+    property bool isDraggingWindow: false
     property real contentMaxBounce: 1.0
     SequentialAnimation {
         id: pageMaxSpringAnim
@@ -258,7 +263,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 1.0
-            duration: (!root.isCompactPopup && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
+            duration: (!root.isCompactPopup && (!root.isFloatingMode || root.isDockedToBar) && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutCubic
         }
         ParallelAnimation {
@@ -304,7 +309,7 @@ ApplicationWindow {
         NumberAnimation {
             target: root; property: "barExpandProgress"
             to: 0.0
-            duration: (!root.isCompactPopup && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
+            duration: (!root.isCompactPopup && (!root.isFloatingMode || root.isDockedToBar) && root.baseBarW < root.targetDrawerW - 2) ? (Waybar ? Waybar.barAnimDuration : 75) : 0
             easing.type: Easing.OutQuint
         }
     }
@@ -415,16 +420,32 @@ ApplicationWindow {
     readonly property real islandW: Math.min(maxAvailBarW, leftBarRow.implicitWidth + (winPillTargetW > 0 ? (winPillTargetW + 12) : 0) + rightBarRow.implicitWidth + 24)
     property real smoothBaseBarW: isCenteredBar ? islandW : customBarW
     Behavior on smoothBaseBarW { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
+    readonly property real rawFloatX: Math.max(fullBarLeft, Math.min(fullBarLeft + maxAvailBarW - animDrawerW, Math.round((root.width - animDrawerW) * 0.5 + root.floatOffsetX)))
+    readonly property real rawFloatY: {
+        var minY = (barPos === 0) ? (barRectY + barH) : 8
+        var maxY = (barPos === 1) ? (barRectY - smoothTargetH) : (root.height - smoothTargetH - 8)
+        return Math.max(minY, Math.min(maxY, Math.round((root.height - smoothTargetH) * 0.5 + root.floatOffsetY)))
+    }
+    readonly property real distToBarPx: {
+        if (!root.isFloatingMode || root.isDockedToBar) return 0.0
+        if (barPos === 0) return Math.max(0.0, rawFloatY - (barRectY + barH))
+        if (barPos === 1) return Math.max(0.0, barRectY - (rawFloatY + smoothTargetH))
+        if (barPos === 2) return Math.max(0.0, rawFloatX - (barTop + barH + 6))
+        return Math.max(0.0, (root.width - (barTop + barH + 6)) - (rawFloatX + animDrawerW))
+    }
+    readonly property real mergeProximity: (!root.isFloatingMode || root.isDockedToBar) ? 1.0 : Math.max(0.0, Math.min(1.0, 1.0 - distToBarPx / 46.0))
+    readonly property real effBarExpand: isCompactPopup ? 0.0 : ((root.isFloatingMode && !root.isDockedToBar) ? (mergeProximity * drawerProgress) : barExpandProgress)
+
     readonly property real baseBarW: smoothBaseBarW
     readonly property real expandedBarW: isCompactPopup ? baseBarW : Math.max(baseBarW, effDrawerW)
-    readonly property real barW: isVertBar ? Math.max(38, barH + 6 + root.barChewExtraH) : ((baseBarW + (expandedBarW - baseBarW) * barExpandProgress) * root.barChewWidthScale)
+    readonly property real barW: isVertBar ? Math.max(38, barH + 6 + root.barChewExtraH) : ((baseBarW + (expandedBarW - baseBarW) * effBarExpand) * root.barChewWidthScale)
 
     readonly property real maxAvailVertH: Math.max(400, root.height - 16)
     readonly property real vertIslandH: Math.min(maxAvailVertH, vertTopCol.implicitHeight + (winPillTargetW > 0 ? (winPillTargetW + 16) : 0) + vertBottomCol.implicitHeight + 28)
     property real smoothVertBarH: isCenteredBar ? vertIslandH : maxAvailVertH
     Behavior on smoothVertBarH { NumberAnimation { duration: Waybar ? Waybar.barAnimDuration : 75; easing.type: Easing.OutQuint } }
     readonly property real expandedVertH: isCompactPopup ? smoothVertBarH : Math.max(smoothVertBarH, effDrawerH)
-    readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * barExpandProgress) : (barH + root.barChewExtraH)
+    readonly property real actualBarH: isVertBar ? (smoothVertBarH + (expandedVertH - smoothVertBarH) * effBarExpand) : (barH + root.barChewExtraH)
 
     readonly property real barLeft: {
         if (barPos === 2) return barTop
@@ -476,13 +497,18 @@ ApplicationWindow {
 
     property real animDrawerW: targetDrawerW
     property real smoothTargetH: targetDrawerH
-    readonly property real wingMix: Math.min(1.0, Math.pow(Math.max(0.0, drawerProgress), 0.42) * 1.15)
-    readonly property real effDrawerW: isVertBar
-                                       ? Math.max(0.0, animDrawerW * drawerProgress)
-                                       : (drawerMode === "power" ? animDrawerW : (animDrawerW * root.drawerWidthScale))
-    readonly property real effDrawerH: isVertBar
-                                       ? (smoothTargetH * root.drawerWidthScale)
-                                       : Math.min(root.height - ((barPos === 1) ? 8 : (barRectY + barH)) - 2, Math.max(0.0, smoothTargetH * drawerProgress))
+    readonly property bool isFreeFloating: root.isFloatingMode && !root.isDockedToBar
+    readonly property real floatScaleProgress: isFreeFloating ? (0.88 + 0.12 * Math.min(1.0, Math.max(0.0, drawerProgress))) : 1.0
+    readonly property real effDrawerW: isFreeFloating
+                                       ? (animDrawerW * root.drawerWidthScale * floatScaleProgress)
+                                       : (isVertBar
+                                          ? Math.max(0.0, animDrawerW * drawerProgress)
+                                          : (drawerMode === "power" ? animDrawerW : (animDrawerW * root.drawerWidthScale)))
+    readonly property real effDrawerH: isFreeFloating
+                                       ? (smoothTargetH * floatScaleProgress)
+                                       : (isVertBar
+                                          ? (smoothTargetH * root.drawerWidthScale)
+                                          : Math.min(root.height - ((barPos === 1) ? 8 : (barRectY + barH)) - 2, Math.max(0.0, smoothTargetH * drawerProgress)))
     readonly property real animDrawerH: effDrawerH
 
     property real centerAnchorX: {
@@ -493,8 +519,11 @@ ApplicationWindow {
     Behavior on centerAnchorX { enabled: root.drawerProgress > 0.08; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
     Behavior on animDrawerW { enabled: root.drawerProgress > 0.95; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
     Behavior on smoothTargetH { enabled: root.drawerProgress > 0.95; NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+    Behavior on floatOffsetX { enabled: !root.isDraggingWindow; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
+    Behavior on floatOffsetY { enabled: !root.isDraggingWindow; NumberAnimation { duration: 240; easing.type: Easing.OutQuint } }
 
     readonly property real drawerX: {
+        if (isFreeFloating) return rawFloatX + (animDrawerW - effDrawerW) * 0.5
         if (barPos === 2) return barLeft + barW
         if (barPos === 3) return barLeft - effDrawerW
         if (drawerMode === "power") {
@@ -502,10 +531,11 @@ ApplicationWindow {
         }
         var minBound = isCompactPopup ? Math.max(fullBarLeft, barLeft) : fullBarLeft
         var maxBound = isCompactPopup ? Math.min(fullBarLeft + maxAvailBarW - effDrawerW, barLeft + barW - effDrawerW) : (fullBarLeft + maxAvailBarW - effDrawerW)
-        return Math.max(minBound, Math.min(maxBound, centerAnchorX - effDrawerW * 0.5))
+        return Math.max(minBound, Math.min(maxBound, (centerAnchorX + (root.isFloatingMode ? root.floatOffsetX : 0)) - effDrawerW * 0.5))
     }
     readonly property real drawerY: {
-        if (isVertBar) return Math.round((root.height - effDrawerH) * 0.5)
+        if (isFreeFloating) return rawFloatY + (smoothTargetH - effDrawerH) * 0.5
+        if (isVertBar) return Math.round((root.height - effDrawerH) * 0.5 + (root.isFloatingMode ? root.floatOffsetY : 0))
         return (barPos === 1) ? (barRectY - animDrawerH) : (barRectY + barH)
     }
 
@@ -3363,16 +3393,20 @@ ApplicationWindow {
                 id: drawerInner
                 width: root.targetDrawerW
                 height: root.targetDrawerH
-                x: root.barPos === 2
-                   ? (-(1.0 - root.drawerProgress) * 68)
-                   : (root.barPos === 3 ? ((1.0 - root.drawerProgress) * 68) : Math.round((parent.width - width) * 0.5))
-                y: root.isVertBar
+                x: root.isFreeFloating
+                   ? Math.round((parent.width - width) * 0.5)
+                   : (root.barPos === 2
+                      ? (-(1.0 - root.drawerProgress) * 68)
+                      : (root.barPos === 3 ? ((1.0 - root.drawerProgress) * 68) : Math.round((parent.width - width) * 0.5)))
+                y: root.isFreeFloating
                    ? Math.round((parent.height - height) * 0.5)
-                   : (root.barPos === 1 ? ((1.0 - root.drawerProgress) * 68) : (-(1.0 - root.drawerProgress) * 68))
+                   : (root.isVertBar
+                      ? Math.round((parent.height - height) * 0.5)
+                      : (root.barPos === 1 ? ((1.0 - root.drawerProgress) * 68) : (-(1.0 - root.drawerProgress) * 68)))
                 transform: Scale {
                     origin.x: drawerInner.width * 0.5
-                    origin.y: 0
-                    xScale: root.contentMaxBounce * root.drawerWidthScale * ((root.openFxMode === "zoom_spring" && root.drawerOpen) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)
+                    origin.y: root.isFreeFloating ? (drawerInner.height * 0.5) : 0
+                    xScale: root.contentMaxBounce * root.drawerWidthScale * ((root.isFreeFloating || (root.openFxMode === "zoom_spring" && root.drawerOpen)) ? (0.90 + 0.10 * root.drawerProgress) : 1.0)
                     yScale: root.contentMaxBounce * (0.90 + 0.10 * root.drawerProgress)
                 }
                 opacity: Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
@@ -3388,6 +3422,81 @@ ApplicationWindow {
                             Qt.callLater(() => pageController.switchPage(0))
                         }
                         mouse.accepted = false
+                    }
+                }
+
+                // Полоса перетаскивания плавающего окна настроек (при поднесении к панели задач соединяется с ней)
+                Item {
+                    id: floatingDragBar
+                    visible: root.drawerMode === "settings" && !root.isSettingsMaximized && !root.isWallpaperExpanded
+                    x: 48
+                    y: 0
+                    width: parent.width - 96
+                    height: 20
+                    z: 1050
+
+                    Rectangle {
+                        visible: root.isFloatingMode
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.top: parent.top
+                        anchors.topMargin: 5
+                        width: winDragMa.containsMouse || winDragMa.pressed ? 48 : 34
+                        height: 4
+                        radius: 2
+                        color: (winDragMa.containsMouse || winDragMa.pressed)
+                               ? (Config ? Config.m3Primary : "#ffffff")
+                               : Qt.rgba(1, 1, 1, 0.24)
+                        Behavior on width { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+
+                    MouseArea {
+                        id: winDragMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
+                        property point startGlobal: Qt.point(0, 0)
+                        property real startOffX: 0
+                        property real startOffY: 0
+
+                        onDoubleClicked: {
+                            root.isDockedToBar = false
+                            root.floatOffsetX = 0
+                            root.floatOffsetY = 0
+                        }
+
+                        onPressed: (mouse) => {
+                            if (!Config.floatingWindowMode) Config.floatingWindowMode = true
+                            root.isDraggingWindow = true
+                            var gp = winDragMa.mapToItem(sceneRoot, mouse.x, mouse.y)
+                            startGlobal = gp
+                            if (root.isDockedToBar) {
+                                var dockY = (root.barPos === 1) ? (root.barRectY - root.smoothTargetH) : (root.barRectY + root.barH)
+                                root.floatOffsetY = dockY - (root.height - root.smoothTargetH) * 0.5
+                                root.isDockedToBar = false
+                            }
+                            startOffX = root.floatOffsetX
+                            startOffY = root.floatOffsetY
+                        }
+
+                        onPositionChanged: (mouse) => {
+                            if (!pressed) return
+                            var gp = winDragMa.mapToItem(sceneRoot, mouse.x, mouse.y)
+                            root.floatOffsetX = startOffX + (gp.x - startGlobal.x)
+                            root.floatOffsetY = startOffY + (gp.y - startGlobal.y)
+                        }
+
+                        onReleased: {
+                            root.isDraggingWindow = false
+                            if (root.distToBarPx < 26.0) {
+                                root.isDockedToBar = true
+                                root.floatOffsetY = 0
+                            }
+                        }
+
+                        onCanceled: {
+                            root.isDraggingWindow = false
+                        }
                     }
                 }
 
@@ -4328,19 +4437,19 @@ ApplicationWindow {
                             newPage.vortexDir = -dir
                             newPage.vortexProgress = 0.65
                             newPage.scale = 0.04
-                            newPage.rotation = -35 * dir
+                            newPage.rotation = -110 * dir
                             newPage.opacity = 0.0
                             newPage.visible = true
 
                             bhOutVortex.target = oldPage; bhOutVortex.duration = 380
                             bhOutSc.target = oldPage; bhOutSc.duration = 380
-                            bhOutRot.target = oldPage; bhOutRot.to = 45 * dir; bhOutRot.duration = 380
+                            bhOutRot.target = oldPage; bhOutRot.to = 145 * dir; bhOutRot.duration = 380
                             bhOutOp.target = oldPage; bhOutOp.duration = 380
 
                             bhInDelay.duration = 270
                             bhInVortex.target = newPage; bhInVortex.duration = 370
                             bhInSc.target = newPage; bhInSc.duration = 370
-                            bhInRot.target = newPage; bhInRot.from = -35 * dir; bhInRot.duration = 370
+                            bhInRot.target = newPage; bhInRot.from = -110 * dir; bhInRot.duration = 370
                             bhInOp.target = newPage; bhInOp.duration = 240
 
                             blackholeTransition.start()

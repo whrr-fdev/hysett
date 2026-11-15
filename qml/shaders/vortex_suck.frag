@@ -37,24 +37,22 @@ void main() {
     vec2 center = vec2(0.5, 0.5);
 
     // =========================================================================
-    // РЕЖИМ 0: ВОРОНКА (Стягивание в центральную точку + гладкая спираль без колец)
+    // РЕЖИМ 0: ВОРОНКА (Гладкое втягивание в центр без рывка и без сегментов)
     // =========================================================================
     if (u_mode < 0.5) {
         vec2 delta = (qt_TexCoord0 - center) * aspect;
         float r = length(delta);
 
-        float shrink = max(0.003, pow(1.0 - t, 1.45));
-        float sourceR = r / shrink;
-
-        // Плавный градиент угла от краев к центру без разрыва на сегменты
-        float swirlAngle = (t * 6.2 + t * t * 16.5) * u_direction / (0.42 + sourceR * 0.65);
+        // Плавная воронка без разрыва колонок на сегменты
+        float funnel = 1.0 - t * 0.42 * (1.0 - smoothstep(0.0, 0.75, r));
+        float swirlAngle = (t * t * 2.8) * u_direction * (1.0 - smoothstep(0.0, 0.85, r));
         float s = sin(swirlAngle);
         float c = cos(swirlAngle);
-        vec2 rotDelta = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c);
+        vec2 rotDelta = vec2(delta.x * c - delta.y * s, delta.x * s + delta.y * c) / max(0.25, funnel);
 
-        vec2 sampleUV = center + (rotDelta / shrink) / aspect;
+        vec2 sampleUV = center + rotDelta / aspect;
 
-        vec2 edge = smoothstep(vec2(0.0), vec2(0.03), sampleUV) * smoothstep(vec2(0.0), vec2(0.03), vec2(1.0) - sampleUV);
+        vec2 edge = smoothstep(vec2(0.0), vec2(0.025), sampleUV) * smoothstep(vec2(0.0), vec2(0.025), vec2(1.0) - sampleUV);
         float mask = edge.x * edge.y;
         if (mask <= 0.001) {
             fragColor = vec4(0.0);

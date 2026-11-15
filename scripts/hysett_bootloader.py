@@ -64,45 +64,85 @@ def parse_efibootmgr():
         e["is_first"] = (i == 0)
     return entries, efi_timeout
 
-def detect_bootable_usb(efi_entries):
-    # 1. Ищем USB в efibootmgr (кроме пустой заглушки USB HDD/FDD)
-    for e in efi_entries:
-        t = e["title"].lower()
-        if t in ("usb hdd", "usb fdd", "hard drive", "cd/dvd drive", "network"):
-            continue
-        if any(k in t for k in ("usb", "ventoy", "flash", "sandisk", "kingston", "transcend", "adata", "samsung flash", "cruzer")):
-            return {"type": "efi", "num": e["num"], "name": e["title"], "disk": "", "part": 1}
+def detect_bootable_usb_list(efi_entries):
+    usb_list = []
+    seen_disks = set()
 
-    # 2. Ищем подключенные USB-флешки через lsblk
-    raw = run_out(["lsblk", "-J", "-o", "NAME,PKNAME,RM,TRAN,FSTYPE,LABEL,MODEL,PATH"])
+    raw = run_out(["lsblk", "-J", "-o", "NAME,PKNAME,RM,TRAN,SIZE,TYPE,FSTYPE,LABEL,MODEL,PARTTYPENAME,PATH"])
     if raw.strip().startswith("{"):
         try:
             data = json.loads(raw)
-            def walk_devs(devs, parent_tran="", parent_model="", parent_path=""):
-                found = []
-                for d in devs:
-                    tran = (d.get("tran") or parent_tran or "").lower()
-                    model = (d.get("model") or parent_model or "").strip()
-                    path = d.get("path") or ("/dev/" + d.get("name", ""))
-                    fstype = (d.get("fstype") or "").lower()
-                    label = (d.get("label") or "").strip()
-                    is_usb = (tran == "usb")
-                    ch = d.get("children", [])
-                    if is_usb and not ch and fstype in ("vfat", "fat32", "exfat", "iso9660", "ntfs"):
-                        pnum_m = re.search(r"(\d+)$", path)
-                        pnum = int(pnum_m.group(1)) if pnum_m else 1
-                        disk_path = parent_path or re.sub(r"\d+$", "", path)
-                        disp = f"{model} ({label})" if (model and label) else (model or label or os.path.basename(path))
-                        found.append({"type": "blk", "num": "", "name": disp, "disk": disk_path, "part": pnum})
-                    if ch:
-                        found.extend(walk_devs(ch, tran, model, path))
-                return found
-            usb_parts = walk_devs(data.get("blockdevices", []))
-            if usb_parts:
-                return usb_parts[0]
+            for dev in data.get("blockdevices", []):
+                tran = (dev.get("tran") or "").lower()
+                rm = bool(dev.get("rm"))
+                dtype = (dev.get("type") or "").lower()
+                dpath = dev.get("path") or ("/dev/" + dev.get("name", ""))
+                if dtype != "disk":
+                    continue
+                if tran != "usb" and not (rm and dpath.startswith("/dev/sd")):
+                    continue
+
+                model = (dev.get("model") or "").strip()
+                dsize = (dev.get("size") or "").strip()
+                children = dev.get("children") or []
+
+                # Для флешек Rufus (где 1-й раздел NTFS/UDF/exFAT с меткой, а 2-й маленький vfat UEFI_NTFS)
+                main_label = (dev.get("label") or "").strip()
+                efi_part_num = 1
+                best_efi_score = -1
+
+                for idx, ch in enumerate(children):
+                    cpath = ch.get("path") or ""
+                    pnum_m = re.search(r"(\d+)$", cpath)
+                    pnum = int(pnum_m.group(1)) if pnum_m else (idx + 1)
+                    fstype = (ch.get("fstype") or "").lower()
+                    clabel = (ch.get("label") or "").strip()
+                    ptname = (ch.get("parttypename") or "").lower()
+
+                    if clabel and clabel.upper() != "UEFI_NTFS" and not main_label:
+                        main_label = clabel
+                    elif clabel and not main_label:
+                        main_label = clabel
+
+                    # Приоритет выбора раздела для UEFI старта:
+                    # 3 = раздел UEFI_NTFS или EFI System, 2 = любой vfat/fat32/iso9660, 1 = udf/ntfs/exfat
+                    score = 0
+                    if clabel.upper() == "UEFI_NTFS" or "efi" in ptname:
+                        score = 3
+                    elif fstype in ("vfat", "fat32", "fat16", "iso9660"):
+                        score = 2
+                    elif fstype in ("udf", "ntfs", "exfat"):
+                        score = 1
+
+                    if score > best_efi_score:
+                        best_efi_score = score
+                        efi_part_num = pnum
+
+                parts_title = [x for x in (model, dsize) if x]
+                base_name = " ".join(parts_title) if parts_title else os.path.basename(dpath)
+                disp_name = f"{base_name} ({main_label})" if main_label else base_name
+
+                # Проверяем, есть ли уже эта флешка в efibootmgr
+                matched_efi_num = ""
+                for e in efi_entries:
+                    et = e["title"].lower()
+                    if et in ("usb hdd", "usb fdd", "hard drive", "cd/dvd drive", "network"):
+                        continue
+                    if (model and model.lower() in et) or (main_label and main_label.lower() in et):
+                        matched_efi_num = e["num"]
+                        break
+
+                seen_disks.add(dpath)
+                usb_list.append({
+                    "name": disp_name,
+                    "disk": dpath,
+                    "part": efi_part_num,
+                    "efi_num": matched_efi_num
+                })
         except Exception:
             pass
-    return None
+
+    return usb_list
 
 def get_systemd_boot_state(esp):
     loader_conf = os.path.join(esp, "loader/loader.conf")
@@ -258,8 +298,9 @@ def build_status(msg="", auth_err=False):
     st["efi_entries"] = efi_list
     if st["type"] == "efibootmgr":
         st["timeout"] = efi_to
-    usb_info = detect_bootable_usb(efi_list)
-    st["usb_name"] = usb_info["name"] if usb_info else ""
+    usb_list = detect_bootable_usb_list(efi_list)
+    st["usb_drives"] = usb_list
+    st["usb_name"] = usb_list[0]["name"] if usb_list else ""
     fw_out = run_out(["bootctl", "set-reboot-to-firmware"]).strip().lower()
     st["fw_next"] = (fw_out == "yes" or fw_out == "true")
     st["auth_error"] = auth_err
@@ -370,23 +411,33 @@ def root_reboot_bios():
     subprocess.run(["bootctl", "set-reboot-to-firmware", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     subprocess.Popen(["systemctl", "reboot", "--firmware-setup"])
 
-def root_boot_usb():
+def root_boot_usb(disk_path="", part_str="1", efi_num="", usb_label="USB"):
     efi_list, _ = parse_efibootmgr()
-    usb = detect_bootable_usb(efi_list)
-    if not usb:
-        sys.exit(2)
-    if usb["type"] == "efi" and usb.get("num"):
-        subprocess.run(["efibootmgr", "-n", usb["num"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if not disk_path and not efi_num:
+        ulist = detect_bootable_usb_list(efi_list)
+        if not ulist:
+            sys.exit(2)
+        u = ulist[0]
+        disk_path, part_str, efi_num, usb_label = u["disk"], str(u["part"]), u["efi_num"], u["name"]
+
+    if efi_num:
+        subprocess.run(["efibootmgr", "-n", efi_num.upper()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.Popen(["systemctl", "reboot"])
-    elif usb["type"] == "blk" and usb.get("disk"):
-        subprocess.run([
-            "efibootmgr", "-c", "-d", usb["disk"], "-p", str(usb["part"]),
-            "-L", f"USB: {usb['name']}", "-l", "\\EFI\\BOOT\\BOOTX64.EFI"
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return
+
+    if disk_path:
+        for loader in ("\\EFI\\BOOT\\BOOTX64.EFI", "\\efi\\boot\\bootx64.efi"):
+            subprocess.run([
+                "efibootmgr", "-c", "-d", disk_path, "-p", str(part_str or "1"),
+                "-L", f"HySett USB: {usb_label[:28]}", "-l", loader
+            ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            break
         efi_after, _ = parse_efibootmgr()
         if efi_after:
             subprocess.run(["efibootmgr", "-n", efi_after[0]["num"]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         subprocess.Popen(["systemctl", "reboot"])
+        return
+    sys.exit(2)
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
@@ -405,7 +456,7 @@ if __name__ == "__main__":
     elif cmd == "_root_reboot_bios":
         root_reboot_bios()
     elif cmd == "_root_boot_usb":
-        root_boot_usb()
+        root_boot_usb(sys.argv[2] if len(sys.argv) > 2 else "", sys.argv[3] if len(sys.argv) > 3 else "1", sys.argv[4] if len(sys.argv) > 4 else "", sys.argv[5] if len(sys.argv) > 5 else "USB")
     elif cmd in ("apply", "set_default", "oneshot", "efi_reorder", "efi_next", "set_fw_next", "reboot_bios", "boot_usb"):
         pwd = sys.stdin.read().strip() if not sys.stdin.isatty() else ""
         map_cmd = {
@@ -416,7 +467,7 @@ if __name__ == "__main__":
             "efi_next": ["_root_efi_next", sys.argv[2] if len(sys.argv) > 2 else "", sys.argv[3] if len(sys.argv) > 3 else "0"],
             "set_fw_next": ["_root_fw_next", sys.argv[2] if len(sys.argv) > 2 else "1"],
             "reboot_bios": ["_root_reboot_bios"],
-            "boot_usb": ["_root_boot_usb"]
+            "boot_usb": ["_root_boot_usb", sys.argv[2] if len(sys.argv) > 2 else "", sys.argv[3] if len(sys.argv) > 3 else "1", sys.argv[4] if len(sys.argv) > 4 else "", sys.argv[5] if len(sys.argv) > 5 else "USB"]
         }
         res = run_root(map_cmd[cmd], pwd)
         if res.returncode == 2:

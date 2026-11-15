@@ -1640,7 +1640,7 @@ void AppConfig::selectCloudShareQr(const QString &itemId) {
 }
 
 
-static void applyBootloaderJson(const QByteArray &raw, QString &btype, QString &st, int &timeoutSec, bool &savedDef, bool &editorOn, bool &fwNext, QString &usbName, bool &authErr, QString &adminPwd, QVariantList &entries, QVariantList &efiEntries) {
+static void applyBootloaderJson(const QByteArray &raw, QString &btype, QString &st, int &timeoutSec, bool &savedDef, bool &editorOn, bool &fwNext, QString &usbName, QVariantList &usbDrives, bool &authErr, QString &adminPwd, QVariantList &entries, QVariantList &efiEntries) {
     QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
     if (o.isEmpty()) return;
     btype = o["type"].toString(btype);
@@ -1650,6 +1650,7 @@ static void applyBootloaderJson(const QByteArray &raw, QString &btype, QString &
     editorOn = o["editor"].toBool(editorOn);
     fwNext = o["fw_next"].toBool(fwNext);
     usbName = o["usb_name"].toString(usbName);
+    if (o.contains("usb_drives")) usbDrives = o["usb_drives"].toArray().toVariantList();
     authErr = o["auth_error"].toBool(false);
     if (authErr) adminPwd.clear();
     entries = o["entries"].toArray().toVariantList();
@@ -1671,7 +1672,7 @@ static void runBootScriptWithPwd(AppConfig *self, const QStringList &args, const
 
 void AppConfig::refreshBootloaderState() {
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "status"}, "", [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
@@ -1682,7 +1683,7 @@ void AppConfig::applyBootloaderSettings(int timeoutSec, bool savedDefault, bool 
     m_bootloaderEditor = editorOn;
     emit bootloaderChanged();
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "apply", QString::number(timeoutSec), savedDefault ? "1" : "0", editorOn ? "1" : "0"}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
@@ -1690,7 +1691,7 @@ void AppConfig::applyBootloaderSettings(int timeoutSec, bool savedDefault, bool 
 void AppConfig::setDefaultBootEntry(const QString &entryId) {
     if (entryId.trimmed().isEmpty()) return;
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "set_default", entryId.trimmed()}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
@@ -1698,7 +1699,7 @@ void AppConfig::setDefaultBootEntry(const QString &entryId) {
 void AppConfig::bootEntryOneshot(const QString &entryId, bool rebootNow) {
     if (entryId.trimmed().isEmpty()) return;
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "oneshot", entryId.trimmed(), rebootNow ? "1" : "0"}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
@@ -1706,7 +1707,7 @@ void AppConfig::bootEntryOneshot(const QString &entryId, bool rebootNow) {
 void AppConfig::reorderEfiBootEntries(const QString &commaNums) {
     if (commaNums.trimmed().isEmpty()) return;
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "efi_reorder", commaNums.trimmed()}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
@@ -1718,7 +1719,7 @@ void AppConfig::setEfiBootFirst(const QString &bootNum) {
 void AppConfig::bootEfiNext(const QString &bootNum, bool rebootNow) {
     if (bootNum.trimmed().isEmpty()) return;
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "efi_next", bootNum.trimmed(), rebootNow ? "1" : "0"}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
@@ -1727,25 +1728,32 @@ void AppConfig::setFirmwareNextBoot(bool enable) {
     m_bootloaderFwNext = enable;
     emit bootloaderChanged();
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "set_fw_next", enable ? "1" : "0"}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
 
 void AppConfig::rebootToFirmware() {
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "reboot_bios"}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
 
 void AppConfig::bootFromUsbDrive() {
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "boot_usb"}, m_bootAdminPassword, [this](const QByteArray &out) {
-        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
         emit bootloaderChanged();
     });
 }
 
 void AppConfig::rebootToBootMenu() {
     rebootToFirmware();
+}
+
+void AppConfig::bootFromSpecificUsb(const QString &disk, int part, const QString &efiNum, const QString &name) {
+    runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "boot_usb", disk, QString::number(part), efiNum, name}, m_bootAdminPassword, [this](const QByteArray &out) {
+        applyBootloaderJson(out, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderFwNext, m_bootloaderUsbName, m_bootloaderUsbDrives, m_bootloaderAuthError, m_bootAdminPassword, m_bootloaderEntries, m_bootloaderEfiEntries);
+        emit bootloaderChanged();
+    });
 }

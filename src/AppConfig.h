@@ -47,6 +47,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(bool bootloaderEditor READ bootloaderEditor NOTIFY bootloaderChanged)
     Q_PROPERTY(bool bootloaderFwNext READ bootloaderFwNext NOTIFY bootloaderChanged)
     Q_PROPERTY(QString bootloaderUsbName READ bootloaderUsbName NOTIFY bootloaderChanged)
+    Q_PROPERTY(QVariantList bootloaderUsbDrives READ bootloaderUsbDrives NOTIFY bootloaderChanged)
     Q_PROPERTY(bool bootloaderAuthError READ bootloaderAuthError NOTIFY bootloaderChanged)
     Q_PROPERTY(QVariantList bootloaderEntries READ bootloaderEntries NOTIFY bootloaderChanged)
     Q_PROPERTY(QVariantList bootloaderEfiEntries READ bootloaderEfiEntries NOTIFY bootloaderChanged)
@@ -257,7 +258,9 @@ public:
     Q_INVOKABLE bool hasBootAdminPassword() const { return !m_bootAdminPassword.isEmpty(); }
     Q_INVOKABLE void setBootAdminPassword(const QString &pwd) { m_bootAdminPassword = pwd; m_bootloaderAuthError = false; emit bootloaderChanged(); }
     Q_INVOKABLE void reorderEfiBootEntries(const QString &commaNums);
+    QVariantList bootloaderUsbDrives() const { return m_bootloaderUsbDrives; }
     Q_INVOKABLE void bootFromUsbDrive();
+    Q_INVOKABLE void bootFromSpecificUsb(const QString &disk, int part, const QString &efiNum, const QString &name);
     Q_INVOKABLE void setEfiBootFirst(const QString &bootNum);
     Q_INVOKABLE void bootEfiNext(const QString &bootNum, bool rebootNow);
     bool bootloaderFwNext() const { return m_bootloaderFwNext; }
@@ -462,6 +465,7 @@ private:
     bool m_bootloaderEditor = true;
     bool m_bootloaderFwNext = false;
     QString m_bootloaderUsbName;
+    QVariantList m_bootloaderUsbDrives;
     bool m_bootloaderAuthError = false;
     QString m_bootAdminPassword;
     QVariantList m_bootloaderEntries;

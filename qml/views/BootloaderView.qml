@@ -592,18 +592,32 @@ Item {
                                 }
                             }
 
+                            Repeater {
+                                model: Config ? Config.bootloaderUsbDrives : []
+                                delegate: StyledButton {
+                                    Layout.fillWidth: true
+                                    allowFullWidth: true
+                                    implicitHeight: 32
+                                    text: "󰕓  Загрузиться с флешки: " + modelData.name
+                                    onClicked: {
+                                        var d = modelData.disk || ""
+                                        var p = modelData.part || 1
+                                        var e = modelData.efi_num || ""
+                                        var n = modelData.name || "USB"
+                                        bootRoot.runWithAdminAuth(function() {
+                                            if (Config) Config.bootFromSpecificUsb(d, p, e, n)
+                                        })
+                                    }
+                                }
+                            }
+
                             StyledButton {
+                                visible: !Config || Config.bootloaderUsbDrives.length === 0
                                 Layout.fillWidth: true
                                 allowFullWidth: true
                                 implicitHeight: 32
-                                text: (Config && Config.bootloaderUsbName.length > 0)
-                                      ? ("󰕓  Загрузиться с загрузочной флешки (" + Config.bootloaderUsbName + ")")
-                                      : "󰕓  Загрузиться с загрузочной флешки"
-                                onClicked: {
-                                    bootRoot.runWithAdminAuth(function() {
-                                        if (Config) Config.bootFromUsbDrive()
-                                    })
-                                }
+                                text: "󰕓  Загрузиться с загрузочной флешки (не обнаружена)"
+                                onClicked: if (Config) Config.refreshBootloaderState()
                             }
                         }
                     }

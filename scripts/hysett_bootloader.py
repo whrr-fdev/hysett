@@ -99,7 +99,7 @@ def detect_bootable_usb_list(efi_entries):
                     clabel = (ch.get("label") or "").strip()
                     ptname = (ch.get("parttypename") or "").lower()
 
-                    if clabel and clabel.upper() != "UEFI_NTFS" and not main_label:
+                    if clabel and clabel.upper() not in ("UEFI_NTFS", "VTOYEFI") and not main_label:
                         main_label = clabel
                     elif clabel and not main_label:
                         main_label = clabel
@@ -107,8 +107,8 @@ def detect_bootable_usb_list(efi_entries):
                     # Приоритет выбора раздела для UEFI старта:
                     # 3 = раздел UEFI_NTFS или EFI System, 2 = любой vfat/fat32/iso9660, 1 = udf/ntfs/exfat
                     score = 0
-                    if clabel.upper() == "UEFI_NTFS" or "efi" in ptname:
-                        score = 3
+                    if clabel.upper() in ("VTOYEFI", "UEFI_NTFS") or "efi" in ptname:
+                        score = 4
                     elif fstype in ("vfat", "fat32", "fat16", "iso9660"):
                         score = 2
                     elif fstype in ("udf", "ntfs", "exfat"):

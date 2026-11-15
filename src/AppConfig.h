@@ -40,6 +40,13 @@ class AppConfig : public QObject {
     Q_PROPERTY(QString webShareActiveTitle READ webShareActiveTitle NOTIFY webShareChanged)
     Q_PROPERTY(QVariantList webShareItems READ webShareItems NOTIFY webShareChanged)
     Q_PROPERTY(QVariantList webShareCloudItems READ webShareCloudItems NOTIFY webShareChanged)
+    Q_PROPERTY(QString bootloaderType READ bootloaderType NOTIFY bootloaderChanged)
+    Q_PROPERTY(QString bootloaderStatus READ bootloaderStatus NOTIFY bootloaderChanged)
+    Q_PROPERTY(int bootloaderTimeout READ bootloaderTimeout NOTIFY bootloaderChanged)
+    Q_PROPERTY(bool bootloaderSavedDefault READ bootloaderSavedDefault NOTIFY bootloaderChanged)
+    Q_PROPERTY(bool bootloaderEditor READ bootloaderEditor NOTIFY bootloaderChanged)
+    Q_PROPERTY(QVariantList bootloaderEntries READ bootloaderEntries NOTIFY bootloaderChanged)
+    Q_PROPERTY(QVariantList bootloaderEfiEntries READ bootloaderEfiEntries NOTIFY bootloaderChanged)
     Q_PROPERTY(bool firstRunCompleted READ firstRunCompleted WRITE setFirstRunCompleted NOTIFY firstRunChanged)
     Q_PROPERTY(QString wallpapersDir READ wallpapersDir WRITE setWallpapersDir NOTIFY pathsChanged)
     Q_PROPERTY(QString musicDir READ musicDir WRITE setMusicDir NOTIFY pathsChanged)
@@ -231,6 +238,20 @@ public:
     Q_INVOKABLE void cloudHostHtmlForFriend(const QString &htmlCode, const QString &title);
     Q_INVOKABLE void removeCloudShareItem(const QString &itemId);
     Q_INVOKABLE void selectCloudShareQr(const QString &itemId);
+    QString bootloaderType() const { return m_bootloaderType; }
+    QString bootloaderStatus() const { return m_bootloaderStatus; }
+    int bootloaderTimeout() const { return m_bootloaderTimeout; }
+    bool bootloaderSavedDefault() const { return m_bootloaderSavedDefault; }
+    bool bootloaderEditor() const { return m_bootloaderEditor; }
+    QVariantList bootloaderEntries() const { return m_bootloaderEntries; }
+    QVariantList bootloaderEfiEntries() const { return m_bootloaderEfiEntries; }
+    Q_INVOKABLE void refreshBootloaderState();
+    Q_INVOKABLE void applyBootloaderSettings(int timeoutSec, bool savedDefault, bool editorOn);
+    Q_INVOKABLE void setDefaultBootEntry(const QString &entryId);
+    Q_INVOKABLE void bootEntryOneshot(const QString &entryId, bool rebootNow);
+    Q_INVOKABLE void setEfiBootFirst(const QString &bootNum);
+    Q_INVOKABLE void bootEfiNext(const QString &bootNum, bool rebootNow);
+    Q_INVOKABLE void rebootToFirmware();
     Q_INVOKABLE void refreshWebShareState();
     Q_INVOKABLE void toggleWebShare();
     Q_INVOKABLE void hostPathForFriend(const QString &path);
@@ -360,6 +381,7 @@ signals:
     void musicPrivacyModeChanged();
     void streamerModeChanged();
     void webShareChanged();
+    void bootloaderChanged();
     void firstRunChanged();
     void pathsChanged();
     void backupStateChanged();
@@ -421,6 +443,13 @@ private:
     QString m_webShareActiveTitle;
     QVariantList m_webShareItems;
     QVariantList m_webShareCloudItems;
+    QString m_bootloaderType = "systemd-boot";
+    QString m_bootloaderStatus = "Загрузка параметров загрузчика...";
+    int m_bootloaderTimeout = 5;
+    bool m_bootloaderSavedDefault = false;
+    bool m_bootloaderEditor = true;
+    QVariantList m_bootloaderEntries;
+    QVariantList m_bootloaderEfiEntries;
     bool m_firstRunCompleted = true;
     QString m_wallpapersDir;
     QString m_musicDir;

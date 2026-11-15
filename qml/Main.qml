@@ -4580,7 +4580,8 @@ ApplicationWindow {
                             "views/TimerView.qml",
                             "views/BackupView.qml",
                             "views/PhoneBridgeView.qml",
-                            "views/WebShareView.qml"
+                            "views/WebShareView.qml",
+                            "views/BootloaderView.qml"
                         ]
 
                         Loader {

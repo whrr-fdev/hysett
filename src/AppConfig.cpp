@@ -1638,3 +1638,91 @@ void AppConfig::selectCloudShareQr(const QString &itemId) {
     });
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_web_share.py", "cloud_qr", itemId});
 }
+
+
+static void applyBootloaderJson(const QByteArray &raw, QString &btype, QString &st, int &timeoutSec, bool &savedDef, bool &editorOn, QVariantList &entries, QVariantList &efiEntries) {
+    QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
+    if (o.isEmpty()) return;
+    btype = o["type"].toString(btype);
+    st = o["status"].toString(st);
+    timeoutSec = o["timeout"].toInt(timeoutSec);
+    savedDef = o["saved_default"].toBool(savedDef);
+    editorOn = o["editor"].toBool(editorOn);
+    entries = o["entries"].toArray().toVariantList();
+    efiEntries = o["efi_entries"].toArray().toVariantList();
+}
+
+void AppConfig::refreshBootloaderState() {
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyBootloaderJson(p->readAllStandardOutput(), m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "status"});
+}
+
+void AppConfig::applyBootloaderSettings(int timeoutSec, bool savedDefault, bool editorOn) {
+    m_bootloaderTimeout = timeoutSec;
+    m_bootloaderSavedDefault = savedDefault;
+    m_bootloaderEditor = editorOn;
+    emit bootloaderChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyBootloaderJson(p->readAllStandardOutput(), m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {
+        QDir::homePath() + "/hysett/scripts/hysett_bootloader.py",
+        "apply", QString::number(timeoutSec), savedDefault ? "1" : "0", editorOn ? "1" : "0"
+    });
+}
+
+void AppConfig::setDefaultBootEntry(const QString &entryId) {
+    if (entryId.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyBootloaderJson(p->readAllStandardOutput(), m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "set_default", entryId.trimmed()});
+}
+
+void AppConfig::bootEntryOneshot(const QString &entryId, bool rebootNow) {
+    if (entryId.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyBootloaderJson(p->readAllStandardOutput(), m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "oneshot", entryId.trimmed(), rebootNow ? "1" : "0"});
+}
+
+void AppConfig::setEfiBootFirst(const QString &bootNum) {
+    if (bootNum.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyBootloaderJson(p->readAllStandardOutput(), m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "efi_first", bootNum.trimmed()});
+}
+
+void AppConfig::bootEfiNext(const QString &bootNum, bool rebootNow) {
+    if (bootNum.trimmed().isEmpty()) return;
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        applyBootloaderJson(p->readAllStandardOutput(), m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "efi_next", bootNum.trimmed(), rebootNow ? "1" : "0"});
+}
+
+void AppConfig::rebootToFirmware() {
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "reboot_bios"});
+}

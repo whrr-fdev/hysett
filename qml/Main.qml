@@ -3456,7 +3456,7 @@ ApplicationWindow {
             y: root.drawerY
             width: root.effDrawerW
             height: root.animDrawerH
-            clip: !root.isFreeFloating
+            clip: !root.isVortexWindowAnimActive
             visible: root.drawerActive
             z: 5
 

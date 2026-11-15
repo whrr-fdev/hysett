@@ -209,6 +209,46 @@ def ensure_tide_installed():
     subprocess.run(["fish"], input=cmd, text=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return is_tide_installed()
 
+def patch_tide_1_line_prompt():
+    p1 = os.path.join(FISH_FUNCS, "_tide_1_line_prompt.fish")
+    if not os.path.exists(p1):
+        return
+    fixed = """function _tide_1_line_prompt
+    set -g add_prefix
+    _tide_side=left for item in $_tide_left_items
+        if test "$item" = character
+            if not set -e add_prefix
+                set_color $prev_bg_color -b normal
+                echo -ns $tide_left_prompt_suffix" "
+            end
+            set -g add_prefix
+        end
+        _tide_item_$item
+    end
+    if not set -e add_prefix
+        set_color $prev_bg_color -b normal
+        echo $tide_left_prompt_suffix
+    else
+        echo
+    end
+
+    set -g add_prefix
+    _tide_side=right for item in $_tide_right_items
+        _tide_item_$item
+    end
+    if not set -e add_prefix
+        set_color $prev_bg_color -b normal
+        echo $tide_right_prompt_suffix
+    end
+end
+
+function _tide_item_pwd
+    _tide_print_item pwd @PWD@
+end
+"""
+    with open(p1, "w") as f:
+        f.write(fixed)
+
 def apply_fish_tide_activation(enabled):
     os.makedirs(FISH_CONFD, exist_ok=True)
     os.makedirs(FISH_FUNCS, exist_ok=True)
@@ -229,6 +269,7 @@ def apply_fish_tide_activation(enabled):
 
     if enabled:
         ensure_tide_installed()
+        patch_tide_1_line_prompt()
         if not os.path.exists(fp_active) and os.path.exists(fp_disabled):
             shutil.move(fp_disabled, fp_active)
         if not os.path.exists(fmp_active) and os.path.exists(fmp_disabled):
@@ -247,6 +288,8 @@ def apply_fish_tide_activation(enabled):
 if status is-interactive
     function _hysett_apply_prompt --on-variable _hysett_tide_reload
         if test -f ~/.config/fish/functions/fish_prompt.fish
+            test -f ~/.config/fish/functions/_tide_1_line_prompt.fish && source ~/.config/fish/functions/_tide_1_line_prompt.fish
+            test -f ~/.config/fish/functions/_tide_2_line_prompt.fish && source ~/.config/fish/functions/_tide_2_line_prompt.fish
             source ~/.config/fish/functions/fish_prompt.fish
             if contains newline $_tide_left_items
                 _tide_status=0 _tide_pipestatus=0 set -U _tide_prompt_$fish_pid (_tide_2_line_prompt)

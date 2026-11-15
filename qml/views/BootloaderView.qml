@@ -107,32 +107,6 @@ Item {
                             }
                         }
 
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-                            Text {
-                                text: "Быстрый выбор задержки:"
-                                color: "#999999"
-                                font.pixelSize: Config ? Config.fontSize - 1 : 10
-                                Layout.fillWidth: true
-                            }
-                            Repeater {
-                                model: [
-                                    { lbl: "0 сек (Мгновенно)", v: 0 },
-                                    { lbl: "1 сек", v: 1 },
-                                    { lbl: "3 сек", v: 3 },
-                                    { lbl: "5 сек", v: 5 },
-                                    { lbl: "10 сек", v: 10 }
-                                ]
-                                delegate: StyledButton {
-                                    text: modelData.lbl
-                                    implicitHeight: 24
-                                    isActive: Config && Config.bootloaderTimeout === modelData.v
-                                    onClicked: if (Config) Config.applyBootloaderSettings(modelData.v, Config.bootloaderSavedDefault, Config.bootloaderEditor)
-                                }
-                            }
-                        }
-
                         Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
 
                         RowLayout {

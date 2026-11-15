@@ -3456,7 +3456,7 @@ ApplicationWindow {
             y: root.drawerY
             width: root.effDrawerW
             height: root.animDrawerH
-            clip: true
+            clip: !root.isFreeFloating
             visible: root.drawerActive
             z: 5
 
@@ -3482,14 +3482,28 @@ ApplicationWindow {
                 }
                 opacity: root.isVortexWindowAnim ? 1.0 : Math.min(1.0, Math.max(0.0, root.drawerProgress) * 1.35)
 
-                layer.enabled: root.isVortexWindowAnimActive
-                layer.smooth: true
-                layer.effect: ShaderEffect {
-                    property var source: drawerInner
+                ShaderEffectSource {
+                    id: vortexWindowSrc
+                    sourceItem: root.isVortexWindowAnimActive ? drawerInner : null
+                    hideSource: root.isVortexWindowAnimActive
+                    live: root.isVortexWindowAnimActive
+                    smooth: true
+                }
+
+                ShaderEffect {
+                    id: vortexWindowShaderQuad
+                    parent: drawerClipBox
+                    visible: root.isVortexWindowAnimActive
+                    x: drawerInner.x - drawerInner.width * 0.5
+                    y: drawerInner.y - drawerInner.height * 0.5
+                    width: drawerInner.width * 2.0
+                    height: drawerInner.height * 2.0
+                    z: 100
+                    property var source: vortexWindowSrc
                     property vector2d u_resolution: Qt.vector2d(Math.max(1, drawerInner.width), Math.max(1, drawerInner.height))
                     property real u_progress: Math.max(0.0, Math.min(1.0, 1.0 - root.drawerProgress))
                     property real u_direction: root.drawerOpen ? -1.0 : 1.0
-                    property real u_mode: 0.0
+                    property real u_mode: -1.0
                     fragmentShader: "qrc:/shaders/qml/shaders/vortex_suck.frag.qsb"
                 }
 

@@ -28,8 +28,16 @@ float sdRoundRect(vec2 p, vec2 b, float r) {
 
 void main() {
     float t = clamp(u_progress, 0.0, 1.0);
+    vec2 center = vec2(0.5, 0.5);
+    float quadScale = (u_mode < -0.5) ? 2.0 : 1.0;
+    vec2 baseUV = center + (qt_TexCoord0 - center) * quadScale;
+
     if (t <= 0.001) {
-        fragColor = texture(source, qt_TexCoord0) * qt_Opacity;
+        if (baseUV.x < 0.0 || baseUV.x > 1.0 || baseUV.y < 0.0 || baseUV.y > 1.0) {
+            fragColor = vec4(0.0);
+            return;
+        }
+        fragColor = texture(source, baseUV) * qt_Opacity;
         return;
     }
     if (t >= 0.995) {
@@ -39,13 +47,12 @@ void main() {
 
     vec2 res = max(u_resolution, vec2(1.0));
     vec2 aspect = vec2(res.x / res.y, 1.0);
-    vec2 center = vec2(0.5, 0.5);
 
     // =========================================================================
-    // РЕЖИМ 0: НАСТОЯЩЕЕ ЗАСАСЫВАНИЕ В ЦЕНТР ПО СПИРАЛЯМ (ГИДРОДИНАМИЧЕСКИЙ СТОК)
+    // РЕЖИМ 0 (и -1 для расширенного 2x холста): ЗАСАСЫВАНИЕ В ЦЕНТР ПО СПИРАЛЯМ
     // =========================================================================
     if (u_mode < 0.5) {
-        vec2 delta = (qt_TexCoord0 - center) * aspect;
+        vec2 delta = (baseUV - center) * aspect;
         float r = length(delta);
         float maxR = length(vec2(0.5, 0.5) * aspect);
         float rnScreen = r / maxR;

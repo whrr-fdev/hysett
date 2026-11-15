@@ -86,13 +86,17 @@ Item {
                                 onClicked: if (Config) Config.rebootToFirmware()
                             }
 
-                            StyledButton {
-                                Layout.fillWidth: true
-                                allowFullWidth: true
-                                implicitHeight: 34
-                                isActive: true
-                                text: "󰍜  Перезагрузить в Boot-меню"
-                                onClicked: if (Config) Config.rebootToBootMenu()
+                            Repeater {
+                                model: Config ? Config.bootloaderEfiEntries : []
+                                delegate: StyledButton {
+                                    visible: !bootRoot.isLegacyDummy(modelData.title) && !modelData.is_first
+                                    Layout.fillWidth: true
+                                    allowFullWidth: true
+                                    implicitHeight: 34
+                                    isActive: true
+                                    text: (String(modelData.title).toLowerCase().indexOf("windows") !== -1 ? "󰍲  Сразу в " : "󰜉  Сразу в ") + modelData.title
+                                    onClicked: if (Config) Config.bootEfiNext(modelData.num, true)
+                                }
                             }
                         }
 

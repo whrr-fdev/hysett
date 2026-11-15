@@ -7,6 +7,12 @@ import "../components"
 Item {
     id: bootRoot
     readonly property bool isM3: Theme && Theme.isRounded
+    property bool showLegacyDrives: false
+
+    function isLegacyDummy(title) {
+        var t = String(title || "").toLowerCase().trim()
+        return t === "hard drive" || t === "cd/dvd drive" || t === "usb hdd" || t === "usb fdd" || t === "network" || t === "uefi: built-in efi shell"
+    }
 
     Component.onCompleted: {
         if (Config) Config.refreshBootloaderState()
@@ -37,15 +43,11 @@ Item {
                     Layout.fillWidth: true
                     spacing: 10
                     Text {
-                        text: "󰍛  Загрузчик системы и автовыбор ОС"
+                        text: "󰍛  Загрузчик системы, BIOS и Boot-меню"
                         color: "#ffffff"
                         font.pixelSize: Config ? Config.fontSize + 3 : 14
                         font.bold: true
                         Layout.fillWidth: true
-                    }
-                    StyledButton {
-                        text: "󰍛 В BIOS / UEFI"
-                        onClicked: if (Config) Config.rebootToFirmware()
                     }
                     StyledButton {
                         text: "󰑐 Обновить"
@@ -53,7 +55,64 @@ Item {
                     }
                 }
 
-                // 1. КАРТОЧКА ПАРАМЕТРОВ ВРЕМЕНИ И АВТОВЫБОРА
+                // 1. КАРТОЧКА БЫСТРОГО ВХОДА В BIOS И BOOT-МЕНЮ
+                GlassPanel {
+                    Layout.fillWidth: true
+                    implicitHeight: quickBootCol.implicitHeight + 28
+
+                    ColumnLayout {
+                        id: quickBootCol
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 10
+
+                        Text {
+                            text: "⚡  Быстрый переход при перезагрузке"
+                            color: "#ffffff"
+                            font.pixelSize: Config ? Config.fontSize + 1 : 12
+                            font.bold: true
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            StyledButton {
+                                Layout.fillWidth: true
+                                allowFullWidth: true
+                                implicitHeight: 34
+                                isActive: true
+                                text: "󰍛  Перезагрузить сразу в BIOS / UEFI"
+                                onClicked: if (Config) Config.rebootToFirmware()
+                            }
+
+                            StyledButton {
+                                Layout.fillWidth: true
+                                allowFullWidth: true
+                                implicitHeight: 34
+                                isActive: true
+                                text: "󰍜  Перезагрузить в Boot-меню"
+                                onClicked: if (Config) Config.rebootToBootMenu()
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "Открыть настройки BIOS / UEFI при следующей обычной перезагрузке:"
+                                color: "#cccccc"
+                                font.pixelSize: Config ? Config.fontSize : 11
+                                Layout.fillWidth: true
+                            }
+                            StyledSwitch {
+                                checked: Config ? Config.bootloaderFwNext : false
+                                onToggled: if (Config) Config.setFirmwareNextBoot(checked)
+                            }
+                        }
+                    }
+                }
+
+                // 2. КАРТОЧКА ПАРАМЕТРОВ ВРЕМЕНИ И АВТОВЫБОРА
                 GlassPanel {
                     Layout.fillWidth: true
                     implicitHeight: cfgCol.implicitHeight + 28
@@ -140,7 +199,7 @@ Item {
                     }
                 }
 
-                // 2. КАРТОЧКА ВЫБОРА ЗАГРУЖАЕМОЙ ПО УМОЛЧАНИЮ ОС / ЯДРА
+                // 3. КАРТОЧКА ВЫБОРА ЗАГРУЖАЕМОЙ ПО УМОЛЧАНИЮ ОС / ЯДРА
                 GlassPanel {
                     visible: Config && Config.bootloaderEntries.length > 0
                     Layout.fillWidth: true
@@ -263,7 +322,7 @@ Item {
                     }
                 }
 
-                // 3. КАРТОЧКА UEFI BOOT ORDER (МАТЕРИНСКАЯ ПЛАТА / EFIBOOTMGR)
+                // 4. КАРТОЧКА UEFI BOOT MENU (МАТЕРИНСКАЯ ПЛАТА / EFIBOOTMGR)
                 GlassPanel {
                     visible: Config && Config.bootloaderEfiEntries.length > 0
                     Layout.fillWidth: true
@@ -275,18 +334,29 @@ Item {
                         anchors.margins: 14
                         spacing: 8
 
-                        Text {
-                            text: "󰍛  Порядок загрузки BIOS / UEFI (efibootmgr • " + (Config ? Config.bootloaderEfiEntries.length : 0) + ")"
-                            color: "#ffffff"
-                            font.pixelSize: Config ? Config.fontSize + 1 : 12
-                            font.bold: true
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: "󰍛  Порядок загрузки BIOS / UEFI (Boot Menu материнской платы)"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            StyledButton {
+                                text: bootRoot.showLegacyDrives ? "Скрыть пустые диски" : "Показать все"
+                                implicitHeight: 22
+                                onClicked: bootRoot.showLegacyDrives = !bootRoot.showLegacyDrives
+                            }
                         }
 
                         Repeater {
                             model: Config ? Config.bootloaderEfiEntries : []
                             delegate: Rectangle {
+                                visible: bootRoot.showLegacyDrives || !bootRoot.isLegacyDummy(modelData.title)
                                 Layout.fillWidth: true
-                                implicitHeight: 44
+                                implicitHeight: visible ? 44 : 0
+                                height: visible ? 44 : 0
                                 radius: bootRoot.isM3 ? 10 : 0
                                 color: modelData.is_first ? Qt.rgba(Config ? Config.m3Primary.r : 0.6, Config ? Config.m3Primary.g : 0.8, Config ? Config.m3Primary.b : 1.0, 0.12) : Qt.rgba(1, 1, 1, 0.04)
                                 border.color: modelData.is_first ? (Config ? Config.m3Primary : "#a8c7fa") : Qt.rgba(1, 1, 1, 0.10)
@@ -299,6 +369,12 @@ Item {
                                     spacing: 10
 
                                     Text {
+                                        text: String(modelData.title).toLowerCase().indexOf("windows") !== -1 ? "󰍲" : "󰌽"
+                                        color: modelData.is_first ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
+                                        font.pixelSize: 16
+                                    }
+
+                                    Text {
                                         text: "Boot" + modelData.num
                                         color: modelData.is_first ? "#69f0ae" : "#aaaaaa"
                                         font.family: "monospace"
@@ -307,7 +383,7 @@ Item {
                                     }
 
                                     Text {
-                                        text: modelData.title
+                                        text: modelData.title + (modelData.is_first ? "  (★ Автозагрузка)" : "")
                                         color: "#ffffff"
                                         font.pixelSize: Config ? Config.fontSize : 11
                                         font.bold: modelData.is_first
@@ -317,7 +393,7 @@ Item {
 
                                     StyledButton {
                                         visible: !modelData.is_first
-                                        text: "↑ На 1-е место"
+                                        text: "★ Сделать 1-й (По умолчанию)"
                                         implicitHeight: 24
                                         onClicked: if (Config) Config.setEfiBootFirst(modelData.num)
                                     }
@@ -325,6 +401,7 @@ Item {
                                     StyledButton {
                                         text: "󰜉 Загрузить сейчас"
                                         implicitHeight: 24
+                                        isActive: modelData.is_first
                                         onClicked: if (Config) Config.bootEfiNext(modelData.num, true)
                                     }
                                 }

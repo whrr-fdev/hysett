@@ -1723,6 +1723,25 @@ void AppConfig::bootEfiNext(const QString &bootNum, bool rebootNow) {
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "efi_next", bootNum.trimmed(), rebootNow ? "1" : "0"});
 }
 
+void AppConfig::setFirmwareNextBoot(bool enable) {
+    m_bootloaderFwNext = enable;
+    emit bootloaderChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        QByteArray raw = p->readAllStandardOutput();
+        QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
+        if (o.contains("fw_next")) m_bootloaderFwNext = o["fw_next"].toBool(m_bootloaderFwNext);
+        applyBootloaderJson(raw, m_bootloaderType, m_bootloaderStatus, m_bootloaderTimeout, m_bootloaderSavedDefault, m_bootloaderEditor, m_bootloaderEntries, m_bootloaderEfiEntries);
+        p->deleteLater();
+        emit bootloaderChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "set_fw_next", enable ? "1" : "0"});
+}
+
 void AppConfig::rebootToFirmware() {
     QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "reboot_bios"});
+}
+
+void AppConfig::rebootToBootMenu() {
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_bootloader.py", "reboot_bootmenu"});
 }

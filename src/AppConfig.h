@@ -45,6 +45,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(int bootloaderTimeout READ bootloaderTimeout NOTIFY bootloaderChanged)
     Q_PROPERTY(bool bootloaderSavedDefault READ bootloaderSavedDefault NOTIFY bootloaderChanged)
     Q_PROPERTY(bool bootloaderEditor READ bootloaderEditor NOTIFY bootloaderChanged)
+    Q_PROPERTY(bool bootloaderFwNext READ bootloaderFwNext NOTIFY bootloaderChanged)
     Q_PROPERTY(QVariantList bootloaderEntries READ bootloaderEntries NOTIFY bootloaderChanged)
     Q_PROPERTY(QVariantList bootloaderEfiEntries READ bootloaderEfiEntries NOTIFY bootloaderChanged)
     Q_PROPERTY(bool firstRunCompleted READ firstRunCompleted WRITE setFirstRunCompleted NOTIFY firstRunChanged)
@@ -251,7 +252,10 @@ public:
     Q_INVOKABLE void bootEntryOneshot(const QString &entryId, bool rebootNow);
     Q_INVOKABLE void setEfiBootFirst(const QString &bootNum);
     Q_INVOKABLE void bootEfiNext(const QString &bootNum, bool rebootNow);
+    bool bootloaderFwNext() const { return m_bootloaderFwNext; }
+    Q_INVOKABLE void setFirmwareNextBoot(bool enable);
     Q_INVOKABLE void rebootToFirmware();
+    Q_INVOKABLE void rebootToBootMenu();
     Q_INVOKABLE void refreshWebShareState();
     Q_INVOKABLE void toggleWebShare();
     Q_INVOKABLE void hostPathForFriend(const QString &path);
@@ -448,6 +452,7 @@ private:
     int m_bootloaderTimeout = 5;
     bool m_bootloaderSavedDefault = false;
     bool m_bootloaderEditor = true;
+    bool m_bootloaderFwNext = false;
     QVariantList m_bootloaderEntries;
     QVariantList m_bootloaderEfiEntries;
     bool m_firstRunCompleted = true;

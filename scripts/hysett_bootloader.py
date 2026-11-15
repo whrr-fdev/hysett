@@ -251,6 +251,8 @@ def build_status(msg=""):
     st["efi_entries"] = efi_list
     if st["type"] == "efibootmgr":
         st["timeout"] = efi_to
+    fw_out = run_out(["bootctl", "set-reboot-to-firmware"]).strip().lower()
+    st["fw_next"] = (fw_out == "yes" or fw_out == "true")
     st["status"] = msg or f"Активный загрузчик: {st['type']} ({st['config_path']})"
     return st
 
@@ -380,6 +382,27 @@ def root_efi_boot_next(boot_num, do_reboot):
     if do_reboot:
         subprocess.Popen(["systemctl", "reboot"])
 
+
+def root_set_fw_next(enable):
+    subprocess.run(["bootctl", "set-reboot-to-firmware", "true" if enable else "false"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+def root_reboot_bios():
+    subprocess.run(["bootctl", "set-reboot-to-firmware", "true"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen(["systemctl", "reboot", "--firmware-setup"])
+
+def root_reboot_bootmenu():
+    btype, bpath = detect_bootloader()
+    if btype == "systemd-boot":
+        subprocess.run(["bootctl", "set-timeout-oneshot", "30"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif btype == "grub":
+        subprocess.run(["grub-editenv", "/boot/grub/grubenv", "set", "menu_show_once=1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["grub-editenv", "/boot/grub/grubenv", "set", " recordfail=1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    elif btype == "limine" and os.path.exists(bpath):
+        root_apply_settings(15, False, True)
+    else:
+        subprocess.run(["efibootmgr", "-t", "10"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.Popen(["systemctl", "reboot"])
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "status"
     if cmd == "_root_apply":
@@ -413,8 +436,21 @@ if __name__ == "__main__":
         reb = sys.argv[3] if len(sys.argv) > 3 else "0"
         run_root(["_root_efi_next", bnum, reb])
         print(json.dumps(build_status(f"Следующая загрузка UEFI: Boot{bnum} ✓"), ensure_ascii=False))
+    elif cmd == "_root_fw_next":
+        root_set_fw_next(sys.argv[2] == "1")
+    elif cmd == "_root_reboot_bios":
+        root_reboot_bios()
+    elif cmd == "_root_reboot_bootmenu":
+        root_reboot_bootmenu()
+    elif cmd == "set_fw_next":
+        en = sys.argv[2] if len(sys.argv) > 2 else "1"
+        run_root(["_root_fw_next", en])
+        print(json.dumps(build_status("Вход в BIOS при следующей перезагрузке включен ✓" if en == "1" else "Вход в BIOS при следующей перезагрузке отменен"), ensure_ascii=False))
     elif cmd == "reboot_bios":
-        subprocess.Popen(["systemctl", "reboot", "--firmware-setup"])
+        run_root(["_root_reboot_bios"])
         print(json.dumps(build_status("Перезагрузка в BIOS / UEFI..."), ensure_ascii=False))
+    elif cmd == "reboot_bootmenu":
+        run_root(["_root_reboot_bootmenu"])
+        print(json.dumps(build_status("Перезагрузка в Boot-меню..."), ensure_ascii=False))
     else:
         print(json.dumps(build_status(), ensure_ascii=False))

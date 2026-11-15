@@ -3156,7 +3156,7 @@ ApplicationWindow {
                         anchors.verticalCenter: parent.verticalCenter
                     }
                     Text {
-                        text: "Отпустите файл здесь"
+                        text: "Отпустите файл или папку"
                         color: "#ffffff"
                         font.pixelSize: 11
                         font.bold: true
@@ -3414,7 +3414,7 @@ ApplicationWindow {
                                 color: Config ? Config.m3Primary : "#ffffff"
                                 Text {
                                     anchors.centerIn: parent
-                                    text: "󰈔"
+                                    text: (Config && Config.stashedFiles.length > 0 && Config.stashedFiles[0].isDir) ? "󰉋" : "󰈔"
                                     font.pixelSize: 15
                                     color: Config ? Config.accentTextColor : "#000000"
                                 }
@@ -3423,7 +3423,7 @@ ApplicationWindow {
                                 Layout.fillWidth: true
                                 spacing: 1
                                 Text {
-                                    text: root.droppedFileName.length > 0 ? root.droppedFileName : "Файл получен"
+                                    text: root.droppedFileName.length > 0 ? root.droppedFileName : "Готово"
                                     color: "#ffffff"
                                     font.pixelSize: 12
                                     font.bold: true
@@ -3491,7 +3491,7 @@ ApplicationWindow {
                                         anchors.leftMargin: 12
                                         text: modelData.label
                                         font.pixelSize: 11
-                                        font.bold: parent.isSel
+                                        font.bold: false
                                         color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                         Behavior on color { ColorAnimation { duration: 110 } }
                                     }
@@ -3625,7 +3625,7 @@ ApplicationWindow {
                                         anchors.centerIn: parent
                                         text: modelData.label
                                         font.pixelSize: 12
-                                        font.bold: parent.isSel
+                                        font.bold: false
                                         color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                         Behavior on color { ColorAnimation { duration: 120 } }
                                     }
@@ -3737,7 +3737,7 @@ ApplicationWindow {
                                             color: clipDelRect.isHov ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
                                             Behavior on color { ColorAnimation { duration: 110 } }
                                             font.pixelSize: 11
-                                            font.bold: clipDelRect.isHov
+                                            font.bold: false
                                             elide: Text.ElideRight
                                             Layout.fillWidth: true
                                         }

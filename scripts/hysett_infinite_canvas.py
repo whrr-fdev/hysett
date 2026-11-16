@@ -5,6 +5,7 @@ import glob
 import struct
 import select
 import signal
+import socket
 import time
 import subprocess
 
@@ -50,7 +51,7 @@ def stop_existing():
 
     for proc_dir in glob.glob("/proc/[0-9]*"):
         try:
-            pid = int( os.path.basename(proc_dir) )
+            pid = int(os.path.basename(proc_dir))
             if pid == my_pid:
                 continue
             with open(f"{proc_dir}/cmdline", "rb") as f:
@@ -59,6 +60,23 @@ def stop_existing():
                 os.kill(pid, signal.SIGTERM)
         except Exception:
             pass
+
+
+def connect_hypr_event_sock():
+    xdg = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    if not sig:
+        return None
+    sock_path = os.path.join(xdg, "hypr", sig, ".socket2.sock")
+    if not os.path.exists(sock_path):
+        return None
+    try:
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.setblocking(False)
+        s.connect(sock_path)
+        return s
+    except Exception:
+        return None
 
 
 def start_evdev_listener():
@@ -78,8 +96,8 @@ def start_evdev_listener():
         except Exception:
             pass
 
-    if not fds:
-        return
+    hypr_sock = connect_hypr_event_sock()
+    sock_buf = ""
 
     super_down = False
     alt_down = False
@@ -93,8 +111,12 @@ def start_evdev_listener():
     last_panlock_check = 0.0
 
     while True:
+        wait_list = list(fds)
+        if hypr_sock is not None:
+            wait_list.append(hypr_sock)
+
         try:
-            rlist, _, _ = select.select(fds, [], [], 0.014)
+            rlist, _, _ = select.select(wait_list, [], [], 0.014)
         except Exception:
             break
 
@@ -103,7 +125,29 @@ def start_evdev_listener():
             panlock_cached = os.path.exists(PANLOCK_FILE)
             last_panlock_check = now
 
-        for fd in rlist:
+        for item in rlist:
+            if hypr_sock is not None and item is hypr_sock:
+                try:
+                    chunk = hypr_sock.recv(4096).decode("utf-8", errors="ignore")
+                    if not chunk:
+                        hypr_sock.close()
+                        hypr_sock = None
+                    else:
+                        sock_buf += chunk
+                        while "\n" in sock_buf:
+                            line, sock_buf = sock_buf.split("\n", 1)
+                            if line.startswith("openwindow>>"):
+                                payload = line.split(">>", 1)[1]
+                                addr = payload.split(",", 1)[0].strip()
+                                if addr:
+                                    if not addr.startswith("0x"):
+                                        addr = "0x" + addr
+                                    repl_lua(f"if _G.Canvas then _G.Canvas.on_window_open('{addr}') end")
+                except Exception:
+                    pass
+                continue
+
+            fd = item
             try:
                 raw = os.read(fd, EVENT_SIZE * 64)
             except Exception:

@@ -300,13 +300,14 @@ Item {
                     }
 
                     StyledButton {
+                        visible: Wallpapers.wallpapers.length === 0 || Wallpapers.ghSyncBusy
                         Layout.fillWidth: true
                         allowFullWidth: true
                         isActive: Wallpapers.ghSyncBusy
                         enabled: !Wallpapers.ghSyncBusy
                         text: Wallpapers.ghSyncBusy
                               ? ("󰇚  " + Wallpapers.ghSyncText + " (" + Wallpapers.ghSyncProgress + "%)")
-                              : "󰇚   Скачать обои с GitHub (whrr-fdev/wallpapers)"
+                              : "󰇚   Скачать обои с GitHub"
                         onClicked: Wallpapers.syncGithubWallpapers()
                     }
 

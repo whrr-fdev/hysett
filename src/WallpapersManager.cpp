@@ -540,7 +540,7 @@ void WallpapersManager::syncGithubWallpapers() {
     if (m_ghSyncBusy) return;
     m_ghSyncBusy = true;
     m_ghSyncProgress = 5;
-    m_ghSyncText = "Синхронизация обоев с GitHub (whrr-fdev/wallpapers)...";
+    m_ghSyncText = "Синхронизация обоев с GitHub...";
     emit ghSyncChanged();
 
     QTimer *pollT = new QTimer(this);

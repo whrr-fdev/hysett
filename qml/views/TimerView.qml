@@ -12,9 +12,39 @@ Item {
 
     // 0 = Часы, 1 = Календарь, 2 = Таймер, 3 = Секундомер
     property int subTab: (winObj && winObj.timeSubTab !== undefined) ? winObj.timeSubTab : 0
+    property int prevSubTab: 0
+    property real subPageOffsetY: 0.0
+    property real subPageAlpha: 1.0
+    property real subPageScale: 1.0
+    property real dialIntroProgress: 0.0
+    property real curExactSeconds: 0.0
+
+    NumberAnimation {
+        id: dialIntroAnim
+        target: timeRoot
+        property: "dialIntroProgress"
+        from: 0.0
+        to: 1.0
+        duration: 720
+        easing.type: Easing.OutCubic
+    }
+
+    ParallelAnimation {
+        id: subTabSwitchAnim
+        NumberAnimation { target: timeRoot; property: "subPageAlpha"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { id: subPageYAnim; target: timeRoot; property: "subPageOffsetY"; to: 0.0; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+        NumberAnimation { target: timeRoot; property: "subPageScale"; from: 0.975; to: 1.0; duration: 240; easing.type: Easing.OutCubic }
+    }
+
     onSubTabChanged: {
+        var dir = (subTab >= prevSubTab) ? 1 : -1
+        prevSubTab = subTab
         if (winObj && winObj.timeSubTab !== subTab) winObj.timeSubTab = subTab
         if (subTab !== 2) kbEditActive = false
+        subTabSwitchAnim.stop()
+        subPageYAnim.from = dir * 24.0
+        subTabSwitchAnim.start()
+        if (subTab === 0) dialIntroAnim.restart()
         paintActiveCanvas()
     }
 
@@ -40,17 +70,23 @@ Item {
 
     function updateClockState() {
         var d = new Date()
-        curHours = d.getHours()
-        curMinutes = d.getMinutes()
-        curSeconds = d.getSeconds()
-        todayDay = d.getDate()
-        todayMonth = d.getMonth()
-        todayYear = d.getFullYear()
-        var fmt = clock24h
-                  ? (clockShowSec ? "HH:mm:ss" : "HH:mm")
-                  : (clockShowSec ? "hh:mm:ss AP" : "hh:mm AP")
-        curTimeText = Qt.formatDateTime(d, fmt)
-        curDateText = Qt.formatDateTime(d, "dddd, d MMMM yyyy")
+        var h = d.getHours()
+        var m = d.getMinutes()
+        var s = d.getSeconds()
+        curExactSeconds = s + d.getMilliseconds() / 1000.0
+        if (s !== curSeconds || m !== curMinutes || h !== curHours || curTimeText.length === 0) {
+            curHours = h
+            curMinutes = m
+            curSeconds = s
+            todayDay = d.getDate()
+            todayMonth = d.getMonth()
+            todayYear = d.getFullYear()
+            var fmt = clock24h
+                      ? (clockShowSec ? "HH:mm:ss" : "HH:mm")
+                      : (clockShowSec ? "hh:mm:ss AP" : "hh:mm AP")
+            curTimeText = Qt.formatDateTime(d, fmt)
+            curDateText = Qt.formatDateTime(d, "dddd, d MMMM yyyy")
+        }
         if (timeRoot.visible && timeRoot.subTab === 0 && clockDialCanvas.available) {
             clockDialCanvas.requestPaint()
         }
@@ -150,20 +186,24 @@ Item {
     }
 
     Timer {
-        interval: 1000
-        running: timeRoot.visible && timeRoot.subTab === 0
+        interval: 33
+        running: timeRoot.visible && timeRoot.subTab === 0 && (!timeRoot.winObj || timeRoot.winObj.drawerActive)
         repeat: true
         onTriggered: timeRoot.updateClockState()
     }
 
     Component.onCompleted: {
-        if (visible) Qt.callLater(() => subSidebar.playStaircase())
+        if (visible) {
+            Qt.callLater(() => subSidebar.playStaircase())
+            dialIntroAnim.restart()
+        }
         updateClockState()
         syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
     }
 
     onVisibleChanged: if (visible) {
         subSidebar.playStaircase()
+        dialIntroAnim.restart()
         updateClockState()
         if (!winObj || !winObj.timerActive) syncDrumsFromMs(winObj ? winObj.timerTotalMs : 300000)
         paintActiveCanvas()
@@ -633,6 +673,9 @@ Item {
         anchors.right: parent.right
         anchors.top: parent.top
         anchors.bottom: parent.bottom
+        opacity: timeRoot.subPageAlpha
+        scale: timeRoot.subPageScale
+        transform: Translate { y: timeRoot.subPageOffsetY }
 
         // ---------------------------------------------------------------------
         // ЭКРАН 0: ЧАСЫ
@@ -698,8 +741,9 @@ Item {
                                         var rOuter = 94
                                         var rInner = 80
 
-                                        var secProg = timeRoot.curSeconds / 60.0
-                                        var minProg = (timeRoot.curMinutes + secProg) / 60.0
+                                        var rawSecProg = timeRoot.curExactSeconds / 60.0
+                                        var secProg = rawSecProg * timeRoot.dialIntroProgress
+                                        var minProg = ((timeRoot.curMinutes + rawSecProg) / 60.0) * timeRoot.dialIntroProgress
 
                                         var primHex = Config ? Config.m3Primary.toString() : "#a8c7fa"
                                         var secCol = Config ? Config.m3SecondaryContainer : Qt.rgba(0.3, 0.35, 0.45, 1)
@@ -838,7 +882,7 @@ Item {
                                         Layout.fillWidth: true; height: 6; radius: timeRoot.isM3 ? 3 : 0
                                         color: Qt.rgba(1, 1, 1, 0.10)
                                         Rectangle {
-                                            width: parent.width * Math.min(1.0, (timeRoot.curHours * 3600 + timeRoot.curMinutes * 60 + timeRoot.curSeconds) / 86400.0)
+                                            width: parent.width * Math.min(1.0, ((timeRoot.curHours * 3600 + timeRoot.curMinutes * 60 + timeRoot.curExactSeconds) / 86400.0) * timeRoot.dialIntroProgress)
                                             height: parent.height; radius: parent.radius
                                             color: Config ? Config.m3Primary : "#a8c7fa"
                                         }
@@ -958,71 +1002,100 @@ Item {
                             StyledButton { text: "»"; isIconOnly: true; implicitWidth: 30; implicitHeight: 26; onClicked: timeRoot.calYear++ }
                         }
 
-                        GridLayout {
+                        Item {
+                            id: calGridWrap
                             Layout.fillWidth: true
-                            columns: 7
-                            columnSpacing: 6
-                            rowSpacing: 6
+                            implicitHeight: calGridInner.implicitHeight
+                            property Item hoveredDayObj: null
+                            property Item lastHoveredDayObj: null
 
-                            Repeater {
-                                model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
-                                delegate: Text {
-                                    Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
-                                    text: modelData
-                                    color: index >= 5 ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
-                                    font.pixelSize: Config.fontSize - 1; font.bold: true
-                                }
+                            Rectangle {
+                                id: calHoverPill
+                                z: 2
+                                x: calGridWrap.lastHoveredDayObj ? calGridWrap.lastHoveredDayObj.x : 0
+                                y: calGridWrap.lastHoveredDayObj ? calGridWrap.lastHoveredDayObj.y : 0
+                                width: calGridWrap.lastHoveredDayObj ? calGridWrap.lastHoveredDayObj.width : 56
+                                height: calGridWrap.lastHoveredDayObj ? calGridWrap.lastHoveredDayObj.height : 36
+                                radius: timeRoot.isM3 ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
+                                color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.20)
+                                border.width: 1.5
+                                border.color: Config ? Config.m3Primary : "#ffffff"
+                                opacity: calGridWrap.hoveredDayObj ? 1.0 : 0.0
+                                Behavior on x { enabled: calHoverPill.opacity > 0.05; NumberAnimation { duration: 165; easing.type: Easing.OutQuint } }
+                                Behavior on y { enabled: calHoverPill.opacity > 0.05; NumberAnimation { duration: 165; easing.type: Easing.OutQuint } }
+                                Behavior on width { enabled: calHoverPill.opacity > 0.05; NumberAnimation { duration: 165; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 110 } }
                             }
 
-                            Repeater {
-                                model: 42
-                                delegate: Rectangle {
-                                    id: dayCell
-                                    Layout.fillWidth: true
-                                    Layout.preferredHeight: 36
-                                    readonly property int dNum: index - calPage.firstWeekdayOffset + 1
-                                    readonly property bool isValid: dNum >= 1 && dNum <= calPage.daysInCurrentMonth
-                                    readonly property bool isToday: isValid && dNum === timeRoot.todayDay && timeRoot.calMonth === timeRoot.todayMonth && timeRoot.calYear === timeRoot.todayYear
-                                    readonly property bool isSel: isValid && dNum === timeRoot.selectedCalDay
+                            GridLayout {
+                                id: calGridInner
+                                z: 3
+                                width: parent.width
+                                columns: 7
+                                columnSpacing: 6
+                                rowSpacing: 6
 
-                                    radius: timeRoot.isM3 ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
-                                    color: {
-                                        if (!isValid) return "transparent"
-                                        if (isToday) return Config ? Config.m3Primary : "#ffffff"
-                                        if (isSel) return Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.16)
-                                        if (dayMa.containsMouse) return Qt.rgba(1, 1, 1, 0.08)
-                                        return timeRoot.isM3 && Config
-                                               ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.38)
-                                               : Qt.rgba(1, 1, 1, 0.03)
+                                Repeater {
+                                    model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
+                                    delegate: Text {
+                                        Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter
+                                        text: modelData
+                                        color: index >= 5 ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
+                                        font.pixelSize: Config.fontSize - 1; font.bold: true
                                     }
-                                    border.width: isValid ? 1 : 0
-                                    border.color: {
-                                        if (!isValid || isToday) return "transparent"
-                                        if (isSel) return Config ? Config.m3Primary : "#ffffff"
-                                        return timeRoot.isM3 && Config
-                                               ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.22)
-                                               : Qt.rgba(1, 1, 1, 0.08)
-                                    }
+                                }
 
-                                    Text {
-                                        anchors.centerIn: parent
-                                        text: dayCell.isValid ? dayCell.dNum : ""
+                                Repeater {
+                                    model: 42
+                                    delegate: Rectangle {
+                                        id: dayCell
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 36
+                                        readonly property int dNum: index - calPage.firstWeekdayOffset + 1
+                                        readonly property bool isValid: dNum >= 1 && dNum <= calPage.daysInCurrentMonth
+                                        readonly property bool isToday: isValid && dNum === timeRoot.todayDay && timeRoot.calMonth === timeRoot.todayMonth && timeRoot.calYear === timeRoot.todayYear
+                                        readonly property bool isSel: isValid && dNum === timeRoot.selectedCalDay
+
+                                        radius: timeRoot.isM3 ? (Config ? Math.min(10, Config.m3ControlRadius) : 8) : 0
                                         color: {
-                                            if (dayCell.isToday) return Config ? Config.accentTextColor : "#000000"
-                                            if (dayCell.isSel) return Config ? Config.m3Primary : "#ffffff"
-                                            return "#ffffff"
+                                            if (!isValid) return "transparent"
+                                            if (isToday) return Config ? Config.m3Primary : "#ffffff"
+                                            if (isSel) return Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.16)
+                                            return timeRoot.isM3 && Config
+                                                   ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.38)
+                                                   : Qt.rgba(1, 1, 1, 0.03)
                                         }
-                                        font.pixelSize: Config.fontSize
-                                        font.bold: dayCell.isToday || dayCell.isSel
-                                    }
+                                        border.width: isValid ? 1 : 0
+                                        border.color: {
+                                            if (!isValid || isToday) return "transparent"
+                                            if (isSel) return Config ? Config.m3Primary : "#ffffff"
+                                            return timeRoot.isM3 && Config
+                                                   ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.22)
+                                                   : Qt.rgba(1, 1, 1, 0.08)
+                                        }
 
-                                    MouseArea {
-                                        id: dayMa
-                                        anchors.fill: parent
-                                        enabled: dayCell.isValid
-                                        hoverEnabled: true
-                                        cursorShape: dayCell.isValid ? Qt.PointingHandCursor : Qt.ArrowCursor
-                                        onClicked: timeRoot.selectedCalDay = dayCell.dNum
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: dayCell.isValid ? dayCell.dNum : ""
+                                            color: {
+                                                if (dayCell.isToday) return Config ? Config.accentTextColor : "#000000"
+                                                if (dayCell.isSel) return Config ? Config.m3Primary : "#ffffff"
+                                                return "#ffffff"
+                                            }
+                                            font.pixelSize: Config.fontSize
+                                            font.bold: dayCell.isToday || dayCell.isSel || calGridWrap.hoveredDayObj === dayCell
+                                        }
+
+                                        MouseArea {
+                                            id: dayMa
+                                            anchors.fill: parent
+                                            enabled: dayCell.isValid
+                                            hoverEnabled: true
+                                            cursorShape: dayCell.isValid ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onEntered: if (dayCell.isValid) { calGridWrap.lastHoveredDayObj = dayCell; calGridWrap.hoveredDayObj = dayCell }
+                                            onExited: if (calGridWrap.hoveredDayObj === dayCell) calGridWrap.hoveredDayObj = null
+                                            onClicked: timeRoot.selectedCalDay = dayCell.dNum
+                                        }
                                     }
                                 }
                             }

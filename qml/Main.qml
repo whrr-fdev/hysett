@@ -4338,33 +4338,71 @@ ApplicationWindow {
                                 }
                             }
                         }
-                        GridLayout {
-                            Layout.fillWidth: true; columns: 7; columnSpacing: 4; rowSpacing: 4
-                            Repeater {
-                                model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
-                                delegate: Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData; color: "#888888"; font.pixelSize: 10; font.bold: true }
+                        Item {
+                            id: popupCalWrap
+                            Layout.fillWidth: true
+                            implicitHeight: popupCalGrid.implicitHeight
+                            property Item hoveredCell: null
+                            property Item lastHoveredCell: null
+
+                            Rectangle {
+                                id: popupCalHoverPill
+                                z: 2
+                                x: popupCalWrap.lastHoveredCell ? popupCalWrap.lastHoveredCell.x : 0
+                                y: popupCalWrap.lastHoveredCell ? popupCalWrap.lastHoveredCell.y : 0
+                                width: popupCalWrap.lastHoveredCell ? popupCalWrap.lastHoveredCell.width : 34
+                                height: popupCalWrap.lastHoveredCell ? popupCalWrap.lastHoveredCell.height : 26
+                                radius: (Theme && Theme.isRounded) ? 6 : 0
+                                color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.22)
+                                border.width: 1
+                                border.color: Config ? Config.m3Primary : "#ffffff"
+                                opacity: popupCalWrap.hoveredCell ? 1.0 : 0.0
+                                Behavior on x { enabled: popupCalHoverPill.opacity > 0.05; NumberAnimation { duration: 160; easing.type: Easing.OutQuint } }
+                                Behavior on y { enabled: popupCalHoverPill.opacity > 0.05; NumberAnimation { duration: 160; easing.type: Easing.OutQuint } }
+                                Behavior on width { enabled: popupCalHoverPill.opacity > 0.05; NumberAnimation { duration: 160; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 100 } }
                             }
-                            Repeater {
-                                model: (root.drawerActive && root.drawerMode === "calendar") ? 42 : 0
-                                delegate: Rectangle {
-                                    Layout.fillWidth: true; Layout.preferredHeight: 26
-                                    property var cellInfo: {
-                                        var firstDay = (new Date(root.calYear, root.calMonth, 1).getDay() + 6) % 7
-                                        var daysInM = new Date(root.calYear, root.calMonth + 1, 0).getDate()
-                                        var dNum = index - firstDay + 1
-                                        var valid = (dNum >= 1 && dNum <= daysInM)
-                                        var now = new Date()
-                                        var isToday = valid && (dNum === now.getDate() && root.calMonth === now.getMonth() && root.calYear === now.getFullYear())
-                                        return { day: valid ? dNum : "", valid: valid, today: isToday }
-                                    }
-                                    radius: (Theme && Theme.isRounded) ? 6 : 0
-                                    color: cellInfo.today ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
-                                    border.color: cellInfo.today ? "transparent" : (cellInfo.valid ? Qt.rgba(1,1,1,0.08) : "transparent")
-                                    border.width: 1
-                                    Text {
-                                        anchors.centerIn: parent; text: parent.cellInfo.day
-                                        color: parent.cellInfo.today ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                        font.pixelSize: 11; font.bold: parent.cellInfo.today
+
+                            GridLayout {
+                                id: popupCalGrid
+                                z: 3
+                                width: parent.width
+                                columns: 7; columnSpacing: 4; rowSpacing: 4
+                                Repeater {
+                                    model: ["Пн","Вт","Ср","Чт","Пт","Сб","Вс"]
+                                    delegate: Text { Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; text: modelData; color: "#888888"; font.pixelSize: 10; font.bold: true }
+                                }
+                                Repeater {
+                                    model: (root.drawerActive && root.drawerMode === "calendar") ? 42 : 0
+                                    delegate: Rectangle {
+                                        id: pCalCell
+                                        Layout.fillWidth: true; Layout.preferredHeight: 26
+                                        property var cellInfo: {
+                                            var firstDay = (new Date(root.calYear, root.calMonth, 1).getDay() + 6) % 7
+                                            var daysInM = new Date(root.calYear, root.calMonth + 1, 0).getDate()
+                                            var dNum = index - firstDay + 1
+                                            var valid = (dNum >= 1 && dNum <= daysInM)
+                                            var now = new Date()
+                                            var isToday = valid && (dNum === now.getDate() && root.calMonth === now.getMonth() && root.calYear === now.getFullYear())
+                                            return { day: valid ? dNum : "", valid: valid, today: isToday }
+                                        }
+                                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                                        color: cellInfo.today ? (Config ? Config.m3Primary : "#ffffff") : "transparent"
+                                        border.color: cellInfo.today ? "transparent" : (cellInfo.valid ? Qt.rgba(1,1,1,0.08) : "transparent")
+                                        border.width: 1
+                                        Text {
+                                            anchors.centerIn: parent; text: parent.cellInfo.day
+                                            color: parent.cellInfo.today ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                            font.pixelSize: 11; font.bold: parent.cellInfo.today || popupCalWrap.hoveredCell === pCalCell
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            enabled: pCalCell.cellInfo.valid
+                                            hoverEnabled: true
+                                            cursorShape: pCalCell.cellInfo.valid ? Qt.PointingHandCursor : Qt.ArrowCursor
+                                            onEntered: if (pCalCell.cellInfo.valid) { popupCalWrap.lastHoveredCell = pCalCell; popupCalWrap.hoveredCell = pCalCell }
+                                            onExited: if (popupCalWrap.hoveredCell === pCalCell) popupCalWrap.hoveredCell = null
+                                        }
                                     }
                                 }
                             }

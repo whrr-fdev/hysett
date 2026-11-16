@@ -9,6 +9,23 @@ RowLayout {
     spacing: 0
 
     property int subTab: 0
+    property int prevSubTab: 0
+    property real subPageOffsetY: 0.0
+    property real subPageAlpha: 1.0
+    property real subPageScale: 1.0
+    ParallelAnimation {
+        id: widSubTabAnim
+        NumberAnimation { target: widgetsRoot; property: "subPageAlpha"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { id: widSubYAnim; target: widgetsRoot; property: "subPageOffsetY"; to: 0.0; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+        NumberAnimation { target: widgetsRoot; property: "subPageScale"; from: 0.975; to: 1.0; duration: 240; easing.type: Easing.OutCubic }
+    }
+    onSubTabChanged: {
+        var dir = (subTab >= prevSubTab) ? 1 : -1
+        prevSubTab = subTab
+        widSubTabAnim.stop()
+        widSubYAnim.from = dir * 24.0
+        widSubTabAnim.start()
+    }
     onVisibleChanged: if (visible) subSidebar.playStaircase()
     Component.onCompleted: if (visible) Qt.callLater(() => subSidebar.playStaircase())
     property int colorTarget: 0 // 0 = text_color, 1 = graph_color
@@ -245,6 +262,9 @@ RowLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         currentIndex: subTab
+        opacity: widgetsRoot.subPageAlpha
+        scale: widgetsRoot.subPageScale
+        transform: Translate { y: widgetsRoot.subPageOffsetY }
 
         // Вкладка 0: Оверлей клавиш
         ScrollView {

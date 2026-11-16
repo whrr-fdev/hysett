@@ -110,9 +110,24 @@ Item {
 
     // 0 = Плеер и плейлисты, 1 = Настройки и синхронизация
     property int subTab: (winObj && winObj.musicSubTab !== undefined) ? winObj.musicSubTab : 0
+    property int prevSubTab: 0
+    property real subPageOffsetY: 0.0
+    property real subPageAlpha: 1.0
+    property real subPageScale: 1.0
+    ParallelAnimation {
+        id: musSubTabAnim
+        NumberAnimation { target: musicRoot; property: "subPageAlpha"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { id: musSubYAnim; target: musicRoot; property: "subPageOffsetY"; to: 0.0; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+        NumberAnimation { target: musicRoot; property: "subPageScale"; from: 0.975; to: 1.0; duration: 240; easing.type: Easing.OutCubic }
+    }
     onSubTabChanged: {
+        var dir = (subTab >= prevSubTab) ? 1 : -1
+        prevSubTab = subTab
         if (winObj && winObj.musicSubTab !== subTab) winObj.musicSubTab = subTab
         if (subTab === 0 && trackListModel.count === 0) trackListContainer.rebuildTrackModel()
+        musSubTabAnim.stop()
+        musSubYAnim.from = dir * 24.0
+        musSubTabAnim.start()
     }
 
     Connections {
@@ -512,6 +527,9 @@ Item {
             anchors.right: parent.right
             anchors.top: parent.top
             anchors.bottom: parent.bottom
+            opacity: musicRoot.subPageAlpha
+            scale: musicRoot.subPageScale
+            transform: Translate { y: musicRoot.subPageOffsetY }
 
             // -----------------------------------------------------------------
             // ВКЛАДКА 0: ПЛЕЕР И ПЛЕЙЛИСТЫ С МИНИАТЮРАМИ

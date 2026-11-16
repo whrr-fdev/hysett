@@ -9,6 +9,23 @@ RowLayout {
     spacing: 0
 
     property int subTab: 0
+    property int prevSubTab: 0
+    property real subPageOffsetY: 0.0
+    property real subPageAlpha: 1.0
+    property real subPageScale: 1.0
+    ParallelAnimation {
+        id: appSubTabAnim
+        NumberAnimation { target: appSetRoot; property: "subPageAlpha"; from: 0.0; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
+        NumberAnimation { id: appSubYAnim; target: appSetRoot; property: "subPageOffsetY"; to: 0.0; duration: 260; easing.type: Easing.OutBack; easing.overshoot: 1.15 }
+        NumberAnimation { target: appSetRoot; property: "subPageScale"; from: 0.975; to: 1.0; duration: 240; easing.type: Easing.OutCubic }
+    }
+    onSubTabChanged: {
+        var dir = (subTab >= prevSubTab) ? 1 : -1
+        prevSubTab = subTab
+        appSubTabAnim.stop()
+        appSubYAnim.from = dir * 24.0
+        appSubTabAnim.start()
+    }
     onVisibleChanged: if (visible) subSidebar.playStaircase()
     Component.onCompleted: if (visible) Qt.callLater(() => subSidebar.playStaircase())
     readonly property bool isM3: Theme && Theme.isRounded
@@ -269,6 +286,9 @@ RowLayout {
         Layout.fillWidth: true
         Layout.fillHeight: true
         currentIndex: appSetRoot.subTab
+        opacity: appSetRoot.subPageAlpha
+        scale: appSetRoot.subPageScale
+        transform: Translate { y: appSetRoot.subPageOffsetY }
 
         // =====================================================================
         // РАЗДЕЛ 0: ОФОРМЛЕНИЕ, ТЕМА И ЦВЕТА

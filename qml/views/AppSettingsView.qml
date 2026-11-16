@@ -970,7 +970,7 @@ RowLayout {
         }
 
         // =====================================================================
-        // РАЗДЕЛ 5: ОБНОВЛЕНИЯ СИСТЕМЫ И МАСТЕР ПЕРВОГО ЗАПУСКА
+        // РАЗДЕЛ 5: ОБНОВЛЕНИЯ СИСТЕМЫ И АВТОДОКАЧКА (МУЗЫКА, VPN, HYSETT)
         // =====================================================================
         ScrollView {
             id: scrUpd; contentWidth: availableWidth; clip: true
@@ -983,8 +983,9 @@ RowLayout {
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14
 
-                    Text { text: "󰚰  Центр обновлений HySett и пути"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
+                    Text { text: "󰚰  Центр обновлений и автодокачки при запуске ПК"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
 
+                    // 1. ОБНОВЛЕНИЕ САМОГО ПРИЛОЖЕНИЯ HYSETT
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colUpdCard.implicitHeight + 28
@@ -993,16 +994,19 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
+                                spacing: 10
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 4
                                     Text {
-                                        text: Config && Config.updateAvailable ? "Доступна новая версия HySett на GitHub!" : "Проверка и установка обновлений"
+                                        Layout.fillWidth: true
+                                        text: Config && Config.updateAvailable ? "Доступна новая версия HySett на GitHub!" : "Обновление приложения HySett"
                                         color: Config && Config.updateAvailable ? "#69f0ae" : "#ffffff"
                                         font.pixelSize: Config.fontSize + 1
                                         font.bold: true
                                     }
                                     Text {
+                                        Layout.fillWidth: true
                                         text: "Текущая версия: " + (Config ? Config.localVersionInfo : "main") +
                                               "   •   На GitHub: " + (Config ? Config.remoteVersionInfo : "main")
                                         color: Config ? Config.m3Primary : "#a8c7fa"
@@ -1036,6 +1040,7 @@ RowLayout {
 
                             Text {
                                 visible: Config ? Config.sysStatusText.length > 0 : false
+                                Layout.fillWidth: true
                                 text: Config ? Config.sysStatusText : ""
                                 color: "#cccccc"
                                 font.pixelSize: Config.fontSize - 1
@@ -1059,6 +1064,235 @@ RowLayout {
                         }
                     }
 
+                    // 2. АВТОДОКАЧКА МУЗЫКИ И МОЕЙ ВОЛНЫ ПРИ ПЕРЕЗАПУСКЕ ПК / ПОЯВЛЕНИИ ИНТЕРНЕТА
+                    GlassPanel {
+                        Layout.fillWidth: true
+                        implicitHeight: colYmUpd.implicitHeight + 28
+                        ColumnLayout {
+                            id: colYmUpd; anchors.fill: parent; anchors.margins: 14; spacing: 10
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "󰎆  Автодокачка Яндекс.Музыки при перезапуске ПК и появлении сети"
+                                    color: "#ffffff"
+                                    font.pixelSize: Config.fontSize + 1
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                                StyledButton {
+                                    text: "󰑐 Докачать плейлисты"
+                                    enabled: Waybar ? !Waybar.ymBusy : true
+                                    onClicked: if (Waybar) Waybar.syncYmPlaylists()
+                                }
+                                StyledButton {
+                                    text: "󰓇 Докачать Мою волну"
+                                    isActive: true
+                                    enabled: Waybar ? !Waybar.ymBusy : true
+                                    onClicked: if (Waybar) Waybar.downloadYmMyWave()
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Автоматически докачивать новые треки из плейлистов при старте ПК:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Waybar ? Waybar.ymAutoSyncPlaylists : true
+                                    onToggled: if (Waybar) Waybar.ymAutoSyncPlaylists = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Автоматически докачивать пачку «Моей волны» при старте ПК:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Waybar ? Waybar.ymAutoSyncMyWave : false
+                                    onToggled: if (Waybar) Waybar.ymAutoSyncMyWave = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "Количество треков «Моей волны» за одну докачку:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.preferredWidth: 290
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 10; to: 500; stepSize: 10
+                                    value: Waybar ? Waybar.ymWaveCount : 100
+                                    onMoved: if (Waybar) Waybar.ymWaveCount = Math.round(value)
+                                }
+                                Text {
+                                    text: (Waybar ? Waybar.ymWaveCount : 100) + " тр."
+                                    color: "#ffffff"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.preferredWidth: 58
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "Задержка после появления интернета (ожидание VPN):"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.preferredWidth: 290
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 15; to: 180; stepSize: 5
+                                    value: Waybar ? Waybar.ymAutoSyncDelay : 45
+                                    onMoved: if (Waybar) Waybar.ymAutoSyncDelay = Math.round(value)
+                                }
+                                Text {
+                                    text: (Waybar ? Waybar.ymAutoSyncDelay : 45) + " сек"
+                                    color: "#ffffff"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.preferredWidth: 58
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+
+                            Rectangle {
+                                visible: Waybar ? Waybar.ymBusy : false
+                                Layout.fillWidth: true; height: 5; radius: 2.5
+                                color: Qt.rgba(1, 1, 1, 0.12)
+                                Rectangle {
+                                    width: parent.width * Math.max(0.05, Math.min(1.0, (Waybar ? Waybar.ymProgress : 0) / 100.0))
+                                    height: parent.height; radius: 2.5
+                                    color: Config ? Config.m3Primary : "#69f0ae"
+                                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                }
+                            }
+
+                            Text {
+                                visible: Waybar && Waybar.ymStatusText.length > 0
+                                Layout.fillWidth: true
+                                text: Waybar ? Waybar.ymStatusText : ""
+                                color: "#999999"
+                                font.pixelSize: Config.fontSize - 1
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+
+                    // 3. АВТООБНОВЛЕНИЕ VPN, ПОДПИСОК И СПИСКОВ ОБХОДА ПРИ СТАРТЕ ПК
+                    GlassPanel {
+                        Layout.fillWidth: true
+                        implicitHeight: colVpnUpd.implicitHeight + 28
+                        ColumnLayout {
+                            id: colVpnUpd; anchors.fill: parent; anchors.margins: 14; spacing: 10
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "󰦝  Автообновление VPN и баз обхода (БС / ЧС) при старте ПК"
+                                    color: "#ffffff"
+                                    font.pixelSize: Config.fontSize + 1
+                                    font.bold: true
+                                    Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
+                                }
+                                StyledButton {
+                                    text: "󰑐 Обновить списки БС/ЧС"
+                                    enabled: Waybar ? !Waybar.vpnBusy : true
+                                    onClicked: if (Waybar) Waybar.updateBypassLists()
+                                }
+                                StyledButton {
+                                    text: "󰇚 Обновить всё"
+                                    isActive: true
+                                    enabled: Waybar ? !Waybar.vpnBusy : true
+                                    onClicked: if (Waybar) Waybar.updateVpnSubscription()
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Автоматически обновлять репозитории и списки обхода (БС/ЧС) при запуске ПК:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Waybar ? Waybar.vpnAutoSyncOnBoot : true
+                                    onToggled: if (Waybar) Waybar.vpnAutoSyncOnBoot = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Автоматически поднимать активный VPN-туннель при старте ПК и переподключении сети:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Waybar ? Waybar.vpnAutoReconnect : true
+                                    onToggled: if (Waybar) Waybar.vpnAutoReconnect = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Сайты и сервисы РФ напрямую в обход VPN (RU Direct):"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Waybar ? Waybar.vpnRuDirect : true
+                                    onToggled: if (Waybar) Waybar.vpnRuDirect = checked
+                                }
+                            }
+
+                            Rectangle {
+                                visible: Waybar ? Waybar.vpnBusy : false
+                                Layout.fillWidth: true; height: 5; radius: 2.5
+                                color: Qt.rgba(1, 1, 1, 0.12)
+                                Rectangle {
+                                    width: parent.width * Math.max(0.05, Math.min(1.0, (Waybar ? Waybar.vpnProgressPercent : 0) / 100.0))
+                                    height: parent.height; radius: 2.5
+                                    color: Config ? Config.m3Primary : "#69f0ae"
+                                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                }
+                            }
+
+                            Text {
+                                visible: Waybar && (Waybar.vpnProgressText.length > 0 || Waybar.vpnLastUpdated.length > 0)
+                                Layout.fillWidth: true
+                                text: (Waybar && Waybar.vpnBusy && Waybar.vpnProgressText.length > 0)
+                                      ? Waybar.vpnProgressText
+                                      : ("Последнее обновление баз VPN: " + (Waybar ? Waybar.vpnLastUpdated : "—"))
+                                color: "#999999"
+                                font.pixelSize: Config.fontSize - 1
+                                elide: Text.ElideRight
+                            }
+                        }
+                    }
+
+                    // 4. РАБОЧИЕ ПУТИ И МАСТЕР ПЕРВОНАЧАЛЬНОЙ НАСТРОЙКИ
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colPathsCard.implicitHeight + 28

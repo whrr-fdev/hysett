@@ -694,9 +694,33 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
         args.append("-d")
         st["status"] = "Экран телефона запущен по USB (120 FPS) ✓"
 
+    subprocess.run(["hyprctl", "keyword", "windowrulev2", "float,class:^(.*scrcpy.*)$"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["hyprctl", "keyword", "windowrulev2", "center,class:^(.*scrcpy.*)$"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["hyprctl", "keyword", "windowrulev2", "float,class:^(.*scrcpy.*)$"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["hyprctl", "keyword", "windowrulev2", "center,class:^(.*scrcpy.*)$"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     log_f = open(SCRCPY_LOG, "w")
     subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, env=clean_env, start_new_session=True)
     time.sleep(0.65)
+    try:
+        clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode())
+        for c in clients:
+            if "scrcpy" in str(c.get("class", "")).lower() and not c.get("floating", False):
+                addr = c.get("address", "")
+                if addr:
+                    subprocess.run(["hyprctl", "dispatch", "setfloating", f"address:{addr}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(["hyprctl", "dispatch", "centerwindow"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+    try:
+        clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode())
+        for c in clients:
+            if "scrcpy" in str(c.get("class", "")).lower() and not c.get("floating", False):
+                addr = c.get("address", "")
+                if addr:
+                    subprocess.run(["hyprctl", "dispatch", "setfloating", f"address:{addr}"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    subprocess.run(["hyprctl", "dispatch", "centerwindow"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
 
     if not is_scrcpy_alive():
         fallback_args = [

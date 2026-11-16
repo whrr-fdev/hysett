@@ -216,7 +216,11 @@ public:
     Q_INVOKABLE void refreshBackupInfo();
     Q_INVOKABLE void generatePackageScript();
     Q_INVOKABLE void createFullBackup();
+    Q_INVOKABLE void createTypedBackup(const QString &mode);
     Q_INVOKABLE void restoreFromBackup(const QString &archivePath, bool installPackages);
+    Q_INVOKABLE void restoreTypedBackup(const QString &archivePath, const QString &mode);
+    Q_INVOKABLE void installAllBackupPackages();
+    Q_INVOKABLE QString pickBackupArchive();
     Q_INVOKABLE void deleteBackupArchive(const QString &archivePath);
     Q_INVOKABLE void openBackupsFolder();
     Q_INVOKABLE void checkUpdates();

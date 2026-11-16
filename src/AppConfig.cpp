@@ -1286,6 +1286,87 @@ void AppConfig::deleteBackupArchive(const QString &archivePath) {
     p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "delete_backup", archivePath.trimmed()});
 }
 
+
+void AppConfig::createTypedBackup(const QString &mode) {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 10;
+    if (mode == "settings") m_sysStatusText = "Сохранение настроек, Hyprland и списков пакетов...";
+    else if (mode == "data") m_sysStatusText = "Сохранение личных данных (Музыка, Обои, VPN)...";
+    else m_sysStatusText = "Создание полного архива системы...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "create_backup", mode});
+}
+
+void AppConfig::restoreTypedBackup(const QString &archivePath, const QString &mode) {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 15;
+    m_sysStatusText = "Восстановление из архива...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        load();
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "restore_backup", archivePath.trimmed(), mode});
+}
+
+void AppConfig::installAllBackupPackages() {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 25;
+    m_sysStatusText = "Запуск установки Hyprland и всех пакетов...";
+    emit sysProgressChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "install_all_pkgs"});
+}
+
+QString AppConfig::pickBackupArchive() {
+    QProcess p;
+    p.start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "pick_archive"});
+    p.waitForFinished(-1);
+    return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
+}
+
 void AppConfig::openBackupsFolder() {
     QDir().mkpath(m_backupsDir);
     QProcess::startDetached("xdg-open", {m_backupsDir});

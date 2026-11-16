@@ -83,6 +83,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool ymAutoSyncPlaylists READ ymAutoSyncPlaylists WRITE setYmAutoSyncPlaylists NOTIFY stateChanged)
     Q_PROPERTY(bool ymAutoSyncMyWave READ ymAutoSyncMyWave WRITE setYmAutoSyncMyWave NOTIFY stateChanged)
     Q_PROPERTY(int ymAutoSyncDelay READ ymAutoSyncDelay WRITE setYmAutoSyncDelay NOTIFY stateChanged)
+    Q_PROPERTY(bool vpnAutoSyncOnBoot READ vpnAutoSyncOnBoot WRITE setVpnAutoSyncOnBoot NOTIFY stateChanged)
+    Q_PROPERTY(bool vpnAutoReconnect READ vpnAutoReconnect WRITE setVpnAutoReconnect NOTIFY stateChanged)
     Q_PROPERTY(QVariantList ymPlaylists READ ymPlaylists NOTIFY ymLibraryChanged)
     Q_PROPERTY(QStringList ymExcludedPlaylists READ ymExcludedPlaylists NOTIFY ymLibraryChanged)
     Q_PROPERTY(QStringList ymKnownPlaylists READ ymKnownPlaylists NOTIFY ymLibraryChanged)
@@ -300,6 +302,10 @@ public:
     void setYmAutoSyncMyWave(bool v);
     int ymAutoSyncDelay() const { return m_ymAutoSyncDelay; }
     void setYmAutoSyncDelay(int sec);
+    bool vpnAutoSyncOnBoot() const { return m_vpnAutoSyncOnBoot; }
+    void setVpnAutoSyncOnBoot(bool v);
+    bool vpnAutoReconnect() const { return m_vpnAutoReconnect; }
+    void setVpnAutoReconnect(bool v);
     QVariantList ymPlaylists() const { return m_ymPlaylists; }
     int ymSelectedPlaylist() const { return m_ymSelectedPlaylist; }
     void setYmSelectedPlaylist(int idx);
@@ -593,6 +599,8 @@ private:
     bool m_ymAutoSyncPlaylists = true;
     bool m_ymAutoSyncMyWave = false;
     int m_ymAutoSyncDelay = 45;
+    bool m_vpnAutoSyncOnBoot = true;
+    bool m_vpnAutoReconnect = true;
     bool m_ymAutoSyncDone = false;
     qint64 m_netOnlineSinceMs = 0;
     QVariantList m_ymPlaylists;

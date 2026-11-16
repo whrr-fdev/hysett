@@ -106,7 +106,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
     vpInit->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_vpn.py", "boot"});
     // Фоновое обновление списков обхода через 25 секунд после старта демона hysett
     QTimer::singleShot(25000, this, [this]() {
-        if (!m_vpnBusy) {
+        if (m_vpnAutoSyncOnBoot && !m_vpnBusy) {
             QProcess *p = new QProcess(this);
             connect(p, &QProcess::finished, this, [this, p]() {
                 syncVpnStateFromScript(p->readAllStandardOutput());
@@ -237,6 +237,8 @@ void WaybarManager::loadState() {
             else if (k == "ym_auto_sync_playlists") m_ymAutoSyncPlaylists = (v == "1" || v == "true");
             else if (k == "ym_auto_sync_my_wave") m_ymAutoSyncMyWave = (v == "1" || v == "true");
             else if (k == "ym_auto_sync_delay") m_ymAutoSyncDelay = std::clamp(v.toInt(), 15, 300);
+            else if (k == "vpn_auto_sync_on_boot") m_vpnAutoSyncOnBoot = (v == "1" || v == "true");
+            else if (k == "vpn_auto_reconnect") m_vpnAutoReconnect = (v == "1" || v == "true");
             else if (k == "media_wave_speed") m_mediaWaveSpeed = std::clamp(v.toDouble(), 0.2, 5.0);
             else if (k == "media_wave_size") m_mediaWaveSize = std::clamp(v.toDouble(), 4.0, 24.0);
             else if (k == "media_wave_count") m_mediaWaveCount = std::clamp(v.toInt(), 20, 220);
@@ -301,6 +303,8 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "ym_auto_sync_playlists=" << (m_ymAutoSyncPlaylists ? "1" : "0") << "\n";
         out << "ym_auto_sync_my_wave=" << (m_ymAutoSyncMyWave ? "1" : "0") << "\n";
         out << "ym_auto_sync_delay=" << m_ymAutoSyncDelay << "\n";
+        out << "vpn_auto_sync_on_boot=" << (m_vpnAutoSyncOnBoot ? "1" : "0") << "\n";
+        out << "vpn_auto_reconnect=" << (m_vpnAutoReconnect ? "1" : "0") << "\n";
         out << "media_wave_speed=" << QString::number(m_mediaWaveSpeed, 'f', 2) << "\n";
         out << "media_wave_size=" << QString::number(m_mediaWaveSize, 'f', 1) << "\n";
         out << "media_wave_count=" << m_mediaWaveCount << "\n";
@@ -1833,7 +1837,7 @@ void WaybarManager::pollFastState() {
                     QString::number(m_ymWaveCount)
                 });
             }
-            if ((becameOnline || ifaceReconnected) && m_vpnWantedEnabled && !m_vpnBusy) {
+            if (m_vpnAutoReconnect && (becameOnline || ifaceReconnected) && m_vpnWantedEnabled && !m_vpnBusy) {
                 s_lastIfaceToken = nextIfaceToken;
                 runVpnScriptCmd({"start"});
             } else {
@@ -2918,7 +2922,13 @@ void WaybarManager::setYmAutoSyncMyWave(bool v) {
 }
 void WaybarManager::setYmAutoSyncDelay(int sec) {
     sec = std::clamp(sec, 15, 300);
-    if (m_ymAutoSyncDelay != sec) { m_ymAutoSyncDelay = sec; saveState(false); }
+    if (m_ymAutoSyncDelay != sec) { m_ymAutoSyncDelay = sec; saveState(false); emit stateChanged(); }
+}
+void WaybarManager::setVpnAutoSyncOnBoot(bool v) {
+    if (m_vpnAutoSyncOnBoot != v) { m_vpnAutoSyncOnBoot = v; saveState(false); emit stateChanged(); }
+}
+void WaybarManager::setVpnAutoReconnect(bool v) {
+    if (m_vpnAutoReconnect != v) { m_vpnAutoReconnect = v; saveState(false); emit stateChanged(); }
 }
 void WaybarManager::setYmSelectedPlaylist(int idx) {
     idx = std::max(0, idx);

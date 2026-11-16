@@ -41,26 +41,31 @@ ScrollView {
                     font.pixelSize: Config.fontSize + 3
                     font.bold: true
                     Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
                 }
                 StyledButton {
                     text: "󰑐 Обновить"
+                    Layout.alignment: Qt.AlignVCenter
                     onClicked: if (Bluetooth) Bluetooth.refresh()
                 }
                 StyledButton {
                     text: Bluetooth.scanning ? "󰑐 Поиск..." : "󰍉 Поиск устройств"
                     isActive: Bluetooth.scanning
+                    Layout.alignment: Qt.AlignVCenter
                     onClicked: Bluetooth.scanDevices()
                 }
                 StyledButton {
                     text: "󰒓 Blueman"
+                    Layout.alignment: Qt.AlignVCenter
                     onClicked: Bluetooth.openBlueman()
                 }
             }
 
+            // КАРТОЧКА 1: Питание адаптера
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
-                implicitHeight: 48
+                implicitHeight: 50
 
                 RowLayout {
                     anchors.fill: parent
@@ -68,10 +73,17 @@ ScrollView {
                     anchors.rightMargin: 14
                     spacing: 12
 
-                    Text {
-                        text: Bluetooth.powered ? "󰂯" : "󰂲"
-                        color: Bluetooth.powered ? (Config ? Config.m3Primary : "#ffffff") : "#777777"
-                        font.pixelSize: 18
+                    Item {
+                        Layout.preferredWidth: 24
+                        Layout.preferredHeight: 24
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: Bluetooth.powered ? "󰂯" : "󰂲"
+                            color: Bluetooth.powered ? (Config ? Config.m3Primary : "#ffffff") : "#777777"
+                            font.pixelSize: 18
+                        }
                     }
 
                     Text {
@@ -80,12 +92,14 @@ ScrollView {
                         font.pixelSize: Config.fontSize + 1
                         font.bold: true
                         Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
                     }
 
                     Rectangle {
                         visible: Waybar && Waybar.btConnectedCount > 0
-                        width: btConnBadgeTxt.implicitWidth + 14
-                        height: 22
+                        Layout.preferredWidth: btConnBadgeTxt.implicitWidth + 14
+                        Layout.preferredHeight: 22
+                        Layout.alignment: Qt.AlignVCenter
                         radius: btScroll.isM3 ? 6 : 0
                         color: Qt.rgba(0.41, 0.94, 0.68, 0.18)
                         border.width: 1
@@ -101,16 +115,18 @@ ScrollView {
                     }
 
                     StyledSwitch {
+                        Layout.alignment: Qt.AlignVCenter
                         checked: Bluetooth.powered
                         onToggled: Bluetooth.powered = checked
                     }
                 }
             }
 
+            // КАРТОЧКА 2: Автоподключение к наушникам
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
-                implicitHeight: 48
+                implicitHeight: 52
 
                 RowLayout {
                     anchors.fill: parent
@@ -118,29 +134,44 @@ ScrollView {
                     anchors.rightMargin: 14
                     spacing: 12
 
-                    Text {
-                        text: "󰋋"
-                        color: Bluetooth.autoConnect ? (Config ? Config.m3Primary : "#ffffff") : "#777777"
-                        font.pixelSize: 16
+                    Item {
+                        Layout.preferredWidth: 24
+                        Layout.preferredHeight: 24
+                        Layout.alignment: Qt.AlignVCenter
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰋋"
+                            color: Bluetooth.autoConnect ? (Config ? Config.m3Primary : "#ffffff") : "#777777"
+                            font.pixelSize: 17
+                        }
                     }
 
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 1
+                        Layout.alignment: Qt.AlignVCenter
+                        spacing: 2
+
                         Text {
+                            Layout.fillWidth: true
                             text: Config ? (Config.language, Config.trAuto("Автоподключение к наушникам")) : "Автоподключение к наушникам"
                             color: "#ffffff"
                             font.pixelSize: Config.fontSize
                             font.bold: true
+                            elide: Text.ElideRight
                         }
+
                         Text {
+                            Layout.fillWidth: true
                             text: "Автоматически подключать сопряженные наушники при их включении"
                             color: "#888888"
                             font.pixelSize: Config.fontSize - 2
+                            elide: Text.ElideRight
                         }
                     }
 
                     StyledSwitch {
+                        Layout.alignment: Qt.AlignVCenter
                         checked: Bluetooth.autoConnect
                         onToggled: Bluetooth.autoConnect = checked
                     }
@@ -169,17 +200,19 @@ ScrollView {
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
-                    implicitHeight: 50
+                    implicitHeight: 54
 
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 14
-                        anchors.rightMargin: 12
+                        anchors.rightMargin: 14
                         spacing: 12
 
                         Rectangle {
-                            width: 32; height: 32
-                            radius: btScroll.isM3 ? 8 : 0
+                            Layout.preferredWidth: 34
+                            Layout.preferredHeight: 34
+                            Layout.alignment: Qt.AlignVCenter
+                            radius: btScroll.isM3 ? 9 : 0
                             color: modelData.connected
                                    ? (Config ? Config.m3Primary : "#ffffff")
                                    : (btScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.08))
@@ -194,20 +227,28 @@ ScrollView {
                         }
 
                         ColumnLayout {
-                            spacing: 2
                             Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 2
+
                             RowLayout {
+                                Layout.fillWidth: true
                                 spacing: 8
+
                                 Text {
                                     text: modelData.name
                                     color: "#ffffff"
                                     font.pixelSize: Config.fontSize
                                     font.bold: modelData.connected
+                                    elide: Text.ElideRight
+                                    Layout.alignment: Qt.AlignVCenter
                                 }
+
                                 Rectangle {
                                     visible: modelData.connected
-                                    width: connTagTxt.implicitWidth + 10
-                                    height: 18
+                                    Layout.preferredWidth: connTagTxt.implicitWidth + 10
+                                    Layout.preferredHeight: 18
+                                    Layout.alignment: Qt.AlignVCenter
                                     radius: btScroll.isM3 ? 5 : 0
                                     color: Qt.rgba(0.41, 0.94, 0.68, 0.20)
                                     Text {
@@ -219,10 +260,12 @@ ScrollView {
                                         font.bold: true
                                     }
                                 }
+
                                 Rectangle {
                                     visible: modelData.battery !== undefined && modelData.battery >= 0
-                                    width: batTagTxt.implicitWidth + 10
-                                    height: 18
+                                    Layout.preferredWidth: batTagTxt.implicitWidth + 10
+                                    Layout.preferredHeight: 18
+                                    Layout.alignment: Qt.AlignVCenter
                                     radius: btScroll.isM3 ? 5 : 0
                                     color: btScroll.isM3 && Config ? Config.m3SecondaryContainer : Qt.rgba(1, 1, 1, 0.12)
                                     Text {
@@ -234,24 +277,38 @@ ScrollView {
                                         font.bold: true
                                     }
                                 }
+
+                                Item { Layout.fillWidth: true }
                             }
+
                             Text {
+                                Layout.fillWidth: true
                                 text: modelData.mac + (modelData.connected ? "  •  Активно" : (modelData.paired ? "  •  Сопряжено" : ""))
                                 color: modelData.connected ? "#bbbbbb" : "#777777"
                                 font.pixelSize: Config.fontSize - 2
+                                elide: Text.ElideRight
                             }
                         }
 
-                        StyledButton {
-                            text: modelData.connected ? "Отключить" : "Подключить"
-                            isActive: modelData.connected
-                            onClicked: Bluetooth.toggleConnect(modelData.mac, modelData.connected)
-                        }
+                        RowLayout {
+                            Layout.alignment: Qt.AlignVCenter
+                            spacing: 8
 
-                        StyledButton {
-                            text: "󰅖"
-                            implicitWidth: 26
-                            onClicked: Bluetooth.removeDevice(modelData.mac)
+                            StyledButton {
+                                text: modelData.connected ? "Отключить" : "Подключить"
+                                isActive: modelData.connected
+                                Layout.alignment: Qt.AlignVCenter
+                                onClicked: Bluetooth.toggleConnect(modelData.mac, modelData.connected)
+                            }
+
+                            StyledButton {
+                                text: "󰅖"
+                                isIconOnly: true
+                                implicitWidth: 26
+                                implicitHeight: 26
+                                Layout.alignment: Qt.AlignVCenter
+                                onClicked: Bluetooth.removeDevice(modelData.mac)
+                            }
                         }
                     }
                 }

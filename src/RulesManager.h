@@ -23,16 +23,44 @@ private:
     QString luaPath() const;
 
     struct RuleEntry {
+        QString ruleType; // "window" | "layer"
         QString name;
         QString className;
-        bool isFloat;
-        bool isCenter;
+        QString titleMatch;
+        QString namespaceMatch;
+        QString matchWorkspace;
+        bool matchXwayland = false;
+        bool hasMatchFloat = false;
+        bool matchFloatVal = false;
+
+        bool isFloat = false;
+        bool isCenter = false;
+        bool isPin = false;
+        bool hasPin = false;
         QString sizeW;
         QString sizeH;
+        QString movePos;
         QString workspace;
-        int startLine;
-        int endLine;
-        bool enabled;
+        QString opacity;
+        QString animation;
+        QString suppressEvent;
+        QString borderSize;
+        QString rounding;
+        bool noFocus = false;
+        bool noBlur = false;
+        bool noShadow = false;
+        bool noAnim = false;
+
+        // layer_rule properties
+        bool layerBlur = false;
+        bool layerDimAround = false;
+        QString layerOrder;
+        QString layerIgnoreAlpha;
+
+        QString rawCode;
+        int startLine = 0;
+        int endLine = 0;
+        bool enabled = true;
     };
     QVector<RuleEntry> m_entries;
     QVariantList m_rules;

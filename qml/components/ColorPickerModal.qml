@@ -108,8 +108,8 @@ Item {
                         anchors.fill: parent
                         anchors.margins: 1
                         radius: Math.max(0, parent.radius - 1)
-                        rotation: -90
                         gradient: Gradient {
+                            orientation: Gradient.Horizontal
                             GradientStop { position: 0.0; color: "#ffffff" }
                             GradientStop { position: 1.0; color: "transparent" }
                         }

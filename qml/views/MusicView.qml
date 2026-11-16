@@ -128,13 +128,13 @@ Item {
         function onYmLibraryChanged() {
             musicRoot.libraryVersion++
             musicRoot.ensurePublicPlaylistSelected()
+            trackListContainer.lastModelSig = ""
             trackListContainer.rebuildTrackModel()
         }
         function onYmFavoritesChanged() {
             musicRoot.libraryVersion++
-            if (trackListContainer.currentPlaylistObj && trackListContainer.currentPlaylistObj.title === "Мне нравится") {
-                trackListContainer.rebuildTrackModel()
-            }
+            trackListContainer.lastModelSig = ""
+            trackListContainer.rebuildTrackModel()
         }
         function onMediaChanged() {
             if (!Waybar) return
@@ -1076,6 +1076,7 @@ Item {
                                 }
 
                                 readonly property var currentPlaylistObj: {
+                                    var _ = musicRoot.libraryVersion
                                     if (!Waybar || Waybar.ymPlaylists.length === 0) return null
                                     var idx = Math.max(0, Math.min(Waybar.ymPlaylists.length - 1, Waybar.ymSelectedPlaylist))
                                     return Waybar.ymPlaylists[idx]

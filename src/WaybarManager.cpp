@@ -3506,8 +3506,8 @@ void WaybarManager::copyYmTrackToPlaylist(const QString &trackPath, const QStrin
     }
 
     saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
-    if (cleanTarget == "Мне нравится") emit ymFavoritesChanged();
-    else emit ymLibraryChanged();
+    emit ymFavoritesChanged();
+    emit ymLibraryChanged();
     emit mediaChanged();
 }
 
@@ -3543,6 +3543,7 @@ bool WaybarManager::toggleYmFavorite(const QString &trackPath, const QString &fu
         }
         saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
         emit ymFavoritesChanged();
+        emit ymLibraryChanged();
         emit mediaChanged();
         return false;
     } else {

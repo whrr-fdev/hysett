@@ -572,7 +572,7 @@ ApplicationWindow {
                                     : (floatingDrawerY + (dockedDrawerY - floatingDrawerY) * root.dockTransition)
 
     readonly property int notifW: Mako ? Mako.width : 320
-    readonly property int notifTargetH: Math.max(46, notifStackCol.implicitHeight + 16)
+    readonly property int notifTargetH: Math.max(40, notifStackCol.implicitHeight)
     property real smoothNotifTargetH: notifTargetH
     Behavior on smoothNotifTargetH { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
     readonly property real animNotifH: smoothNotifTargetH * notifProgress
@@ -3406,7 +3406,7 @@ ApplicationWindow {
                 width: root.notifW
                 y: -(1.0 - root.notifProgress) * 18
                 opacity: Math.min(1.0, root.notifProgress * 1.35)
-                spacing: 0; topPadding: 2; bottomPadding: 4
+                spacing: 0; topPadding: 2; bottomPadding: 2
 
                 Repeater {
                     model: Mako ? Mako.activePopups : []

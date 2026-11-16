@@ -6,7 +6,7 @@ _G.Canvas = _G.Canvas or {
     enabled = false,
     panning = false,
     inverted = false,
-    speed = 1.45,
+    speed = 3.2,
     zoom_factor = 1.0,
     active_ws_id = 1,
     next_order_seq = 1,
@@ -14,6 +14,7 @@ _G.Canvas = _G.Canvas or {
     virtual_pos = {},
     win_order = {},
 }
+_G.Canvas.speed = 3.2
 
 local PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
 local MIN_GAP = 12
@@ -55,7 +56,6 @@ local function is_canvas_win(w, ws_id)
     return true
 end
 
--- Детерминированная сортировка окон по их сохранённому визуальному порядку (а не по случайному адресу памяти!)
 local function sort_windows_deterministic(list)
     table.sort(list, function(a, b)
         local ka = norm_addr(a.address)
@@ -76,17 +76,6 @@ local function sort_windows_deterministic(list)
         if col_a ~= col_b then return col_a < col_b end
         return ka < kb
     end)
-end
-
-local function get_all_user_windows()
-    local list = {}
-    for _, w in pairs(hl.get_windows()) do
-        if is_valid_win(w) then
-            table.insert(list, w)
-        end
-    end
-    sort_windows_deterministic(list)
-    return list
 end
 
 local function get_ws_windows(ws_id)
@@ -161,7 +150,6 @@ local function focus_and_raise(w)
     hl.dispatch(hl.dsp.window.bring_to_top())
 end
 
--- Проверка пересечения с минимальным зазором MIN_GAP (12 px)
 local function rect_overlaps_any(x, y, w, h, ignore_addr, placed_list)
     local pad = MIN_GAP - 1
     local l1 = x - pad
@@ -183,7 +171,6 @@ local function rect_overlaps_any(x, y, w, h, ignore_addr, placed_list)
     return false
 end
 
--- Плотное размещение окна вплотную к соседним окнам с минимальным расстоянием MIN_GAP (12 px)
 local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, placed_list)
     local center_x = origin_cx - win_w * 0.5
     local center_y = origin_cy - win_h * 0.5
@@ -197,14 +184,11 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
         local mid_y = py + (ph - win_h) * 0.5
         local mid_x = px + (pw - win_w) * 0.5
 
-        -- Справа и слева вплотную на расстоянии MIN_GAP
         table.insert(candidates, { x = px + pw + MIN_GAP, y = mid_y })
         table.insert(candidates, { x = px - win_w - MIN_GAP, y = mid_y })
-        -- Снизу и сверху вплотную на расстоянии MIN_GAP
         table.insert(candidates, { x = mid_x, y = py + ph + MIN_GAP })
         table.insert(candidates, { x = mid_x, y = py - win_h - MIN_GAP })
 
-        -- Выравнивание по краям соседа (верх/низ, лево/право)
         table.insert(candidates, { x = px + pw + MIN_GAP, y = py })
         table.insert(candidates, { x = px + pw + MIN_GAP, y = py + ph - win_h })
         table.insert(candidates, { x = px - win_w - MIN_GAP, y = py })
@@ -241,19 +225,18 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
     return origin_cx + (#placed_list) * step_x - win_w * 0.5, center_y
 end
 
+-- Сохраняем 100% размер окна без сжатия содержимого
 local function pick_canvas_size(w, mw, mh)
-    local ow, oh = w.size.x, w.size.y
-    if ow <= math.floor(mw * 0.82) and oh <= math.floor(mh * 0.85) then
-        return ow, oh
-    end
-    return math.min(ow, math.floor(mw * 0.64)), math.min(oh, math.floor(mh * 0.68))
+    return w.size.x, w.size.y
 end
 
 function _G.Canvas.pan_delta(raw_dx, raw_dy)
     if not _G.Canvas.enabled then return end
     local sgn = _G.Canvas.inverted and -1.0 or 1.0
-    local dx = raw_dx * _G.Canvas.speed * sgn
-    local dy = raw_dy * _G.Canvas.speed * sgn
+    local mag = math.sqrt(raw_dx * raw_dx + raw_dy * raw_dy)
+    local accel = 1.0 + math.min(1.6, mag * 0.025)
+    local dx = raw_dx * _G.Canvas.speed * accel * sgn
+    local dy = raw_dy * _G.Canvas.speed * accel * sgn
     if math.abs(dx) < 0.5 and math.abs(dy) < 0.5 then return end
 
     local ws = hl.get_active_workspace()
@@ -277,17 +260,18 @@ function _G.Canvas.edge_push(raw_dx, raw_dy)
     local aw, ah = active.size.x, active.size.y
     _G.Canvas.virtual_pos[norm_addr(active.address)] = { x = ax, y = ay, w = aw, h = ah }
 
+    local mult = 2.4
     local push_x, push_y = 0, 0
     if ax <= mx + margin and raw_dx < 0 then
-        push_x = -raw_dx
+        push_x = -raw_dx * mult
     elseif (ax + aw) >= (mx + mw - margin) and raw_dx > 0 then
-        push_x = -raw_dx
+        push_x = -raw_dx * mult
     end
 
     if ay <= my + margin and raw_dy < 0 then
-        push_y = -raw_dy
+        push_y = -raw_dy * mult
     elseif (ay + ah) >= (my + mh - margin) and raw_dy > 0 then
-        push_y = -raw_dy
+        push_y = -raw_dy * mult
     end
 
     if push_x == 0 and push_y == 0 then return end
@@ -323,7 +307,6 @@ function _G.Canvas.toggle_pan_lock()
     notify("Бесконечный холст", _G.Canvas.panning and "Фиксация перемещения мыши ВКЛЮЧЕНА" or "Фиксация перемещения мыши ВЫКЛЮЧЕНА")
 end
 
--- Открытие нового окна: ставим на свободное место вплотную (12 px) и двигаем камеру в центр
 function _G.Canvas.on_window_open(addr_str)
     if not _G.Canvas.enabled then return end
     local target_key = norm_addr(addr_str)
@@ -390,6 +373,12 @@ function _G.Canvas.on_window_open(addr_str)
     focus_and_raise(new_win)
 end
 
+local function set_hypr_zoom(zf)
+    pcall(function()
+        hl.config({ cursor = { zoom_factor = zf } })
+    end)
+end
+
 function _G.Canvas.toggle()
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -413,7 +402,6 @@ function _G.Canvas.toggle()
             end
         end
 
-        -- Строго сортируем окна по их текущему положению (стол -> сверху вниз -> слева направо)
         table.sort(raw_wins, function(a, b)
             local wa = (a.workspace and a.workspace.id) or 0
             local wb = (b.workspace and b.workspace.id) or 0
@@ -470,7 +458,7 @@ function _G.Canvas.toggle()
                 hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
             end
 
-            local tw, th = pick_canvas_size(w, mw, mh)
+            local tw, th = st.w, st.h
             local tx, ty = find_free_spot(tw, th, cx, cy, key, placed)
 
             apply_win_geom(w, tx, ty, tw, th)
@@ -482,13 +470,13 @@ function _G.Canvas.toggle()
         end
 
         hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
-        notify("Бесконечный холст ВКЛЮЧЕН", "Super+Alt+ЛКМ (тянуть) — двигать холст | Super+Стрелки — к окну | Super+I — выход")
+        notify("Бесконечный холст ВКЛЮЧЕН", "Super+Alt+ЛКМ — быстро двигать холст | Super+Стрелки — к окну | Super+I — выход")
     else
         _G.Canvas.enabled = false
         _G.Canvas.panning = false
         _G.Canvas.zoom_factor = 1.0
         os.remove(PANLOCK_FILE)
-        hl.exec_cmd("hyprctl keyword cursor:zoom_factor 1.0 >/dev/null 2>&1 &")
+        set_hypr_zoom(1.0)
         hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py stop_evdev &")
 
         local all_wins = {}
@@ -498,7 +486,6 @@ function _G.Canvas.toggle()
             end
         end
 
-        -- Сортируем строго по исходному визуальному порядку (order)
         table.sort(all_wins, function(a, b)
             local sa = _G.Canvas.saved_state[norm_addr(a.address)]
             local sb = _G.Canvas.saved_state[norm_addr(b.address)]
@@ -508,7 +495,6 @@ function _G.Canvas.toggle()
             return tostring(a.address) < tostring(b.address)
         end)
 
-        -- Шаг 1: пока окна плавающие, переносим каждое на его родной стол и ставим в исходные координаты (st.x, st.y)
         for _, w in ipairs(all_wins) do
             local key = norm_addr(w.address)
             local st = _G.Canvas.saved_state[key]
@@ -524,7 +510,6 @@ function _G.Canvas.toggle()
             end
         end
 
-        -- Шаг 2: возвращаем тайловые окна в сетку строго в их исходном порядке
         for _, w in ipairs(all_wins) do
             local key = norm_addr(w.address)
             local st = _G.Canvas.saved_state[key]
@@ -668,7 +653,7 @@ function _G.Canvas.move_or_swap(dir)
     end
     if not active or not active.floating then return end
 
-    local step = 52
+    local step = 110
     local dx, dy = 0, 0
     if dir == "left" or dir == "l" then dx = -step
     elseif dir == "right" or dir == "r" then dx = step
@@ -727,13 +712,12 @@ end
 
 function _G.Canvas.zoom(factor)
     if not _G.Canvas.enabled then return end
-    local zf = (_G.Canvas.zoom_factor or 1.0) * factor
-    zf = math.max(1.0, math.min(3.0, zf))
-    _G.Canvas.zoom_factor = zf
-    hl.exec_cmd(string.format("hyprctl keyword cursor:zoom_factor %.2f >/dev/null 2>&1 &", zf))
+    local old_z = _G.Canvas.zoom_factor or 1.0
+    local new_z = math.max(1.0, math.min(3.0, old_z * factor))
+    _G.Canvas.zoom_factor = new_z
+    set_hypr_zoom(new_z)
 end
 
--- Собрать окна в сетку в их исходном порядке с минимальным зазором 12 px
 function _G.Canvas.gather_home()
     local ws = hl.get_active_workspace()
     if not ws then return end

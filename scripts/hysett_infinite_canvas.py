@@ -14,6 +14,7 @@ EV_KEY = 1
 EV_REL = 2
 REL_X = 0
 REL_Y = 1
+REL_WHEEL = 8
 
 KEY_LEFTMETA = 125
 KEY_RIGHTMETA = 126
@@ -26,7 +27,37 @@ PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
 PID_FILE = "/tmp/hysett_canvas_evdev.pid"
 
 
+def get_hypr_cmd_sock_path():
+    xdg = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
+    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
+    if not sig:
+        hypr_dir = os.path.join(xdg, "hypr")
+        if os.path.isdir(hypr_dir):
+            entries = sorted(os.listdir(hypr_dir))
+            if entries:
+                sig = entries[-1]
+    if not sig:
+        return None
+    p = os.path.join(xdg, "hypr", sig, ".socket.sock")
+    return p if os.path.exists(p) else None
+
+
+CMD_SOCK_PATH = get_hypr_cmd_sock_path()
+
+
 def repl_lua(code):
+    global CMD_SOCK_PATH
+    if not CMD_SOCK_PATH:
+        CMD_SOCK_PATH = get_hypr_cmd_sock_path()
+    if CMD_SOCK_PATH:
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+                s.settimeout(0.05)
+                s.connect(CMD_SOCK_PATH)
+                s.sendall(f"repl {code}".encode("utf-8"))
+                return
+        except Exception:
+            pass
     subprocess.Popen(
         ["hyprctl", "repl", code],
         stdout=subprocess.DEVNULL,
@@ -107,6 +138,7 @@ def start_evdev_listener():
     acc_y = 0.0
     edge_x = 0.0
     edge_y = 0.0
+    wheel_acc = 0
     last_flush = time.monotonic()
     panlock_cached = False
     last_panlock_check = 0.0
@@ -117,7 +149,7 @@ def start_evdev_listener():
             wait_list.append(hypr_sock)
 
         try:
-            rlist, _, _ = select.select(wait_list, [], [], 0.014)
+            rlist, _, _ = select.select(wait_list, [], [], 0.008)
         except Exception:
             break
 
@@ -169,7 +201,10 @@ def start_evdev_listener():
                     elif code == BTN_MIDDLE:
                         mmb_down = pressed
                 elif etype == EV_REL:
-                    # Двигаем холст ТОЛЬКО когда зажата кнопка мыши (Super+Alt+ЛКМ или Super+СКМ) либо включён panlock
+                    if code == REL_WHEEL and super_down and alt_down and val != 0:
+                        wheel_acc += (1 if val > 0 else -1)
+                        continue
+
                     is_canvas_drag = (super_down and alt_down and lmb_down) or (super_down and mmb_down) or panlock_cached
                     if is_canvas_drag:
                         if code == REL_X:
@@ -182,7 +217,13 @@ def start_evdev_listener():
                         elif code == REL_Y:
                             edge_y += val
 
-        if now - last_flush >= 0.014:
+        if wheel_acc != 0:
+            w_step = wheel_acc
+            wheel_acc = 0
+            factor = 1.18 if w_step > 0 else 0.85
+            repl_lua(f"if _G.Canvas then _G.Canvas.zoom({factor}) end")
+
+        if now - last_flush >= 0.008:
             last_flush = now
             dx = int(round(acc_x))
             dy = int(round(acc_y))
@@ -216,6 +257,6 @@ if __name__ == "__main__":
     elif cmd == "invert":
         repl_lua("if _G.Canvas then _G.Canvas.toggle_invert() end")
     elif cmd == "zoom_in":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom(1.15) end")
+        repl_lua("if _G.Canvas then _G.Canvas.zoom(1.18) end")
     elif cmd == "zoom_out":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom(0.86) end")
+        repl_lua("if _G.Canvas then _G.Canvas.zoom(0.85) end")

@@ -19,6 +19,18 @@ ScrollView {
         searchFocusRetry.restart()
     }
 
+    function triggerAppsEntrance() {
+        if (searchScroll.filterMode === 1 || searchScroll.queryText.length === 0) return
+        var visIdx = 0
+        for (var i = 0; i < sAppsRepeater.count; ++i) {
+            var a = sAppsRepeater.itemAt(i)
+            if (a && a.visible) {
+                a.playEntrance(Math.min(visIdx * 18, 180))
+                visIdx++
+            }
+        }
+    }
+
     function collectNavItems() {
         var list = []
         if (searchScroll.filterMode !== 1 && searchScroll.queryText.length > 0) {
@@ -140,16 +152,19 @@ ScrollView {
                         implicitHeight: 30
                         Layout.fillWidth: true
                         background: Rectangle {
-                            radius: (Theme && Theme.isRounded) ? 5 : 0
+                            radius: (Theme && Theme.isRounded) ? 8 : 0
                             color: Qt.rgba(1, 1, 1, 0.06)
-                            border.color: uniSearchInput.activeFocus ? "#ffffff" : Qt.rgba(1, 1, 1, 0.18)
+                            border.color: uniSearchInput.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.18)
                             border.width: 1
                         }
                         onTextChanged: {
                             searchScroll.queryText = text.trim().toLowerCase()
                             searchScroll.kbIndex = 0
                             fileSearchDebounce.restart()
-                            Qt.callLater(() => searchScroll.selectByKb(0))
+                            Qt.callLater(() => {
+                                searchScroll.triggerAppsEntrance()
+                                searchScroll.selectByKb(0)
+                            })
                         }
                         Keys.onDownPressed: (event) => {
                             searchScroll.selectByKb(searchScroll.kbIndex + 1)
@@ -189,6 +204,7 @@ ScrollView {
                             onSelected: (idx) => {
                                 searchScroll.filterMode = idx
                                 fileSearchDebounce.restart()
+                                Qt.callLater(searchScroll.triggerAppsEntrance)
                                 uniSearchInput.forceActiveFocus()
                             }
                         }
@@ -237,9 +253,9 @@ ScrollView {
                         y: foundAppsWrap.lastHoveredObj ? foundAppsWrap.lastHoveredObj.y : 0
                         width: foundAppsWrap.lastHoveredObj ? foundAppsWrap.lastHoveredObj.width : 220
                         height: foundAppsWrap.lastHoveredObj ? foundAppsWrap.lastHoveredObj.height : 44
-                        radius: (Theme && Theme.isRounded) ? 5 : 0
-                        color: Qt.rgba(1, 1, 1, 0.09)
-                        border.color: Qt.rgba(1, 1, 1, 0.42)
+                        radius: (Theme && Theme.isRounded) ? (Config ? Config.m3CardRadius : 12) : 0
+                        color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.14)
+                        border.color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.50)
                         border.width: 1
                         opacity: foundAppsWrap.hoveredObj ? 1.0 : 0.0
                         Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
@@ -262,6 +278,29 @@ ScrollView {
                             Button {
                                 id: sAppBtn
                                 property string appExec: modelData.exec
+                                property real enterAlpha: 1.0
+                                property real enterOffsetY: 0.0
+                                property real enterScale: 1.0
+
+                                function playEntrance(delayMs) {
+                                    appEnterAnim.stop()
+                                    sAppBtn.enterAlpha = 0.0
+                                    sAppBtn.enterOffsetY = 12.0
+                                    sAppBtn.enterScale = 0.965
+                                    appEnterDelay.duration = delayMs
+                                    appEnterAnim.start()
+                                }
+
+                                SequentialAnimation {
+                                    id: appEnterAnim
+                                    PauseAnimation { id: appEnterDelay; duration: 0 }
+                                    ParallelAnimation {
+                                        NumberAnimation { target: sAppBtn; property: "enterAlpha"; to: 1.0; duration: 190; easing.type: Easing.OutCubic }
+                                        NumberAnimation { target: sAppBtn; property: "enterOffsetY"; to: 0.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                                        NumberAnimation { target: sAppBtn; property: "enterScale"; to: 1.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                                    }
+                                }
+
                                 visible: {
                                     var q = searchScroll.queryText
                                     if (q.length === 0) return false
@@ -269,6 +308,9 @@ ScrollView {
                                            modelData.comment.toLowerCase().indexOf(q) !== -1 ||
                                            modelData.exec.toLowerCase().indexOf(q) !== -1
                                 }
+                                opacity: enterAlpha
+                                scale: enterScale
+                                transform: Translate { y: sAppBtn.enterOffsetY }
                                 Layout.fillWidth: true
                                 Layout.preferredWidth: foundAppsGrid.width
                                 implicitHeight: 44
@@ -285,7 +327,7 @@ ScrollView {
                                 onClicked: Apps.launchApp(modelData.exec)
 
                                 background: GlassPanel {
-                                    radius: (Theme && Theme.isRounded) ? 5 : 0
+                                    radius: (Theme && Theme.isRounded) ? (Config ? Config.m3CardRadius : 12) : 0
                                     tintColor: Qt.rgba(Config ? Config.cardBgColor.r : 0.08, Config ? Config.cardBgColor.g : 0.08, Config ? Config.cardBgColor.b : 0.10, Math.max(0.02, Config ? Config.cardOpacity : 0.10))
                                 }
 
@@ -333,9 +375,9 @@ ScrollView {
                         x: 0; width: filesListWrap.width
                         height: filesListWrap.lastHoveredFileObj ? filesListWrap.lastHoveredFileObj.height : 38
                         y: filesListWrap.lastHoveredFileObj ? filesListWrap.lastHoveredFileObj.y : 0
-                        radius: (Theme && Theme.isRounded) ? 5 : 0
-                        color: Qt.rgba(1, 1, 1, 0.08)
-                        border.color: Qt.rgba(1, 1, 1, 0.35)
+                        radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Config.m3CardRadius) : 10) : 0
+                        color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.14)
+                        border.color: Qt.rgba(Config ? Config.m3Primary.r : 1, Config ? Config.m3Primary.g : 1, Config ? Config.m3Primary.b : 1, 0.50)
                         border.width: 1
                         opacity: filesListWrap.hoveredFileObj ? 1.0 : 0.0
                         Behavior on y { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
@@ -355,9 +397,31 @@ ScrollView {
                                 objectName: "atmoObstacle"
                                 id: fileRow
                                 property string filePath: modelData.path
+                                property real enterAlpha: 0.0
+                                property real enterOffsetY: 12.0
+                                property real enterScale: 0.965
+
+                                Component.onCompleted: {
+                                    fileEnterDelay.duration = Math.min(index * 16, 200)
+                                    fileEnterAnim.start()
+                                }
+
+                                SequentialAnimation {
+                                    id: fileEnterAnim
+                                    PauseAnimation { id: fileEnterDelay; duration: 0 }
+                                    ParallelAnimation {
+                                        NumberAnimation { target: fileRow; property: "enterAlpha"; to: 1.0; duration: 190; easing.type: Easing.OutCubic }
+                                        NumberAnimation { target: fileRow; property: "enterOffsetY"; to: 0.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                                        NumberAnimation { target: fileRow; property: "enterScale"; to: 1.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 }
+                                    }
+                                }
+
+                                opacity: enterAlpha
+                                scale: enterScale
+                                transform: Translate { y: fileRow.enterOffsetY }
                                 Layout.fillWidth: true
                                 implicitHeight: 38
-                                radius: (Theme && Theme.isRounded) ? 5 : 0
+                                radius: (Theme && Theme.isRounded) ? (Config ? Math.min(12, Config.m3CardRadius) : 10) : 0
                                 tintColor: Qt.rgba(Config ? Config.cardBgColor.r : 0.08, Config ? Config.cardBgColor.g : 0.08, Config ? Config.cardBgColor.b : 0.10, Math.max(0.02, Config ? Config.cardOpacity : 0.10))
 
                                 MouseArea {

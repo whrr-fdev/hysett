@@ -8,22 +8,30 @@ Item {
     id: sysMonRoot
     property int pendingKillPid: -1
     property string pendingKillName: ""
-    property real graphPhase: 0.0
+    property real graphPhase: 1.0
     property double lastTickMs: Date.now()
+    readonly property bool isM3: Theme && Theme.isRounded
 
-    // 30 FPS таймер плавного горизонтального сдвига (в 5 раз легче для CPU, чем 160 FPS NumberAnimation)
+    // Оптимизированный таймер анимации: работает ТОЛЬКО во время 420мс фазы сдвига после прихода новых данных!
+    // В остальное время стоит на паузе (0% нагрузки на CPU в простое)
     Timer {
-        interval: 33
+        id: slideAnimTimer
+        interval: 45
         repeat: true
-        running: sysMonRoot.visible && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
+        running: sysMonRoot.visible && sysMonRoot.graphPhase < 1.0 && (ApplicationWindow.window ? ApplicationWindow.window.drawerActive : true)
         onTriggered: {
             var elapsed = Date.now() - sysMonRoot.lastTickMs
-            sysMonRoot.graphPhase = Math.min(1.0, Math.max(0.0, elapsed / 450.0))
+            sysMonRoot.graphPhase = Math.min(1.0, Math.max(0.0, elapsed / 420.0))
             cpuGraph.requestPaint()
-            memGraph.requestPaint()
-            vramGraph.requestPaint()
             netGraph.requestPaint()
         }
+    }
+
+    function repaintAllGraphs() {
+        cpuGraph.requestPaint()
+        memGraph.requestPaint()
+        vramGraph.requestPaint()
+        netGraph.requestPaint()
     }
 
     function drawSmoothGraph(ctx, w, h, hist, phase, strokeCol, fillTopCol, fillBotCol) {
@@ -35,8 +43,6 @@ Item {
         var topPad = 24
         var usableH = Math.max(10, h - topPad - 2)
 
-        // Точки сдвигаются строго ПО ГОРИЗОНТАЛИ: px = (i - phase) * step, а высота Y каждой точки неизменна!
-        // Благодаря этому пики и впадины никогда не усредняются и не распрямляются.
         var pts = []
         for (var i = 0; i < n; ++i) {
             var px = (i - phase) * step
@@ -47,16 +53,14 @@ Item {
         ctx.beginPath()
         ctx.moveTo(pts[0].x, pts[0].y)
         for (var j = 0; j < pts.length - 1; ++j) {
-            var p0 = pts[Math.max(0, j - 1)]
             var p1 = pts[j]
             var p2 = pts[j + 1]
-            var p3 = pts[Math.min(pts.length - 1, j + 2)]
-            var cp1x = p1.x + (p2.x - p0.x) / 6.0
-            var cp1y = Math.max(topPad - 2, Math.min(h - 1, p1.y + (p2.y - p0.y) / 6.0))
-            var cp2x = p2.x - (p3.x - p1.x) / 6.0
-            var cp2y = Math.max(topPad - 2, Math.min(h - 1, p2.y - (p3.y - p1.y) / 6.0))
-            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y)
+            var midX = (p1.x + p2.x) * 0.5
+            var midY = (p1.y + p2.y) * 0.5
+            ctx.quadraticCurveTo(p1.x, p1.y, midX, midY)
         }
+        var lastPt = pts[pts.length - 1]
+        ctx.lineTo(lastPt.x, lastPt.y)
 
         ctx.strokeStyle = strokeCol
         ctx.lineWidth = 2.0
@@ -64,7 +68,6 @@ Item {
         ctx.lineCap = "round"
         ctx.stroke()
 
-        var lastPt = pts[pts.length - 1]
         ctx.lineTo(lastPt.x, h)
         ctx.lineTo(pts[0].x, h)
         ctx.closePath()
@@ -91,11 +94,8 @@ Item {
         if (!visible && pendingKillPid !== -1) closeKillModal()
         if (visible) {
             sysMonRoot.lastTickMs = Date.now()
-            sysMonRoot.graphPhase = 0.0
-            cpuGraph.requestPaint()
-            memGraph.requestPaint()
-            vramGraph.requestPaint()
-            netGraph.requestPaint()
+            sysMonRoot.graphPhase = 1.0
+            repaintAllGraphs()
         }
     }
 
@@ -113,6 +113,10 @@ Item {
             if (!sysMonRoot.visible) return
             sysMonRoot.lastTickMs = Date.now()
             sysMonRoot.graphPhase = 0.0
+            memGraph.requestPaint()
+            vramGraph.requestPaint()
+            cpuGraph.requestPaint()
+            netGraph.requestPaint()
         }
     }
 
@@ -121,19 +125,34 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: 20
-        anchors.bottomMargin: 20
+        anchors.topMargin: 18
+        anchors.bottomMargin: 18
         spacing: 8
 
+        // Заголовок с отдельным слотом для иконки (без наезда на текст)
         RowLayout {
             Layout.fillWidth: true
+            spacing: 10
+
+            Item {
+                Layout.preferredWidth: 22
+                Layout.preferredHeight: 22
+                Text {
+                    anchors.centerIn: parent
+                    text: ""
+                    color: Config ? Config.m3Primary : "#ffffff"
+                    font.pixelSize: Config.fontSize + 4
+                }
+            }
+
             Text {
-                text: "  Системный монитор ресурсов и процессов"
+                text: "Системный монитор ресурсов и процессов"
                 color: "#ffffff"
                 font.pixelSize: Config.fontSize + 3
                 font.bold: true
                 Layout.fillWidth: true
             }
+
             StyledButton {
                 text: "btop"
                 implicitHeight: 24
@@ -141,6 +160,7 @@ Item {
             }
         }
 
+        // 4 карточки графиков
         GridLayout {
             Layout.fillWidth: true
             columns: 2
@@ -149,61 +169,156 @@ Item {
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 86; clip: true
+                Layout.fillWidth: true; implicitHeight: 80; clip: true
                 Canvas {
                     id: cpuGraph; anchors.fill: parent; anchors.margins: 6
                     onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.cpuHistory : [], sysMonRoot.graphPhase, "#a8c7fa", "rgba(168, 199, 250, 0.28)", "rgba(168, 199, 250, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
-                    Text { text: "  CPU"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
-                    Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%  |   " + (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
+                    spacing: 6
+                    Item {
+                        Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                        Text { anchors.centerIn: parent; text: ""; color: "#cccccc"; font.pixelSize: 12 }
+                    }
+                    Text { text: "CPU"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
+                    Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%   |"; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
+                    Item {
+                        Layout.preferredWidth: 12; Layout.preferredHeight: 16
+                        Text { anchors.centerIn: parent; text: ""; color: "#cccccc"; font.pixelSize: 11 }
+                    }
+                    Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
                 }
             }
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 86; clip: true
+                Layout.fillWidth: true; implicitHeight: 80; clip: true
                 Canvas {
                     id: memGraph; anchors.fill: parent; anchors.margins: 6
-                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.memHistory : [], sysMonRoot.graphPhase, "#80d8ff", "rgba(128, 216, 255, 0.28)", "rgba(128, 216, 255, 0.02)")
+                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.memHistory : [], 1.0, "#80d8ff", "rgba(128, 216, 255, 0.28)", "rgba(128, 216, 255, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
-                    Text { text: "󰍛  ОЗУ"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
+                    spacing: 6
+                    Item {
+                        Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                        Text { anchors.centerIn: parent; text: "󰍛"; color: "#cccccc"; font.pixelSize: 12 }
+                    }
+                    Text { text: "ОЗУ"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
                     Text { text: Waybar ? Waybar.memDetailText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
                 }
             }
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 86; clip: true
+                Layout.fillWidth: true; implicitHeight: 80; clip: true
                 Canvas {
                     id: vramGraph; anchors.fill: parent; anchors.margins: 6
-                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.vramHistory : [], sysMonRoot.graphPhase, "#b388ff", "rgba(179, 136, 255, 0.28)", "rgba(179, 136, 255, 0.02)")
+                    onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.vramHistory : [], 1.0, "#b388ff", "rgba(179, 136, 255, 0.28)", "rgba(179, 136, 255, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
-                    Text { text: "󰢮  Видеопамять"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
+                    spacing: 6
+                    Item {
+                        Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                        Text { anchors.centerIn: parent; text: "󰢮"; color: "#cccccc"; font.pixelSize: 12 }
+                    }
+                    Text { text: "Видеопамять"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
                     Text { text: Waybar ? Waybar.vramDetailText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
                 }
             }
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 86; clip: true
+                Layout.fillWidth: true; implicitHeight: 80; clip: true
                 Canvas {
                     id: netGraph; anchors.fill: parent; anchors.margins: 6
                     onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.netHistory : [], sysMonRoot.graphPhase, "#69f0ae", "rgba(105, 240, 174, 0.28)", "rgba(105, 240, 174, 0.02)")
                 }
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
-                    Text { text: "󰈀  Скорость сети"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
+                    spacing: 6
+                    Item {
+                        Layout.preferredWidth: 16; Layout.preferredHeight: 16
+                        Text { anchors.centerIn: parent; text: "󰈀"; color: "#cccccc"; font.pixelSize: 12 }
+                    }
+                    Text { text: "Скорость сети"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
                     Text { text: Waybar ? Waybar.netSpeedText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
                 }
             }
         }
 
+        // Панель потребления каждого ядра процессора по отдельности
+        GlassPanel {
+            objectName: "atmoObstacle"
+            visible: Waybar && Waybar.cpuCores && Waybar.cpuCores.length > 0
+            Layout.fillWidth: true
+            implicitHeight: coresGrid.implicitHeight + 18
+
+            GridLayout {
+                id: coresGrid
+                anchors.fill: parent
+                anchors.margins: 9
+                columns: {
+                    var cnt = (Waybar && Waybar.cpuCores) ? Waybar.cpuCores.length : 8
+                    if (cnt >= 16) return 8
+                    if (cnt >= 12) return 6
+                    return Math.min(cnt, 4)
+                }
+                columnSpacing: 10
+                rowSpacing: 6
+
+                Repeater {
+                    model: (Waybar && Waybar.cpuCores) ? Waybar.cpuCores.length : 0
+                    delegate: RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        readonly property int corePct: (Waybar && index < Waybar.cpuCores.length) ? Number(Waybar.cpuCores[index]) : 0
+
+                        Text {
+                            text: "C" + index
+                            color: "#aaaaaa"
+                            font.pixelSize: 10
+                            font.bold: true
+                            Layout.preferredWidth: 20
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            height: 6
+                            radius: sysMonRoot.isM3 ? 3 : 0
+                            color: Qt.rgba(1, 1, 1, 0.10)
+                            clip: true
+
+                            Rectangle {
+                                width: parent.width * Math.max(0.02, Math.min(1.0, parent.parent.corePct / 100.0))
+                                height: parent.height
+                                radius: parent.radius
+                                color: parent.parent.corePct > 85
+                                       ? "#ff6b6b"
+                                       : (parent.parent.corePct > 55
+                                          ? "#ffd54f"
+                                          : (Config ? Config.m3Primary : "#a8c7fa"))
+                                Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
+                            }
+                        }
+
+                        Text {
+                            text: parent.corePct + "%"
+                            color: "#ffffff"
+                            font.pixelSize: 10
+                            font.bold: true
+                            font.features: { "tnum": 1 }
+                            Layout.preferredWidth: 28
+                            horizontalAlignment: Text.AlignRight
+                        }
+                    }
+                }
+            }
+        }
+
+        // Таблица активных процессов с колонкой запущенной команды
         GlassPanel {
             objectName: "atmoObstacle"
             Layout.fillWidth: true; Layout.fillHeight: true
@@ -216,7 +331,8 @@ Item {
                     spacing: 10
 
                     Text { text: "PID"; color: "#777777"; font.pixelSize: 10; font.bold: true; Layout.preferredWidth: 64 }
-                    Text { text: "Активные процессы"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.fillWidth: true }
+                    Text { text: "Активные процессы"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.preferredWidth: 155 }
+                    Text { text: "Запущенная команда"; color: "#888888"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
 
                     Item {
                         Layout.preferredWidth: 64; implicitHeight: 20
@@ -251,34 +367,67 @@ Item {
 
                 ListView {
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
-                    model: Waybar ? Waybar.processList : []
+                    cacheBuffer: 120
+                    model: (Waybar && Waybar.processList) ? Waybar.processList.length : 0
                     delegate: Rectangle {
+                        readonly property var pItem: (Waybar && index < Waybar.processList.length)
+                                                     ? Waybar.processList[index]
+                                                     : ({ pid: 0, name: "", cmd: "", cpu: "0.0%", mem: "0 MB" })
                         width: ListView.view.width; height: 26
-                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                        radius: sysMonRoot.isM3 ? 6 : 0
                         color: Qt.rgba(1, 1, 1, 0.03); border.color: Qt.rgba(1, 1, 1, 0.08); border.width: 1
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 10
-                            Text { text: "PID " + modelData.pid; color: "#888888"; font.pixelSize: 10; Layout.preferredWidth: 64 }
-                            Text { text: modelData.name; color: "#ffffff"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true; elide: Text.ElideRight }
                             Text {
-                                text: modelData.cpu
+                                text: "PID " + pItem.pid
+                                color: "#888888"; font.pixelSize: 10
+                                font.features: { "tnum": 1 }
+                                Layout.preferredWidth: 64
+                            }
+                            Text {
+                                text: pItem.name
+                                color: "#ffffff"; font.pixelSize: 11; font.bold: true
+                                Layout.preferredWidth: 155
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: pItem.cmd || ""
+                                color: "#777777"; font.pixelSize: 10
+                                Layout.fillWidth: true
+                                elide: Text.ElideRight
+                            }
+                            Text {
+                                text: pItem.cpu
                                 color: (Waybar && Waybar.processSortMode === 0) ? "#ffffff" : "#aaaaaa"
                                 font.pixelSize: 11
                                 font.bold: (Waybar && Waybar.processSortMode === 0)
+                                font.features: { "tnum": 1 }
                                 Layout.preferredWidth: 64
                                 horizontalAlignment: Text.AlignRight
                             }
                             Text {
-                                text: modelData.mem
+                                text: pItem.mem
                                 color: (Waybar && Waybar.processSortMode === 1) ? "#ffffff" : "#aaaaaa"
                                 font.pixelSize: 11
                                 font.bold: (Waybar && Waybar.processSortMode === 1)
+                                font.features: { "tnum": 1 }
                                 Layout.preferredWidth: 72
                                 horizontalAlignment: Text.AlignRight
                             }
-                            StyledButton {
-                                text: "✕"; isIconOnly: true; implicitHeight: 20; implicitWidth: 22
-                                onClicked: sysMonRoot.askKillProcess(modelData.pid, modelData.name)
+                            Rectangle {
+                                Layout.preferredWidth: 22; Layout.preferredHeight: 20
+                                radius: sysMonRoot.isM3 ? 5 : 0
+                                color: killMa.containsMouse ? "#ff5252" : Qt.rgba(1, 1, 1, 0.08)
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "✕"
+                                    color: killMa.containsMouse ? "#ffffff" : "#cccccc"
+                                    font.pixelSize: 10; font.bold: true
+                                }
+                                MouseArea {
+                                    id: killMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                    onClicked: sysMonRoot.askKillProcess(pItem.pid, pItem.name)
+                                }
                             }
                         }
                     }
@@ -305,7 +454,7 @@ Item {
             implicitHeight: killCol.implicitHeight + 28
             scale: sysMonRoot.pendingKillPid !== -1 ? 1.0 : 0.92
             Behavior on scale { NumberAnimation { duration: 170; easing.type: Easing.OutBack } }
-            radius: (Theme && Theme.isRounded) ? 10 : 0
+            radius: sysMonRoot.isM3 ? 10 : 0
             tintColor: Qt.rgba(0.04, 0.04, 0.05, Config ? Config.dialogOpacity : 0.65)
 
             MouseArea { anchors.fill: parent }

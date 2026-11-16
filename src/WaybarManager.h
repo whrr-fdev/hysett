@@ -106,6 +106,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QString memUsageText READ memUsageText NOTIFY sysStatsChanged)
     Q_PROPERTY(QString memDetailText READ memDetailText NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList cpuHistory READ cpuHistory NOTIFY sysStatsChanged)
+    Q_PROPERTY(QVariantList cpuCores READ cpuCores NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList tempHistory READ tempHistory NOTIFY sysStatsChanged)
     Q_PROPERTY(QVariantList memHistory READ memHistory NOTIFY sysStatsChanged)
     Q_PROPERTY(int vramPercent READ vramPercent NOTIFY sysStatsChanged)
@@ -359,6 +360,7 @@ public:
     QString memUsageText() const { return m_memUsageText; }
     QString memDetailText() const { return m_memDetailText; }
     QVariantList cpuHistory() const { return m_cpuHistory; }
+    QVariantList cpuCores() const { return m_cpuCores; }
     QVariantList tempHistory() const { return m_tempHistory; }
     QVariantList memHistory() const { return m_memHistory; }
     int vramPercent() const { return m_vramPercent; }
@@ -630,6 +632,9 @@ private:
     QString m_memUsageText = "0.0G";
     QString m_memDetailText = "0.0 / 16.0 GB";
     QVariantList m_cpuHistory;
+    QVariantList m_cpuCores;
+    QVector<qulonglong> m_prevCoreTotal;
+    QVector<qulonglong> m_prevCoreIdle;
     QVariantList m_tempHistory;
     QVariantList m_memHistory;
     int m_vramPercent = 12;

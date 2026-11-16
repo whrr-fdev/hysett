@@ -505,19 +505,43 @@ void WaybarManager::pollSysStats() {
             }
         }
     }
-    // 1. CPU Usage
+    // 1. CPU Usage (общий + по каждому ядру отдельно)
     QFile statFile("/proc/stat");
     if (statFile.open(QIODevice::ReadOnly)) {
-        QList<QByteArray> parts = statFile.readLine().simplified().split(' ');
-        if (parts.size() >= 5) {
+        QByteArray allStat = statFile.readAll();
+        statFile.close();
+        const QList<QByteArray> lines = allStat.split('\n');
+        QVariantList nextCores;
+        int coreIdx = 0;
+        for (const QByteArray &rawLine : lines) {
+            if (!rawLine.startsWith("cpu")) break;
+            QList<QByteArray> parts = rawLine.simplified().split(' ');
+            if (parts.size() < 5) continue;
             qulonglong u = parts[1].toULongLong(), n = parts[2].toULongLong(), s = parts[3].toULongLong(), idle = parts[4].toULongLong();
             qulonglong iow = parts.value(5).toULongLong(), irq = parts.value(6).toULongLong(), sirq = parts.value(7).toULongLong();
             qulonglong total = u + n + s + idle + iow + irq + sirq;
-            qulonglong diffT = total - m_prevCpuTotal, diffI = idle - m_prevCpuIdle;
-            if (m_prevCpuTotal > 0 && diffT > 0) m_cpuUsage = std::clamp(int(100ULL * (diffT - diffI) / diffT), 0, 100);
-            m_prevCpuTotal = total; m_prevCpuIdle = idle;
+            if (parts[0] == "cpu") {
+                qulonglong diffT = total - m_prevCpuTotal, diffI = idle - m_prevCpuIdle;
+                if (m_prevCpuTotal > 0 && diffT > 0) m_cpuUsage = std::clamp(int(100ULL * (diffT - diffI) / diffT), 0, 100);
+                m_prevCpuTotal = total; m_prevCpuIdle = idle;
+            } else if (parts[0].startsWith("cpu")) {
+                if (m_prevCoreTotal.size() <= coreIdx) {
+                    m_prevCoreTotal.resize(coreIdx + 1, 0);
+                    m_prevCoreIdle.resize(coreIdx + 1, 0);
+                }
+                qulonglong diffT = total - m_prevCoreTotal[coreIdx];
+                qulonglong diffI = idle - m_prevCoreIdle[coreIdx];
+                int cUsage = 0;
+                if (m_prevCoreTotal[coreIdx] > 0 && diffT > 0) {
+                    cUsage = std::clamp(int(100ULL * (diffT - diffI) / diffT), 0, 100);
+                }
+                m_prevCoreTotal[coreIdx] = total;
+                m_prevCoreIdle[coreIdx] = idle;
+                nextCores.append(cUsage);
+                coreIdx++;
+            }
         }
-        statFile.close();
+        if (!nextCores.isEmpty()) m_cpuCores = nextCores;
     }
 
     // 2. CPU Temp (с кэшированием найденного пути файла датчика — 0 накладных расходов!)
@@ -862,14 +886,25 @@ void WaybarManager::refreshProcesses() {
         });
     }
 
-    // 4. Формирование списка
+    // 4. Формирование списка (читаем cmdline только для топ-28 процессов после сортировки — 0 лишней нагрузки!)
     QVariantList list;
     for (int i = 0; i < procs.size() && list.size() < 28; ++i) {
         QVariantMap m;
-        m["pid"] = procs[i].pid;
+        int pid = procs[i].pid;
+        m["pid"] = pid;
         m["cpu"] = QString::number(procs[i].cpu, 'f', 1) + "%";
         m["mem"] = QString::number(procs[i].rssMb, 'f', 0) + " MB";
         m["name"] = procs[i].name;
+        QString cmdStr;
+        QFile cmdF(QString("/proc/%1/cmdline").arg(pid));
+        if (cmdF.open(QIODevice::ReadOnly)) {
+            QByteArray rawCmd = cmdF.read(240);
+            cmdF.close();
+            rawCmd.replace('\0', ' ');
+            cmdStr = QString::fromUtf8(rawCmd).simplified();
+        }
+        if (cmdStr.isEmpty()) cmdStr = "[" + procs[i].name + "]";
+        m["cmd"] = cmdStr;
         list.append(m);
     }
     m_processList = list;

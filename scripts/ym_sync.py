@@ -153,7 +153,6 @@ def format_track_meta(tr):
 def rebuild_local_index():
     os.makedirs(MUSIC_DIR, exist_ok=True)
     os.makedirs(COVERS_DIR, exist_ok=True)
-    os.makedirs(os.path.join(MUSIC_DIR, "Открытые"), exist_ok=True)
     db_obj = load_db()
     tmeta = db_obj.get("track_meta", {})
 
@@ -195,7 +194,7 @@ def rebuild_local_index():
                 ordered_files.append(f)
                 seen.add(f)
 
-        if not ordered_files and d != "Открытые":
+        if not ordered_files:
             continue
 
         tracks_out = []

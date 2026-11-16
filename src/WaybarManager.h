@@ -308,6 +308,7 @@ public:
     Q_INVOKABLE void playYmTrack(int playlistIdx, int trackIdx);
     Q_INVOKABLE void moveYmTrack(int playlistIdx, int fromIdx, int toIdx);
     Q_INVOKABLE void deleteYmTrack(int playlistIdx, int trackIdx);
+    Q_INVOKABLE void deleteYmPlaylist(int playlistIdx);
     Q_INVOKABLE void restoreYmTrack(int playlistIdx, int trackIdx);
     Q_INVOKABLE void copyYmTrackToPlaylist(const QString &trackPath, const QString &targetPlaylistTitle);
     Q_INVOKABLE bool toggleYmFavorite(const QString &trackPath, const QString &fullTitle);

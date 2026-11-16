@@ -2857,15 +2857,18 @@ void WaybarManager::setYmSelectedPlaylist(int idx) {
 }
 
 void WaybarManager::loadYmIndexFromDisk() {
-    QString openDirPath = QDir::homePath() + "/Music/YandexMusic/Открытые";
-    QDir().mkpath(openDirPath);
     QVariantList nextPls;
     QFile f(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
     if (f.open(QIODevice::ReadOnly)) {
         QJsonObject o = QJsonDocument::fromJson(f.readAll()).object();
         f.close();
         for (const QVariant &pv : o["playlists"].toArray().toVariantList()) {
-            if (pv.toMap()["title"].toString() != "Моя волна") nextPls.append(pv);
+            QVariantMap pm = pv.toMap();
+            QString title = pm["title"].toString();
+            QString folder = pm["folder"].toString();
+            if (title == "Моя волна") continue;
+            if (!folder.isEmpty() && !QDir(folder).exists()) continue;
+            nextPls.append(pm);
         }
     }
     // Если индекс пустой или еще не создан — мгновенно сканируем папки ~/Music/YandexMusic напрямую в C++
@@ -2902,25 +2905,10 @@ void WaybarManager::loadYmIndexFromDisk() {
             }
         }
     }
-    bool hasOpenPl = false;
-    int hiddenIdx = -1;
-    for (int i = 0; i < nextPls.size(); ++i) {
-        QString t = nextPls[i].toMap()["title"].toString();
-        if (t == "Открытые") hasOpenPl = true;
-        if (t == "Скрытые") hiddenIdx = i;
-    }
-    if (!hasOpenPl) {
-        QVariantMap op;
-        op["title"] = "Открытые";
-        op["folder"] = openDirPath;
-        op["count"] = 0;
-        op["tracks"] = QVariantList();
-        if (hiddenIdx >= 0) nextPls.insert(hiddenIdx, op);
-        else nextPls.append(op);
-    }
-    if (!nextPls.isEmpty() && m_ymPlaylists != nextPls) {
+    if (m_ymPlaylists != nextPls) {
         m_ymPlaylists = nextPls;
-        if (m_ymSelectedPlaylist >= m_ymPlaylists.size()) m_ymSelectedPlaylist = 0;
+        if (m_ymSelectedPlaylist >= m_ymPlaylists.size())
+            m_ymSelectedPlaylist = std::max(0, int(m_ymPlaylists.size()) - 1);
         emit ymLibraryChanged();
     }
 }
@@ -3149,6 +3137,27 @@ static void saveYmPlaylistsIndexAndM3u(const QVariantList &playlists) {
         idxF.write(QJsonDocument(rootObj).toJson(QJsonDocument::Compact));
         idxF.close();
     }
+}
+
+void WaybarManager::deleteYmPlaylist(int playlistIdx) {
+    if (playlistIdx < 0 || playlistIdx >= m_ymPlaylists.size()) return;
+    QVariantMap pl = m_ymPlaylists.takeAt(playlistIdx).toMap();
+    QString folder = pl["folder"].toString();
+    QString title = pl["title"].toString();
+    if (folder.isEmpty() && !title.isEmpty()) {
+        folder = QDir::homePath() + "/Music/YandexMusic/" + title;
+    }
+    if (!folder.isEmpty()) {
+        QDir dir(folder);
+        if (dir.exists() && folder.contains("/Music/YandexMusic/")) {
+            dir.removeRecursively();
+        }
+    }
+    if (m_ymSelectedPlaylist >= m_ymPlaylists.size()) {
+        m_ymSelectedPlaylist = std::max(0, int(m_ymPlaylists.size()) - 1);
+    }
+    saveYmPlaylistsIndexAndM3u(m_ymPlaylists);
+    emit ymLibraryChanged();
 }
 
 void WaybarManager::deleteYmTrack(int playlistIdx, int trackIdx) {

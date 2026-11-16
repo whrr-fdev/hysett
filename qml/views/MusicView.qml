@@ -60,8 +60,18 @@ Item {
     onTrackSearchQueryChanged: trackListContainer.rebuildTrackModel()
 
     property bool addPlaylistPopupOpen: false
+    property bool deletePlaylistPopupOpen: false
+    property int pendingDeletePlaylistIdx: -1
+    property string pendingDeletePlaylistTitle: ""
     property string pendingTrackPath: ""
     property string pendingTrackTitle: ""
+
+    function askDeletePlaylist(idx, title) {
+        if (idx < 0) return
+        pendingDeletePlaylistIdx = idx
+        pendingDeletePlaylistTitle = title || ""
+        deletePlaylistPopupOpen = true
+    }
     property int libraryVersion: 0
     property int trackSwitchDir: 1
     property string lastAnimTrackKey: ""
@@ -162,7 +172,7 @@ Item {
     }
 
     onVisibleChanged: {
-        if (!visible) addPlaylistPopupOpen = false
+        if (!visible) { addPlaylistPopupOpen = false; deletePlaylistPopupOpen = false }
         if (visible) {
             subSidebar.playStaircase()
             if (Waybar) {
@@ -238,7 +248,7 @@ Item {
     Item {
         id: musicBlurTarget
         anchors.fill: parent
-        layer.enabled: musicRoot.addPlaylistPopupOpen && (!Config || Config.dialogBlur > 0.01)
+        layer.enabled: (musicRoot.addPlaylistPopupOpen || musicRoot.deletePlaylistPopupOpen) && (!Config || Config.dialogBlur > 0.01)
         layer.smooth: true
         layer.effect: ShaderEffect {
             property var source: musicBlurTarget
@@ -539,6 +549,17 @@ Item {
                             text: "󰓇 Моя волна"
                             implicitHeight: 26
                             onClicked: if (Waybar) Waybar.playYmMyWave()
+                        }
+                        StyledButton {
+                            text: "󰑐 Обновить списки"
+                            implicitHeight: 26
+                            onClicked: {
+                                if (Waybar) {
+                                    Waybar.refreshYmLibrary()
+                                    musicRoot.libraryVersion++
+                                    trackListContainer.rebuildTrackModel()
+                                }
+                            }
                         }
                         StyledButton {
                             text: "󰉋 Папка"
@@ -916,20 +937,55 @@ Item {
                                                                ? (Config ? Config.accentTextColor : "#000000")
                                                                : (musicRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
                                                     }
+
+                                                    Rectangle {
+                                                        id: delPlBadge
+                                                        anchors.verticalCenter: parent.verticalCenter
+                                                        width: 16; height: 16
+                                                        radius: musicRoot.isM3 ? 8 : 0
+                                                        color: delPlMa.containsMouse
+                                                               ? "#ff5252"
+                                                               : (plBtn.isSel ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(1, 1, 1, 0.10))
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: "✕"
+                                                            font.pixelSize: 9
+                                                            font.bold: true
+                                                            color: delPlMa.containsMouse ? "#ffffff" : plBtnTxt.color
+                                                        }
+                                                    }
                                                 }
 
                                                 MouseArea {
                                                     anchors.fill: parent
+                                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
                                                     hoverEnabled: true
                                                     cursorShape: Qt.PointingHandCursor
                                                     onEntered: { plTabBar.lastHoveredItem = plBtn; plTabBar.hoveredItem = plBtn }
                                                     onExited: if (plTabBar.hoveredItem === plBtn) plTabBar.hoveredItem = null
-                                                    onPressed: {
+                                                    onPressed: (mouse) => {
+                                                        if (mouse.button === Qt.RightButton) {
+                                                            musicRoot.askDeletePlaylist(index, modelData.title)
+                                                            mouse.accepted = true
+                                                            return
+                                                        }
                                                         if (Waybar && Waybar.ymSelectedPlaylist !== index) {
                                                             var dir = (index > Waybar.ymSelectedPlaylist) ? 1 : -1
                                                             trackListContainer.switchPlaylistWithFullSlide(index, dir)
                                                         }
                                                     }
+                                                }
+
+                                                MouseArea {
+                                                    id: delPlMa
+                                                    x: plBtnRow.x + plBtnRow.width - delPlBadge.width - 2
+                                                    y: 0
+                                                    width: delPlBadge.width + 8
+                                                    height: parent.height
+                                                    hoverEnabled: true
+                                                    cursorShape: Qt.PointingHandCursor
+                                                    onEntered: { plTabBar.lastHoveredItem = plBtn; plTabBar.hoveredItem = plBtn }
+                                                    onClicked: musicRoot.askDeletePlaylist(index, modelData.title)
                                                 }
                                             }
                                         }
@@ -1990,6 +2046,90 @@ Item {
                                 Waybar.copyYmTrackToPlaylist(musicRoot.pendingTrackPath, newPlaylistNameField.text.trim())
                                 musicRoot.addPlaylistPopupOpen = false
                             }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // =========================================================================
+    // МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ПЛЕЙЛИСТА
+    // =========================================================================
+    Rectangle {
+        visible: musicRoot.deletePlaylistPopupOpen
+        anchors.fill: parent
+        z: 510
+        color: Qt.rgba(0, 0, 0, 0.45)
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: musicRoot.deletePlaylistPopupOpen = false
+        }
+
+        GlassPanel {
+            anchors.centerIn: parent
+            width: 360
+            implicitHeight: delPlModalCol.implicitHeight + 28
+            radius: musicRoot.isM3 ? 14 : 0
+
+            MouseArea { anchors.fill: parent; onClicked: {} }
+
+            ColumnLayout {
+                id: delPlModalCol
+                anchors.fill: parent
+                anchors.margins: 16
+                spacing: 12
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+                    Text {
+                        text: "󰆴  Удалить плейлист с ПК?"
+                        color: "#ffffff"
+                        font.pixelSize: Config.fontSize + 1
+                        font.bold: true
+                        Layout.fillWidth: true
+                    }
+                    StyledButton {
+                        text: "󰅖"
+                        isIconOnly: true
+                        implicitWidth: 24; implicitHeight: 24
+                        onClicked: musicRoot.deletePlaylistPopupOpen = false
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: "Папка плейлиста «" + musicRoot.pendingDeletePlaylistTitle + "» и её треки будут удалены из ~/Music/YandexMusic."
+                    color: "#cccccc"
+                    font.pixelSize: Config.fontSize
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    StyledButton {
+                        Layout.fillWidth: true
+                        allowFullWidth: true
+                        implicitHeight: 30
+                        text: "Отмена"
+                        onClicked: musicRoot.deletePlaylistPopupOpen = false
+                    }
+
+                    StyledButton {
+                        Layout.fillWidth: true
+                        allowFullWidth: true
+                        implicitHeight: 30
+                        isActive: true
+                        text: "󰆴 Удалить"
+                        onClicked: {
+                            if (Waybar && musicRoot.pendingDeletePlaylistIdx >= 0) {
+                                Waybar.deleteYmPlaylist(musicRoot.pendingDeletePlaylistIdx)
+                            }
+                            musicRoot.deletePlaylistPopupOpen = false
                         }
                     }
                 }

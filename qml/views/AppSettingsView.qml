@@ -970,7 +970,7 @@ RowLayout {
         }
 
         // =====================================================================
-        // РАЗДЕЛ 5: ОБНОВЛЕНИЯ СИСТЕМЫ И АВТОДОКАЧКА (МУЗЫКА, VPN, HYSETT)
+        // РАЗДЕЛ 5: ЦЕНТР ОБНОВЛЕНИЙ
         // =====================================================================
         ScrollView {
             id: scrUpd; contentWidth: availableWidth; clip: true
@@ -983,7 +983,7 @@ RowLayout {
                     anchors.top: parent.top; anchors.topMargin: 20
                     spacing: 14
 
-                    Text { text: "󰚰  Центр обновлений и автодокачки при запуске ПК"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
+                    Text { text: "󰚰  Центр обновлений"; color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true }
 
                     // 1. ОБНОВЛЕНИЕ САМОГО ПРИЛОЖЕНИЯ HYSETT
                     GlassPanel {
@@ -1004,6 +1004,7 @@ RowLayout {
                                         color: Config && Config.updateAvailable ? "#69f0ae" : "#ffffff"
                                         font.pixelSize: Config.fontSize + 1
                                         font.bold: true
+                                        elide: Text.ElideRight
                                     }
                                     Text {
                                         Layout.fillWidth: true
@@ -1011,16 +1012,19 @@ RowLayout {
                                               "   •   На GitHub: " + (Config ? Config.remoteVersionInfo : "main")
                                         color: Config ? Config.m3Primary : "#a8c7fa"
                                         font.pixelSize: Config.fontSize
+                                        wrapMode: Text.WordWrap
                                     }
                                 }
                                 StyledButton {
                                     text: "󰑐 Проверить обновления"
+                                    Layout.alignment: Qt.AlignVCenter
                                     enabled: Config ? !Config.sysBusy : true
                                     onClicked: if (Config) Config.checkUpdates()
                                 }
                                 StyledButton {
                                     text: "󰇚 Скачать и обновить"
                                     isActive: true
+                                    Layout.alignment: Qt.AlignVCenter
                                     enabled: Config ? !Config.sysBusy : true
                                     onClicked: if (Config) Config.installUpdate()
                                 }
@@ -1057,6 +1061,7 @@ RowLayout {
                             Text {
                                 Layout.fillWidth: true
                                 wrapMode: Text.Wrap
+                                textFormat: Text.MarkdownText
                                 text: Config ? Config.updateChangelog : ""
                                 color: "#dddddd"
                                 font.pixelSize: Config.fontSize
@@ -1064,7 +1069,7 @@ RowLayout {
                         }
                     }
 
-                    // 2. АВТОДОКАЧКА МУЗЫКИ И МОЕЙ ВОЛНЫ ПРИ ПЕРЕЗАПУСКЕ ПК / ПОЯВЛЕНИИ ИНТЕРНЕТА
+                    // 2. СИНХРОНИЗАЦИЯ И АВТОДОКАЧКА ЯНДЕКС.МУЗЫКИ
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colYmUpd.implicitHeight + 28
@@ -1075,21 +1080,24 @@ RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 8
                                 Text {
-                                    text: "󰎆  Автодокачка Яндекс.Музыки при перезапуске ПК и появлении сети"
+                                    text: "󰎆  Синхронизация и автодокачка Яндекс.Музыки"
                                     color: "#ffffff"
                                     font.pixelSize: Config.fontSize + 1
                                     font.bold: true
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
+                                    elide: Text.ElideRight
                                 }
                                 StyledButton {
                                     text: "󰑐 Докачать плейлисты"
+                                    Layout.alignment: Qt.AlignVCenter
                                     enabled: Waybar ? !Waybar.ymBusy : true
                                     onClicked: if (Waybar) Waybar.syncYmPlaylists()
                                 }
                                 StyledButton {
                                     text: "󰓇 Докачать Мою волну"
                                     isActive: true
+                                    Layout.alignment: Qt.AlignVCenter
                                     enabled: Waybar ? !Waybar.ymBusy : true
                                     onClicked: if (Waybar) Waybar.downloadYmMyWave()
                                 }
@@ -1194,7 +1202,7 @@ RowLayout {
                         }
                     }
 
-                    // 3. АВТООБНОВЛЕНИЕ VPN, ПОДПИСОК И СПИСКОВ ОБХОДА ПРИ СТАРТЕ ПК
+                    // 3. ОБНОВЛЕНИЕ VPN И СПИСКОВ ОБХОДА (БС / ЧС)
                     GlassPanel {
                         Layout.fillWidth: true
                         implicitHeight: colVpnUpd.implicitHeight + 28
@@ -1205,21 +1213,24 @@ RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 8
                                 Text {
-                                    text: "󰦝  Автообновление VPN и баз обхода (БС / ЧС) при старте ПК"
+                                    text: "󰦝  Обновление VPN и списков обхода (БС / ЧС)"
                                     color: "#ffffff"
                                     font.pixelSize: Config.fontSize + 1
                                     font.bold: true
                                     Layout.fillWidth: true
                                     Layout.alignment: Qt.AlignVCenter
+                                    elide: Text.ElideRight
                                 }
                                 StyledButton {
                                     text: "󰑐 Обновить списки БС/ЧС"
+                                    Layout.alignment: Qt.AlignVCenter
                                     enabled: Waybar ? !Waybar.vpnBusy : true
                                     onClicked: if (Waybar) Waybar.updateBypassLists()
                                 }
                                 StyledButton {
                                     text: "󰇚 Обновить всё"
                                     isActive: true
+                                    Layout.alignment: Qt.AlignVCenter
                                     enabled: Waybar ? !Waybar.vpnBusy : true
                                     onClicked: if (Waybar) Waybar.updateVpnSubscription()
                                 }

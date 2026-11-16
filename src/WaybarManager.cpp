@@ -537,14 +537,18 @@ void WaybarManager::pollSysStats() {
                 }
                 m_prevCoreTotal[coreIdx] = total;
                 m_prevCoreIdle[coreIdx] = idle;
-                nextCores.append(cUsage);
+                QVariantMap cm;
+                cm["core"] = coreIdx;
+                cm["usage"] = cUsage;
+                cm["temp"] = m_cpuTemp;
+                nextCores.append(cm);
                 coreIdx++;
             }
         }
         if (!nextCores.isEmpty()) m_cpuCores = nextCores;
     }
 
-    // 2. CPU Temp (с кэшированием найденного пути файла датчика — 0 накладных расходов!)
+    // 2. CPU Temp (общая + по каждому физическому ядру из hwmon с кэшированием путей)
     if (!m_cachedHwmonPath.isEmpty()) {
         QFile tf(m_cachedHwmonPath);
         if (tf.open(QIODevice::ReadOnly)) {
@@ -555,6 +559,7 @@ void WaybarManager::pollSysStats() {
     } else {
         int bestCpuTemp = -1;
         QString bestPath;
+        QStringList corePaths;
         QDir hwDir("/sys/class/hwmon");
         for (const QString &hw : hwDir.entryList(QDir::Dirs | QDir::NoDotAndDotDot)) {
             QString base = "/sys/class/hwmon/" + hw;
@@ -566,24 +571,51 @@ void WaybarManager::pollSysStats() {
             }
             bool isPrimaryCpu = chipName.contains("coretemp") || chipName.contains("k10temp") ||
                                 chipName.contains("zenpower") || chipName.contains("zenergy") || chipName.contains("cpu");
-            for (int idx = 1; idx <= 6; ++idx) {
+            QStringList chipCorePaths;
+            for (int idx = 1; idx <= 16; ++idx) {
                 QString p = QString("%1/temp%2_input").arg(base).arg(idx);
                 QFile tf(p);
                 if (tf.open(QIODevice::ReadOnly)) {
                     int deg = tf.readAll().trimmed().toInt() / 1000;
                     tf.close();
                     if (deg >= 20 && deg <= 115 && (isPrimaryCpu || (bestCpuTemp < 0 && deg != 27))) {
+                        if (isPrimaryCpu && idx >= 2) {
+                            chipCorePaths.append(p);
+                        }
                         if (isPrimaryCpu || deg > bestCpuTemp) {
-                            bestCpuTemp = deg;
-                            bestPath = p;
+                            if (bestPath.isEmpty() || idx == 1 || deg > bestCpuTemp) {
+                                bestCpuTemp = deg;
+                                bestPath = p;
+                            }
                         }
                     }
                 }
+            }
+            if (isPrimaryCpu && !chipCorePaths.isEmpty()) {
+                corePaths = chipCorePaths;
             }
         }
         if (bestCpuTemp > 0) {
             m_cpuTemp = bestCpuTemp;
             m_cachedHwmonPath = bestPath;
+            m_cachedCoreTempPaths = corePaths;
+        }
+    }
+
+    if (!m_cpuCores.isEmpty()) {
+        QVector<int> physTemps;
+        for (const QString &cp : m_cachedCoreTempPaths) {
+            QFile cf(cp);
+            if (cf.open(QIODevice::ReadOnly)) {
+                int d = cf.readAll().trimmed().toInt() / 1000;
+                cf.close();
+                if (d >= 20 && d <= 115) physTemps.append(d);
+            }
+        }
+        for (int i = 0; i < m_cpuCores.size(); ++i) {
+            QVariantMap cm = m_cpuCores[i].toMap();
+            cm["temp"] = physTemps.isEmpty() ? m_cpuTemp : physTemps[i % physTemps.size()];
+            m_cpuCores[i] = cm;
         }
     }
 
@@ -886,9 +918,11 @@ void WaybarManager::refreshProcesses() {
         });
     }
 
-    // 4. Формирование списка (читаем cmdline только для топ-28 процессов после сортировки — 0 лишней нагрузки!)
+    // 4. Формирование списка: отображаем ВСЕ процессы, которые хоть что-то потребляют (CPU или RAM)
     QVariantList list;
-    for (int i = 0; i < procs.size() && list.size() < 28; ++i) {
+    list.reserve(procs.size());
+    for (int i = 0; i < procs.size(); ++i) {
+        if (procs[i].rssMb < 0.1 && procs[i].cpu < 0.05) continue;
         QVariantMap m;
         int pid = procs[i].pid;
         m["pid"] = pid;

@@ -549,6 +549,7 @@ private:
     int m_trayTick = 0;
     bool m_drawerOpenState = false;
     QString m_cachedHwmonPath;
+    QStringList m_cachedCoreTempPaths;
     QVariantList m_clipboardItems;
     QStringList m_rawClipboardLines;
 

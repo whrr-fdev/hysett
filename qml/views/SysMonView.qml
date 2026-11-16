@@ -12,8 +12,6 @@ Item {
     property double lastTickMs: Date.now()
     readonly property bool isM3: Theme && Theme.isRounded
 
-    // Оптимизированный таймер анимации: работает ТОЛЬКО во время 420мс фазы сдвига после прихода новых данных!
-    // В остальное время стоит на паузе (0% нагрузки на CPU в простое)
     Timer {
         id: slideAnimTimer
         interval: 45
@@ -125,11 +123,11 @@ Item {
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.top: parent.top
         anchors.bottom: parent.bottom
-        anchors.topMargin: 18
-        anchors.bottomMargin: 18
+        anchors.topMargin: 16
+        anchors.bottomMargin: 16
         spacing: 8
 
-        // Заголовок с отдельным слотом для иконки (без наезда на текст)
+        // Заголовок
         RowLayout {
             Layout.fillWidth: true
             spacing: 10
@@ -160,20 +158,23 @@ Item {
             }
         }
 
-        // 4 карточки графиков
-        GridLayout {
+        // РЯД 1: Слева общий график CPU, Справа компактный двухколоночный блок ядер C0..C3 | C4..C7 с температурой (как в btop, но полосками)
+        RowLayout {
             Layout.fillWidth: true
-            columns: 2
-            columnSpacing: 8
-            rowSpacing: 8
+            spacing: 8
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 80; clip: true
+                Layout.fillWidth: true
+                Layout.preferredWidth: 460
+                implicitHeight: 88
+                clip: true
+
                 Canvas {
                     id: cpuGraph; anchors.fill: parent; anchors.margins: 6
                     onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.cpuHistory : [], sysMonRoot.graphPhase, "#a8c7fa", "rgba(168, 199, 250, 0.28)", "rgba(168, 199, 250, 0.02)")
                 }
+
                 RowLayout {
                     anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; anchors.margins: 8
                     spacing: 6
@@ -191,9 +192,181 @@ Item {
                 }
             }
 
+            // Сжатый двухколоночный блок ядер CPU (C0..C3 слева | C4..C7 справа) с полосками и температурой каждого ядра
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 80; clip: true
+                visible: Waybar && Waybar.cpuCores && Waybar.cpuCores.length > 0
+                Layout.fillWidth: true
+                Layout.preferredWidth: 460
+                implicitHeight: 88
+
+                readonly property int totalCores: (Waybar && Waybar.cpuCores) ? Waybar.cpuCores.length : 8
+                readonly property int rowsCount: Math.max(1, Math.ceil(totalCores / 2))
+
+                RowLayout {
+                    anchors.fill: parent
+                    anchors.leftMargin: 10
+                    anchors.rightMargin: 10
+                    anchors.topMargin: 6
+                    anchors.bottomMargin: 6
+                    spacing: 10
+
+                    // Левая колонка ядер (C0 .. C(rowsCount-1))
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 2
+
+                        Repeater {
+                            model: parent.parent.parent.rowsCount
+                            delegate: RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 5
+                                readonly property int coreIdx: index
+                                readonly property var cObj: (Waybar && coreIdx < Waybar.cpuCores.length) ? Waybar.cpuCores[coreIdx] : ({ usage: 0, temp: 40 })
+                                readonly property int cPct: cObj.usage !== undefined ? Number(cObj.usage) : Number(cObj || 0)
+                                readonly property int cTmp: cObj.temp !== undefined ? Number(cObj.temp) : (Waybar ? Waybar.cpuTemp : 40)
+
+                                Text {
+                                    text: "C" + coreIdx
+                                    color: "#cccccc"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.features: { "tnum": 1 }
+                                    Layout.preferredWidth: 18
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 5
+                                    radius: sysMonRoot.isM3 ? 2.5 : 0
+                                    color: Qt.rgba(1, 1, 1, 0.10)
+                                    clip: true
+
+                                    Rectangle {
+                                        width: parent.width * Math.max(0.03, Math.min(1.0, parent.parent.cPct / 100.0))
+                                        height: parent.height
+                                        radius: parent.radius
+                                        color: parent.parent.cPct > 85
+                                               ? "#ff6b6b"
+                                               : (parent.parent.cPct > 55
+                                                  ? "#ffd54f"
+                                                  : (Config ? Config.m3Primary : "#69f0ae"))
+                                        Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+
+                                Text {
+                                    text: parent.cPct + "%"
+                                    color: Config ? Config.m3Primary : "#69f0ae"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.features: { "tnum": 1 }
+                                    Layout.preferredWidth: 26
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                Text {
+                                    text: parent.cTmp + "°C"
+                                    color: parent.cTmp >= 80 ? "#ff6b6b" : (parent.cTmp >= 65 ? "#ffd54f" : "#80d8ff")
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.features: { "tnum": 1 }
+                                    Layout.preferredWidth: 28
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+                        }
+                    }
+
+                    // Вертикальный разделитель посередине (как в btop)
+                    Rectangle {
+                        width: 1
+                        Layout.fillHeight: true
+                        Layout.topMargin: 2
+                        Layout.bottomMargin: 2
+                        color: Qt.rgba(1, 1, 1, 0.14)
+                    }
+
+                    // Правая колонка ядер (C(rowsCount) .. C(totalCores-1))
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: 2
+
+                        Repeater {
+                            model: Math.max(0, parent.parent.parent.totalCores - parent.parent.parent.rowsCount)
+                            delegate: RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 5
+                                readonly property int coreIdx: index + parent.parent.parent.rowsCount
+                                readonly property var cObj: (Waybar && coreIdx < Waybar.cpuCores.length) ? Waybar.cpuCores[coreIdx] : ({ usage: 0, temp: 40 })
+                                readonly property int cPct: cObj.usage !== undefined ? Number(cObj.usage) : Number(cObj || 0)
+                                readonly property int cTmp: cObj.temp !== undefined ? Number(cObj.temp) : (Waybar ? Waybar.cpuTemp : 40)
+
+                                Text {
+                                    text: "C" + coreIdx
+                                    color: "#cccccc"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.features: { "tnum": 1 }
+                                    Layout.preferredWidth: 18
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 5
+                                    radius: sysMonRoot.isM3 ? 2.5 : 0
+                                    color: Qt.rgba(1, 1, 1, 0.10)
+                                    clip: true
+
+                                    Rectangle {
+                                        width: parent.width * Math.max(0.03, Math.min(1.0, parent.parent.cPct / 100.0))
+                                        height: parent.height
+                                        radius: parent.radius
+                                        color: parent.parent.cPct > 85
+                                               ? "#ff6b6b"
+                                               : (parent.parent.cPct > 55
+                                                  ? "#ffd54f"
+                                                  : (Config ? Config.m3Primary : "#69f0ae"))
+                                        Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+
+                                Text {
+                                    text: parent.cPct + "%"
+                                    color: Config ? Config.m3Primary : "#69f0ae"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.features: { "tnum": 1 }
+                                    Layout.preferredWidth: 26
+                                    horizontalAlignment: Text.AlignRight
+                                }
+
+                                Text {
+                                    text: parent.cTmp + "°C"
+                                    color: parent.cTmp >= 80 ? "#ff6b6b" : (parent.cTmp >= 65 ? "#ffd54f" : "#80d8ff")
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    font.features: { "tnum": 1 }
+                                    Layout.preferredWidth: 28
+                                    horizontalAlignment: Text.AlignRight
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // РЯД 2: 3 карточки (ОЗУ, Видеопамять, Скорость сети)
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true; Layout.preferredWidth: 300; implicitHeight: 74; clip: true
                 Canvas {
                     id: memGraph; anchors.fill: parent; anchors.margins: 6
                     onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.memHistory : [], 1.0, "#80d8ff", "rgba(128, 216, 255, 0.28)", "rgba(128, 216, 255, 0.02)")
@@ -206,13 +379,13 @@ Item {
                         Text { anchors.centerIn: parent; text: "󰍛"; color: "#cccccc"; font.pixelSize: 12 }
                     }
                     Text { text: "ОЗУ"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
-                    Text { text: Waybar ? Waybar.memDetailText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
+                    Text { text: Waybar ? Waybar.memDetailText : ""; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
                 }
             }
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 80; clip: true
+                Layout.fillWidth: true; Layout.preferredWidth: 300; implicitHeight: 74; clip: true
                 Canvas {
                     id: vramGraph; anchors.fill: parent; anchors.margins: 6
                     onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.vramHistory : [], 1.0, "#b388ff", "rgba(179, 136, 255, 0.28)", "rgba(179, 136, 255, 0.02)")
@@ -225,13 +398,13 @@ Item {
                         Text { anchors.centerIn: parent; text: "󰢮"; color: "#cccccc"; font.pixelSize: 12 }
                     }
                     Text { text: "Видеопамять"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
-                    Text { text: Waybar ? Waybar.vramDetailText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
+                    Text { text: Waybar ? Waybar.vramDetailText : ""; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
                 }
             }
 
             GlassPanel {
                 objectName: "atmoObstacle"
-                Layout.fillWidth: true; implicitHeight: 80; clip: true
+                Layout.fillWidth: true; Layout.preferredWidth: 300; implicitHeight: 74; clip: true
                 Canvas {
                     id: netGraph; anchors.fill: parent; anchors.margins: 6
                     onPaint: sysMonRoot.drawSmoothGraph(getContext("2d"), width, height, Waybar ? Waybar.netHistory : [], sysMonRoot.graphPhase, "#69f0ae", "rgba(105, 240, 174, 0.28)", "rgba(105, 240, 174, 0.02)")
@@ -244,81 +417,12 @@ Item {
                         Text { anchors.centerIn: parent; text: "󰈀"; color: "#cccccc"; font.pixelSize: 12 }
                     }
                     Text { text: "Скорость сети"; color: "#cccccc"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
-                    Text { text: Waybar ? Waybar.netSpeedText : ""; color: "#ffffff"; font.pixelSize: 11; font.bold: true }
+                    Text { text: Waybar ? Waybar.netSpeedText : ""; color: "#ffffff"; font.pixelSize: 10; font.bold: true }
                 }
             }
         }
 
-        // Панель потребления каждого ядра процессора по отдельности
-        GlassPanel {
-            objectName: "atmoObstacle"
-            visible: Waybar && Waybar.cpuCores && Waybar.cpuCores.length > 0
-            Layout.fillWidth: true
-            implicitHeight: coresGrid.implicitHeight + 18
-
-            GridLayout {
-                id: coresGrid
-                anchors.fill: parent
-                anchors.margins: 9
-                columns: {
-                    var cnt = (Waybar && Waybar.cpuCores) ? Waybar.cpuCores.length : 8
-                    if (cnt >= 16) return 8
-                    if (cnt >= 12) return 6
-                    return Math.min(cnt, 4)
-                }
-                columnSpacing: 10
-                rowSpacing: 6
-
-                Repeater {
-                    model: (Waybar && Waybar.cpuCores) ? Waybar.cpuCores.length : 0
-                    delegate: RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 6
-                        readonly property int corePct: (Waybar && index < Waybar.cpuCores.length) ? Number(Waybar.cpuCores[index]) : 0
-
-                        Text {
-                            text: "C" + index
-                            color: "#aaaaaa"
-                            font.pixelSize: 10
-                            font.bold: true
-                            Layout.preferredWidth: 20
-                        }
-
-                        Rectangle {
-                            Layout.fillWidth: true
-                            height: 6
-                            radius: sysMonRoot.isM3 ? 3 : 0
-                            color: Qt.rgba(1, 1, 1, 0.10)
-                            clip: true
-
-                            Rectangle {
-                                width: parent.width * Math.max(0.02, Math.min(1.0, parent.parent.corePct / 100.0))
-                                height: parent.height
-                                radius: parent.radius
-                                color: parent.parent.corePct > 85
-                                       ? "#ff6b6b"
-                                       : (parent.parent.corePct > 55
-                                          ? "#ffd54f"
-                                          : (Config ? Config.m3Primary : "#a8c7fa"))
-                                Behavior on width { NumberAnimation { duration: 320; easing.type: Easing.OutCubic } }
-                            }
-                        }
-
-                        Text {
-                            text: parent.corePct + "%"
-                            color: "#ffffff"
-                            font.pixelSize: 10
-                            font.bold: true
-                            font.features: { "tnum": 1 }
-                            Layout.preferredWidth: 28
-                            horizontalAlignment: Text.AlignRight
-                        }
-                    }
-                }
-            }
-        }
-
-        // Таблица активных процессов с колонкой запущенной команды
+        // Таблица активных процессов (все потребляющие процессы без лимита в 28)
         GlassPanel {
             objectName: "atmoObstacle"
             Layout.fillWidth: true; Layout.fillHeight: true
@@ -331,7 +435,7 @@ Item {
                     spacing: 10
 
                     Text { text: "PID"; color: "#777777"; font.pixelSize: 10; font.bold: true; Layout.preferredWidth: 64 }
-                    Text { text: "Активные процессы"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.preferredWidth: 155 }
+                    Text { text: "Активные процессы (" + (Waybar ? Waybar.processList.length : 0) + ")"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.preferredWidth: 155 }
                     Text { text: "Запущенная команда"; color: "#888888"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
 
                     Item {
@@ -366,14 +470,17 @@ Item {
                 }
 
                 ListView {
+                    id: procListView
                     Layout.fillWidth: true; Layout.fillHeight: true; clip: true; spacing: 4
-                    cacheBuffer: 120
+                    cacheBuffer: 160
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                     model: (Waybar && Waybar.processList) ? Waybar.processList.length : 0
                     delegate: Rectangle {
                         readonly property var pItem: (Waybar && index < Waybar.processList.length)
                                                      ? Waybar.processList[index]
                                                      : ({ pid: 0, name: "", cmd: "", cpu: "0.0%", mem: "0 MB" })
-                        width: ListView.view.width; height: 26
+                        width: procListView.width; height: 26
                         radius: sysMonRoot.isM3 ? 6 : 0
                         color: Qt.rgba(1, 1, 1, 0.03); border.color: Qt.rgba(1, 1, 1, 0.08); border.width: 1
                         RowLayout {

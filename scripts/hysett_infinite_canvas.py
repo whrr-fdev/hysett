@@ -102,6 +102,7 @@ def start_evdev_listener():
     super_down = False
     alt_down = False
     lmb_down = False
+    mmb_down = False
     acc_x = 0.0
     acc_y = 0.0
     edge_x = 0.0
@@ -163,10 +164,14 @@ def start_evdev_listener():
                         super_down = pressed
                     elif code in (KEY_LEFTALT, KEY_RIGHTALT):
                         alt_down = pressed
-                    elif code in (BTN_LEFT, BTN_MIDDLE):
+                    elif code == BTN_LEFT:
                         lmb_down = pressed
+                    elif code == BTN_MIDDLE:
+                        mmb_down = pressed
                 elif etype == EV_REL:
-                    if (super_down and alt_down) or panlock_cached:
+                    # Двигаем холст ТОЛЬКО когда зажата кнопка мыши (Super+Alt+ЛКМ или Super+СКМ) либо включён panlock
+                    is_canvas_drag = (super_down and alt_down and lmb_down) or (super_down and mmb_down) or panlock_cached
+                    if is_canvas_drag:
                         if code == REL_X:
                             acc_x += val
                         elif code == REL_Y:

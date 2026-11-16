@@ -30,7 +30,10 @@ Item {
             if (drop.hasUrls && drop.urls.length > 0) {
                 var p = decodeURIComponent(String(drop.urls[0]).replace(/^file:\/\//, ""))
                 pathField.text = p
-                if (Config) Config.hostPathForFriend(p)
+                if (Config) {
+                    Config.addStashedFile(p)
+                    Config.hostPathForFriend(p)
+                }
             }
         }
     }
@@ -62,16 +65,19 @@ Item {
                         font.pixelSize: Config ? Config.fontSize + 3 : 14
                         font.bold: true
                         Layout.fillWidth: true
+                        Layout.alignment: Qt.AlignVCenter
                     }
                     StyledButton {
                         text: webRoot.effHide ? "󰈉" : "󰈈"
                         isIconOnly: true
                         implicitWidth: 28
                         isActive: webRoot.effHide
+                        Layout.alignment: Qt.AlignVCenter
                         onClicked: webRoot.hideUrl = !webRoot.hideUrl
                     }
                     StyledButton {
                         text: "󰑐 Обновить"
+                        Layout.alignment: Qt.AlignVCenter
                         onClicked: if (Config) Config.refreshWebShareState()
                     }
                 }
@@ -90,6 +96,7 @@ Item {
                         Rectangle {
                             Layout.preferredWidth: 132
                             Layout.preferredHeight: 132
+                            Layout.alignment: Qt.AlignVCenter
                             radius: webRoot.isM3 ? 14 : 0
                             color: (!webRoot.effHide && Config && Config.webShareQrPath.length > 0) ? "#ffffff" : Qt.rgba(1, 1, 1, 0.06)
                             border.color: Config ? Config.m3Primary : "#ffffff"
@@ -124,7 +131,10 @@ Item {
                                 Layout.fillWidth: true
                                 spacing: 8
                                 Rectangle {
-                                    width: 9; height: 9; radius: 4.5
+                                    Layout.preferredWidth: 9
+                                    Layout.preferredHeight: 9
+                                    Layout.alignment: Qt.AlignVCenter
+                                    radius: 4.5
                                     color: (Config && Config.webShareRunning) ? "#69f0ae" : "#888888"
                                 }
                                 Text {
@@ -136,6 +146,7 @@ Item {
                                     font.bold: true
                                     elide: Text.ElideRight
                                     Layout.fillWidth: true
+                                    Layout.alignment: Qt.AlignVCenter
                                 }
                             }
 
@@ -189,6 +200,7 @@ Item {
                                 spacing: 10
                                 StyledButton {
                                     text: (Config && Config.webShareRunning) ? "󰅖  Остановить раздачу" : "󰖟  Запустить сервер"
+                                    isActive: !(Config && Config.webShareRunning)
                                     onClicked: if (Config) Config.toggleWebShare()
                                 }
                             }
@@ -261,6 +273,7 @@ Item {
 
                             StyledButton {
                                 text: "󰖟 Локально"
+                                isActive: pathField.text.trim().length > 0
                                 enabled: pathField.text.trim().length > 0
                                 onClicked: if (Config && pathField.text.trim().length > 0) Config.hostPathForFriend(pathField.text.trim())
                             }
@@ -440,6 +453,13 @@ Item {
                             }
                         }
 
+                        Text {
+                            visible: !Config || Config.webShareCloudItems.length === 0
+                            text: "Пока нет опубликованных автономных ссылок 24/7"
+                            color: "#777777"
+                            font.pixelSize: Config ? Config.fontSize : 11
+                        }
+
                         Item {
                             id: cloudHoverWrap
                             visible: Config && Config.webShareCloudItems.length > 0
@@ -502,20 +522,30 @@ Item {
                                             anchors.rightMargin: 10
                                             spacing: 10
 
-                                            Text {
-                                                text: modelData.kind === "site" ? "󰖟" : "󰅧"
-                                                color: "#69f0ae"
-                                                font.pixelSize: 16
+                                            Item {
+                                                Layout.preferredWidth: 20
+                                                Layout.preferredHeight: 20
+                                                Layout.alignment: Qt.AlignVCenter
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.kind === "site" ? "󰖟" : "󰅧"
+                                                    color: "#69f0ae"
+                                                    font.pixelSize: 16
+                                                }
                                             }
 
                                             ColumnLayout {
                                                 Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
                                                 spacing: 1
+
                                                 RowLayout {
+                                                    Layout.fillWidth: true
                                                     spacing: 6
                                                     Rectangle {
-                                                        width: cBadgeTxt.implicitWidth + 10
-                                                        height: 17
+                                                        Layout.preferredWidth: cBadgeTxt.implicitWidth + 10
+                                                        Layout.preferredHeight: 17
+                                                        Layout.alignment: Qt.AlignVCenter
                                                         radius: 4
                                                         color: Qt.rgba(0.4, 0.95, 0.68, 0.18)
                                                         Text {
@@ -534,13 +564,15 @@ Item {
                                                         font.bold: true
                                                         elide: Text.ElideRight
                                                         Layout.fillWidth: true
+                                                        Layout.alignment: Qt.AlignVCenter
                                                     }
                                                 }
+
                                                 Text {
+                                                    Layout.fillWidth: true
                                                     text: (webRoot.effHide ? "https://••••••••••••••••••••••••" : modelData.url) + "  •  " + modelData.size + "  •  " + modelData.time
                                                     color: "#999999"
                                                     elide: Text.ElideMiddle
-                                                    Layout.fillWidth: true
                                                     font.pixelSize: Config ? Config.fontSize - 2 : 9
                                                 }
                                             }
@@ -548,18 +580,21 @@ Item {
                                             StyledButton {
                                                 text: "󰐲 QR"
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: if (Config) Config.selectCloudShareQr(modelData.id)
                                             }
 
                                             StyledButton {
                                                 text: "󰆏 Ссылка"
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: if (Waybar) Waybar.runCommand("printf '%s' '" + modelData.url + "' | wl-copy")
                                             }
 
                                             StyledButton {
                                                 text: "󰖟 Открыть"
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: if (Waybar) Waybar.runCommand("xdg-open '" + modelData.url + "'")
                                             }
 
@@ -568,6 +603,7 @@ Item {
                                                 isIconOnly: true
                                                 implicitWidth: 24
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: if (Config) Config.removeCloudShareItem(modelData.id)
                                             }
                                         }
@@ -603,12 +639,21 @@ Item {
                                 font.pixelSize: Config ? Config.fontSize + 1 : 12
                                 font.bold: true
                                 Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
                             }
                             StyledButton {
                                 visible: Config && Config.webShareItems.length > 0
                                 text: "󰎟 Очистить"
+                                Layout.alignment: Qt.AlignVCenter
                                 onClicked: if (Config) Config.clearWebShareItems()
                             }
+                        }
+
+                        Text {
+                            visible: !Config || Config.webShareItems.length === 0
+                            text: "Список локальной раздачи пуст"
+                            color: "#777777"
+                            font.pixelSize: Config ? Config.fontSize : 11
                         }
 
                         Item {
@@ -673,20 +718,30 @@ Item {
                                             anchors.rightMargin: 10
                                             spacing: 10
 
-                                            Text {
-                                                text: modelData.kind === "site" ? "󰖟" : "󰈔"
-                                                color: modelData.kind === "site" ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
-                                                font.pixelSize: 16
+                                            Item {
+                                                Layout.preferredWidth: 20
+                                                Layout.preferredHeight: 20
+                                                Layout.alignment: Qt.AlignVCenter
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: modelData.kind === "site" ? "󰖟" : "󰈔"
+                                                    color: modelData.kind === "site" ? "#69f0ae" : (Config ? Config.m3Primary : "#a8c7fa")
+                                                    font.pixelSize: 16
+                                                }
                                             }
 
                                             ColumnLayout {
                                                 Layout.fillWidth: true
+                                                Layout.alignment: Qt.AlignVCenter
                                                 spacing: 1
+
                                                 RowLayout {
+                                                    Layout.fillWidth: true
                                                     spacing: 6
                                                     Rectangle {
-                                                        width: kindBadgeTxt.implicitWidth + 10
-                                                        height: 17
+                                                        Layout.preferredWidth: kindBadgeTxt.implicitWidth + 10
+                                                        Layout.preferredHeight: 17
+                                                        Layout.alignment: Qt.AlignVCenter
                                                         radius: 4
                                                         color: modelData.kind === "site" ? Qt.rgba(0.4, 0.95, 0.68, 0.18) : Qt.rgba(1, 1, 1, 0.12)
                                                         Text {
@@ -705,12 +760,16 @@ Item {
                                                         font.bold: true
                                                         elide: Text.ElideRight
                                                         Layout.fillWidth: true
+                                                        Layout.alignment: Qt.AlignVCenter
                                                     }
                                                 }
+
                                                 Text {
+                                                    Layout.fillWidth: true
                                                     text: (modelData.is_primary ? "󰄬 Открывается по главной ссылке  •  " : "") + modelData.size + "  •  " + modelData.time
                                                     color: modelData.is_primary ? (Config ? Config.m3Primary : "#a8c7fa") : "#888888"
                                                     font.pixelSize: Config ? Config.fontSize - 2 : 9
+                                                    elide: Text.ElideRight
                                                 }
                                             }
 
@@ -718,12 +777,14 @@ Item {
                                                 visible: !modelData.is_primary
                                                 text: "На главную"
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: if (Config) Config.setPrimaryWebShareItem(modelData.id)
                                             }
 
                                             StyledButton {
                                                 text: "󰆏 Ссылка"
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: {
                                                     if (Waybar && Config && Config.webShareUrl.length > 0) {
                                                         var base = Config.webShareUrl.replace(/\/$/, "")
@@ -738,6 +799,7 @@ Item {
                                                 isIconOnly: true
                                                 implicitWidth: 24
                                                 implicitHeight: 24
+                                                Layout.alignment: Qt.AlignVCenter
                                                 onClicked: if (Config) Config.removeWebShareItem(modelData.id)
                                             }
                                         }

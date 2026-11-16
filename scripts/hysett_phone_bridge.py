@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import sys, os, re, json, time, uuid, shutil, socket, urllib.request, urllib.parse, subprocess, threading
+import sys, os, re, json, time, uuid, shutil, socket, zipfile, urllib.request, urllib.parse, subprocess, threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 STATE_FILE = "/tmp/hysett_phone_bridge_state.json"
@@ -57,7 +57,6 @@ def get_lan_ip():
     return "127.0.0.1"
 
 def detect_phone_wifi_ip():
-    # 1. Спрашиваем напрямую у подключенного по USB телефона (wlan0 / swlan0 / rndis0)
     for prefix in (["adb", "-d"], ["adb"]):
         for dev in ("wlan0", "wlan1", "swlan0", "ap0", "rndis0", "usb0", "ncm0"):
             try:
@@ -67,7 +66,6 @@ def detect_phone_wifi_ip():
                     return m.group(1)
             except Exception:
                 pass
-    # 2. Проверяем уже подключенные adb-устройства вида IP:5555
     try:
         devs = subprocess.check_output(["adb", "devices"], stderr=subprocess.DEVNULL, timeout=2).decode()
         for ln in devs.splitlines():
@@ -76,7 +74,6 @@ def detect_phone_wifi_ip():
                 return m.group(1)
     except Exception:
         pass
-    # 3. Проверяем соседей в ARP/LAN таблице с открытым портом 5555
     try:
         neigh = subprocess.check_output(["ip", "-4", "neigh", "show"], stderr=subprocess.DEVNULL, timeout=2).decode()
         for ln in neigh.splitlines():
@@ -91,7 +88,6 @@ def detect_phone_wifi_ip():
     except Exception:
         pass
     return ""
-
 
 def generate_qr(url_str):
     if not url_str:
@@ -384,7 +380,7 @@ def run_daemon():
     t.start()
 
     tunnels = [
-        (["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", "-R", f"80:127.0.0.1:{port}", "nokey@localhost.run"], r"(https://[a-zA-Z0-9.-]+\.lhr\.life)"),
+        (["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", "-R", f"80:127.0.0.1:{port}", "nokey@localhost.run"], r"(https://[a-zA-Z0-9.-]+\.(?:lhr\.life|localhost\.run))"),
         (["ssh", "-T", "-p", "443", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", f"-R0:127.0.0.1:{port}", "a.pinggy.io"], r"(https://[a-zA-Z0-9.-]+\.pinggy\.link)"),
         (["ssh", "-T", "-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null", "-o", "ServerAliveInterval=20", "-o", "ConnectTimeout=8", "-R", f"80:127.0.0.1:{port}", "serveo.net"], r"(https://[a-zA-Z0-9.-]+\.serveo\.net)")
     ]
@@ -470,14 +466,34 @@ def cmd_add_text(txt):
     save_state(st)
     cmd_status()
 
+def pack_dir_to_zip(dir_path):
+    base_name = os.path.basename(dir_path.rstrip("/")) or "folder"
+    zip_out = f"/tmp/{base_name}_{uuid.uuid4().hex[:6]}.zip"
+    with zipfile.ZipFile(zip_out, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, _, files in os.walk(dir_path):
+            for fn in files:
+                full = os.path.join(root, fn)
+                if os.path.isfile(full):
+                    zf.write(full, os.path.relpath(full, os.path.dirname(dir_path.rstrip("/"))))
+    return zip_out
+
 def cmd_add_file(fp):
     fp = os.path.expanduser((fp or "").strip())
-    if not fp or not os.path.exists(fp) or not os.path.isfile(fp):
+    if not fp or not os.path.exists(fp):
         st = load_state()
         st["status"] = f"Файл не найден: {fp}"
         save_state(st)
         cmd_status()
         return
+    if os.path.isdir(fp):
+        try:
+            fp = pack_dir_to_zip(fp)
+        except Exception as e:
+            st = load_state()
+            st["status"] = f"Ошибка упаковки папки: {e}"
+            save_state(st)
+            cmd_status()
+            return
     ensure_started()
     sz_mb = os.path.getsize(fp) / (1024.0 * 1024.0)
     sz_str = f"{sz_mb:.1f} MB" if sz_mb >= 1.0 else f"{max(1, int(os.path.getsize(fp)/1024))} KB"
@@ -508,12 +524,19 @@ def cmd_quick_cloud(target, is_file):
         with open(tmp_txt, "w", encoding="utf-8") as f:
             f.write(target)
         upload_path = tmp_txt
-    elif not os.path.exists(upload_path):
-        st = load_state()
-        st["status"] = f"Файл не найден: {upload_path}"
-        save_state(st)
-        cmd_status()
-        return
+    else:
+        if not os.path.exists(upload_path):
+            st = load_state()
+            st["status"] = f"Файл не найден: {upload_path}"
+            save_state(st)
+            cmd_status()
+            return
+        if os.path.isdir(upload_path):
+            try:
+                tmp_txt = pack_dir_to_zip(upload_path)
+                upload_path = tmp_txt
+            except Exception:
+                pass
 
     link = ""
     for cmd in [
@@ -529,7 +552,10 @@ def cmd_quick_cloud(target, is_file):
             pass
 
     if tmp_txt and os.path.exists(tmp_txt):
-        os.remove(tmp_txt)
+        try:
+            os.remove(tmp_txt)
+        except Exception:
+            pass
 
     if link:
         try:
@@ -594,17 +620,27 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
     subprocess.run(["pkill", "-x", "scrcpy"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     time.sleep(0.15)
 
-    mip_so = os.path.expanduser("~/hysett/bin/libscrcpy_mipmap.so")
-    if os.path.exists(mip_so):
-        os.environ["LD_PRELOAD"] = mip_so
+    # ВАЖНО: Никогда не используем LD_PRELOAD=libscrcpy_mipmap.so!
+    # Включение GL_LINEAR_MIPMAP_LINEAR на YUV-текстурах SDL2, которые scrcpy обновляет через glTexSubImage2D
+    # без перегенерации mip-уровней, делает текстуру incomplete (Y=0, U=0, V=0 -> сплошной ЗЕЛЁНЫЙ экран!).
+    clean_env = os.environ.copy()
+    clean_env.pop("LD_PRELOAD", None)
+    clean_env["SDL_RENDER_SCALE_QUALITY"] = "1"
 
-    base_args = ["scrcpy", "--max-fps=120", "--max-size=1600", "--video-bit-rate=12M", "--render-driver=opengl", "--stay-awake"]
+    base_args = [
+        "scrcpy",
+        "--video-codec=h264",
+        "--max-fps=120",
+        "--max-size=1600",
+        "--video-bit-rate=12M",
+        "--render-driver=opengl",
+        "--stay-awake"
+    ]
 
     if mode == "wireless":
         clean_ip = (ip_addr or "").strip() or st.get("phone_ip", "").strip()
         if not clean_ip:
             clean_ip = detect_phone_wifi_ip()
-        # Если телефон подключен по USB, автоматически активируем tcpip 5555
         usb_chk = subprocess.run(["adb", "-d", "get-state"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if usb_chk.returncode == 0:
             if not clean_ip:
@@ -635,7 +671,6 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
 
         subprocess.run(["adb", "-s", target, "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
         args = list(base_args)
-        # По воздуху AOA не работает (AOA только для USB!), используем UHID или SDK
         if mouse_mode == "1":
             args.extend(["--mouse=uhid", "--keyboard=uhid"])
         else:
@@ -645,6 +680,7 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
         args.extend(["-s", target])
         st["status"] = f"Экран по воздуху запущен (120 FPS • {target}) ✓"
     else:
+        subprocess.run(["adb", "start-server"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
         subprocess.run(["adb", "-d", "shell", "settings", "put", "secure", "usb_debug_sec", "1"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2)
         args = list(base_args)
         if mouse_mode == "1":
@@ -659,11 +695,20 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
         st["status"] = "Экран телефона запущен по USB (120 FPS) ✓"
 
     log_f = open(SCRCPY_LOG, "w")
-    subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
+    subprocess.Popen(args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, env=clean_env, start_new_session=True)
     time.sleep(0.65)
 
     if not is_scrcpy_alive():
-        fallback_args = list(base_args) + ["--mouse=sdk", "--keyboard=sdk"]
+        fallback_args = [
+            "scrcpy",
+            "--video-codec=h264",
+            "--max-fps=60",
+            "--max-size=1280",
+            "--video-bit-rate=8M",
+            "--stay-awake",
+            "--mouse=sdk",
+            "--keyboard=sdk"
+        ]
         if turn_off == "1":
             fallback_args.append("--turn-screen-off")
         if mode == "wireless":
@@ -672,7 +717,7 @@ def cmd_scrcpy(mode, ip_addr, mouse_mode, turn_off):
             fallback_args.extend(["-s", target])
         else:
             fallback_args.append("-d")
-        subprocess.Popen(fallback_args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, start_new_session=True)
+        subprocess.Popen(fallback_args, stdin=subprocess.DEVNULL, stdout=log_f, stderr=subprocess.STDOUT, env=clean_env, start_new_session=True)
         time.sleep(0.55)
         if not is_scrcpy_alive():
             try:

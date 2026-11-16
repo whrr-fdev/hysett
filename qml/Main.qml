@@ -1987,31 +1987,24 @@ ApplicationWindow {
                         opacity: isCanvas ? 1.0 : 0.0
                         clip: true
                         height: topBarContainer.pillHeight
-                        width: isCanvas ? (canvasRow.implicitWidth + 14) : 0
+                        width: isCanvas ? (canvasRow.implicitWidth + 12) : 0
                         Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                         Behavior on opacity { NumberAnimation { duration: 160 } }
                         anchors.verticalCenter: parent.verticalCenter
                         radius: topBarContainer.pillRadius
-                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.06)
                         border.width: topBarContainer.pillBorderWidth
-                        border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : topBarContainer.pillBorderColor
+                        border.color: Qt.rgba(1, 1, 1, 0.11)
 
                         Row {
                             id: canvasRow
                             height: topBarContainer.pillHeight
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: 0
                             Text {
                                 text: "󰆾"
-                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae"
+                                color: (Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.85) : Qt.rgba(1, 1, 1, 0.82)
                                 font.pixelSize: 11
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                            Text {
-                                text: "Холст"
-                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
-                                font.pixelSize: 10
-                                font.bold: true
                                 anchors.verticalCenter: parent.verticalCenter
                             }
                         }

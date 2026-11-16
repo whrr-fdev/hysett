@@ -10,6 +10,7 @@ ScrollView {
     clip: true
 
     property real canvasSpeed: 3.2
+    property int canvasInitScale: 78
     property real canvasAccel: 1.6
     property int canvasGap: 12
     property int canvasKeyStep: 110
@@ -212,15 +213,17 @@ ScrollView {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Text { text: "Режим зума (Super + Alt + Колёсико):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
-                        SegmentedButton {
-                            options: ["Окна + Холст", "Только раздвигать (100% размер)"]
-                            selectedIndex: canvasScroll.canvasKeepSizeOnZoom ? 1 : 0
-                            onSelected: (idx) => {
-                                canvasScroll.canvasKeepSizeOnZoom = (idx === 1)
-                                canvasScroll.runCanvasCmd("set zoom_keep_size " + (idx === 1 ? "true" : "false"))
+                        Text { text: "Размер окон при входе в холст (Super + S):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 290 }
+                        StyledSlider {
+                            Layout.fillWidth: true
+                            from: 55; to: 100; stepSize: 1
+                            value: canvasScroll.canvasInitScale
+                            onMoved: {
+                                canvasScroll.canvasInitScale = Math.round(value)
+                                canvasScroll.runCanvasCmd("set init_scale " + (canvasScroll.canvasInitScale / 100.0).toFixed(2))
                             }
                         }
+                        Text { text: canvasScroll.canvasInitScale + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 44; horizontalAlignment: Text.AlignRight }
                     }
 
                     RowLayout {

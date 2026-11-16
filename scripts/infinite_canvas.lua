@@ -10,8 +10,8 @@ _G.Canvas = _G.Canvas or {
     accel = 1.6,
     min_gap = 12,
     key_step = 110,
+    init_scale = 0.78,
     zoom_scale = 1.0,
-    zoom_keep_size = false,
     all_workspaces = true,
     edge_push_enabled = true,
     active_ws_id = 1,
@@ -20,6 +20,7 @@ _G.Canvas = _G.Canvas or {
     virtual_pos = {},
     win_order = {},
 }
+if not _G.Canvas.init_scale then _G.Canvas.init_scale = 0.78 end
 
 local PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
 local ACTIVE_FILE  = "/tmp/hysett_canvas_active"
@@ -120,8 +121,6 @@ local function ensure_vp(w)
             y = w.at.y,
             w = w.size.x,
             h = w.size.y,
-            base_w = w.size.x,
-            base_h = w.size.y,
         }
         _G.Canvas.virtual_pos[key] = vp
     end
@@ -134,8 +133,8 @@ local function apply_win_geom(w, x, y, width, height)
     hl.dispatch(hl.dsp.focus({ window = w }))
 
     if width and height then
-        local iw = math.max(240, math.floor(width + 0.5))
-        local ih = math.max(160, math.floor(height + 0.5))
+        local iw = math.max(260, math.floor(width + 0.5))
+        local ih = math.max(180, math.floor(height + 0.5))
         vp.w = iw
         vp.h = ih
         if w.size.x ~= iw or w.size.y ~= ih then
@@ -240,6 +239,14 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
 
     local step_x = win_w + gap
     return origin_cx + (#placed_list) * step_x - win_w * 0.5, center_y
+end
+
+-- При входе в режим холста все окна чуть уменьшаются (по умолчанию 78%), чтобы удобно помещаться в сетке
+local function calc_initial_canvas_size(orig_w, orig_h)
+    local sc = _G.Canvas.init_scale or 0.78
+    local tw = math.max(340, math.floor(orig_w * sc + 0.5))
+    local th = math.max(230, math.floor(orig_h * sc + 0.5))
+    return tw, th
 end
 
 function _G.Canvas.set_option(key, val)
@@ -370,7 +377,7 @@ function _G.Canvas.on_window_open(addr_str)
         hl.dispatch(hl.dsp.window.float({ action = "on", window = new_win }))
     end
 
-    local nw, nh = orig_w, orig_h
+    local nw, nh = calc_initial_canvas_size(orig_w, orig_h)
     local placed = {}
     local other_wins = {}
     for _, w in ipairs(get_ws_windows(ws.id)) do
@@ -396,9 +403,6 @@ function _G.Canvas.on_window_open(addr_str)
 
     local center_x = cx - nw * 0.5
     local center_y = cy - nh * 0.5
-    local nvp = ensure_vp(new_win)
-    nvp.base_w = nw
-    nvp.base_h = nh
     apply_win_geom(new_win, center_x, center_y, nw, nh)
     focus_and_raise(new_win)
 end
@@ -468,14 +472,6 @@ function _G.Canvas.toggle()
             end
         end
 
-        local start_cx = cx
-        if #ordered > 1 then
-            local st1 = _G.Canvas.saved_state[norm_addr(ordered[1].address)]
-            if st1 and st1.w >= math.floor(mw * 0.85) then
-                start_cx = cx - 240
-            end
-        end
-
         local placed = {}
         for _, w in ipairs(ordered) do
             local key = norm_addr(w.address)
@@ -494,12 +490,9 @@ function _G.Canvas.toggle()
                 hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
             end
 
-            local tw, th = st.w, st.h
-            local tx, ty = find_free_spot(tw, th, start_cx, cy, key, placed)
+            local tw, th = calc_initial_canvas_size(st.w, st.h)
+            local tx, ty = find_free_spot(tw, th, cx, cy, key, placed)
 
-            local vp = ensure_vp(w)
-            vp.base_w = tw
-            vp.base_h = th
             apply_win_geom(w, tx, ty, tw, th)
             table.insert(placed, { addr = key, x = tx, y = ty, w = tw, h = th })
         end
@@ -515,6 +508,7 @@ function _G.Canvas.toggle()
         _G.Canvas.zoom_scale = 1.0
         os.remove(PANLOCK_FILE)
         set_active_indicator(false)
+        hl.exec_cmd("hyprctl keyword cursor:zoom_factor 1.0 >/dev/null 2>&1 &")
         hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py stop_evdev &")
 
         local all_wins = {}
@@ -749,61 +743,24 @@ function _G.Canvas.focus_cycle(dir)
     pan_canvas_to_window(wins, target)
 end
 
--- Геометрическое масштабирование холста в реальном времени
+-- Масштабирование колесиком БЕЗ ресайза самих окон (только GPU zoom_factor и раздвижение позиций)
 function _G.Canvas.zoom(factor)
     if not _G.Canvas.enabled then return end
     local ws = hl.get_active_workspace()
     if not ws then return end
-    local wins = {}
-    for _, w in ipairs(get_ws_windows(ws.id)) do
-        if w.floating then table.insert(wins, w) end
-    end
-    if #wins == 0 then return end
 
     local cur_s = _G.Canvas.zoom_scale or 1.0
-    local new_s = math.max(0.45, math.min(1.65, cur_s * factor))
-    local eff = new_s / cur_s
-    if math.abs(eff - 1.0) < 0.005 then return end
+    local new_s = math.max(1.0, math.min(3.0, cur_s * factor))
     _G.Canvas.zoom_scale = new_s
-
-    local mx, my, mw, mh = get_monitor_box()
-    local cx, cy = mx + mw * 0.5, my + mh * 0.5
-    local active = hl.get_active_window()
-
-    for _, w in ipairs(wins) do
-        local vp = ensure_vp(w)
-        local bw = vp.base_w or vp.w
-        local bh = vp.base_h or vp.h
-        local wcx = vp.x + vp.w * 0.5
-        local wcy = vp.y + vp.h * 0.5
-
-        local ncx = cx + (wcx - cx) * eff
-        local ncy = cy + (wcy - cy) * eff
-
-        if _G.Canvas.zoom_keep_size then
-            local nx = ncx - vp.w * 0.5
-            local ny = ncy - vp.h * 0.5
-            apply_win_geom(w, nx, ny, nil, nil)
-        else
-            local nw = math.max(260, math.floor(bw * new_s + 0.5))
-            local nh = math.max(180, math.floor(bh * new_s + 0.5))
-            local nx = ncx - nw * 0.5
-            local ny = ncy - nh * 0.5
-            apply_win_geom(w, nx, ny, nw, nh)
-        end
-    end
-
-    if active then
-        hl.dispatch(hl.dsp.focus({ window = active }))
-    end
+    pcall(function() hl.config({ cursor = { zoom_factor = new_s } }) end)
+    hl.exec_cmd(string.format("hyprctl keyword cursor:zoom_factor %.2f >/dev/null 2>&1 &", new_s))
 end
 
 function _G.Canvas.zoom_reset()
     if not _G.Canvas.enabled then return end
-    local cur_s = _G.Canvas.zoom_scale or 1.0
-    if math.abs(cur_s - 1.0) > 0.005 then
-        _G.Canvas.zoom(1.0 / cur_s)
-    end
+    _G.Canvas.zoom_scale = 1.0
+    pcall(function() hl.config({ cursor = { zoom_factor = 1.0 } }) end)
+    hl.exec_cmd("hyprctl keyword cursor:zoom_factor 1.0 >/dev/null 2>&1 &")
 end
 
 function _G.Canvas.gather_home()

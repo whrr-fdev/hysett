@@ -1,6 +1,7 @@
 #pragma once
 #include <QObject>
 #include <QStringList>
+#include <QVariantList>
 #include <QQuickImageProvider>
 #include <QImage>
 
@@ -9,6 +10,7 @@ public:
     CursorImageProvider();
     QImage requestImage(const QString &id, QSize *size, const QSize &requestedSize) override;
     static QImage extractCursor(const QString &theme);
+    static void clearCache();
 };
 
 class CursorManager : public QObject {
@@ -27,6 +29,9 @@ class CursorManager : public QObject {
     Q_PROPERTY(bool hideOnTouch READ hideOnTouch WRITE setHideOnTouch NOTIFY hideOnTouchChanged)
     Q_PROPERTY(bool hideOnTablet READ hideOnTablet WRITE setHideOnTablet NOTIFY hideOnTabletChanged)
     Q_PROPERTY(QStringList installedThemes READ installedThemes NOTIFY installedThemesChanged)
+    Q_PROPERTY(QString installStatus READ installStatus NOTIFY installStatusChanged)
+    Q_PROPERTY(bool installSuccess READ installSuccess NOTIFY installStatusChanged)
+    Q_PROPERTY(QVariantList downloadArchives READ downloadArchives NOTIFY downloadArchivesChanged)
 
 public:
     explicit CursorManager(QObject *parent = nullptr);
@@ -68,10 +73,16 @@ public:
     void setHideOnTablet(bool v);
 
     QStringList installedThemes() const { return m_installedThemes; }
+    QString installStatus() const { return m_installStatus; }
+    bool installSuccess() const { return m_installSuccess; }
+    QVariantList downloadArchives() const { return m_downloadArchives; }
 
     Q_INVOKABLE void stepSize(int delta);
     Q_INVOKABLE void stepZoom(qreal delta);
     Q_INVOKABLE void stepTimeout(qreal delta);
+    Q_INVOKABLE QString browseCursorArchive();
+    Q_INVOKABLE bool installCursor(const QString &path, bool applyImmediately = true);
+    Q_INVOKABLE void refreshDownloadArchives();
 
 signals:
     void themeChanged();
@@ -87,6 +98,8 @@ signals:
     void hideOnTouchChanged();
     void hideOnTabletChanged();
     void installedThemesChanged();
+    void installStatusChanged();
+    void downloadArchivesChanged();
 
 private:
     void scanThemes();
@@ -107,4 +120,7 @@ private:
     bool m_hideOnTablet = false;
 
     QStringList m_installedThemes;
+    QString m_installStatus;
+    bool m_installSuccess = false;
+    QVariantList m_downloadArchives;
 };

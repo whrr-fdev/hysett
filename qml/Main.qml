@@ -1976,6 +1976,61 @@ ApplicationWindow {
                 anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 8 : 4; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
 
+                // Индикатор Бесконечного Холста (Super + S)
+                Row {
+                    anchors.verticalCenter: parent.verticalCenter
+                    spacing: 0
+                    visible: canvasPillBox.width > 0.5
+                    Rectangle {
+                        id: canvasPillBox
+                        property bool isCanvas: Waybar ? Waybar.canvasActive : false
+                        opacity: isCanvas ? 1.0 : 0.0
+                        clip: true
+                        height: topBarContainer.pillHeight
+                        width: isCanvas ? (canvasRow.implicitWidth + 14) : 0
+                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                        Behavior on opacity { NumberAnimation { duration: 160 } }
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: topBarContainer.pillRadius
+                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.08)
+                        border.width: topBarContainer.pillBorderWidth
+                        border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : topBarContainer.pillBorderColor
+
+                        Row {
+                            id: canvasRow
+                            height: topBarContainer.pillHeight
+                            anchors.centerIn: parent
+                            spacing: 4
+                            Text {
+                                text: "󰆾"
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae"
+                                font.pixelSize: 11
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                text: "Холст"
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"
+                                font.pixelSize: 10
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: (mouse) => {
+                                if (!Waybar) return
+                                if (mouse.button === Qt.RightButton)
+                                    Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py home")
+                                else
+                                    Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py toggle")
+                            }
+                        }
+                    }
+                    Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
+                }
+
                 // Таблетка записи экрана
                 Row {
                     anchors.verticalCenter: parent.verticalCenter

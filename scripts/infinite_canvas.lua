@@ -17,7 +17,8 @@ _G.Canvas = _G.Canvas or {
 _G.Canvas.speed = 3.2
 
 local PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
-local MIN_GAP = 12
+local ACTIVE_FILE  = "/tmp/hysett_canvas_active"
+local MIN_GAP      = 12
 
 local IGNORED_CLASSES = {
     ["hypratmooverlay"] = true,
@@ -26,8 +27,13 @@ local IGNORED_CLASSES = {
     ["mako"] = true,
 }
 
-local function notify(title, body)
-    hl.exec_cmd("notify-send -a 'HySett Canvas' '" .. title .. "' '" .. body .. "'")
+local function set_active_indicator(state)
+    if state then
+        local f = io.open(ACTIVE_FILE, "w")
+        if f then f:write("1"); f:close() end
+    else
+        os.remove(ACTIVE_FILE)
+    end
 end
 
 local function norm_addr(a)
@@ -116,19 +122,25 @@ local function ensure_vp(w)
     return vp
 end
 
+-- В Hyprland Lua move и resize работают только с текущим активным окном,
+-- поэтому перед геометрией всегда фокусируем целевое окно w
 local function apply_win_geom(w, x, y, width, height)
+    if not w then return end
     local vp = ensure_vp(w)
+    hl.dispatch(hl.dsp.focus({ window = w }))
+
     if width and height then
         local iw = math.max(240, math.floor(width + 0.5))
         local ih = math.max(160, math.floor(height + 0.5))
         vp.w = iw
         vp.h = ih
-        hl.dispatch(hl.dsp.window.resize({
-            x = iw,
-            y = ih,
-            relative = false,
-            window = w,
-        }))
+        if w.size.x ~= iw or w.size.y ~= ih then
+            hl.dispatch(hl.dsp.window.resize({
+                x = iw,
+                y = ih,
+                relative = false,
+            }))
+        end
     end
     if x and y then
         local ix = math.floor(x + 0.5)
@@ -139,7 +151,6 @@ local function apply_win_geom(w, x, y, width, height)
             x = ix,
             y = iy,
             relative = false,
-            window = w,
         }))
     end
 end
@@ -225,11 +236,6 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
     return origin_cx + (#placed_list) * step_x - win_w * 0.5, center_y
 end
 
--- Сохраняем 100% размер окна без сжатия содержимого
-local function pick_canvas_size(w, mw, mh)
-    return w.size.x, w.size.y
-end
-
 function _G.Canvas.pan_delta(raw_dx, raw_dy)
     if not _G.Canvas.enabled then return end
     local sgn = _G.Canvas.inverted and -1.0 or 1.0
@@ -241,11 +247,15 @@ function _G.Canvas.pan_delta(raw_dx, raw_dy)
 
     local ws = hl.get_active_workspace()
     if not ws then return end
+    local active = hl.get_active_window()
     for _, w in pairs(hl.get_windows()) do
         if is_canvas_win(w, ws.id) and w.floating then
             local vp = ensure_vp(w)
             apply_win_geom(w, vp.x + dx, vp.y + dy, nil, nil)
         end
+    end
+    if active then
+        hl.dispatch(hl.dsp.focus({ window = active }))
     end
 end
 
@@ -284,6 +294,7 @@ function _G.Canvas.edge_push(raw_dx, raw_dy)
             apply_win_geom(w, vp.x + push_x, vp.y + push_y, nil, nil)
         end
     end
+    hl.dispatch(hl.dsp.focus({ window = active }))
 end
 
 function _G.Canvas.set_panning(active)
@@ -304,7 +315,6 @@ end
 function _G.Canvas.toggle_pan_lock()
     if not _G.Canvas.enabled then return end
     _G.Canvas.set_panning(not _G.Canvas.panning)
-    notify("Бесконечный холст", _G.Canvas.panning and "Фиксация перемещения мыши ВКЛЮЧЕНА" or "Фиксация перемещения мыши ВЫКЛЮЧЕНА")
 end
 
 function _G.Canvas.on_window_open(addr_str)
@@ -330,6 +340,7 @@ function _G.Canvas.on_window_open(addr_str)
     local mx, my, mw, mh = get_monitor_box()
     local cx, cy = mx + mw * 0.5, my + mh * 0.5
 
+    local orig_w, orig_h = new_win.size.x, new_win.size.y
     if new_win.workspace.id ~= ws.id then
         hl.dispatch(hl.dsp.window.move({
             workspace = ws.id,
@@ -338,11 +349,12 @@ function _G.Canvas.on_window_open(addr_str)
         }))
     end
 
+    hl.dispatch(hl.dsp.focus({ window = new_win }))
     if not new_win.floating then
         hl.dispatch(hl.dsp.window.float({ action = "on", window = new_win }))
     end
 
-    local nw, nh = pick_canvas_size(new_win, mw, mh)
+    local nw, nh = orig_w, orig_h
 
     local placed = {}
     local other_wins = {}
@@ -393,6 +405,7 @@ function _G.Canvas.toggle()
         _G.Canvas.virtual_pos = {}
         _G.Canvas.win_order = {}
         os.remove(PANLOCK_FILE)
+        set_active_indicator(true)
 
         local active = hl.get_active_window()
         local raw_wins = {}
@@ -411,6 +424,7 @@ function _G.Canvas.toggle()
             return tostring(a.address) < tostring(b.address)
         end)
 
+        -- Сохраняем точные исходные размеры и координаты ДО перевода в плавающий режим
         for i, w in ipairs(raw_wins) do
             local key = norm_addr(w.address)
             _G.Canvas.win_order[key] = i
@@ -441,6 +455,16 @@ function _G.Canvas.toggle()
             end
         end
 
+        -- Если первое окно широкое (во весь экран) и окон несколько, смещаем стартовую точку на 240px влево,
+        -- чтобы сразу было видно соседнее окно справа через зазор 12 px без уменьшения самих окон
+        local start_cx = cx
+        if #ordered > 1 then
+            local st1 = _G.Canvas.saved_state[norm_addr(ordered[1].address)]
+            if st1 and st1.w >= math.floor(mw * 0.85) then
+                start_cx = cx - 240
+            end
+        end
+
         local placed = {}
         for _, w in ipairs(ordered) do
             local key = norm_addr(w.address)
@@ -454,12 +478,13 @@ function _G.Canvas.toggle()
                 }))
             end
 
+            hl.dispatch(hl.dsp.focus({ window = w }))
             if not st.was_float then
                 hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
             end
 
             local tw, th = st.w, st.h
-            local tx, ty = find_free_spot(tw, th, cx, cy, key, placed)
+            local tx, ty = find_free_spot(tw, th, start_cx, cy, key, placed)
 
             apply_win_geom(w, tx, ty, tw, th)
             table.insert(placed, { addr = key, x = tx, y = ty, w = tw, h = th })
@@ -470,12 +495,12 @@ function _G.Canvas.toggle()
         end
 
         hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
-        notify("Бесконечный холст ВКЛЮЧЕН", "Super+Alt+ЛКМ — быстро двигать холст | Super+Стрелки — к окну | Super+I — выход")
     else
         _G.Canvas.enabled = false
         _G.Canvas.panning = false
         _G.Canvas.zoom_factor = 1.0
         os.remove(PANLOCK_FILE)
+        set_active_indicator(false)
         set_hypr_zoom(1.0)
         hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py stop_evdev &")
 
@@ -520,6 +545,7 @@ function _G.Canvas.toggle()
                 end
             else
                 if w.floating then
+                    hl.dispatch(hl.dsp.focus({ window = w }))
                     hl.dispatch(hl.dsp.window.float({ action = "off", window = w }))
                 end
             end
@@ -532,7 +558,6 @@ function _G.Canvas.toggle()
         _G.Canvas.saved_state = {}
         _G.Canvas.virtual_pos = {}
         _G.Canvas.win_order = {}
-        notify("Бесконечный холст ВЫКЛЮЧЕН", "Все окна возвращены на свои места")
     end
 end
 
@@ -680,6 +705,7 @@ function _G.Canvas.move_or_swap(dir)
                 end
             end
         end
+        hl.dispatch(hl.dsp.focus({ window = active }))
     else
         apply_win_geom(active, nx, ny, nil, nil)
     end
@@ -741,10 +767,8 @@ function _G.Canvas.gather_home()
     if wins[1] then
         pan_canvas_to_window(wins, wins[1])
     end
-    notify("Бесконечный холст", "Окна собраны в сетку по порядку с зазором 12 px")
 end
 
 function _G.Canvas.toggle_invert()
     _G.Canvas.inverted = not _G.Canvas.inverted
-    notify("Бесконечный холст", "Направление перетаскивания: " .. (_G.Canvas.inverted and "Инвертированное" or "Обычное"))
 end

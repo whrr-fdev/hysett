@@ -126,6 +126,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QVariantList audioStreams READ audioStreams NOTIFY audioStreamsChanged)
     Q_PROPERTY(QString kbLayout READ kbLayout NOTIFY kbLayoutChanged)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
+    Q_PROPERTY(bool canvasActive READ canvasActive NOTIFY recordingChanged)
     Q_PROPERTY(QString recordingTimeText READ recordingTimeText NOTIFY recordingChanged)
     Q_PROPERTY(bool btConnected READ btConnected NOTIFY sysStatsChanged)
     Q_PROPERTY(int btConnectedCount READ btConnectedCount NOTIFY sysStatsChanged)
@@ -388,6 +389,7 @@ public:
     Q_INVOKABLE void toggleStreamMute(int streamId);
     QString kbLayout() const { return m_kbLayout; }
     bool recording() const { return m_recording; }
+    bool canvasActive() const { return m_canvasActive; }
     QString recordingTimeText() const { return m_recordingTimeText; }
     bool btConnected() const { return m_btConnected; }
     int btConnectedCount() const { return m_btConnectedCount; }
@@ -670,6 +672,7 @@ private:
     QTimer *m_streamVolTimer = nullptr;
     QString m_kbLayout = "RU";
     bool m_recording = false;
+    bool m_canvasActive = false;
     qint64 m_recordingStartSec = 0;
     QString m_recordingTimeText = "00:00";
     bool m_btConnected = false;

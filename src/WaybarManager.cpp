@@ -1663,6 +1663,13 @@ void WaybarManager::pollMediaState() {
 
 void WaybarManager::pollFastState() {
     {
+        bool cAct = QFile::exists("/tmp/hysett_canvas_active");
+        if (m_canvasActive != cAct) {
+            m_canvasActive = cAct;
+            emit recordingChanged();
+        }
+    }
+    {
         static int s_btPollTick = 0;
         if (s_btPollTick++ % 2 == 0) {
             QProcess *btP = new QProcess(this);

@@ -506,6 +506,7 @@ void AppConfig::load() {
             else if (key == "wallpapers_dir" && !val.isEmpty()) m_wallpapersDir = val;
             else if (key == "music_dir" && !val.isEmpty()) m_musicDir = val;
             else if (key == "backups_dir" && !val.isEmpty()) m_backupsDir = val;
+            else if (key == "backup_git_repo" && !val.isEmpty()) m_backupGitRepo = val;
             else if (key == "phone_wireless_ip" && !val.isEmpty()) m_phoneWirelessIp = val;
             else if (key == "phone_mouse_mode") m_phoneMouseMode = std::clamp(val.toInt(), 0, 2);
             else if (key == "phone_turn_screen_off") m_phoneTurnScreenOff = (val == "1" || val == "true");
@@ -595,6 +596,7 @@ void AppConfig::save() {
             extra["wallpapers_dir"] = m_wallpapersDir;
             extra["music_dir"] = m_musicDir;
             extra["backups_dir"] = m_backupsDir;
+            extra["backup_git_repo"] = m_backupGitRepo;
             extra["phone_wireless_ip"] = m_phoneWirelessIp;
             extra["phone_mouse_mode"] = QString::number(m_phoneMouseMode);
             extra["phone_turn_screen_off"] = m_phoneTurnScreenOff ? "1" : "0";
@@ -1191,19 +1193,20 @@ void AppConfig::completeFirstRunSetup(const QString &wallDir, const QString &mus
     }
 }
 
-static void parseSysInfoJson(const QByteArray &raw, int &natCnt, int &aurCnt, QVariantList &archs, QString &locVer) {
+static void parseSysInfoJson(const QByteArray &raw, int &natCnt, int &aurCnt, QVariantList &archs, QString &locVer, QString *gitUsr = nullptr) {
     QJsonObject o = QJsonDocument::fromJson(raw.trimmed()).object();
     if (o.isEmpty()) return;
     if (o.contains("native_count")) natCnt = o["native_count"].toInt();
     if (o.contains("aur_count")) aurCnt = o["aur_count"].toInt();
     if (o.contains("archives")) archs = o["archives"].toArray().toVariantList();
     if (o.contains("local_version")) locVer = o["local_version"].toString(locVer);
+    if (gitUsr && o.contains("git_user")) *gitUsr = o["git_user"].toString(*gitUsr);
 }
 
 void AppConfig::refreshBackupInfo() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         emit backupStateChanged();
         emit updateStateChanged();
@@ -1219,7 +1222,7 @@ void AppConfig::generatePackageScript() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         m_sysProgTimer->stop();
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         QFile pf("/tmp/hysett_sys_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1242,7 +1245,7 @@ void AppConfig::createFullBackup() {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         m_sysProgTimer->stop();
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         QFile pf("/tmp/hysett_sys_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1265,7 +1268,7 @@ void AppConfig::restoreFromBackup(const QString &archivePath, bool installPackag
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         m_sysProgTimer->stop();
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         QFile pf("/tmp/hysett_sys_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1285,7 +1288,7 @@ void AppConfig::deleteBackupArchive(const QString &archivePath) {
     if (archivePath.trimmed().isEmpty()) return;
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         m_sysStatusText = "Архив бэкапа удален";
         emit backupStateChanged();
@@ -1306,7 +1309,7 @@ void AppConfig::createTypedBackup(const QString &mode) {
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         m_sysProgTimer->stop();
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         QFile pf("/tmp/hysett_sys_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1330,7 +1333,7 @@ void AppConfig::restoreTypedBackup(const QString &archivePath, const QString &mo
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
         m_sysProgTimer->stop();
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         QFile pf("/tmp/hysett_sys_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1353,7 +1356,7 @@ void AppConfig::installAllBackupPackages() {
     emit sysProgressChanged();
     QProcess *p = new QProcess(this);
     connect(p, &QProcess::finished, this, [this, p]() {
-        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo);
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
         p->deleteLater();
         QFile pf("/tmp/hysett_sys_progress.json");
         if (pf.open(QIODevice::ReadOnly)) {
@@ -1373,6 +1376,96 @@ QString AppConfig::pickBackupArchive() {
     p.start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "pick_archive"});
     p.waitForFinished(-1);
     return QString::fromUtf8(p.readAllStandardOutput()).trimmed();
+}
+
+
+void AppConfig::setBackupGitRepo(const QString &v) {
+    if (m_backupGitRepo != v.trimmed()) {
+        m_backupGitRepo = v.trimmed();
+        emit backupStateChanged();
+        save();
+    }
+}
+
+void AppConfig::loginGit(const QString &username, const QString &token) {
+    if (m_sysBusy) return;
+    m_sysBusy = true; m_sysProgress = 25;
+    m_sysStatusText = "Авторизация в GitHub...";
+    emit sysProgressChanged();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "git_login", username.trimmed(), token.trimmed()});
+}
+
+void AppConfig::openGithubTokenPage() {
+    QProcess::startDetached("xdg-open", {"https://github.com/settings/tokens/new?scopes=repo&description=HySett+Configs+Sync"});
+}
+
+void AppConfig::pushConfigsToGit(const QString &repo, bool isPrivate) {
+    if (m_sysBusy) return;
+    if (!repo.trimmed().isEmpty()) setBackupGitRepo(repo.trimmed());
+    m_sysBusy = true; m_sysProgress = 15;
+    m_sysStatusText = "Выгрузка всех конфигов в Git-репозиторий...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "git_push_configs", m_backupGitRepo, isPrivate ? "1" : "0"});
+}
+
+void AppConfig::pullConfigsFromGit(const QString &repo, bool installPackages) {
+    if (m_sysBusy) return;
+    if (!repo.trimmed().isEmpty()) setBackupGitRepo(repo.trimmed());
+    m_sysBusy = true; m_sysProgress = 20;
+    m_sysStatusText = "Загрузка и применение конфигов из Git-репозитория...";
+    emit sysProgressChanged();
+    m_sysProgTimer->start();
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_sysProgTimer->stop();
+        parseSysInfoJson(p->readAllStandardOutput(), m_pkgNativeCount, m_pkgAurCount, m_backupArchives, m_localVersionInfo, &m_gitUser);
+        p->deleteLater();
+        QFile pf("/tmp/hysett_sys_progress.json");
+        if (pf.open(QIODevice::ReadOnly)) {
+            QJsonObject o = QJsonDocument::fromJson(pf.readAll()).object();
+            m_sysStatusText = o["text"].toString(m_sysStatusText);
+            pf.close();
+        }
+        m_sysBusy = false; m_sysProgress = 100;
+        load();
+        emit backupStateChanged();
+        emit sysProgressChanged();
+    });
+    p->start("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_system.py", "git_pull_configs", m_backupGitRepo, installPackages ? "1" : "0"});
+}
+
+void AppConfig::toggleInfiniteCanvas() {
+    QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/hysett/scripts/hysett_infinite_canvas.py", "toggle"});
 }
 
 void AppConfig::openBackupsFolder() {

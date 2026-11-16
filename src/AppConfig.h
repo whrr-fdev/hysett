@@ -66,6 +66,8 @@ class AppConfig : public QObject {
     Q_PROPERTY(int pkgNativeCount READ pkgNativeCount NOTIFY backupStateChanged)
     Q_PROPERTY(int pkgAurCount READ pkgAurCount NOTIFY backupStateChanged)
     Q_PROPERTY(QVariantList backupArchives READ backupArchives NOTIFY backupStateChanged)
+    Q_PROPERTY(QString gitUser READ gitUser NOTIFY backupStateChanged)
+    Q_PROPERTY(QString backupGitRepo READ backupGitRepo WRITE setBackupGitRepo NOTIFY backupStateChanged)
     Q_PROPERTY(bool sysBusy READ sysBusy NOTIFY sysProgressChanged)
     Q_PROPERTY(int sysProgress READ sysProgress NOTIFY sysProgressChanged)
     Q_PROPERTY(QString sysStatusText READ sysStatusText NOTIFY sysProgressChanged)
@@ -227,6 +229,14 @@ public:
     Q_INVOKABLE void restoreTypedBackup(const QString &archivePath, const QString &mode);
     Q_INVOKABLE void installAllBackupPackages();
     Q_INVOKABLE QString pickBackupArchive();
+    QString gitUser() const { return m_gitUser; }
+    QString backupGitRepo() const { return m_backupGitRepo; }
+    void setBackupGitRepo(const QString &v);
+    Q_INVOKABLE void loginGit(const QString &username, const QString &token);
+    Q_INVOKABLE void openGithubTokenPage();
+    Q_INVOKABLE void pushConfigsToGit(const QString &repo, bool isPrivate);
+    Q_INVOKABLE void pullConfigsFromGit(const QString &repo, bool installPackages);
+    Q_INVOKABLE void toggleInfiniteCanvas();
     Q_INVOKABLE void deleteBackupArchive(const QString &archivePath);
     Q_INVOKABLE void openBackupsFolder();
     Q_INVOKABLE void checkUpdates();
@@ -525,6 +535,8 @@ private:
     int m_pkgNativeCount = 0;
     int m_pkgAurCount = 0;
     QVariantList m_backupArchives;
+    QString m_gitUser;
+    QString m_backupGitRepo = "whrr-fdev/dotfiles";
     bool m_sysBusy = false;
     int m_sysProgress = 0;
     QString m_sysStatusText = "Готово к работе";

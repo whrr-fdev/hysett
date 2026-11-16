@@ -303,6 +303,221 @@ Item {
                     }
                 }
 
+
+                // КАРТОЧКА GIT / GITHUB СИНХРОНИЗАЦИИ КОНФИГОВ
+                GlassPanel {
+                    Layout.fillWidth: true
+                    implicitHeight: gitCol.implicitHeight + 28
+
+                    property bool showGitLogin: false
+                    property bool gitPrivateRepo: true
+                    property bool gitPullWithPkgs: true
+
+                    ColumnLayout {
+                        id: gitCol
+                        anchors.fill: parent
+                        anchors.margins: 14
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Text {
+                                text: "󰊤"
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                font.pixelSize: 18
+                                Layout.alignment: Qt.AlignVCenter
+                            }
+
+                            Text {
+                                text: "GitHub-репозиторий конфигов (выгрузка и клонирование)"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                                Layout.alignment: Qt.AlignVCenter
+                                elide: Text.ElideRight
+                            }
+
+                            Rectangle {
+                                Layout.preferredWidth: gitUsrBadge.implicitWidth + 14
+                                Layout.preferredHeight: 22
+                                Layout.alignment: Qt.AlignVCenter
+                                radius: backupRoot.isM3 ? 6 : 0
+                                color: (Config && Config.gitUser.length > 0) ? Qt.rgba(0.41, 0.94, 0.68, 0.16) : Qt.rgba(1, 1, 1, 0.08)
+                                border.width: 1
+                                border.color: (Config && Config.gitUser.length > 0) ? Qt.rgba(0.41, 0.94, 0.68, 0.42) : Qt.rgba(1, 1, 1, 0.16)
+                                Text {
+                                    id: gitUsrBadge
+                                    anchors.centerIn: parent
+                                    text: (Config && Config.gitUser.length > 0) ? ("󰄬 Git: " + Config.gitUser) : "Не авторизован"
+                                    color: (Config && Config.gitUser.length > 0) ? "#69f0ae" : "#bbbbbb"
+                                    font.pixelSize: Config ? Config.fontSize - 2 : 9
+                                    font.bold: true
+                                }
+                            }
+
+                            StyledButton {
+                                text: parent.parent.parent.showGitLogin ? "Скрыть вход" : "󰌆 Аккаунт Git"
+                                Layout.alignment: Qt.AlignVCenter
+                                onClicked: parent.parent.parent.showGitLogin = !parent.parent.parent.showGitLogin
+                            }
+                        }
+
+                        // Раскрывающийся блок авторизации в GitHub
+                        Rectangle {
+                            visible: parent.parent.showGitLogin
+                            Layout.fillWidth: true
+                            implicitHeight: loginInnerCol.implicitHeight + 20
+                            radius: backupRoot.isM3 ? 10 : 0
+                            color: Qt.rgba(0, 0, 0, 0.25)
+                            border.color: Qt.rgba(1, 1, 1, 0.12)
+                            border.width: 1
+
+                            ColumnLayout {
+                                id: loginInnerCol
+                                anchors.fill: parent
+                                anchors.margins: 10
+                                spacing: 8
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: "Вход в GitHub (сохраняет токен в ~/.git-credentials для автоматического git push / pull):"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config ? Config.fontSize - 1 : 10
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 8
+
+                                    TextField {
+                                        id: gitUserField
+                                        Layout.preferredWidth: 180
+                                        implicitHeight: 28
+                                        leftPadding: 10; rightPadding: 10
+                                        color: "#ffffff"
+                                        font.pixelSize: Config ? Config.fontSize : 11
+                                        text: Config ? Config.gitUser : ""
+                                        placeholderText: "Логин GitHub..."
+                                        placeholderTextColor: "#777777"
+                                        background: Rectangle {
+                                            radius: backupRoot.isM3 ? 8 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.06)
+                                            border.color: Qt.rgba(1, 1, 1, 0.16)
+                                            border.width: 1
+                                        }
+                                    }
+
+                                    TextField {
+                                        id: gitTokenField
+                                        Layout.fillWidth: true
+                                        implicitHeight: 28
+                                        leftPadding: 10; rightPadding: 10
+                                        color: "#ffffff"
+                                        font.pixelSize: Config ? Config.fontSize : 11
+                                        echoMode: TextInput.Password
+                                        placeholderText: "Personal Access Token (ghp_...)..."
+                                        placeholderTextColor: "#777777"
+                                        background: Rectangle {
+                                            radius: backupRoot.isM3 ? 8 : 0
+                                            color: Qt.rgba(1, 1, 1, 0.06)
+                                            border.color: Qt.rgba(1, 1, 1, 0.16)
+                                            border.width: 1
+                                        }
+                                    }
+
+                                    StyledButton {
+                                        text: "󰖟 Получить токен"
+                                        onClicked: if (Config) Config.openGithubTokenPage()
+                                    }
+
+                                    StyledButton {
+                                        text: "󰄬 Войти"
+                                        isActive: true
+                                        enabled: (Config ? !Config.sysBusy : true) && gitTokenField.text.trim().length > 0
+                                        onClicked: if (Config) Config.loginGit(gitUserField.text, gitTokenField.text)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Строка ввода репозитория и выгрузки
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            TextField {
+                                id: gitRepoField
+                                Layout.fillWidth: true
+                                implicitHeight: 28
+                                leftPadding: 10; rightPadding: 10
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize : 11
+                                text: Config ? Config.backupGitRepo : "whrr-fdev/dotfiles"
+                                onEditingFinished: if (Config) Config.backupGitRepo = text.trim()
+                                placeholderText: "Репозиторий (например: whrr-fdev/dotfiles или https://github.com/user/repo)..."
+                                placeholderTextColor: "#777777"
+                                background: Rectangle {
+                                    radius: backupRoot.isM3 ? 8 : 0
+                                    color: backupRoot.isM3 && Config ? Config.m3SurfaceContainerHigh : Qt.rgba(1, 1, 1, 0.06)
+                                    border.color: Qt.rgba(1, 1, 1, 0.16)
+                                    border.width: backupRoot.isM3 ? 0 : 1
+                                }
+                            }
+
+                            StyledButton {
+                                text: "󰊤 Выгрузить конфиги в Git"
+                                isActive: true
+                                enabled: (Config ? !Config.sysBusy : true) && gitRepoField.text.trim().length > 0
+                                onClicked: if (Config) Config.pushConfigsToGit(gitRepoField.text.trim(), parent.parent.parent.gitPrivateRepo)
+                            }
+
+                            StyledButton {
+                                text: "󰇚 Скачать из Git"
+                                enabled: (Config ? !Config.sysBusy : true) && gitRepoField.text.trim().length > 0
+                                onClicked: if (Config) Config.pullConfigsFromGit(gitRepoField.text.trim(), parent.parent.parent.gitPullWithPkgs)
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 16
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "Создавать репозиторий приватным (если его ещё нет):"
+                                    color: "#bbbbbb"
+                                    font.pixelSize: Config ? Config.fontSize - 1 : 10
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: parent.parent.parent.parent.gitPrivateRepo
+                                    onToggled: parent.parent.parent.parent.gitPrivateRepo = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+                                Text {
+                                    text: "При скачивании из Git докачивать все пакеты:"
+                                    color: "#bbbbbb"
+                                    font.pixelSize: Config ? Config.fontSize - 1 : 10
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: parent.parent.parent.parent.gitPullWithPkgs
+                                    onToggled: parent.parent.parent.parent.gitPullWithPkgs = checked
+                                }
+                            }
+                        }
+                    }
+                }
+
                 // 2. ВЫБОР ВНЕШНЕГО АРХИВА ИЛИ ИЗ БУФЕРА ПАНЕЛИ ЗАДАЧ
                 GlassPanel {
                     Layout.fillWidth: true

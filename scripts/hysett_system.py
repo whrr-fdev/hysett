@@ -103,6 +103,189 @@ def detect_archive_kind(fn):
         return "settings", "НАСТРОЙКИ + ПАКЕТЫ"
     return "full", "ПОЛНЫЙ (ВСЁ ВМЕСТЕ)"
 
+
+def get_git_credentials():
+    cred_path = os.path.expanduser("~/.git-credentials")
+    if os.path.exists(cred_path):
+        try:
+            with open(cred_path, "r", encoding="utf-8", errors="ignore") as f:
+                for ln in f:
+                    ln = ln.strip()
+                    if "@github.com" in ln and ln.startswith("https://"):
+                        body = ln.split("https://", 1)[1].split("@github.com", 1)[0]
+                        if ":" in body:
+                            u, t = body.split(":", 1)
+                            return u, t
+        except Exception:
+            pass
+    return "", ""
+
+def normalize_repo_slug(raw_repo, default_user):
+    r = (raw_repo or "").strip()
+    r = r.replace("https://github.com/", "").replace("http://github.com/", "").replace("git@github.com:", "")
+    if r.endswith(".git"):
+        r = r[:-4]
+    r = r.strip("/")
+    if not r:
+        return ""
+    if "/" not in r and default_user:
+        return f"{default_user}/{r}"
+    return r
+
+def cmd_git_login(username, token):
+    username = (username or "").strip()
+    token = (token or "").strip()
+    if not token:
+        write_prog(False, 0, "Введите токен GitHub (Personal Access Token)")
+        cmd_info()
+        return
+
+    write_prog(True, 30, "Проверка токена через GitHub API...")
+    try:
+        req = urllib.request.Request(
+            "https://api.github.com/user",
+            headers={"Authorization": f"token {token}", "User-Agent": "HySett-Git-Auth"}
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            udata = json.loads(resp.read().decode("utf-8", errors="ignore"))
+            api_login = udata.get("login", "")
+            if api_login:
+                username = api_login
+    except Exception as e:
+        write_prog(False, 0, f"Ошибка авторизации GitHub: неверный токен ({e})")
+        cmd_info()
+        return
+
+    if not username:
+        write_prog(False, 0, "Не удалось определить логин GitHub")
+        cmd_info()
+        return
+
+    cred_path = os.path.expanduser("~/.git-credentials")
+    lines = []
+    if os.path.exists(cred_path):
+        with open(cred_path, "r", encoding="utf-8", errors="ignore") as f:
+            lines = [l.strip() for l in f if l.strip() and "@github.com" not in l]
+    lines.append(f"https://{username}:{token}@github.com")
+    with open(cred_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+    os.chmod(cred_path, 0o600)
+
+    subprocess.run(["git", "config", "--global", "credential.helper", "store"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "config", "--global", "user.name", username], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "config", "--global", "user.email", f"{username}@users.noreply.github.com"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    write_prog(False, 100, f"Успешный вход в GitHub: {username} ✓")
+    cmd_info()
+
+def ensure_github_repo_exists(slug, token, is_private=True):
+    if "/" not in slug or not token:
+        return
+    owner, repo_name = slug.split("/", 1)
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "HySett-Git-Sync"
+    }
+    try:
+        req = urllib.request.Request(f"https://api.github.com/repos/{slug}", headers=headers)
+        urllib.request.urlopen(req, timeout=8)
+        return
+    except Exception:
+        pass
+    try:
+        payload = json.dumps({
+            "name": repo_name,
+            "description": "Hyprland & HySett system configurations backup",
+            "private": bool(is_private),
+            "auto_init": False
+        }).encode("utf-8")
+        req = urllib.request.Request("https://api.github.com/user/repos", data=payload, headers={**headers, "Content-Type": "application/json"}, method="POST")
+        urllib.request.urlopen(req, timeout=12)
+    except Exception:
+        pass
+
+def cmd_git_push_configs(raw_repo, is_private=True):
+    g_user, g_tok = get_git_credentials()
+    slug = normalize_repo_slug(raw_repo, g_user)
+    if not slug or "/" not in slug:
+        write_prog(False, 0, "Укажите репозиторий (например: username/dotfiles или имя репозитория)")
+        cmd_info()
+        return
+
+    write_prog(True, 15, f"Подготовка репозитория {slug} на GitHub...")
+    if g_tok:
+        ensure_github_repo_exists(slug, g_tok, is_private)
+
+    export_dir = "/tmp/hysett_git_export"
+    shutil.rmtree(export_dir, ignore_errors=True)
+    os.makedirs(export_dir, exist_ok=True)
+
+    write_prog(True, 40, "Сбор всех конфигов Hyprland, Kitty, Fish, Btop, курсоров и списков пакетов...")
+    native, aur = get_pkg_lists()
+    stage_settings_part(export_dir, native, aur)
+
+    readme_p = os.path.join(export_dir, "README.md")
+    with open(readme_p, "w", encoding="utf-8") as rf:
+        rf.write(f"# Dotfiles & HySett Backup ({slug})\n\nАвтоматический слепок конфигураций Hyprland, Kitty, Fish, Btop, GTK, курсоров и пакетов (`pacman`: {len(native)}, `AUR`: {len(aur)}).\n\n## Развертывание на новом ПК в 1 команду\n```bash\ngit clone https://github.com/{slug}.git ~/dotfiles && bash ~/dotfiles/bootstrap_new_pc.sh\n```\n")
+
+    write_prog(True, 75, f"Выгрузка (git push) конфигураций в https://github.com/{slug}...")
+    remote_url = f"https://{g_user}:{g_tok}@github.com/{slug}.git" if (g_user and g_tok) else f"https://github.com/{slug}.git"
+
+    subprocess.run(["git", "init", "-b", "main"], cwd=export_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "add", "-A"], cwd=export_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    ts = datetime.datetime.now().strftime("%d.%m.%Y %H:%M")
+    subprocess.run(["git", "commit", "-m", f"backup: sync HySett & Hyprland configs ({ts})"], cwd=export_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["git", "remote", "add", "origin", remote_url], cwd=export_dir, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    r = subprocess.run(["git", "push", "-f", "origin", "HEAD:refs/heads/main"], cwd=export_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+
+    shutil.rmtree(export_dir, ignore_errors=True)
+    if r.returncode == 0:
+        write_prog(False, 100, f"Все конфиги успешно выгружены в GitHub: {slug} ✓")
+    else:
+        err = r.stderr.decode("utf-8", errors="ignore").strip().splitlines()[-1] if r.stderr else "проверьте доступ"
+        write_prog(False, 0, f"Ошибка git push в {slug}: {err}")
+    cmd_info()
+
+def cmd_git_pull_configs(raw_repo, with_pkgs=False):
+    g_user, g_tok = get_git_credentials()
+    slug = normalize_repo_slug(raw_repo, g_user)
+    if not slug or "/" not in slug:
+        write_prog(False, 0, "Укажите репозиторий для клонирования (например: username/dotfiles)")
+        cmd_info()
+        return
+
+    write_prog(True, 25, f"Клонирование конфигураций из https://github.com/{slug}...")
+    clone_dir = "/tmp/hysett_git_import"
+    shutil.rmtree(clone_dir, ignore_errors=True)
+    remote_url = f"https://{g_user}:{g_tok}@github.com/{slug}.git" if (g_user and g_tok) else f"https://github.com/{slug}.git"
+
+    r = subprocess.run(["git", "clone", "--depth=1", remote_url, clone_dir], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=60)
+    if r.returncode != 0:
+        shutil.rmtree(clone_dir, ignore_errors=True)
+        write_prog(False, 0, f"Не удалось склонировать {slug}. Проверьте имя репозитория и доступ.")
+        cmd_info()
+        return
+
+    write_prog(True, 65, "Применение конфигураций из Git-репозитория...")
+    if os.path.exists(os.path.join(clone_dir, "config")):
+        restore_settings_from_root(clone_dir)
+    else:
+        for cname in ("hypr", "kitty", "fish", "btop", "gtk-3.0", "gtk-4.0"):
+            s = os.path.join(clone_dir, cname)
+            if os.path.isdir(s):
+                shutil.copytree(s, os.path.join(HOME, ".config", cname), dirs_exist_ok=True)
+
+    pkg_sh = os.path.join(clone_dir, "install_packages.sh")
+    if with_pkgs and os.path.exists(pkg_sh):
+        write_prog(True, 90, "Запуск установки Hyprland и пакетов из репозитория...")
+        launch_pkg_installer_in_terminal(pkg_sh)
+
+    shutil.rmtree(clone_dir, ignore_errors=True)
+    subprocess.Popen(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    write_prog(False, 100, f"Конфиги из репозитория {slug} успешно восстановлены ✓")
+    cmd_info()
+
 def cmd_info():
     native, aur = get_pkg_lists()
     bdir = get_backups_dir()
@@ -134,7 +317,8 @@ def cmd_info():
         "aur_count": len(aur),
         "backups_dir": bdir,
         "archives": archives,
-        "local_version": local_ver
+        "local_version": local_ver,
+        "git_user": get_git_credentials()[0]
     }, ensure_ascii=False))
 
 def cmd_gen_pkg_script():
@@ -604,6 +788,18 @@ if __name__ == "__main__":
             except Exception:
                 pass
         cmd_info()
+    elif cmd == "git_login":
+        u = sys.argv[2] if len(sys.argv) > 2 else ""
+        t = sys.argv[3] if len(sys.argv) > 3 else ""
+        cmd_git_login(u, t)
+    elif cmd == "git_push_configs":
+        rep = sys.argv[2] if len(sys.argv) > 2 else ""
+        priv = (sys.argv[3] == "1") if len(sys.argv) > 3 else True
+        cmd_git_push_configs(rep, priv)
+    elif cmd == "git_pull_configs":
+        rep = sys.argv[2] if len(sys.argv) > 2 else ""
+        wp = (sys.argv[3] == "1") if len(sys.argv) > 3 else False
+        cmd_git_pull_configs(rep, wp)
     elif cmd == "check_updates":
         cmd_check_updates()
     elif cmd == "install_update":

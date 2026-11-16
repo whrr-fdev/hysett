@@ -5,8 +5,10 @@ import HySett
 ComboBox {
     id: control
     implicitHeight: 26
+    property string itemIconPrefix: ""
     readonly property bool isM3: Theme && Theme.isRounded
     readonly property real ctrlRad: isM3 ? (Config ? Math.min(12, Config.m3ControlRadius) : 8) : 0
+    readonly property int rowHeight: itemIconPrefix !== "" ? 30 : 26
 
     contentItem: Text {
         leftPadding: 10
@@ -51,7 +53,7 @@ ComboBox {
         id: comboPopup
         y: control.height + 4
         width: control.width
-        implicitHeight: Math.min(260, listView.contentHeight + 10)
+        implicitHeight: Math.min(280, listView.contentHeight + 10)
         padding: 5
         transformOrigin: Item.Top
 
@@ -75,11 +77,11 @@ ComboBox {
                 id: popupHoverPill
                 x: 0
                 width: listView.width
-                height: 26
+                height: control.rowHeight
                 radius: control.isM3 ? Math.max(4, control.ctrlRad - 2) : 0
                 color: control.isM3 && Config ? Config.m3Primary : "#ffffff"
                 opacity: control.highlightedIndex >= 0 ? 1.0 : 0.0
-                y: Math.max(0, control.highlightedIndex * 28 - listView.contentY)
+                y: Math.max(0, control.highlightedIndex * (control.rowHeight + listView.spacing) - listView.contentY)
                 Behavior on y { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
                 Behavior on opacity { NumberAnimation { duration: 90 } }
             }
@@ -109,14 +111,36 @@ ComboBox {
     delegate: ItemDelegate {
         id: dlgt
         width: control.width - 10
-        implicitHeight: 26
+        implicitHeight: control.rowHeight
         highlighted: control.highlightedIndex === index
         property bool isCurrent: control.currentIndex === index
 
         contentItem: Row {
-            spacing: 6
+            spacing: 8
             leftPadding: dlgt.highlighted ? 10 : 6
             Behavior on leftPadding { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+
+            Rectangle {
+                visible: control.itemIconPrefix !== ""
+                width: 22
+                height: 22
+                radius: control.isM3 ? 6 : 0
+                color: dlgt.highlighted ? Qt.rgba(0, 0, 0, 0.24) : Qt.rgba(1, 1, 1, 0.07)
+                border.color: dlgt.highlighted ? Qt.rgba(0, 0, 0, 0.30) : Qt.rgba(1, 1, 1, 0.15)
+                border.width: 1
+                anchors.verticalCenter: parent.verticalCenter
+
+                Image {
+                    anchors.centerIn: parent
+                    width: 16
+                    height: 16
+                    source: control.itemIconPrefix !== "" && modelData ? (control.itemIconPrefix + modelData) : ""
+                    fillMode: Image.PreserveAspectFit
+                    smooth: true
+                    asynchronous: true
+                    cache: true
+                }
+            }
 
             Text {
                 text: dlgt.isCurrent ? "●" : ""

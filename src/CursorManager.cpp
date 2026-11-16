@@ -5,33 +5,51 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QDataStream>
+#include <QHash>
+#include <QMutex>
+#include <QMutexLocker>
 #include <algorithm>
 
 CursorImageProvider::CursorImageProvider() : QQuickImageProvider(QQuickImageProvider::Image) {}
 
 QImage CursorImageProvider::requestImage(const QString &id, QSize *size, const QSize &requestedSize) {
-    QImage img = extractCursor(id);
-    if (!img.isNull()) {
-        int minX = img.width(), minY = img.height(), maxX = 0, maxY = 0;
-        bool hasVisible = false;
-        for (int y = 0; y < img.height(); ++y) {
-            for (int x = 0; x < img.width(); ++x) {
-                if (qAlpha(img.pixel(x, y)) > 25) {
-                    minX = qMin(minX, x);
-                    minY = qMin(minY, y);
-                    maxX = qMax(maxX, x);
-                    maxY = qMax(maxY, y);
-                    hasVisible = true;
+    static QHash<QString, QImage> s_cache;
+    static QMutex s_mutex;
+
+    QImage img;
+    {
+        QMutexLocker lock(&s_mutex);
+        if (s_cache.contains(id)) {
+            img = s_cache.value(id);
+        }
+    }
+
+    if (img.isNull()) {
+        img = extractCursor(id);
+        if (!img.isNull()) {
+            int minX = img.width(), minY = img.height(), maxX = 0, maxY = 0;
+            bool hasVisible = false;
+            for (int y = 0; y < img.height(); ++y) {
+                for (int x = 0; x < img.width(); ++x) {
+                    if (qAlpha(img.pixel(x, y)) > 25) {
+                        minX = qMin(minX, x);
+                        minY = qMin(minY, y);
+                        maxX = qMax(maxX, x);
+                        maxY = qMax(maxY, y);
+                        hasVisible = true;
+                    }
                 }
             }
-        }
-        if (hasVisible && maxX >= minX && maxY >= minY) {
-            img = img.copy(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            if (hasVisible && maxX >= minX && maxY >= minY) {
+                img = img.copy(minX, minY, maxX - minX + 1, maxY - minY + 1);
+            }
+            QMutexLocker lock(&s_mutex);
+            s_cache.insert(id, img);
         }
     }
 
     if (size) *size = img.size();
-    if (requestedSize.isValid()) {
+    if (requestedSize.isValid() && !img.isNull()) {
         img = img.scaled(requestedSize, Qt::KeepAspectRatio, Qt::SmoothTransformation);
     }
     return img;
@@ -44,14 +62,14 @@ QImage CursorImageProvider::extractCursor(const QString &theme) {
         home + "/.icons/" + theme,
         "/usr/share/icons/" + theme
     };
-    QStringList names = {"default", "left_ptr", "arrow"};
+    QStringList names = {"default", "left_ptr", "arrow", "top_left_arrow", "08e8e1c95fe2fc01f976f1e063a24ccd"};
 
     for (const auto &d : searchDirs) {
         for (const auto &n : names) {
             QString pngDir = d + "/hyprcursors/" + n;
             QDir dir(pngDir);
             if (dir.exists()) {
-                QStringList entries = dir.entryList({"*.png"}, QDir::Files);
+                QStringList entries = dir.entryList({"*.png", "*.svg"}, QDir::Files);
                 if (!entries.isEmpty()) {
                     QImage img(dir.filePath(entries.first()));
                     if (!img.isNull()) return img;
@@ -176,7 +194,6 @@ void CursorManager::loadSettings() {
 
 void CursorManager::saveAndApply() {
     QString sizeStr = QString::number(m_size);
-    // Нативная команда hyprctl setcursor работает мгновенно без ошибок non-legacy парсера!
     QProcess::startDetached("hyprctl", {"setcursor", m_theme, sizeStr});
     QProcess::startDetached("gsettings", {"set", "org.gnome.desktop.interface", "cursor-theme", m_theme});
     QProcess::startDetached("gsettings", {"set", "org.gnome.desktop.interface", "cursor-size", sizeStr});

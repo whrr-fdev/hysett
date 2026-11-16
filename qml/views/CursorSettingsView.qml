@@ -47,9 +47,9 @@ ScrollView {
                         spacing: 10
 
                         Rectangle {
-                            implicitWidth: 32
-                            implicitHeight: 32
-                            radius: (Theme && Theme.isRounded) ? 4 : 0
+                            implicitWidth: 34
+                            implicitHeight: 34
+                            radius: (Theme && Theme.isRounded) ? 10 : 0
                             color: Qt.rgba(1, 1, 1, Math.max(0.04, Config ? Config.cardOpacity * 0.15 : 0.06))
                             border.color: Qt.rgba(1, 1, 1, 0.15)
                             border.width: 1
@@ -66,6 +66,7 @@ ScrollView {
 
                         StyledComboBox {
                             Layout.fillWidth: true
+                            itemIconPrefix: "image://cursor/"
                             model: Cursor.installedThemes
                             currentIndex: Cursor.installedThemes.indexOf(Cursor.theme)
                             onActivated: (index) => Cursor.theme = Cursor.installedThemes[index]
@@ -74,9 +75,9 @@ ScrollView {
                         RowLayout {
                             spacing: 1
                             Rectangle {
-                                implicitHeight: 22
+                                implicitHeight: 26
                                 implicitWidth: 84
-                                radius: (Theme && Theme.isRounded) ? 3 : 0
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
                                 color: Qt.rgba(1, 1, 1, Math.max(0.04, Config ? Config.cardOpacity * 0.15 : 0.06))
                                 border.color: Qt.rgba(1, 1, 1, 0.15)
                                 border.width: 1

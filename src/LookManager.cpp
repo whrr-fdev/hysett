@@ -4,11 +4,35 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QRegularExpression>
+#include <cstring>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+
+static void sendHyprLuaEval(const QString &luaCode) {
+    QString sig = qEnvironmentVariable("HYPRLAND_INSTANCE_SIGNATURE");
+    if (sig.isEmpty()) return;
+    QString sockPath = qEnvironmentVariable("XDG_RUNTIME_DIR") + "/hypr/" + sig + "/.socket.sock";
+    if (!QFile::exists(sockPath)) sockPath = "/tmp/hypr/" + sig + "/.socket.sock";
+    int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return;
+    struct sockaddr_un addr {};
+    addr.sun_family = AF_UNIX;
+    QByteArray pb = sockPath.toUtf8();
+    std::strncpy(addr.sun_path, pb.constData(), sizeof(addr.sun_path) - 1);
+    if (::connect(fd, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) == 0) {
+        QByteArray b = ("eval " + luaCode).toUtf8();
+        ::write(fd, b.constData(), b.size());
+        char buf[256];
+        ::read(fd, buf, sizeof(buf));
+    }
+    ::close(fd);
+}
 
 LookManager::LookManager(QObject *parent) : QObject(parent) {
     m_saveTimer = new QTimer(this);
     m_saveTimer->setSingleShot(true);
-    m_saveTimer->setInterval(300);
+    m_saveTimer->setInterval(40);
 
     connect(m_saveTimer, &QTimer::timeout, this, [this]() {
         writeLookLua();
@@ -60,7 +84,21 @@ void LookManager::loadFromDisk() {
 }
 
 void LookManager::applyKeyword(const QString &key, const QString &val) {
-    QProcess::startDetached("hyprctl", {"keyword", key, val});
+    if (key == "general:col.active_border") {
+        sendHyprLuaEval(QString("hl.config({ general = { col = { active_border = \"%1\" } } })").arg(val));
+    } else if (key == "general:col.inactive_border") {
+        sendHyprLuaEval(QString("hl.config({ general = { col = { inactive_border = \"%1\" } } })").arg(val));
+    } else if (key == "general:border_size") {
+        sendHyprLuaEval(QString("hl.config({ general = { border_size = %1 } })").arg(val));
+    } else if (key == "general:gaps_in") {
+        sendHyprLuaEval(QString("hl.config({ general = { gaps_in = %1 } })").arg(val));
+    } else if (key == "general:gaps_out") {
+        sendHyprLuaEval(QString("hl.config({ general = { gaps_out = %1 } })").arg(val));
+    } else if (key == "decoration:active_opacity") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { active_opacity = %1 } })").arg(val));
+    } else if (key == "decoration:inactive_opacity") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { inactive_opacity = %1 } })").arg(val));
+    }
 }
 
 void LookManager::scheduleSaveAndApply() {
@@ -191,6 +229,9 @@ void LookManager::writeLookLua() {
     out << "        enabled = " << (m_animsEnabled ? "true" : "false") << ",\n";
     out << "    },\n";
     out << "})\n";
+    file.flush();
+    file.close();
+    sendHyprLuaEval("dofile(os.getenv(\"HOME\") .. \"/.config/hypr/look.lua\")");
 }
 
 void LookManager::setActiveOpacity(qreal v) { if (!qFuzzyCompare(m_activeOpacity, v)) { pushBackup(); m_activeOpacity = v; applyKeyword("decoration:active_opacity", QString::number(v, 'f', 2)); scheduleSaveAndApply(); } }

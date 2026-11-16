@@ -95,8 +95,7 @@ if os.path.exists(look_lua_path):
 if border_sync_on:
     act_rgba = f"rgba({pri_hex.lstrip('#')}ee)"
     inact_rgba = f"rgba({high_hex.lstrip('#')}aa)"
-    subprocess.run(["hyprctl", "keyword", "general:col.active_border", act_rgba], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(["hyprctl", "keyword", "general:col.inactive_border", inact_rgba], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["hyprctl", "eval", f'hl.config({{ general = {{ col = {{ active_border = "{act_rgba}", inactive_border = "{inact_rgba}" }} }} }})'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if os.path.exists(look_lua_path):
         try:
             import re as _re

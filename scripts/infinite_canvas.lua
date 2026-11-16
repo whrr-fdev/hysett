@@ -1,13 +1,5 @@
 -- ============================================================================
 -- HySett Infinite Canvas (Бесконечный холст для Hyprland Lua)
--- Управление:
---   SUPER + I                  : Включить / выключить режим Бесконечного холста (с анимацией отдаления/приближения)
---   SUPER + ALT + ЛКМ (зажать) : Свободное перемещение (панорамирование) всего холста
---   SUPER + ALT + SPACE        : Включить/выключить ведение холста за курсором без зажатия ЛКМ
---   CTRL + SUPER + Left/Right  : Плавный перелёт камеры к предыдущему / следующему окну на холсте
---   SUPER + ALT + Колесико     : Плавное приближение / отдаление (Zoom) всего холста
---   SUPER + ALT + C            : Собрать все окна холста обратно в обзор по центру экрана
---   SUPER + ALT + I            : Инвертировать направление перетаскивания холста
 -- ============================================================================
 
 _G.Canvas = _G.Canvas or {
@@ -60,7 +52,34 @@ local function get_monitor_box()
     return 0, 0, 1920, 1080
 end
 
--- Высокочастотный цикл панорамирования внутри композитора (125 FPS)
+function _G.Canvas.pan_delta(raw_dx, raw_dy)
+    if not _G.Canvas.enabled then return end
+    local sgn = _G.Canvas.inverted and -1.0 or 1.0
+    local dx = raw_dx * _G.Canvas.speed * sgn
+    local dy = raw_dy * _G.Canvas.speed * sgn
+    if math.abs(dx) < 0.5 and math.abs(dy) < 0.5 then return end
+
+    local ws = hl.get_active_workspace()
+    if not ws then return end
+    for _, w in pairs(hl.get_windows()) do
+        if is_canvas_win(w, ws.id) and w.floating then
+            local addr = w.address
+            local vp = _G.Canvas.virtual_pos[addr]
+            if not vp then
+                vp = { x = w.at.x, y = w.at.y }
+            end
+            vp.x = vp.x + dx
+            vp.y = vp.y + dy
+            _G.Canvas.virtual_pos[addr] = vp
+            hl.dispatch(hl.dsp.window.move({
+                x = math.floor(vp.x + 0.5),
+                y = math.floor(vp.y + 0.5),
+                window = w,
+            }))
+        end
+    end
+end
+
 local function pan_loop()
     if not _G.Canvas.enabled or not _G.Canvas.panning then
         _G.Canvas.last_cursor = nil
@@ -72,38 +91,12 @@ local function pan_loop()
         local raw_dx = cp.x - _G.Canvas.last_cursor.x
         local raw_dy = cp.y - _G.Canvas.last_cursor.y
         _G.Canvas.last_cursor = { x = cp.x, y = cp.y }
-
-        local sgn = _G.Canvas.inverted and -1.0 or 1.0
-        local dx = raw_dx * _G.Canvas.speed * sgn
-        local dy = raw_dy * _G.Canvas.speed * sgn
-
-        if math.abs(dx) >= 0.5 or math.abs(dy) >= 0.5 then
-            local ws = hl.get_active_workspace()
-            if ws then
-                for _, w in pairs(hl.get_windows()) do
-                    if is_canvas_win(w, ws.id) and w.floating then
-                        local addr = w.address
-                        local vp = _G.Canvas.virtual_pos[addr]
-                        if not vp then
-                            vp = { x = w.at.x, y = w.at.y }
-                        end
-                        vp.x = vp.x + dx
-                        vp.y = vp.y + dy
-                        _G.Canvas.virtual_pos[addr] = vp
-                        hl.dispatch(hl.dsp.window.move({
-                            x = math.floor(vp.x + 0.5),
-                            y = math.floor(vp.y + 0.5),
-                            window = w,
-                        }))
-                    end
-                end
-            end
-        end
+        _G.Canvas.pan_delta(raw_dx, raw_dy)
     elseif cp then
         _G.Canvas.last_cursor = { x = cp.x, y = cp.y }
     end
 
-    hl.timer(pan_loop, { timeout = 8 })
+    pcall(hl.timer, pan_loop, { type = "oneshot", timeout = 8 })
 end
 
 function _G.Canvas.set_panning(active)
@@ -115,7 +108,6 @@ function _G.Canvas.set_panning(active)
         _G.Canvas.panning = true
         local cp = hl.get_cursor_pos()
         _G.Canvas.last_cursor = cp and { x = cp.x, y = cp.y } or nil
-        -- Синхронизируем стартовые координаты окон
         local ws = hl.get_active_workspace()
         if ws then
             for _, w in pairs(hl.get_windows()) do
@@ -124,7 +116,7 @@ function _G.Canvas.set_panning(active)
                 end
             end
         end
-        hl.timer(pan_loop, { timeout = 8 })
+        pcall(hl.timer, pan_loop, { type = "oneshot", timeout = 8 })
     elseif not active then
         _G.Canvas.panning = false
         _G.Canvas.last_cursor = nil
@@ -136,7 +128,7 @@ function _G.Canvas.toggle_pan_lock()
     _G.Canvas.set_panning(not _G.Canvas.panning)
 end
 
--- Включение / выключение режима Бесконечного Холста с анимацией отдаления (Zoom-Out) и приближения (Zoom-In)
+-- Включение / выключение режима Бесконечного Холста с пружинной анимацией отдаления (Zoom-Out)
 function _G.Canvas.toggle()
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -149,10 +141,11 @@ function _G.Canvas.toggle()
         _G.Canvas.virtual_pos = {}
 
         local wins = get_ws_windows(ws.id)
-        local n = #wins
+        local count = #wins
+        local zoom_scale = (count <= 1) and 0.72 or 0.65
+        local spread = (count <= 1) and 1.0 or 1.25
 
-        -- Шаг 1: фиксируем текущие координаты/размеры каждого окна и переводим в плавающий режим на тех же местах
-        for idx, w in ipairs(wins) do
+        for i, w in ipairs(wins) do
             local ox, oy = w.at.x, w.at.y
             local ow, oh = w.size.x, w.size.y
             local was_float = w.floating
@@ -163,55 +156,34 @@ function _G.Canvas.toggle()
                 y = oy,
                 w = ow,
                 h = oh,
-                idx = idx,
             }
 
             if not was_float then
                 hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
-                hl.dispatch(hl.dsp.window.resize({ x = ow, y = oh, window = w }))
-                hl.dispatch(hl.dsp.window.move({ x = ox, y = oy, window = w }))
             end
+
+            local wcx = ox + ow * 0.5
+            local wcy = oy + oh * 0.5
+            local tw = math.max(380, math.floor(ow * zoom_scale + 0.5))
+            local th = math.max(260, math.floor(oh * zoom_scale + 0.5))
+
+            local dx_from_center = (wcx - cx) * spread
+            local dy_from_center = (wcy - cy) * spread
+            if count > 1 and math.abs(dx_from_center) < 40 and math.abs(dy_from_center) < 40 then
+                local angle = (i - 1) * (2.0 * math.pi / count)
+                dx_from_center = math.cos(angle) * 280
+                dy_from_center = math.sin(angle) * 170
+            end
+
+            local tx = math.floor(cx + dx_from_center - tw * 0.5 + 0.5)
+            local ty = math.floor(cy + dy_from_center - th * 0.5 + 0.5)
+
+            hl.dispatch(hl.dsp.window.resize({ x = tw, y = th, window = w }))
+            hl.dispatch(hl.dsp.window.move({ x = tx, y = ty, window = w }))
+            _G.Canvas.virtual_pos[w.address] = { x = tx, y = ty }
         end
 
-        -- Шаг 2: через 25 мс запускаем пружинную анимацию отдаления (Zoom-Out) и разлёта окон по холсту
-        hl.timer(function()
-            local cur_wins = get_ws_windows(ws.id)
-            local count = #cur_wins
-            local zoom_scale = (count == 1) and 0.72 or 0.66
-            local spread = (count == 1) and 1.0 or 1.28
-
-            for i, w in ipairs(cur_wins) do
-                local st = _G.Canvas.saved_state[w.address]
-                local ox = st and st.x or w.at.x
-                local oy = st and st.y or w.at.y
-                local ow = st and st.w or w.size.x
-                local oh = st and st.h or w.size.y
-
-                local wcx = ox + ow * 0.5
-                local wcy = oy + oh * 0.5
-
-                local tw = math.max(380, math.floor(ow * zoom_scale))
-                local th = math.max(260, math.floor(oh * zoom_scale))
-
-                -- Отдаляем центры окон от центра монитора (эффект подъёма камеры над бесконечным холстом)
-                local dx_from_center = (wcx - cx) * spread
-                local dy_from_center = (wcy - cy) * spread
-                if count > 1 and math.abs(dx_from_center) < 40 and math.abs(dy_from_center) < 40 then
-                    local angle = (i - 1) * (2.0 * math.pi / count)
-                    dx_from_center = math.cos(angle) * 260
-                    dy_from_center = math.sin(angle) * 160
-                end
-
-                local tx = math.floor(cx + dx_from_center - tw * 0.5)
-                local ty = math.floor(cy + dy_from_center - th * 0.5)
-
-                hl.dispatch(hl.dsp.window.resize({ x = tw, y = th, window = w }))
-                hl.dispatch(hl.dsp.window.move({ x = tx, y = ty, window = w }))
-                _G.Canvas.virtual_pos[w.address] = { x = tx, y = ty }
-            end
-        end, { timeout = 25 })
-
-        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
+        hl.exec_cmd("pkill -f 'hysett_infinite_canvas.py start_evdev'; python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
         notify("Бесконечный холст ВКЛЮЧЕН", "Super+Alt+ЛКМ — двигать холст | Ctrl+Super+←/→ — перелёт к окну | Super+Alt+Колесо — зум | Super+I — выход")
     else
         _G.Canvas.enabled = false
@@ -219,38 +191,26 @@ function _G.Canvas.toggle()
         hl.exec_cmd("pkill -f 'hysett_infinite_canvas.py start_evdev'")
 
         local wins = get_ws_windows(ws.id)
-        -- Шаг 1: Плавная анимация приближения (Zoom-In) обратно на исходные позиции
         for _, w in ipairs(wins) do
             local st = _G.Canvas.saved_state[w.address]
             if st then
-                hl.dispatch(hl.dsp.window.resize({ x = st.w, y = st.h, window = w }))
-                hl.dispatch(hl.dsp.window.move({ x = st.x, y = st.y, window = w }))
-            else
-                local nw = math.min(mw - 40, math.max(500, w.size.x))
-                local nh = math.min(mh - 60, math.max(360, w.size.y))
-                local nx = math.max(mx + 20, math.min(mx + mw - nw - 20, w.at.x))
-                local ny = math.max(my + 42, math.min(my + mh - nh - 20, w.at.y))
-                hl.dispatch(hl.dsp.window.move({ x = nx, y = ny, window = w }))
+                if not st.was_float then
+                    hl.dispatch(hl.dsp.window.float({ action = "off", window = w }))
+                else
+                    hl.dispatch(hl.dsp.window.resize({ x = st.w, y = st.h, window = w }))
+                    hl.dispatch(hl.dsp.window.move({ x = st.x, y = st.y, window = w }))
+                end
+            elseif w.floating then
+                hl.dispatch(hl.dsp.window.float({ action = "off", window = w }))
             end
         end
 
-        -- Шаг 2: После завершения анимации приближения возвращаем тайловые окна обратно в тайлинг
-        hl.timer(function()
-            for _, w in pairs(hl.get_windows()) do
-                local st = _G.Canvas.saved_state[w.address]
-                if st and not st.was_float and w.floating then
-                    hl.dispatch(hl.dsp.window.float({ action = "off", window = w }))
-                end
-            end
-            _G.Canvas.saved_state = {}
-            _G.Canvas.virtual_pos = {}
-        end, { timeout = 230 })
-
+        _G.Canvas.saved_state = {}
+        _G.Canvas.virtual_pos = {}
         notify("Бесконечный холст ВЫКЛЮЧЕН", "Возврат к обычному рабочему столу")
     end
 end
 
--- Плавный перелёт камеры от окна к окну на бесконечном холсте (CTRL + SUPER + Left / Right)
 function _G.Canvas.focus_cycle(dir)
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -294,7 +254,6 @@ function _G.Canvas.focus_cycle(dir)
     hl.dispatch(hl.dsp.window.bring_to_top({ window = target }))
 end
 
--- Плавное приближение / отдаление (Zoom) всего бесконечного холста (SUPER + ALT + Колесико)
 function _G.Canvas.zoom(factor)
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -326,7 +285,6 @@ function _G.Canvas.zoom(factor)
     end
 end
 
--- Собрать все разбросанные окна холста обратно перед глазами (SUPER + ALT + C)
 function _G.Canvas.gather_home()
     local ws = hl.get_active_workspace()
     if not ws then return end

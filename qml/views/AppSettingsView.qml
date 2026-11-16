@@ -1052,19 +1052,73 @@ RowLayout {
 
                             Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }
 
-                            Text {
-                                text: "Список изменений последнего релиза / коммита:"
-                                color: "#aaaaaa"
-                                font.pixelSize: Config.fontSize - 1
-                                font.bold: true
-                            }
-                            Text {
+                            Rectangle {
+                                id: clToggleBar
+                                property bool expanded: false
                                 Layout.fillWidth: true
-                                wrapMode: Text.Wrap
-                                textFormat: Text.MarkdownText
-                                text: Config ? Config.updateChangelog : ""
-                                color: "#dddddd"
-                                font.pixelSize: Config.fontSize
+                                implicitHeight: 28
+                                radius: appSetRoot.isM3 ? 8 : 0
+                                color: clMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
+                                border.color: Qt.rgba(1, 1, 1, 0.12)
+                                border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    spacing: 8
+
+                                    Text {
+                                        text: "󰋼  Список изменений последнего релиза / коммита"
+                                        color: "#cccccc"
+                                        font.pixelSize: Config.fontSize
+                                        font.bold: true
+                                        Layout.fillWidth: true
+                                    }
+
+                                    Text {
+                                        text: clToggleBar.expanded ? "Скрыть" : "Показать"
+                                        color: Config ? Config.m3Primary : "#a8c7fa"
+                                        font.pixelSize: Config.fontSize - 1
+                                        font.bold: true
+                                    }
+
+                                    Text {
+                                        text: "▾"
+                                        color: Config ? Config.m3Primary : "#ffffff"
+                                        font.pixelSize: 12
+                                        rotation: clToggleBar.expanded ? 180 : 0
+                                        Behavior on rotation { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: clMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: clToggleBar.expanded = !clToggleBar.expanded
+                                }
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                                clip: true
+                                implicitHeight: clToggleBar.expanded ? (clBodyText.implicitHeight + 8) : 0
+                                opacity: clToggleBar.expanded ? 1.0 : 0.0
+                                Behavior on implicitHeight { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                Behavior on opacity { NumberAnimation { duration: 180 } }
+
+                                Text {
+                                    id: clBodyText
+                                    width: parent.width
+                                    y: 4
+                                    wrapMode: Text.Wrap
+                                    textFormat: Text.MarkdownText
+                                    text: Config ? Config.updateChangelog : ""
+                                    color: "#dddddd"
+                                    font.pixelSize: Config.fontSize
+                                }
                             }
                         }
                     }

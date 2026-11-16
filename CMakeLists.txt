@@ -131,6 +131,7 @@ qt_add_qml_module(hysett
         qml/views/WebShareView.qml
         qml/views/BootloaderView.qml
         qml/views/TerminalView.qml
+        qml/views/CanvasView.qml
 )
 
 target_link_libraries(hysett PRIVATE

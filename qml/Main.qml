@@ -2024,7 +2024,7 @@ ApplicationWindow {
                                 if (mouse.button === Qt.RightButton)
                                     Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py home")
                                 else
-                                    Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py toggle")
+                                    root.openDrawerWithMode("settings", 34)
                             }
                         }
                     }
@@ -5364,7 +5364,8 @@ ApplicationWindow {
                             "views/PhoneBridgeView.qml",
                             "views/WebShareView.qml",
                             "views/BootloaderView.qml",
-                            "views/TerminalView.qml"
+                            "views/TerminalView.qml",
+                            "views/CanvasView.qml"
                         ]
 
                         Loader {

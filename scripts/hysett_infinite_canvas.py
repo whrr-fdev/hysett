@@ -6,6 +6,7 @@ import struct
 import select
 import signal
 import socket
+import json
 import time
 import subprocess
 
@@ -15,6 +16,7 @@ EV_REL = 2
 REL_X = 0
 REL_Y = 1
 REL_WHEEL = 8
+REL_WHEEL_HI_RES = 11
 
 KEY_LEFTMETA = 125
 KEY_RIGHTMETA = 126
@@ -25,39 +27,49 @@ BTN_MIDDLE = 274
 
 PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
 PID_FILE = "/tmp/hysett_canvas_evdev.pid"
+CONF_FILE = os.path.expanduser("~/.config/hypr/canvas.json")
 
 
-def get_hypr_cmd_sock_path():
+def get_hypr_sock_path(sock_name=".socket.sock"):
     xdg = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
     sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
-    if not sig:
-        hypr_dir = os.path.join(xdg, "hypr")
-        if os.path.isdir(hypr_dir):
-            entries = sorted(os.listdir(hypr_dir))
-            if entries:
-                sig = entries[-1]
-    if not sig:
-        return None
-    p = os.path.join(xdg, "hypr", sig, ".socket.sock")
-    return p if os.path.exists(p) else None
+    if sig:
+        p = os.path.join(xdg, "hypr", sig, sock_name)
+        if os.path.exists(p):
+            return p
+    hypr_dir = os.path.join(xdg, "hypr")
+    if os.path.isdir(hypr_dir):
+        candidates = []
+        for d in os.listdir(hypr_dir):
+            p = os.path.join(hypr_dir, d, sock_name)
+            if os.path.exists(p):
+                try:
+                    candidates.append((os.path.getmtime(p), p))
+                except Exception:
+                    pass
+        if candidates:
+            candidates.sort(reverse=True)
+            return candidates[0][1]
+    return None
 
 
-CMD_SOCK_PATH = get_hypr_cmd_sock_path()
+CMD_SOCK_PATH = get_hypr_sock_path(".socket.sock")
 
 
 def repl_lua(code):
     global CMD_SOCK_PATH
-    if not CMD_SOCK_PATH:
-        CMD_SOCK_PATH = get_hypr_cmd_sock_path()
+    if not CMD_SOCK_PATH or not os.path.exists(CMD_SOCK_PATH):
+        CMD_SOCK_PATH = get_hypr_sock_path(".socket.sock")
     if CMD_SOCK_PATH:
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-                s.settimeout(0.05)
+                s.settimeout(0.08)
                 s.connect(CMD_SOCK_PATH)
                 s.sendall(f"repl {code}".encode("utf-8"))
+                s.recv(128)
                 return
         except Exception:
-            pass
+            CMD_SOCK_PATH = None
     subprocess.Popen(
         ["hyprctl", "repl", code],
         stdout=subprocess.DEVNULL,
@@ -94,12 +106,8 @@ def stop_existing():
 
 
 def connect_hypr_event_sock():
-    xdg = os.environ.get("XDG_RUNTIME_DIR", f"/run/user/{os.getuid()}")
-    sig = os.environ.get("HYPRLAND_INSTANCE_SIGNATURE", "")
-    if not sig:
-        return None
-    sock_path = os.path.join(xdg, "hypr", sig, ".socket2.sock")
-    if not os.path.exists(sock_path):
+    sock_path = get_hypr_sock_path(".socket2.sock")
+    if not sock_path:
         return None
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -140,6 +148,7 @@ def start_evdev_listener():
     edge_y = 0.0
     wheel_acc = 0
     last_flush = time.monotonic()
+    last_wheel_time = 0.0
     panlock_cached = False
     last_panlock_check = 0.0
 
@@ -204,6 +213,11 @@ def start_evdev_listener():
                     if code == REL_WHEEL and super_down and alt_down and val != 0:
                         wheel_acc += (1 if val > 0 else -1)
                         continue
+                    if code == REL_WHEEL_HI_RES and super_down and alt_down and abs(val) >= 60:
+                        if now - last_wheel_time > 0.05:
+                            wheel_acc += (1 if val > 0 else -1)
+                            last_wheel_time = now
+                        continue
 
                     is_canvas_drag = (super_down and alt_down and lmb_down) or (super_down and mmb_down) or panlock_cached
                     if is_canvas_drag:
@@ -220,7 +234,8 @@ def start_evdev_listener():
         if wheel_acc != 0:
             w_step = wheel_acc
             wheel_acc = 0
-            factor = 1.18 if w_step > 0 else 0.85
+            last_wheel_time = now
+            factor = 1.15 if w_step > 0 else 0.87
             repl_lua(f"if _G.Canvas then _G.Canvas.zoom({factor}) end")
 
         if now - last_flush >= 0.008:
@@ -240,6 +255,37 @@ def start_evdev_listener():
                 repl_lua(f"if _G.Canvas then _G.Canvas.edge_push({edx}, {edy}) end")
 
 
+def update_setting(key, val_str):
+    cfg = {}
+    if os.path.exists(CONF_FILE):
+        try:
+            with open(CONF_FILE, "r") as f:
+                cfg = json.load(f)
+        except Exception:
+            cfg = {}
+
+    if val_str in ("true", "false"):
+        val = (val_str == "true")
+        lua_val = "true" if val else "false"
+    else:
+        try:
+            if "." in val_str:
+                val = float(val_str)
+            else:
+                val = int(val_str)
+            lua_val = str(val)
+        except Exception:
+            val = val_str
+            lua_val = f"'{val_str}'"
+
+    cfg[key] = val
+    os.makedirs(os.path.dirname(CONF_FILE), exist_ok=True)
+    with open(CONF_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
+
+    repl_lua(f"if _G.Canvas then _G.Canvas.set_option('{key}', {lua_val}) end")
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "toggle"
     if cmd in ("start_evdev", "_daemon"):
@@ -256,7 +302,15 @@ if __name__ == "__main__":
         repl_lua("if _G.Canvas then _G.Canvas.gather_home() end")
     elif cmd == "invert":
         repl_lua("if _G.Canvas then _G.Canvas.toggle_invert() end")
+    elif cmd == "panlock":
+        repl_lua("if _G.Canvas then _G.Canvas.toggle_pan_lock() end")
     elif cmd == "zoom_in":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom(1.18) end")
+        repl_lua("if _G.Canvas then _G.Canvas.zoom(1.15) end")
     elif cmd == "zoom_out":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom(0.85) end")
+        repl_lua("if _G.Canvas then _G.Canvas.zoom(0.87) end")
+    elif cmd == "zoom_reset":
+        repl_lua("if _G.Canvas then _G.Canvas.zoom_reset() end")
+    elif cmd == "nav" and len(sys.argv) > 2:
+        repl_lua(f"if _G.Canvas then _G.Canvas.navigate('{sys.argv[2]}') end")
+    elif cmd == "set" and len(sys.argv) > 3:
+        update_setting(sys.argv[2], sys.argv[3])

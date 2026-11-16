@@ -7,18 +7,22 @@ _G.Canvas = _G.Canvas or {
     panning = false,
     inverted = false,
     speed = 3.2,
-    zoom_factor = 1.0,
+    accel = 1.6,
+    min_gap = 12,
+    key_step = 110,
+    zoom_scale = 1.0,
+    zoom_keep_size = false,
+    all_workspaces = true,
+    edge_push_enabled = true,
     active_ws_id = 1,
     next_order_seq = 1,
     saved_state = {},
     virtual_pos = {},
     win_order = {},
 }
-_G.Canvas.speed = 3.2
 
 local PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
 local ACTIVE_FILE  = "/tmp/hysett_canvas_active"
-local MIN_GAP      = 12
 
 local IGNORED_CLASSES = {
     ["hypratmooverlay"] = true,
@@ -116,14 +120,14 @@ local function ensure_vp(w)
             y = w.at.y,
             w = w.size.x,
             h = w.size.y,
+            base_w = w.size.x,
+            base_h = w.size.y,
         }
         _G.Canvas.virtual_pos[key] = vp
     end
     return vp
 end
 
--- В Hyprland Lua move и resize работают только с текущим активным окном,
--- поэтому перед геометрией всегда фокусируем целевое окно w
 local function apply_win_geom(w, x, y, width, height)
     if not w then return end
     local vp = ensure_vp(w)
@@ -162,7 +166,8 @@ local function focus_and_raise(w)
 end
 
 local function rect_overlaps_any(x, y, w, h, ignore_addr, placed_list)
-    local pad = MIN_GAP - 1
+    local gap = _G.Canvas.min_gap or 12
+    local pad = gap - 1
     local l1 = x - pad
     local r1 = x + w + pad
     local t1 = y - pad
@@ -183,6 +188,7 @@ local function rect_overlaps_any(x, y, w, h, ignore_addr, placed_list)
 end
 
 local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, placed_list)
+    local gap = _G.Canvas.min_gap or 12
     local center_x = origin_cx - win_w * 0.5
     local center_y = origin_cy - win_h * 0.5
     if #placed_list == 0 or not rect_overlaps_any(center_x, center_y, win_w, win_h, ignore_addr, placed_list) then
@@ -195,19 +201,19 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
         local mid_y = py + (ph - win_h) * 0.5
         local mid_x = px + (pw - win_w) * 0.5
 
-        table.insert(candidates, { x = px + pw + MIN_GAP, y = mid_y })
-        table.insert(candidates, { x = px - win_w - MIN_GAP, y = mid_y })
-        table.insert(candidates, { x = mid_x, y = py + ph + MIN_GAP })
-        table.insert(candidates, { x = mid_x, y = py - win_h - MIN_GAP })
+        table.insert(candidates, { x = px + pw + gap, y = mid_y })
+        table.insert(candidates, { x = px - win_w - gap, y = mid_y })
+        table.insert(candidates, { x = mid_x, y = py + ph + gap })
+        table.insert(candidates, { x = mid_x, y = py - win_h - gap })
 
-        table.insert(candidates, { x = px + pw + MIN_GAP, y = py })
-        table.insert(candidates, { x = px + pw + MIN_GAP, y = py + ph - win_h })
-        table.insert(candidates, { x = px - win_w - MIN_GAP, y = py })
-        table.insert(candidates, { x = px - win_w - MIN_GAP, y = py + ph - win_h })
-        table.insert(candidates, { x = px, y = py + ph + MIN_GAP })
-        table.insert(candidates, { x = px + pw - win_w, y = py + ph + MIN_GAP })
-        table.insert(candidates, { x = px, y = py - win_h - MIN_GAP })
-        table.insert(candidates, { x = px + pw - win_w, y = py - win_h - MIN_GAP })
+        table.insert(candidates, { x = px + pw + gap, y = py })
+        table.insert(candidates, { x = px + pw + gap, y = py + ph - win_h })
+        table.insert(candidates, { x = px - win_w - gap, y = py })
+        table.insert(candidates, { x = px - win_w - gap, y = py + ph - win_h })
+        table.insert(candidates, { x = px, y = py + ph + gap })
+        table.insert(candidates, { x = px + pw - win_w, y = py + ph + gap })
+        table.insert(candidates, { x = px, y = py - win_h - gap })
+        table.insert(candidates, { x = px + pw - win_w, y = py - win_h - gap })
     end
 
     local best_x, best_y = nil, nil
@@ -232,17 +238,26 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
         return best_x, best_y
     end
 
-    local step_x = win_w + MIN_GAP
+    local step_x = win_w + gap
     return origin_cx + (#placed_list) * step_x - win_w * 0.5, center_y
+end
+
+function _G.Canvas.set_option(key, val)
+    _G.Canvas[key] = val
+    if key == "min_gap" and _G.Canvas.enabled then
+        _G.Canvas.gather_home()
+    end
 end
 
 function _G.Canvas.pan_delta(raw_dx, raw_dy)
     if not _G.Canvas.enabled then return end
     local sgn = _G.Canvas.inverted and -1.0 or 1.0
     local mag = math.sqrt(raw_dx * raw_dx + raw_dy * raw_dy)
-    local accel = 1.0 + math.min(1.6, mag * 0.025)
-    local dx = raw_dx * _G.Canvas.speed * accel * sgn
-    local dy = raw_dy * _G.Canvas.speed * accel * sgn
+    local max_acc = _G.Canvas.accel or 1.6
+    local accel = 1.0 + math.min(max_acc, mag * 0.025)
+    local spd = _G.Canvas.speed or 3.2
+    local dx = raw_dx * spd * accel * sgn
+    local dy = raw_dy * spd * accel * sgn
     if math.abs(dx) < 0.5 and math.abs(dy) < 0.5 then return end
 
     local ws = hl.get_active_workspace()
@@ -260,7 +275,7 @@ function _G.Canvas.pan_delta(raw_dx, raw_dy)
 end
 
 function _G.Canvas.edge_push(raw_dx, raw_dy)
-    if not _G.Canvas.enabled then return end
+    if not _G.Canvas.enabled or _G.Canvas.edge_push_enabled == false then return end
     local active = hl.get_active_window()
     if not active or not active.floating then return end
 
@@ -268,7 +283,8 @@ function _G.Canvas.edge_push(raw_dx, raw_dy)
     local margin = 18
     local ax, ay = active.at.x, active.at.y
     local aw, ah = active.size.x, active.size.y
-    _G.Canvas.virtual_pos[norm_addr(active.address)] = { x = ax, y = ay, w = aw, h = ah }
+    local vp_act = ensure_vp(active)
+    vp_act.x = ax; vp_act.y = ay; vp_act.w = aw; vp_act.h = ah
 
     local mult = 2.4
     local push_x, push_y = 0, 0
@@ -355,7 +371,6 @@ function _G.Canvas.on_window_open(addr_str)
     end
 
     local nw, nh = orig_w, orig_h
-
     local placed = {}
     local other_wins = {}
     for _, w in ipairs(get_ws_windows(ws.id)) do
@@ -381,14 +396,11 @@ function _G.Canvas.on_window_open(addr_str)
 
     local center_x = cx - nw * 0.5
     local center_y = cy - nh * 0.5
+    local nvp = ensure_vp(new_win)
+    nvp.base_w = nw
+    nvp.base_h = nh
     apply_win_geom(new_win, center_x, center_y, nw, nh)
     focus_and_raise(new_win)
-end
-
-local function set_hypr_zoom(zf)
-    pcall(function()
-        hl.config({ cursor = { zoom_factor = zf } })
-    end)
 end
 
 function _G.Canvas.toggle()
@@ -399,7 +411,7 @@ function _G.Canvas.toggle()
 
     if not _G.Canvas.enabled then
         _G.Canvas.enabled = true
-        _G.Canvas.zoom_factor = 1.0
+        _G.Canvas.zoom_scale = 1.0
         _G.Canvas.active_ws_id = ws.id
         _G.Canvas.saved_state = {}
         _G.Canvas.virtual_pos = {}
@@ -411,7 +423,9 @@ function _G.Canvas.toggle()
         local raw_wins = {}
         for _, w in pairs(hl.get_windows()) do
             if is_valid_win(w) then
-                table.insert(raw_wins, w)
+                if _G.Canvas.all_workspaces ~= false or w.workspace.id == ws.id then
+                    table.insert(raw_wins, w)
+                end
             end
         end
 
@@ -424,7 +438,6 @@ function _G.Canvas.toggle()
             return tostring(a.address) < tostring(b.address)
         end)
 
-        -- Сохраняем точные исходные размеры и координаты ДО перевода в плавающий режим
         for i, w in ipairs(raw_wins) do
             local key = norm_addr(w.address)
             _G.Canvas.win_order[key] = i
@@ -455,8 +468,6 @@ function _G.Canvas.toggle()
             end
         end
 
-        -- Если первое окно широкое (во весь экран) и окон несколько, смещаем стартовую точку на 240px влево,
-        -- чтобы сразу было видно соседнее окно справа через зазор 12 px без уменьшения самих окон
         local start_cx = cx
         if #ordered > 1 then
             local st1 = _G.Canvas.saved_state[norm_addr(ordered[1].address)]
@@ -486,6 +497,9 @@ function _G.Canvas.toggle()
             local tw, th = st.w, st.h
             local tx, ty = find_free_spot(tw, th, start_cx, cy, key, placed)
 
+            local vp = ensure_vp(w)
+            vp.base_w = tw
+            vp.base_h = th
             apply_win_geom(w, tx, ty, tw, th)
             table.insert(placed, { addr = key, x = tx, y = ty, w = tw, h = th })
         end
@@ -498,10 +512,9 @@ function _G.Canvas.toggle()
     else
         _G.Canvas.enabled = false
         _G.Canvas.panning = false
-        _G.Canvas.zoom_factor = 1.0
+        _G.Canvas.zoom_scale = 1.0
         os.remove(PANLOCK_FILE)
         set_active_indicator(false)
-        set_hypr_zoom(1.0)
         hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py stop_evdev &")
 
         local all_wins = {}
@@ -678,7 +691,7 @@ function _G.Canvas.move_or_swap(dir)
     end
     if not active or not active.floating then return end
 
-    local step = 110
+    local step = _G.Canvas.key_step or 110
     local dx, dy = 0, 0
     if dir == "left" or dir == "l" then dx = -step
     elseif dir == "right" or dir == "r" then dx = step
@@ -736,12 +749,61 @@ function _G.Canvas.focus_cycle(dir)
     pan_canvas_to_window(wins, target)
 end
 
+-- Геометрическое масштабирование холста в реальном времени
 function _G.Canvas.zoom(factor)
     if not _G.Canvas.enabled then return end
-    local old_z = _G.Canvas.zoom_factor or 1.0
-    local new_z = math.max(1.0, math.min(3.0, old_z * factor))
-    _G.Canvas.zoom_factor = new_z
-    set_hypr_zoom(new_z)
+    local ws = hl.get_active_workspace()
+    if not ws then return end
+    local wins = {}
+    for _, w in ipairs(get_ws_windows(ws.id)) do
+        if w.floating then table.insert(wins, w) end
+    end
+    if #wins == 0 then return end
+
+    local cur_s = _G.Canvas.zoom_scale or 1.0
+    local new_s = math.max(0.45, math.min(1.65, cur_s * factor))
+    local eff = new_s / cur_s
+    if math.abs(eff - 1.0) < 0.005 then return end
+    _G.Canvas.zoom_scale = new_s
+
+    local mx, my, mw, mh = get_monitor_box()
+    local cx, cy = mx + mw * 0.5, my + mh * 0.5
+    local active = hl.get_active_window()
+
+    for _, w in ipairs(wins) do
+        local vp = ensure_vp(w)
+        local bw = vp.base_w or vp.w
+        local bh = vp.base_h or vp.h
+        local wcx = vp.x + vp.w * 0.5
+        local wcy = vp.y + vp.h * 0.5
+
+        local ncx = cx + (wcx - cx) * eff
+        local ncy = cy + (wcy - cy) * eff
+
+        if _G.Canvas.zoom_keep_size then
+            local nx = ncx - vp.w * 0.5
+            local ny = ncy - vp.h * 0.5
+            apply_win_geom(w, nx, ny, nil, nil)
+        else
+            local nw = math.max(260, math.floor(bw * new_s + 0.5))
+            local nh = math.max(180, math.floor(bh * new_s + 0.5))
+            local nx = ncx - nw * 0.5
+            local ny = ncy - nh * 0.5
+            apply_win_geom(w, nx, ny, nw, nh)
+        end
+    end
+
+    if active then
+        hl.dispatch(hl.dsp.focus({ window = active }))
+    end
+end
+
+function _G.Canvas.zoom_reset()
+    if not _G.Canvas.enabled then return end
+    local cur_s = _G.Canvas.zoom_scale or 1.0
+    if math.abs(cur_s - 1.0) > 0.005 then
+        _G.Canvas.zoom(1.0 / cur_s)
+    end
 end
 
 function _G.Canvas.gather_home()

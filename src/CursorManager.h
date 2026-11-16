@@ -4,6 +4,7 @@
 #include <QVariantList>
 #include <QQuickImageProvider>
 #include <QImage>
+#include <QProcess>
 
 class CursorImageProvider : public QQuickImageProvider {
 public:
@@ -32,6 +33,9 @@ class CursorManager : public QObject {
     Q_PROPERTY(QString installStatus READ installStatus NOTIFY installStatusChanged)
     Q_PROPERTY(bool installSuccess READ installSuccess NOTIFY installStatusChanged)
     Q_PROPERTY(QVariantList downloadArchives READ downloadArchives NOTIFY downloadArchivesChanged)
+    Q_PROPERTY(QVariantList onlineCursors READ onlineCursors NOTIFY onlineCursorsChanged)
+    Q_PROPERTY(bool onlineLoading READ onlineLoading NOTIFY onlineLoadingChanged)
+    Q_PROPERTY(QString downloadingId READ downloadingId NOTIFY downloadingIdChanged)
 
 public:
     explicit CursorManager(QObject *parent = nullptr);
@@ -76,6 +80,9 @@ public:
     QString installStatus() const { return m_installStatus; }
     bool installSuccess() const { return m_installSuccess; }
     QVariantList downloadArchives() const { return m_downloadArchives; }
+    QVariantList onlineCursors() const { return m_onlineCursors; }
+    bool onlineLoading() const { return m_onlineLoading; }
+    QString downloadingId() const { return m_downloadingId; }
 
     Q_INVOKABLE void stepSize(int delta);
     Q_INVOKABLE void stepZoom(qreal delta);
@@ -83,6 +90,8 @@ public:
     Q_INVOKABLE QString browseCursorArchive();
     Q_INVOKABLE bool installCursor(const QString &path, bool applyImmediately = true);
     Q_INVOKABLE void refreshDownloadArchives();
+    Q_INVOKABLE void searchOnlineCursors(const QString &query = "", const QString &source = "all");
+    Q_INVOKABLE void downloadAndInstallCursor(const QString &cardId, const QString &url, const QString &fileNameHint, bool applyImmediately = true);
 
 signals:
     void themeChanged();
@@ -100,11 +109,15 @@ signals:
     void installedThemesChanged();
     void installStatusChanged();
     void downloadArchivesChanged();
+    void onlineCursorsChanged();
+    void onlineLoadingChanged();
+    void downloadingIdChanged();
 
 private:
     void scanThemes();
     void loadSettings();
     void saveAndApply();
+    QString storeScriptPath() const;
 
     QString m_theme = "Bibata-Modern-Classic";
     int m_size = 24;
@@ -123,4 +136,9 @@ private:
     QString m_installStatus;
     bool m_installSuccess = false;
     QVariantList m_downloadArchives;
+    QVariantList m_onlineCursors;
+    bool m_onlineLoading = false;
+    QString m_downloadingId;
+    QProcess *m_searchProc = nullptr;
+    QProcess *m_dlProc = nullptr;
 };

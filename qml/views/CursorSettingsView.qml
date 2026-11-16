@@ -12,6 +12,9 @@ ScrollView {
     property int currentTab: 0
     property string selectedArchivePath: ""
     property bool applyImmediately: true
+    property string searchQuery: ""
+    property int sourceFilterIdx: 0
+    readonly property var sourceCodes: ["all", "gnome-look", "github", "popular"]
 
     Item {
         width: curScroll.availableWidth
@@ -40,11 +43,16 @@ ScrollView {
                 Item { Layout.fillWidth: true }
 
                 SegmentedButton {
-                    options: ["󰇀 Настройки", "󰉍 Установка курсора"]
+                    options: ["󰇀 Настройки", "󰉍 Каталог и установка"]
                     selectedIndex: curScroll.currentTab
                     onSelected: (idx) => {
                         curScroll.currentTab = idx
-                        if (idx === 1) Cursor.refreshDownloadArchives()
+                        if (idx === 1) {
+                            Cursor.refreshDownloadArchives()
+                            if (Cursor.onlineCursors.length === 0 && !Cursor.onlineLoading) {
+                                Cursor.searchOnlineCursors(curScroll.searchQuery, curScroll.sourceCodes[curScroll.sourceFilterIdx])
+                            }
+                        }
                     }
                 }
             }
@@ -77,10 +85,13 @@ ScrollView {
                             }
                             Item { Layout.fillWidth: true }
                             StyledButton {
-                                text: "󰉍 Установить новый"
+                                text: "󰉍 Скачать / Установить"
                                 onClicked: {
                                     curScroll.currentTab = 1
                                     Cursor.refreshDownloadArchives()
+                                    if (Cursor.onlineCursors.length === 0 && !Cursor.onlineLoading) {
+                                        Cursor.searchOnlineCursors(curScroll.searchQuery, curScroll.sourceCodes[curScroll.sourceFilterIdx])
+                                    }
                                 }
                             }
                         }
@@ -268,12 +279,308 @@ ScrollView {
                 }
             }
 
-            // ===================== ВКЛАДКА 1: УСТАНОВКА КУРСОРА =====================
+            // ===================== ВКЛАДКА 1: КАТАЛОГ И УСТАНОВКА =====================
             ColumnLayout {
                 Layout.fillWidth: true
                 spacing: 10
                 visible: curScroll.currentTab === 1
 
+                // Плашка статуса (общая для онлайн-скачивания и локальной установки)
+                Rectangle {
+                    visible: Cursor.installStatus !== ""
+                    Layout.fillWidth: true
+                    implicitHeight: statusRow.implicitHeight + 16
+                    radius: (Theme && Theme.isRounded) ? 10 : 0
+                    color: Cursor.installSuccess ? Qt.rgba(0.18, 0.75, 0.42, 0.16) : Qt.rgba(0.92, 0.28, 0.28, 0.16)
+                    border.color: Cursor.installSuccess ? Qt.rgba(0.25, 0.88, 0.52, 0.45) : Qt.rgba(0.95, 0.35, 0.35, 0.45)
+                    border.width: 1
+
+                    RowLayout {
+                        id: statusRow
+                        anchors.fill: parent
+                        anchors.margins: 8
+                        spacing: 8
+
+                        Text {
+                            text: Cursor.downloadingId !== "" ? "󰑐" : (Cursor.installSuccess ? "󰄬" : "󰅙")
+                            color: Cursor.installSuccess ? "#5eead4" : "#f87171"
+                            font.pixelSize: Config.fontSize + 2
+                            font.bold: true
+                        }
+
+                        Text {
+                            text: Cursor.installStatus
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize
+                            Layout.fillWidth: true
+                            wrapMode: Text.WordWrap
+                        }
+                    }
+                }
+
+                // КАРТОЧКА ОНЛАЙН-ПОИСКА КУРСОРОВ (Gnome-Look + GitHub)
+                GlassPanel {
+                    objectName: "atmoObstacle"
+                    Layout.fillWidth: true
+                    implicitHeight: colOnline.implicitHeight + 24
+
+                    ColumnLayout {
+                        id: colOnline
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 10
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 10
+
+                            Text {
+                                text: "󰖟 Онлайн-каталог курсоров (Gnome-Look / GitHub)"
+                                color: "#ffffff"
+                                font.pixelSize: Config.fontSize + 1
+                                font.bold: true
+                            }
+
+                            Item { Layout.fillWidth: true }
+
+                            Text {
+                                text: "Сразу применять:"
+                                color: "#bbbbbb"
+                                font.pixelSize: Config.fontSize - 1
+                            }
+
+                            StyledSwitch {
+                                checked: curScroll.applyImmediately
+                                onToggled: curScroll.applyImmediately = checked
+                            }
+                        }
+
+                        // Строка поиска и фильтров
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 28
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.color: onlineSearchInput.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.16)
+                                border.width: 1
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 8
+                                    spacing: 6
+
+                                    Text {
+                                        text: "󰍉"
+                                        color: "#888888"
+                                        font.pixelSize: Config.fontSize
+                                    }
+
+                                    TextInput {
+                                        id: onlineSearchInput
+                                        Layout.fillWidth: true
+                                        verticalAlignment: TextInput.AlignVCenter
+                                        color: "#ffffff"
+                                        font.pixelSize: Config.fontSize
+                                        selectByMouse: true
+                                        clip: true
+                                        text: curScroll.searchQuery
+                                        onTextEdited: curScroll.searchQuery = text
+                                        onAccepted: Cursor.searchOnlineCursors(curScroll.searchQuery, curScroll.sourceCodes[curScroll.sourceFilterIdx])
+
+                                        Text {
+                                            anchors.fill: parent
+                                            verticalAlignment: Text.AlignVCenter
+                                            text: "Поиск курсоров (например: Bibata, Catppuccin, macOS, Nord, Anime)..."
+                                            color: "#666666"
+                                            font.pixelSize: Config.fontSize
+                                            visible: !onlineSearchInput.text && !onlineSearchInput.activeFocus
+                                        }
+                                    }
+                                }
+                            }
+
+                            SegmentedButton {
+                                options: ["Все", "Gnome-Look", "GitHub", "Топ"]
+                                selectedIndex: curScroll.sourceFilterIdx
+                                onSelected: (idx) => {
+                                    curScroll.sourceFilterIdx = idx
+                                    Cursor.searchOnlineCursors(curScroll.searchQuery, curScroll.sourceCodes[idx])
+                                }
+                            }
+
+                            StyledButton {
+                                text: Cursor.onlineLoading ? "󰑐 Поиск..." : "󰍉 Найти"
+                                isAccent: true
+                                onClicked: Cursor.searchOnlineCursors(curScroll.searchQuery, curScroll.sourceCodes[curScroll.sourceFilterIdx])
+                            }
+                        }
+
+                        // Индикатор загрузки
+                        Rectangle {
+                            visible: Cursor.onlineLoading
+                            Layout.fillWidth: true
+                            implicitHeight: 42
+                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            color: Qt.rgba(1, 1, 1, 0.03)
+
+                            Text {
+                                anchors.centerIn: parent
+                                text: "󰑐 Загрузка карточек курсоров с Gnome-Look и GitHub..."
+                                color: "#cccccc"
+                                font.pixelSize: Config.fontSize
+                            }
+                        }
+
+                        // Сетка карточек курсоров с сайтов
+                        GridLayout {
+                            Layout.fillWidth: true
+                            columns: width > 680 ? 3 : 2
+                            columnSpacing: 10
+                            rowSpacing: 10
+                            visible: Cursor.onlineCursors.length > 0
+
+                            Repeater {
+                                model: Cursor.onlineCursors
+                                delegate: Rectangle {
+                                    id: onlineCard
+                                    Layout.fillWidth: true
+                                    implicitHeight: cardInnerCol.implicitHeight + 20
+                                    radius: (Theme && Theme.isRounded) ? 12 : 0
+                                    color: Qt.rgba(1, 1, 1, 0.04)
+                                    border.color: Qt.rgba(1, 1, 1, 0.13)
+                                    border.width: 1
+
+                                    property int selectedVarIdx: 0
+                                    readonly property var variantsList: modelData.variants ? modelData.variants : []
+                                    readonly property bool isThisDownloading: Cursor.downloadingId === modelData.id
+
+                                    ColumnLayout {
+                                        id: cardInnerCol
+                                        anchors.fill: parent
+                                        anchors.margins: 10
+                                        spacing: 8
+
+                                        // Превью-картинка с сайта
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            implicitHeight: 110
+                                            radius: (Theme && Theme.isRounded) ? 9 : 0
+                                            color: Qt.rgba(0, 0, 0, 0.32)
+                                            border.color: Qt.rgba(1, 1, 1, 0.10)
+                                            border.width: 1
+                                            clip: true
+
+                                            Image {
+                                                id: previewImg
+                                                anchors.fill: parent
+                                                anchors.margins: 4
+                                                source: modelData.preview || ""
+                                                fillMode: Image.PreserveAspectFit
+                                                asynchronous: true
+                                                smooth: true
+                                                cache: true
+                                            }
+
+                                            Text {
+                                                anchors.centerIn: parent
+                                                visible: previewImg.status !== Image.Ready
+                                                text: previewImg.status === Image.Loading ? "󰑐" : "󰇀"
+                                                color: "#666666"
+                                                font.pixelSize: 24
+                                            }
+
+                                            // Бейдж источника (Gnome-Look / GitHub)
+                                            Rectangle {
+                                                anchors.top: parent.top
+                                                anchors.right: parent.right
+                                                anchors.margins: 6
+                                                height: 18
+                                                width: srcBadgeText.implicitWidth + 10
+                                                radius: (Theme && Theme.isRounded) ? 5 : 0
+                                                color: Qt.rgba(0, 0, 0, 0.72)
+                                                border.color: Qt.rgba(1, 1, 1, 0.18)
+                                                border.width: 1
+
+                                                Text {
+                                                    id: srcBadgeText
+                                                    anchors.centerIn: parent
+                                                    text: modelData.source || "Web"
+                                                    color: Config ? Config.m3Primary : "#ffffff"
+                                                    font.pixelSize: Config.fontSize - 2
+                                                    font.bold: true
+                                                }
+                                            }
+                                        }
+
+                                        // Заголовок и автор
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 6
+
+                                            ColumnLayout {
+                                                Layout.fillWidth: true
+                                                spacing: 1
+
+                                                Text {
+                                                    text: modelData.title || "Cursor Theme"
+                                                    color: "#ffffff"
+                                                    font.pixelSize: Config.fontSize
+                                                    font.bold: true
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+
+                                                Text {
+                                                    text: "󰀄 " + (modelData.author || "author") + (modelData.downloads ? "  •  󰇚 " + modelData.downloads : "")
+                                                    color: "#888888"
+                                                    font.pixelSize: Config.fontSize - 2
+                                                    elide: Text.ElideRight
+                                                    Layout.fillWidth: true
+                                                }
+                                            }
+                                        }
+
+                                        // Выбор варианта (если в релизе несколько расцветок/архивов)
+                                        StyledComboBox {
+                                            visible: onlineCard.variantsList.length > 1
+                                            Layout.fillWidth: true
+                                            model: {
+                                                var arr = []
+                                                for (var i = 0; i < onlineCard.variantsList.length; ++i) {
+                                                    arr.push(onlineCard.variantsList[i].name)
+                                                }
+                                                return arr
+                                            }
+                                            currentIndex: onlineCard.selectedVarIdx
+                                            onActivated: (idx) => onlineCard.selectedVarIdx = idx
+                                        }
+
+                                        StyledButton {
+                                            Layout.fillWidth: true
+                                            isAccent: true
+                                            text: onlineCard.isThisDownloading ? "󰑐 Скачивание..." : "󰇚 Скачать и установить"
+                                            enabled: Cursor.downloadingId === "" && onlineCard.variantsList.length > 0
+                                            onClicked: {
+                                                var vIdx = Math.min(onlineCard.selectedVarIdx, onlineCard.variantsList.length - 1)
+                                                var chosen = onlineCard.variantsList[vIdx]
+                                                if (chosen && chosen.url) {
+                                                    Cursor.downloadAndInstallCursor(modelData.id, chosen.url, chosen.name || "", curScroll.applyImmediately)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // КАРТОЧКА ЛОКАЛЬНОЙ УСТАНОВКИ ИЗ ФАЙЛА ИЛИ ПАПКИ
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
@@ -286,21 +593,12 @@ ScrollView {
                         spacing: 10
 
                         Text {
-                            text: Config ? (Config.language, Config.trAuto("Установка курсора из файла или папки")) : "Установка курсора из файла или папки"
+                            text: Config ? (Config.language, Config.trAuto("Установка из локального файла или папки")) : "Установка из локального файла или папки"
                             color: "#ffffff"
                             font.pixelSize: Config.fontSize + 1
                             font.bold: true
                         }
 
-                        Text {
-                            text: "Выберите скачанный архив (.tar.xz, .tar.gz, .tar.zst, .zip, .hlc) или папку с темой курсора — он распакуется в ~/.local/share/icons и сразу появится в списке доступных."
-                            color: "#aaaaaa"
-                            font.pixelSize: Config.fontSize - 1
-                            wrapMode: Text.WordWrap
-                            Layout.fillWidth: true
-                        }
-
-                        // Поле выбора файла и кнопки
                         RowLayout {
                             Layout.fillWidth: true
                             spacing: 8
@@ -329,7 +627,7 @@ ScrollView {
                                     Text {
                                         anchors.fill: parent
                                         verticalAlignment: Text.AlignVCenter
-                                        text: "Путь к архиву или папке с курсором..."
+                                        text: "Путь к архиву (.tar.xz, .tar.gz, .zip, .hlc) или папке..."
                                         color: "#666666"
                                         font.pixelSize: Config.fontSize
                                         visible: !pathInput.text && !pathInput.activeFocus
@@ -360,7 +658,7 @@ ScrollView {
                         Rectangle {
                             id: dropBox
                             Layout.fillWidth: true
-                            implicitHeight: 62
+                            implicitHeight: 54
                             radius: (Theme && Theme.isRounded) ? 10 : 0
                             color: cursorDropArea.containsDrag
                                    ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18) : Qt.rgba(1, 1, 1, 0.12))
@@ -381,13 +679,6 @@ ScrollView {
                                     font.pixelSize: Config.fontSize
                                     font.bold: cursorDropArea.containsDrag
                                 }
-
-                                Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: "Поддерживаются .tar.xz, .tar.gz, .tar.bz2, .tar.zst, .zip, .hlc и папки"
-                                    color: "#777777"
-                                    font.pixelSize: Config.fontSize - 2
-                                }
                             }
 
                             DropArea {
@@ -401,53 +692,6 @@ ScrollView {
                                 }
                             }
                         }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Text {
-                                text: "Сразу применять курсор после установки:"
-                                color: "#cccccc"
-                                font.pixelSize: Config.fontSize
-                                Layout.fillWidth: true
-                            }
-                            StyledSwitch {
-                                checked: curScroll.applyImmediately
-                                onToggled: curScroll.applyImmediately = checked
-                            }
-                        }
-
-                        // Статус установки
-                        Rectangle {
-                            visible: Cursor.installStatus !== ""
-                            Layout.fillWidth: true
-                            implicitHeight: statusRow.implicitHeight + 14
-                            radius: (Theme && Theme.isRounded) ? 8 : 0
-                            color: Cursor.installSuccess ? Qt.rgba(0.18, 0.75, 0.42, 0.16) : Qt.rgba(0.92, 0.28, 0.28, 0.16)
-                            border.color: Cursor.installSuccess ? Qt.rgba(0.25, 0.88, 0.52, 0.45) : Qt.rgba(0.95, 0.35, 0.35, 0.45)
-                            border.width: 1
-
-                            RowLayout {
-                                id: statusRow
-                                anchors.fill: parent
-                                anchors.margins: 7
-                                spacing: 8
-
-                                Text {
-                                    text: Cursor.installSuccess ? "󰄬" : "󰅙"
-                                    color: Cursor.installSuccess ? "#5eead4" : "#f87171"
-                                    font.pixelSize: Config.fontSize + 2
-                                    font.bold: true
-                                }
-
-                                Text {
-                                    text: Cursor.installStatus
-                                    color: "#ffffff"
-                                    font.pixelSize: Config.fontSize
-                                    Layout.fillWidth: true
-                                    wrapMode: Text.WordWrap
-                                }
-                            }
-                        }
                     }
                 }
 
@@ -455,6 +699,7 @@ ScrollView {
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
+                    visible: Cursor.downloadArchives.length > 0
                     implicitHeight: colDl.implicitHeight + 24
 
                     ColumnLayout {
@@ -476,13 +721,6 @@ ScrollView {
                                 text: "󰑐 Обновить"
                                 onClicked: Cursor.refreshDownloadArchives()
                             }
-                        }
-
-                        Text {
-                            visible: Cursor.downloadArchives.length === 0
-                            text: "В папке ~/Downloads не найдено архивов (.tar.xz, .tar.gz, .zip, .hlc)"
-                            color: "#888888"
-                            font.pixelSize: Config.fontSize - 1
                         }
 
                         Repeater {
@@ -549,7 +787,7 @@ ScrollView {
                         spacing: 10
 
                         Text {
-                            text: "Доступные курсоры (" + Cursor.installedThemes.length + ")"
+                            text: "Установленные курсоры (" + Cursor.installedThemes.length + ")"
                             color: "#ffffff"
                             font.pixelSize: Config.fontSize + 1
                             font.bold: true

@@ -1,4 +1,5 @@
 #include "CursorManager.h"
+#include <QCoreApplication>
 #include <QDir>
 #include <QDirIterator>
 #include <QFile>
@@ -8,6 +9,9 @@
 #include <QDataStream>
 #include <QTemporaryDir>
 #include <QUrl>
+#include <QJsonDocument>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QVariantMap>
 #include <QHash>
 #include <QMutex>
@@ -168,6 +172,88 @@ CursorManager::CursorManager(QObject *parent) : QObject(parent) {
     refreshDownloadArchives();
 }
 
+QString CursorManager::storeScriptPath() const {
+    QString p1 = QDir::homePath() + "/hysett/scripts/hysett_cursor_store.py";
+    if (QFileInfo::exists(p1)) return p1;
+    QString p2 = QCoreApplication::applicationDirPath() + "/../scripts/hysett_cursor_store.py";
+    if (QFileInfo::exists(p2)) return p2;
+    return p1;
+}
+
+void CursorManager::searchOnlineCursors(const QString &query, const QString &source) {
+    if (m_searchProc) {
+        m_searchProc->disconnect();
+        m_searchProc->kill();
+        m_searchProc->deleteLater();
+        m_searchProc = nullptr;
+    }
+
+    m_onlineLoading = true;
+    emit onlineLoadingChanged();
+
+    m_searchProc = new QProcess(this);
+    connect(m_searchProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) {
+        if (!m_searchProc) return;
+        QByteArray out = m_searchProc->readAllStandardOutput();
+        m_searchProc->deleteLater();
+        m_searchProc = nullptr;
+
+        QJsonParseError err;
+        QJsonDocument doc = QJsonDocument::fromJson(out, &err);
+        if (err.error == QJsonParseError::NoError && doc.isArray()) {
+            m_onlineCursors = doc.array().toVariantList();
+            emit onlineCursorsChanged();
+        }
+        m_onlineLoading = false;
+        emit onlineLoadingChanged();
+    });
+
+    m_searchProc->start("python3", {storeScriptPath(), "search", query, source});
+}
+
+void CursorManager::downloadAndInstallCursor(const QString &cardId, const QString &url, const QString &fileNameHint, bool applyImmediately) {
+    if (url.trimmed().isEmpty()) return;
+    if (m_dlProc) {
+        m_dlProc->disconnect();
+        m_dlProc->kill();
+        m_dlProc->deleteLater();
+        m_dlProc = nullptr;
+    }
+
+    m_downloadingId = cardId;
+    emit downloadingIdChanged();
+
+    m_installSuccess = true;
+    m_installStatus = "Скачивание курсора: " + (fileNameHint.isEmpty() ? cardId : fileNameHint) + "...";
+    emit installStatusChanged();
+
+    m_dlProc = new QProcess(this);
+    connect(m_dlProc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+            this, [this, applyImmediately](int exitCode, QProcess::ExitStatus) {
+        if (!m_dlProc) return;
+        QByteArray out = m_dlProc->readAllStandardOutput();
+        m_dlProc->deleteLater();
+        m_dlProc = nullptr;
+
+        m_downloadingId.clear();
+        emit downloadingIdChanged();
+
+        QJsonDocument doc = QJsonDocument::fromJson(out);
+        if (exitCode == 0 && doc.isObject() && doc.object().value("ok").toBool()) {
+            QString localPath = doc.object().value("path").toString();
+            installCursor(localPath, applyImmediately);
+        } else {
+            QString errMsg = doc.isObject() ? doc.object().value("error").toString() : QStringLiteral("Не удалось скачать архив");
+            m_installSuccess = false;
+            m_installStatus = "Ошибка скачивания: " + errMsg;
+            emit installStatusChanged();
+        }
+    });
+
+    m_dlProc->start("python3", {storeScriptPath(), "download", url, fileNameHint});
+}
+
 void CursorManager::scanThemes() {
     m_installedThemes.clear();
     QString home = QDir::homePath();
@@ -222,7 +308,6 @@ QString CursorManager::browseCursorArchive() {
     QString startDir = QDir::homePath() + "/Downloads";
     if (!QDir(startDir).exists()) startDir = QDir::homePath();
 
-    // Попытка через zenity / kdialog / python tkinter
     QString script = QString(
         "if command -v zenity >/dev/null 2>&1; then "
         "  zenity --file-selection --title='Выберите архив курсора' --filename='%1/' --file-filter='Архивы курсоров | *.tar.gz *.tgz *.tar.xz *.txz *.tar.bz2 *.tbz2 *.tar.zst *.zip *.hlc *.tar' --file-filter='Все файлы | *' 2>/dev/null; "
@@ -342,7 +427,6 @@ bool CursorManager::installCursor(const QString &rawPath, bool applyImmediately)
             if (themeName.endsWith(".tar")) themeName.chop(4);
         }
 
-        // Проверим index.theme при корневой распаковке
         if (cand == searchRoot && cd.exists("index.theme")) {
             QFile idxF(cd.filePath("index.theme"));
             if (idxF.open(QIODevice::ReadOnly | QIODevice::Text)) {

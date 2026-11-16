@@ -772,27 +772,25 @@ Item {
 
                                 RowLayout {
                                     Layout.alignment: Qt.AlignHCenter
-                                    spacing: 6
+                                    spacing: 8
 
                                     StyledButton {
-                                        visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTitle.length > 0
                                         readonly property bool inFav: {
                                             var _ = musicRoot.libraryVersion
-                                            return Waybar ? Waybar.isTrackInPlaylist(Waybar.mediaTitle, "Мне нравится") : false
+                                            return Waybar && Waybar.mediaTitle.length > 0 ? Waybar.isTrackInPlaylist(Waybar.mediaTitle, "Мне нравится") : false
                                         }
                                         text: inFav ? "󰋑" : "󰋕"
                                         isIconOnly: true
                                         isActive: inFav
                                         implicitWidth: 26; implicitHeight: 22
-                                        onClicked: if (Waybar) Waybar.toggleYmFavorite(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
+                                        onClicked: if (Waybar && Waybar.mediaTitle.length > 0) Waybar.toggleYmFavorite(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
                                     }
 
                                     StyledButton {
-                                        visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTitle.length > 0
                                         text: "󰲸"
                                         isIconOnly: true
                                         implicitWidth: 26; implicitHeight: 22
-                                        onClicked: if (Waybar) musicRoot.openAddTrackModal(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
+                                        onClicked: if (Waybar && Waybar.mediaTitle.length > 0) musicRoot.openAddTrackModal(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
                                     }
 
                                     StyledButton {

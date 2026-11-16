@@ -758,7 +758,7 @@ Item {
                                         text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"
                                         isIconOnly: true
                                         implicitWidth: 46; implicitHeight: 34
-                                        isActive: Waybar ? Waybar.mediaPlaying : false
+                                        isActive: Waybar ? !Waybar.mediaPlaying : true
                                         onClicked: if (Waybar) Waybar.mediaPlayPause()
                                     }
 
@@ -1044,24 +1044,31 @@ Item {
                                         duration: 280
                                         easing.type: Easing.OutQuint
                                     }
-                                    onFinished: trackListContainer.slideActive = false
+                                    onStopped: {
+                                        trackListContainer.incomingX = 0
+                                        trackListContainer.outgoingX = 0
+                                        trackListContainer.slideActive = false
+                                    }
                                 }
 
                                 function switchPlaylistWithFullSlide(targetIdx, dir) {
                                     fullPlaylistSlideAnim.stop()
-                                    outgoingPlaylistSnapshot.scheduleUpdate()
+                                    smoothTrackScroll.stop()
+                                    incomingX = 0
                                     outgoingX = 0
+                                    outgoingPlaylistSnapshot.scheduleUpdate()
                                     slideActive = true
                                     var span = Math.max(300, trackListContainer.width + 24)
+                                    tracksListView.contentY = 0
+                                    tracksListView.targetY = 0
+                                    lastModelSig = ""
+                                    Waybar.ymSelectedPlaylist = targetIdx
+                                    rebuildTrackModel()
                                     incomingX = dir * span
                                     outSlideAnim.from = 0
                                     outSlideAnim.to = -dir * span
                                     inSlideAnim.from = dir * span
                                     inSlideAnim.to = 0
-                                    Waybar.ymSelectedPlaylist = targetIdx
-                                    tracksListView.contentY = 0
-                                    tracksListView.targetY = 0
-                                    rebuildTrackModel()
                                     fullPlaylistSlideAnim.start()
                                 }
 
@@ -1086,12 +1093,14 @@ Item {
                                 readonly property bool isHiddenPlaylist: currentPlaylistObj ? (currentPlaylistObj.title === "Скрытые") : false
 
                                 property string lastModelSig: ""
+                                property string lastPlaylistTitle: ""
 
                                 function rebuildTrackModel() {
-                                    if (draggingRow >= 0) return
+                                    draggingRow = -1
                                     if (!currentPlaylistObj || !currentPlaylistObj.tracks) {
                                         if (trackListModel.count > 0) trackListModel.clear()
                                         lastModelSig = ""
+                                        lastPlaylistTitle = ""
                                         return
                                     }
                                     if (musicRoot.isPrivacyHidden) {
@@ -1101,10 +1110,17 @@ Item {
                                     }
                                     var raw = currentPlaylistObj.tracks
                                     var q = musicRoot.trackSearchQuery.trim().toLowerCase()
+                                    var isSamePlaylist = (currentPlaylistObj.title === lastPlaylistTitle)
                                     var sig = currentPlaylistObj.title + "|" + raw.length + "|" + q + "|" + musicRoot.libraryVersion
-                                    if (sig === lastModelSig && trackListModel.count > 0) return
+                                    if (sig === lastModelSig && trackListModel.count > 0 && isSamePlaylist) return
                                     lastModelSig = sig
-                                    var savedY = tracksListView.contentY
+                                    lastPlaylistTitle = currentPlaylistObj.title
+                                    var savedY = isSamePlaylist ? tracksListView.contentY : 0
+                                    smoothTrackScroll.stop()
+                                    if (!isSamePlaylist) {
+                                        tracksListView.contentY = 0
+                                        tracksListView.targetY = 0
+                                    }
                                     trackListModel.clear()
                                     for (var i = 0; i < raw.length; ++i) {
                                         var t = raw[i]
@@ -1123,8 +1139,14 @@ Item {
                                         })
                                     }
                                     Qt.callLater(function() {
-                                        var maxY = Math.max(0, tracksListView.contentHeight - tracksListView.height)
-                                        tracksListView.contentY = Math.min(savedY, maxY)
+                                        if (!isSamePlaylist) {
+                                            tracksListView.contentY = 0
+                                            tracksListView.targetY = 0
+                                        } else {
+                                            var maxY = Math.max(0, tracksListView.contentHeight - tracksListView.height)
+                                            tracksListView.contentY = Math.min(savedY, maxY)
+                                        }
+                                        tracksListView.returnToBounds()
                                     })
                                 }
 

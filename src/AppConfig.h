@@ -70,6 +70,8 @@ class AppConfig : public QObject {
     Q_PROPERTY(int sysProgress READ sysProgress NOTIFY sysProgressChanged)
     Q_PROPERTY(QString sysStatusText READ sysStatusText NOTIFY sysProgressChanged)
     Q_PROPERTY(bool updateAvailable READ updateAvailable NOTIFY updateStateChanged)
+    Q_PROPERTY(bool autoCheckUpdatesOnBoot READ autoCheckUpdatesOnBoot WRITE setAutoCheckUpdatesOnBoot NOTIFY updateStateChanged)
+    Q_PROPERTY(bool autoUpdateNotify READ autoUpdateNotify WRITE setAutoUpdateNotify NOTIFY updateStateChanged)
     Q_PROPERTY(QString localVersionInfo READ localVersionInfo NOTIFY updateStateChanged)
     Q_PROPERTY(QString remoteVersionInfo READ remoteVersionInfo NOTIFY updateStateChanged)
     Q_PROPERTY(QString updateChangelog READ updateChangelog NOTIFY updateStateChanged)
@@ -209,6 +211,10 @@ public:
     int sysProgress() const { return m_sysProgress; }
     QString sysStatusText() const { return m_sysStatusText; }
     bool updateAvailable() const { return m_updateAvailable; }
+    bool autoCheckUpdatesOnBoot() const { return m_autoCheckUpdatesOnBoot; }
+    void setAutoCheckUpdatesOnBoot(bool v);
+    bool autoUpdateNotify() const { return m_autoUpdateNotify; }
+    void setAutoUpdateNotify(bool v);
     QString localVersionInfo() const { return m_localVersionInfo; }
     QString remoteVersionInfo() const { return m_remoteVersionInfo; }
     QString updateChangelog() const { return m_updateChangelog; }
@@ -523,6 +529,8 @@ private:
     int m_sysProgress = 0;
     QString m_sysStatusText = "Готово к работе";
     bool m_updateAvailable = false;
+    bool m_autoCheckUpdatesOnBoot = true;
+    bool m_autoUpdateNotify = true;
     QString m_localVersionInfo = "main";
     QString m_remoteVersionInfo = "main";
     QString m_updateChangelog = "Нажмите «Проверить обновления» для запроса к GitHub.";

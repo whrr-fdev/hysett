@@ -1022,6 +1022,7 @@ RowLayout {
                                     onClicked: if (Config) Config.checkUpdates()
                                 }
                                 StyledButton {
+                                    visible: Config ? Config.updateAvailable : false
                                     text: "󰇚 Скачать и обновить"
                                     isActive: true
                                     Layout.alignment: Qt.AlignVCenter
@@ -1048,6 +1049,34 @@ RowLayout {
                                 text: Config ? Config.sysStatusText : ""
                                 color: "#cccccc"
                                 font.pixelSize: Config.fontSize - 1
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Автоматически проверять обновления HySett после включения ПК:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Config ? Config.autoCheckUpdatesOnBoot : true
+                                    onToggled: if (Config) Config.autoCheckUpdatesOnBoot = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Показывать уведомление при выходе нового обновления:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.fillWidth: true
+                                }
+                                StyledSwitch {
+                                    checked: Config ? Config.autoUpdateNotify : true
+                                    onToggled: if (Config) Config.autoUpdateNotify = checked
+                                }
                             }
 
                             Rectangle { Layout.fillWidth: true; height: 1; color: Qt.rgba(1, 1, 1, 0.08) }

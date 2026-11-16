@@ -74,6 +74,10 @@ AppConfig::AppConfig(QObject *parent) : QObject(parent) {
     if (m_m3DynamicWallpaperColors) {
         extractPaletteFromWallpaper();
     }
+    QTimer::singleShot(2500, this, &AppConfig::refreshBackupInfo);
+    QTimer::singleShot(12000, this, [this]() {
+        if (m_autoCheckUpdatesOnBoot) checkUpdates();
+    });
 }
 
 QString AppConfig::configFilePath() const {
@@ -497,6 +501,8 @@ void AppConfig::load() {
             else if (key == "music_privacy_mode") m_musicPrivacyMode = (val == "1" || val == "true");
             else if (key == "streamer_mode") m_streamerMode = (val == "1" || val == "true");
             else if (key == "first_run_completed") m_firstRunCompleted = (val == "1" || val == "true");
+            else if (key == "auto_check_updates_on_boot") m_autoCheckUpdatesOnBoot = (val == "1" || val == "true");
+            else if (key == "auto_update_notify") m_autoUpdateNotify = (val == "1" || val == "true");
             else if (key == "wallpapers_dir" && !val.isEmpty()) m_wallpapersDir = val;
             else if (key == "music_dir" && !val.isEmpty()) m_musicDir = val;
             else if (key == "backups_dir" && !val.isEmpty()) m_backupsDir = val;
@@ -584,6 +590,8 @@ void AppConfig::save() {
             extra["music_privacy_mode"] = m_musicPrivacyMode ? "1" : "0";
             extra["streamer_mode"] = m_streamerMode ? "1" : "0";
             extra["first_run_completed"] = m_firstRunCompleted ? "1" : "0";
+            extra["auto_check_updates_on_boot"] = m_autoCheckUpdatesOnBoot ? "1" : "0";
+            extra["auto_update_notify"] = m_autoUpdateNotify ? "1" : "0";
             extra["wallpapers_dir"] = m_wallpapersDir;
             extra["music_dir"] = m_musicDir;
             extra["backups_dir"] = m_backupsDir;
@@ -1372,6 +1380,23 @@ void AppConfig::openBackupsFolder() {
     QProcess::startDetached("xdg-open", {m_backupsDir});
 }
 
+
+void AppConfig::setAutoCheckUpdatesOnBoot(bool v) {
+    if (m_autoCheckUpdatesOnBoot != v) {
+        m_autoCheckUpdatesOnBoot = v;
+        emit updateStateChanged();
+        save();
+    }
+}
+
+void AppConfig::setAutoUpdateNotify(bool v) {
+    if (m_autoUpdateNotify != v) {
+        m_autoUpdateNotify = v;
+        emit updateStateChanged();
+        save();
+    }
+}
+
 void AppConfig::checkUpdates() {
     if (m_sysBusy) return;
     m_sysBusy = true; m_sysProgress = 20; m_sysStatusText = "Проверка новой версии на GitHub...";
@@ -1384,11 +1409,19 @@ void AppConfig::checkUpdates() {
         p->deleteLater();
         QJsonObject o = QJsonDocument::fromJson(out).object();
         if (!o.isEmpty()) {
+            bool wasAvail = m_updateAvailable;
             m_updateAvailable = o["update_available"].toBool(false);
             m_localVersionInfo = o["local_version"].toString(m_localVersionInfo);
             m_remoteVersionInfo = o["remote_version"].toString(m_remoteVersionInfo);
             m_updateChangelog = o["changelog"].toString(m_updateChangelog);
             m_sysStatusText = o["status"].toString(m_sysStatusText);
+            if (m_updateAvailable && m_autoUpdateNotify && !wasAvail) {
+                QProcess::startDetached("notify-send", {
+                    "-a", "HySett",
+                    "Доступно обновление HySett!",
+                    "Новая версия на GitHub: " + m_remoteVersionInfo + ". Откройте Настройки → Обновления."
+                });
+            }
         }
         m_sysBusy = false; m_sysProgress = 100;
         emit updateStateChanged();

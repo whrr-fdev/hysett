@@ -12,6 +12,37 @@ Item {
     property double lastTickMs: Date.now()
     readonly property bool isM3: Theme && Theme.isRounded
 
+    ListModel {
+        id: procListModel
+    }
+
+    function syncProcessModel() {
+        if (!Waybar || !Waybar.processList) return
+        var src = Waybar.processList
+        var savedY = procListView.contentY
+        var n = src.length
+        for (var i = 0; i < n; ++i) {
+            var it = src[i]
+            var rowObj = {
+                pid: Number(it.pid || 0),
+                name: String(it.name || ""),
+                cmd: String(it.cmd || ""),
+                cpu: String(it.cpu || "0.0%"),
+                mem: String(it.mem || "0 MB")
+            }
+            if (i < procListModel.count) {
+                procListModel.set(i, rowObj)
+            } else {
+                procListModel.append(rowObj)
+            }
+        }
+        if (procListModel.count > n) {
+            procListModel.remove(n, procListModel.count - n)
+        }
+        var maxY = Math.max(0, procListView.contentHeight - procListView.height)
+        procListView.contentY = Math.min(savedY, maxY > 0 ? maxY : savedY)
+    }
+
     Timer {
         id: slideAnimTimer
         interval: 45
@@ -88,11 +119,16 @@ Item {
         if (ApplicationWindow.window) ApplicationWindow.window.modalOpen = false
     }
 
+    Component.onCompleted: {
+        syncProcessModel()
+    }
+
     onVisibleChanged: {
         if (!visible && pendingKillPid !== -1) closeKillModal()
         if (visible) {
             sysMonRoot.lastTickMs = Date.now()
             sysMonRoot.graphPhase = 1.0
+            syncProcessModel()
             repaintAllGraphs()
         }
     }
@@ -115,6 +151,10 @@ Item {
             vramGraph.requestPaint()
             cpuGraph.requestPaint()
             netGraph.requestPaint()
+        }
+        function onProcessesChanged() {
+            if (!sysMonRoot.visible && procListModel.count > 0) return
+            sysMonRoot.syncProcessModel()
         }
     }
 
@@ -158,7 +198,7 @@ Item {
             }
         }
 
-        // РЯД 1: Слева общий график CPU, Справа компактный двухколоночный блок ядер C0..C3 | C4..C7 с температурой (как в btop, но полосками)
+        // РЯД 1: Слева общий график CPU, Справа компактный двухколоночный блок ядер C0..C3 | C4..C7 с температурой
         RowLayout {
             Layout.fillWidth: true
             spacing: 8
@@ -194,6 +234,7 @@ Item {
 
             // Сжатый двухколоночный блок ядер CPU (C0..C3 слева | C4..C7 справа) с полосками и температурой каждого ядра
             GlassPanel {
+                id: coresCard
                 objectName: "atmoObstacle"
                 visible: Waybar && Waybar.cpuCores && Waybar.cpuCores.length > 0
                 Layout.fillWidth: true
@@ -218,8 +259,9 @@ Item {
                         spacing: 2
 
                         Repeater {
-                            model: parent.parent.parent.rowsCount
+                            model: coresCard.rowsCount
                             delegate: RowLayout {
+                                id: leftCoreRow
                                 Layout.fillWidth: true
                                 spacing: 5
                                 readonly property int coreIdx: index
@@ -228,7 +270,7 @@ Item {
                                 readonly property int cTmp: cObj.temp !== undefined ? Number(cObj.temp) : (Waybar ? Waybar.cpuTemp : 40)
 
                                 Text {
-                                    text: "C" + coreIdx
+                                    text: "C" + leftCoreRow.coreIdx
                                     color: "#cccccc"
                                     font.pixelSize: 10
                                     font.bold: true
@@ -244,12 +286,12 @@ Item {
                                     clip: true
 
                                     Rectangle {
-                                        width: parent.width * Math.max(0.03, Math.min(1.0, parent.parent.cPct / 100.0))
+                                        width: parent.width * Math.max(0.03, Math.min(1.0, leftCoreRow.cPct / 100.0))
                                         height: parent.height
                                         radius: parent.radius
-                                        color: parent.parent.cPct > 85
+                                        color: leftCoreRow.cPct > 85
                                                ? "#ff6b6b"
-                                               : (parent.parent.cPct > 55
+                                               : (leftCoreRow.cPct > 55
                                                   ? "#ffd54f"
                                                   : (Config ? Config.m3Primary : "#69f0ae"))
                                         Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
@@ -257,7 +299,7 @@ Item {
                                 }
 
                                 Text {
-                                    text: parent.cPct + "%"
+                                    text: leftCoreRow.cPct + "%"
                                     color: Config ? Config.m3Primary : "#69f0ae"
                                     font.pixelSize: 10
                                     font.bold: true
@@ -267,8 +309,8 @@ Item {
                                 }
 
                                 Text {
-                                    text: parent.cTmp + "°C"
-                                    color: parent.cTmp >= 80 ? "#ff6b6b" : (parent.cTmp >= 65 ? "#ffd54f" : "#80d8ff")
+                                    text: leftCoreRow.cTmp + "°C"
+                                    color: leftCoreRow.cTmp >= 80 ? "#ff6b6b" : (leftCoreRow.cTmp >= 65 ? "#ffd54f" : "#80d8ff")
                                     font.pixelSize: 10
                                     font.bold: true
                                     font.features: { "tnum": 1 }
@@ -279,7 +321,7 @@ Item {
                         }
                     }
 
-                    // Вертикальный разделитель посередине (как в btop)
+                    // Вертикальный разделитель посередине
                     Rectangle {
                         width: 1
                         Layout.fillHeight: true
@@ -295,17 +337,18 @@ Item {
                         spacing: 2
 
                         Repeater {
-                            model: Math.max(0, parent.parent.parent.totalCores - parent.parent.parent.rowsCount)
+                            model: Math.max(0, coresCard.totalCores - coresCard.rowsCount)
                             delegate: RowLayout {
+                                id: rightCoreRow
                                 Layout.fillWidth: true
                                 spacing: 5
-                                readonly property int coreIdx: index + parent.parent.parent.rowsCount
+                                readonly property int coreIdx: index + coresCard.rowsCount
                                 readonly property var cObj: (Waybar && coreIdx < Waybar.cpuCores.length) ? Waybar.cpuCores[coreIdx] : ({ usage: 0, temp: 40 })
                                 readonly property int cPct: cObj.usage !== undefined ? Number(cObj.usage) : Number(cObj || 0)
                                 readonly property int cTmp: cObj.temp !== undefined ? Number(cObj.temp) : (Waybar ? Waybar.cpuTemp : 40)
 
                                 Text {
-                                    text: "C" + coreIdx
+                                    text: "C" + rightCoreRow.coreIdx
                                     color: "#cccccc"
                                     font.pixelSize: 10
                                     font.bold: true
@@ -321,12 +364,12 @@ Item {
                                     clip: true
 
                                     Rectangle {
-                                        width: parent.width * Math.max(0.03, Math.min(1.0, parent.parent.cPct / 100.0))
+                                        width: parent.width * Math.max(0.03, Math.min(1.0, rightCoreRow.cPct / 100.0))
                                         height: parent.height
                                         radius: parent.radius
-                                        color: parent.parent.cPct > 85
+                                        color: rightCoreRow.cPct > 85
                                                ? "#ff6b6b"
-                                               : (parent.parent.cPct > 55
+                                               : (rightCoreRow.cPct > 55
                                                   ? "#ffd54f"
                                                   : (Config ? Config.m3Primary : "#69f0ae"))
                                         Behavior on width { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
@@ -334,7 +377,7 @@ Item {
                                 }
 
                                 Text {
-                                    text: parent.cPct + "%"
+                                    text: rightCoreRow.cPct + "%"
                                     color: Config ? Config.m3Primary : "#69f0ae"
                                     font.pixelSize: 10
                                     font.bold: true
@@ -344,8 +387,8 @@ Item {
                                 }
 
                                 Text {
-                                    text: parent.cTmp + "°C"
-                                    color: parent.cTmp >= 80 ? "#ff6b6b" : (parent.cTmp >= 65 ? "#ffd54f" : "#80d8ff")
+                                    text: rightCoreRow.cTmp + "°C"
+                                    color: rightCoreRow.cTmp >= 80 ? "#ff6b6b" : (rightCoreRow.cTmp >= 65 ? "#ffd54f" : "#80d8ff")
                                     font.pixelSize: 10
                                     font.bold: true
                                     font.features: { "tnum": 1 }
@@ -422,7 +465,7 @@ Item {
             }
         }
 
-        // Таблица активных процессов (все потребляющие процессы без лимита в 28)
+        // Таблица активных процессов (с сохранением позиции скролла при обновлениях)
         GlassPanel {
             objectName: "atmoObstacle"
             Layout.fillWidth: true; Layout.fillHeight: true
@@ -435,7 +478,7 @@ Item {
                     spacing: 10
 
                     Text { text: "PID"; color: "#777777"; font.pixelSize: 10; font.bold: true; Layout.preferredWidth: 64 }
-                    Text { text: "Активные процессы (" + (Waybar ? Waybar.processList.length : 0) + ")"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.preferredWidth: 155 }
+                    Text { text: "Активные процессы (" + procListModel.count + ")"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; Layout.preferredWidth: 155 }
                     Text { text: "Запущенная команда"; color: "#888888"; font.pixelSize: 11; font.bold: true; Layout.fillWidth: true }
 
                     Item {
@@ -475,36 +518,33 @@ Item {
                     cacheBuffer: 160
                     boundsBehavior: Flickable.StopAtBounds
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-                    model: (Waybar && Waybar.processList) ? Waybar.processList.length : 0
+                    model: procListModel
                     delegate: Rectangle {
-                        readonly property var pItem: (Waybar && index < Waybar.processList.length)
-                                                     ? Waybar.processList[index]
-                                                     : ({ pid: 0, name: "", cmd: "", cpu: "0.0%", mem: "0 MB" })
                         width: procListView.width; height: 26
                         radius: sysMonRoot.isM3 ? 6 : 0
                         color: Qt.rgba(1, 1, 1, 0.03); border.color: Qt.rgba(1, 1, 1, 0.08); border.width: 1
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 10
                             Text {
-                                text: "PID " + pItem.pid
+                                text: "PID " + model.pid
                                 color: "#888888"; font.pixelSize: 10
                                 font.features: { "tnum": 1 }
                                 Layout.preferredWidth: 64
                             }
                             Text {
-                                text: pItem.name
+                                text: model.name
                                 color: "#ffffff"; font.pixelSize: 11; font.bold: true
                                 Layout.preferredWidth: 155
                                 elide: Text.ElideRight
                             }
                             Text {
-                                text: pItem.cmd || ""
+                                text: model.cmd
                                 color: "#777777"; font.pixelSize: 10
                                 Layout.fillWidth: true
                                 elide: Text.ElideRight
                             }
                             Text {
-                                text: pItem.cpu
+                                text: model.cpu
                                 color: (Waybar && Waybar.processSortMode === 0) ? "#ffffff" : "#aaaaaa"
                                 font.pixelSize: 11
                                 font.bold: (Waybar && Waybar.processSortMode === 0)
@@ -513,7 +553,7 @@ Item {
                                 horizontalAlignment: Text.AlignRight
                             }
                             Text {
-                                text: pItem.mem
+                                text: model.mem
                                 color: (Waybar && Waybar.processSortMode === 1) ? "#ffffff" : "#aaaaaa"
                                 font.pixelSize: 11
                                 font.bold: (Waybar && Waybar.processSortMode === 1)
@@ -533,7 +573,7 @@ Item {
                                 }
                                 MouseArea {
                                     id: killMa; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                    onClicked: sysMonRoot.askKillProcess(pItem.pid, pItem.name)
+                                    onClicked: sysMonRoot.askKillProcess(model.pid, model.name)
                                 }
                             }
                         }

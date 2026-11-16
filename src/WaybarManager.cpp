@@ -2857,6 +2857,18 @@ void WaybarManager::setYmSelectedPlaylist(int idx) {
 }
 
 void WaybarManager::loadYmIndexFromDisk() {
+    {
+        QFile ef(QDir::homePath() + "/.config/hypr/scripts/ym_excluded_playlists.json");
+        if (ef.open(QIODevice::ReadOnly)) {
+            QStringList ex;
+            for (const QJsonValue &v : QJsonDocument::fromJson(ef.readAll()).array()) {
+                QString s = v.toString().trimmed();
+                if (!s.isEmpty() && !ex.contains(s)) ex.append(s);
+            }
+            ef.close();
+            m_ymExcludedPlaylists = ex;
+        }
+    }
     QVariantList nextPls;
     QFile f(QDir::homePath() + "/Music/YandexMusic/playlists_index.json");
     if (f.open(QIODevice::ReadOnly)) {
@@ -3136,6 +3148,59 @@ static void saveYmPlaylistsIndexAndM3u(const QVariantList &playlists) {
         rootObj["ts"] = QDateTime::currentSecsSinceEpoch();
         idxF.write(QJsonDocument(rootObj).toJson(QJsonDocument::Compact));
         idxF.close();
+    }
+}
+
+QStringList WaybarManager::ymKnownPlaylists() const {
+    QStringList res;
+    auto addUnique = [&](const QString &s) {
+        QString clean = s.trimmed();
+        if (!clean.isEmpty() && clean != "Моя волна" && clean != "Скрытые" && !res.contains(clean))
+            res.append(clean);
+    };
+    addUnique("Мне нравится");
+    for (const QVariant &pv : m_ymPlaylists) {
+        addUnique(pv.toMap()["title"].toString());
+    }
+    QFile kf(QDir::homePath() + "/.config/hypr/scripts/ym_known_playlists.json");
+    if (kf.open(QIODevice::ReadOnly)) {
+        for (const QJsonValue &v : QJsonDocument::fromJson(kf.readAll()).array()) {
+            addUnique(v.toString());
+        }
+        kf.close();
+    }
+    for (const QString &ex : m_ymExcludedPlaylists) {
+        addUnique(ex);
+    }
+    return res;
+}
+
+bool WaybarManager::isYmPlaylistExcluded(const QString &title) const {
+    return m_ymExcludedPlaylists.contains(title.trimmed());
+}
+
+void WaybarManager::setYmPlaylistExcluded(const QString &title, bool excluded) {
+    QString clean = title.trimmed();
+    if (clean.isEmpty()) return;
+    bool changed = false;
+    if (excluded) {
+        if (!m_ymExcludedPlaylists.contains(clean)) {
+            m_ymExcludedPlaylists.append(clean);
+            changed = true;
+        }
+    } else {
+        if (m_ymExcludedPlaylists.removeAll(clean) > 0) {
+            changed = true;
+        }
+    }
+    if (changed) {
+        QFile ef(QDir::homePath() + "/.config/hypr/scripts/ym_excluded_playlists.json");
+        QDir().mkpath(QFileInfo(ef).absolutePath());
+        if (ef.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            ef.write(QJsonDocument(QJsonArray::fromStringList(m_ymExcludedPlaylists)).toJson(QJsonDocument::Compact));
+            ef.close();
+        }
+        emit ymLibraryChanged();
     }
 }
 

@@ -61,6 +61,8 @@ Item {
 
     property bool addPlaylistPopupOpen: false
     property bool deletePlaylistPopupOpen: false
+    onAddPlaylistPopupOpenChanged: if (winObj) winObj.modalOpen = (addPlaylistPopupOpen || deletePlaylistPopupOpen)
+    onDeletePlaylistPopupOpenChanged: if (winObj) winObj.modalOpen = (addPlaylistPopupOpen || deletePlaylistPopupOpen)
     property int pendingDeletePlaylistIdx: -1
     property string pendingDeletePlaylistTitle: ""
     property string pendingTrackPath: ""
@@ -248,7 +250,7 @@ Item {
     Item {
         id: musicBlurTarget
         anchors.fill: parent
-        layer.enabled: (musicRoot.addPlaylistPopupOpen || musicRoot.deletePlaylistPopupOpen) && (!Config || Config.dialogBlur > 0.01)
+        layer.enabled: false
         layer.smooth: true
         layer.effect: ShaderEffect {
             property var source: musicBlurTarget
@@ -736,62 +738,70 @@ Item {
                                 }
                             }
 
-                            // 3. Под обложкой: кнопки управления по центру
-                            RowLayout {
+                            // 3. Под обложкой: посередине Предыдущий / Пауза / Следующий, а под ними меньше остальные кнопки
+                            ColumnLayout {
                                 Layout.alignment: Qt.AlignHCenter
-                                spacing: 8
+                                spacing: 6
 
-                                // Сердечко:  (пустое) /  (залитое)
-                                StyledButton {
-                                    visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTitle.length > 0
-                                    readonly property bool inFav: {
-                                        var _ = musicRoot.libraryVersion
-                                        return Waybar ? Waybar.isTrackInPlaylist(Waybar.mediaTitle, "Мне нравится") : false
+                                RowLayout {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    spacing: 10
+
+                                    StyledButton {
+                                        text: "󰒮"
+                                        isIconOnly: true
+                                        implicitWidth: 36; implicitHeight: 32
+                                        onClicked: { musicRoot.trackSwitchDir = -1; if (Waybar) Waybar.mediaPrev() }
                                     }
-                                    text: inFav ? "󰋑" : "󰋕"
-                                    isIconOnly: true
-                                    isActive: inFav
-                                    implicitWidth: 32; implicitHeight: 30
-                                    onClicked: if (Waybar) Waybar.toggleYmFavorite(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
+
+                                    StyledButton {
+                                        text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"
+                                        isIconOnly: true
+                                        implicitWidth: 46; implicitHeight: 34
+                                        isActive: Waybar ? Waybar.mediaPlaying : false
+                                        onClicked: if (Waybar) Waybar.mediaPlayPause()
+                                    }
+
+                                    StyledButton {
+                                        text: "󰒭"
+                                        isIconOnly: true
+                                        implicitWidth: 36; implicitHeight: 32
+                                        onClicked: { musicRoot.trackSwitchDir = 1; if (Waybar) Waybar.mediaNext() }
+                                    }
                                 }
 
-                                StyledButton {
-                                    visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTitle.length > 0
-                                    text: "󰲸"
-                                    isIconOnly: true
-                                    implicitWidth: 32; implicitHeight: 30
-                                    onClicked: if (Waybar) musicRoot.openAddTrackModal(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
-                                }
+                                RowLayout {
+                                    Layout.alignment: Qt.AlignHCenter
+                                    spacing: 6
 
-                                // Режим проигрывания: 󰒞 (2 параллельные стрелочки = Подряд) / 󰒝 (Вразнобой)
-                                StyledButton {
-                                    text: (Waybar && Waybar.ymShuffle) ? "󰒝" : "󰒞"
-                                    isIconOnly: true
-                                    isActive: Waybar ? Waybar.ymShuffle : false
-                                    implicitWidth: 32; implicitHeight: 30
-                                    onClicked: if (Waybar) Waybar.ymShuffle = !Waybar.ymShuffle
-                                }
+                                    StyledButton {
+                                        visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTitle.length > 0
+                                        readonly property bool inFav: {
+                                            var _ = musicRoot.libraryVersion
+                                            return Waybar ? Waybar.isTrackInPlaylist(Waybar.mediaTitle, "Мне нравится") : false
+                                        }
+                                        text: inFav ? "󰋑" : "󰋕"
+                                        isIconOnly: true
+                                        isActive: inFav
+                                        implicitWidth: 26; implicitHeight: 22
+                                        onClicked: if (Waybar) Waybar.toggleYmFavorite(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
+                                    }
 
-                                StyledButton {
-                                    text: "󰒮"
-                                    isIconOnly: true
-                                    implicitWidth: 34; implicitHeight: 30
-                                    onClicked: { musicRoot.trackSwitchDir = -1; if (Waybar) Waybar.mediaPrev() }
-                                }
+                                    StyledButton {
+                                        visible: !musicRoot.isPrivacyHidden && Waybar && Waybar.mediaTitle.length > 0
+                                        text: "󰲸"
+                                        isIconOnly: true
+                                        implicitWidth: 26; implicitHeight: 22
+                                        onClicked: if (Waybar) musicRoot.openAddTrackModal(Waybar.currentLocalTrackPath, Waybar.mediaTitle)
+                                    }
 
-                                StyledButton {
-                                    text: (Waybar && Waybar.mediaPlaying) ? "󰏤" : "󰐊"
-                                    isIconOnly: true
-                                    implicitWidth: 42; implicitHeight: 32
-                                    isActive: Waybar ? Waybar.mediaPlaying : false
-                                    onClicked: if (Waybar) Waybar.mediaPlayPause()
-                                }
-
-                                StyledButton {
-                                    text: "󰒭"
-                                    isIconOnly: true
-                                    implicitWidth: 34; implicitHeight: 30
-                                    onClicked: { musicRoot.trackSwitchDir = 1; if (Waybar) Waybar.mediaNext() }
+                                    StyledButton {
+                                        text: (Waybar && Waybar.ymShuffle) ? "󰒝" : "󰒞"
+                                        isIconOnly: true
+                                        isActive: Waybar ? Waybar.ymShuffle : false
+                                        implicitWidth: 26; implicitHeight: 22
+                                        onClicked: if (Waybar) Waybar.ymShuffle = !Waybar.ymShuffle
+                                    }
                                 }
                             }
 
@@ -871,7 +881,7 @@ Item {
 
                                     Rectangle {
                                         z: 2
-                                        visible: plTabBar.activeItem !== null
+                                        visible: !musicRoot.isPrivacyHidden && plTabBar.activeItem !== null && plTabBar.activeItem.visible
                                         x: plTabBar.activeItem ? plTabBar.activeItem.x : 0
                                         y: plTabBar.activeItem ? plTabBar.activeItem.y : 0
                                         width: plTabBar.activeItem ? plTabBar.activeItem.width : 90
@@ -893,7 +903,7 @@ Item {
                                             model: Waybar ? Waybar.ymPlaylists : []
                                             delegate: Item {
                                                 id: plBtn
-                                                visible: !musicRoot.isPrivacyHidden || musicRoot.isPublicPlaylistTitle(modelData.title)
+                                                visible: !musicRoot.isPrivacyHidden
                                                 width: plBtnRow.implicitWidth + 22
                                                 height: 28
                                                 readonly property bool isSel: Waybar ? (Waybar.ymSelectedPlaylist === index) : (index === 0)
@@ -937,23 +947,6 @@ Item {
                                                                ? (Config ? Config.accentTextColor : "#000000")
                                                                : (musicRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#e0e0e0")
                                                     }
-
-                                                    Rectangle {
-                                                        id: delPlBadge
-                                                        anchors.verticalCenter: parent.verticalCenter
-                                                        width: 16; height: 16
-                                                        radius: musicRoot.isM3 ? 8 : 0
-                                                        color: delPlMa.containsMouse
-                                                               ? "#ff5252"
-                                                               : (plBtn.isSel ? Qt.rgba(0, 0, 0, 0.18) : Qt.rgba(1, 1, 1, 0.10))
-                                                        Text {
-                                                            anchors.centerIn: parent
-                                                            text: "✕"
-                                                            font.pixelSize: 9
-                                                            font.bold: true
-                                                            color: delPlMa.containsMouse ? "#ffffff" : plBtnTxt.color
-                                                        }
-                                                    }
                                                 }
 
                                                 MouseArea {
@@ -974,18 +967,6 @@ Item {
                                                             trackListContainer.switchPlaylistWithFullSlide(index, dir)
                                                         }
                                                     }
-                                                }
-
-                                                MouseArea {
-                                                    id: delPlMa
-                                                    x: plBtnRow.x + plBtnRow.width - delPlBadge.width - 2
-                                                    y: 0
-                                                    width: delPlBadge.width + 8
-                                                    height: parent.height
-                                                    hoverEnabled: true
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onEntered: { plTabBar.lastHoveredItem = plBtn; plTabBar.hoveredItem = plBtn }
-                                                    onClicked: musicRoot.askDeletePlaylist(index, modelData.title)
                                                 }
                                             }
                                         }
@@ -1114,7 +1095,7 @@ Item {
                                         lastModelSig = ""
                                         return
                                     }
-                                    if (musicRoot.isPrivacyHidden && !musicRoot.isPublicPlaylistTitle(currentPlaylistObj.title)) {
+                                    if (musicRoot.isPrivacyHidden) {
                                         if (trackListModel.count > 0) trackListModel.clear()
                                         lastModelSig = ""
                                         return
@@ -1182,11 +1163,13 @@ Item {
                                         spacing: 8
                                         Text {
                                             anchors.horizontalCenter: parent.horizontalCenter
-                                            text: (trackListContainer.currentPlaylistObj && trackListContainer.currentPlaylistObj.count === 0 && musicRoot.trackSearchQuery.trim().length === 0)
+                                            text: musicRoot.isPrivacyHidden
+                                                  ? "Плейлисты скрыты в режиме стримера"
+                                                  : ((trackListContainer.currentPlaylistObj && trackListContainer.currentPlaylistObj.count === 0 && musicRoot.trackSearchQuery.trim().length === 0)
                                                   ? ("Плейлист «" + trackListContainer.currentPlaylistObj.title + "» пока пуст")
                                                   : ((Waybar && Waybar.ymPlaylists.length === 0)
                                                      ? "Плейлисты еще не загружены в ~/Music/YandexMusic"
-                                                     : "Треки по запросу не найдены")
+                                                     : "Треки по запросу не найдены"))
                                             color: "#888888"
                                             font.pixelSize: Config.fontSize
                                         }
@@ -1930,9 +1913,10 @@ Item {
     // МОДАЛЬНОЕ ОКНО ДОБАВЛЕНИЯ ТРЕКА В ПЛЕЙЛИСТ (ПОВЕРХ РАЗМЫТОГО ФОНА)
     // =========================================================================
     Rectangle {
+        parent: (musicRoot.parent && musicRoot.parent.parent && musicRoot.parent.parent.parent && musicRoot.parent.parent.parent.parent) ? musicRoot.parent.parent.parent.parent : musicRoot
         visible: musicRoot.addPlaylistPopupOpen
         anchors.fill: parent
-        z: 500
+        z: 2000
         color: Qt.rgba(0, 0, 0, 0.42)
 
         MouseArea {
@@ -2057,9 +2041,10 @@ Item {
     // МОДАЛЬНОЕ ОКНО ПОДТВЕРЖДЕНИЯ УДАЛЕНИЯ ПЛЕЙЛИСТА
     // =========================================================================
     Rectangle {
+        parent: (musicRoot.parent && musicRoot.parent.parent && musicRoot.parent.parent.parent && musicRoot.parent.parent.parent.parent) ? musicRoot.parent.parent.parent.parent : musicRoot
         visible: musicRoot.deletePlaylistPopupOpen
         anchors.fill: parent
-        z: 510
+        z: 2010
         color: Qt.rgba(0, 0, 0, 0.45)
 
         MouseArea {

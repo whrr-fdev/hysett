@@ -7,6 +7,34 @@ INDEX_FILE = os.path.expanduser("~/Music/YandexMusic/playlists_index.json")
 COVERS_DIR = os.path.expanduser("~/Music/YandexMusic/.covers")
 PROG_FILE = "/tmp/hysett_ym_progress.json"
 STOP_FILE = "/tmp/hysett_ym_stop"
+EXCLUDED_FILE = os.path.expanduser("~/.config/hypr/scripts/ym_excluded_playlists.json")
+KNOWN_PLS_FILE = os.path.expanduser("~/.config/hypr/scripts/ym_known_playlists.json")
+
+def load_excluded_playlists():
+    if os.path.exists(EXCLUDED_FILE):
+        try:
+            arr = json.load(open(EXCLUDED_FILE, "r", encoding="utf-8"))
+            if isinstance(arr, list):
+                return set(str(x).strip() for x in arr if str(x).strip())
+        except Exception:
+            pass
+    return set()
+
+def save_known_playlists(names):
+    try:
+        os.makedirs(os.path.dirname(KNOWN_PLS_FILE), exist_ok=True)
+        existing = []
+        if os.path.exists(KNOWN_PLS_FILE):
+            existing = json.load(open(KNOWN_PLS_FILE, "r", encoding="utf-8")) or []
+        merged = []
+        for n in list(names) + list(existing):
+            s = str(n).strip()
+            if s and s not in ("Моя волна", "Скрытые") and s not in merged:
+                merged.append(s)
+        with open(KNOWN_PLS_FILE, "w", encoding="utf-8") as f:
+            json.dump(merged, f, ensure_ascii=False)
+    except Exception:
+        pass
 MUSIC_DIR = os.path.expanduser("~/Music/YandexMusic")
 OAUTH_URL = "https://oauth.yandex.ru/authorize?response_type=token&client_id=23cabbbdc6cd418abb4b39c32c41195d"
 
@@ -313,33 +341,43 @@ def sync_all_playlists():
 
     db_obj = load_db()
     db_set = set(db_obj.get("downloaded_ids", []))
+    excluded_set = load_excluded_playlists()
+    known_names = ["Мне нравится"]
     total_new = 0
 
-    try:
-        write_prog(True, 10, "Проверка плейлиста «Мне нравится»...")
-        likes_resp = ym_request(f"/users/{uid}/likes/tracks", token)
-        like_short = likes_resp.get("result", {}).get("library", {}).get("tracks", [])
-        like_ids = [str(x.get("id")) for x in like_short if x.get("id")]
-        full_likes = []
-        for i in range(0, len(like_ids), 150):
-            if os.path.exists(STOP_FILE):
-                break
-            chunk_ids = like_ids[i:i+150]
-            tr_resp = ym_request("/tracks", token, data={"track-ids": ",".join(chunk_ids)})
-            full_likes.extend(tr_resp.get("result", []))
-        if full_likes:
-            total_new += download_track_list(full_likes, "Мне нравится", token, db_set, db_obj)
-    except Exception:
-        pass
+    if "Мне нравится" not in excluded_set:
+        try:
+            write_prog(True, 10, "Проверка плейлиста «Мне нравится»...")
+            likes_resp = ym_request(f"/users/{uid}/likes/tracks", token)
+            like_short = likes_resp.get("result", {}).get("library", {}).get("tracks", [])
+            like_ids = [str(x.get("id")) for x in like_short if x.get("id")]
+            full_likes = []
+            for i in range(0, len(like_ids), 150):
+                if os.path.exists(STOP_FILE):
+                    break
+                chunk_ids = like_ids[i:i+150]
+                tr_resp = ym_request("/tracks", token, data={"track-ids": ",".join(chunk_ids)})
+                full_likes.extend(tr_resp.get("result", []))
+            if full_likes:
+                total_new += download_track_list(full_likes, "Мне нравится", token, db_set, db_obj)
+        except Exception:
+            pass
 
     try:
         pls_resp = ym_request(f"/users/{uid}/playlists/list", token)
         playlists = pls_resp.get("result", [])
         for pl in playlists:
+            t_name = pl.get("title", f"Плейлист {pl.get('kind')}")
+            if t_name and t_name not in known_names:
+                known_names.append(t_name)
+        save_known_playlists(known_names)
+        for pl in playlists:
             if os.path.exists(STOP_FILE):
                 break
             kind = pl.get("kind")
             pl_title = pl.get("title", f"Плейлист {kind}")
+            if pl_title in excluded_set or safe_filename(pl_title) in excluded_set:
+                continue
             pl_full = ym_request(f"/users/{uid}/playlists/{kind}", token).get("result", {})
             raw_items = pl_full.get("tracks", [])
             tracks = []

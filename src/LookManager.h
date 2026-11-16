@@ -22,6 +22,7 @@ class LookManager : public QObject {
     Q_PROPERTY(int gapsOut READ gapsOut WRITE setGapsOut NOTIFY lookChanged)
     Q_PROPERTY(int borderSize READ borderSize WRITE setBorderSize NOTIFY lookChanged)
     Q_PROPERTY(bool animsEnabled READ animsEnabled WRITE setAnimsEnabled NOTIFY lookChanged)
+    Q_PROPERTY(bool noBorderSingleWindow READ noBorderSingleWindow WRITE setNoBorderSingleWindow NOTIFY lookChanged)
     Q_PROPERTY(bool borderSyncWithWallpaper READ borderSyncWithWallpaper WRITE setBorderSyncWithWallpaper NOTIFY lookChanged)
     Q_PROPERTY(QString activeBorder READ activeBorder WRITE setActiveBorder NOTIFY lookChanged)
     Q_PROPERTY(QString inactiveBorder READ inactiveBorder WRITE setInactiveBorder NOTIFY lookChanged)
@@ -75,6 +76,9 @@ public:
     bool animsEnabled() const { return m_animsEnabled; }
     void setAnimsEnabled(bool v);
 
+    bool noBorderSingleWindow() const { return m_noBorderSingleWindow; }
+    void setNoBorderSingleWindow(bool v);
+
     bool borderSyncWithWallpaper() const { return m_borderSyncWithWallpaper; }
     void setBorderSyncWithWallpaper(bool v);
 
@@ -115,6 +119,7 @@ private:
     int m_gapsOut = 10;
     int m_borderSize = 1;
     bool m_animsEnabled = true;
+    bool m_noBorderSingleWindow = true;
     bool m_borderSyncWithWallpaper = true;
     QString m_activeBorder = "rgba(ccccccff)";
     QString m_inactiveBorder = "rgba(333333ff)";

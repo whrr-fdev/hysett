@@ -257,6 +257,29 @@ ScrollView {
                 }
             }
 
+            // 14a. Скрывать рамку, когда открыто одно окно на столе
+            SettingRow {
+                title: Config ? (Config.language, Config.trAuto("Без рамки у одного окна:")) : "Без рамки у одного окна:"
+                onResetClicked: Look.noBorderSingleWindow = true
+                controlItem: RowLayout {
+                    anchors.fill: parent
+                    spacing: 10
+                    StyledSwitch {
+                        checked: Look.noBorderSingleWindow
+                        onToggled: Look.noBorderSingleWindow = checked
+                    }
+                    Text {
+                        text: Look.noBorderSingleWindow
+                              ? "Скрывать обводку, когда на столе одно окно (не плавающее)"
+                              : "Показывать обводку всегда"
+                        color: Look.noBorderSingleWindow ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                        font.pixelSize: Config.fontSize - 1
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+
             // 15. Анимации
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Анимации:")) : "Анимации:"

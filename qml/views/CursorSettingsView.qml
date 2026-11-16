@@ -15,10 +15,22 @@ ScrollView {
     property string searchQuery: ""
     property int sourceFilterIdx: 0
     readonly property var sourceCodes: ["all", "gnome-look", "github", "popular"]
+    readonly property bool isM3: Theme && Theme.isRounded
 
     Item {
         width: curScroll.availableWidth
         implicitHeight: contentCol.implicitHeight + 40
+
+        DropArea {
+            anchors.fill: parent
+            onDropped: (drop) => {
+                if (drop.hasUrls && drop.urls.length > 0) {
+                    var p = decodeURIComponent(String(drop.urls[0]).replace(/^file:\/\//, ""))
+                    if (Config) Config.addStashedFile(p)
+                    curScroll.selectedArchivePath = p
+                }
+            }
+        }
 
         ColumnLayout {
             id: contentCol
@@ -102,7 +114,7 @@ ScrollView {
                             Rectangle {
                                 implicitWidth: 34
                                 implicitHeight: 34
-                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                radius: curScroll.isM3 ? 10 : 0
                                 color: Qt.rgba(1, 1, 1, Math.max(0.04, Config ? Config.cardOpacity * 0.15 : 0.06))
                                 border.color: Qt.rgba(1, 1, 1, 0.15)
                                 border.width: 1
@@ -131,7 +143,7 @@ ScrollView {
                                 Rectangle {
                                     implicitHeight: 26
                                     implicitWidth: 84
-                                    radius: (Theme && Theme.isRounded) ? 8 : 0
+                                    radius: curScroll.isM3 ? 8 : 0
                                     color: Qt.rgba(1, 1, 1, Math.max(0.04, Config ? Config.cardOpacity * 0.15 : 0.06))
                                     border.color: Qt.rgba(1, 1, 1, 0.15)
                                     border.width: 1
@@ -290,7 +302,7 @@ ScrollView {
                     visible: Cursor.installStatus !== ""
                     Layout.fillWidth: true
                     implicitHeight: statusRow.implicitHeight + 16
-                    radius: (Theme && Theme.isRounded) ? 10 : 0
+                    radius: curScroll.isM3 ? 10 : 0
                     color: Cursor.installSuccess ? Qt.rgba(0.18, 0.75, 0.42, 0.16) : Qt.rgba(0.92, 0.28, 0.28, 0.16)
                     border.color: Cursor.installSuccess ? Qt.rgba(0.25, 0.88, 0.52, 0.45) : Qt.rgba(0.95, 0.35, 0.35, 0.45)
                     border.width: 1
@@ -318,14 +330,154 @@ ScrollView {
                     }
                 }
 
-                // КАРТОЧКА ОНЛАЙН-ПОИСКА КУРСОРОВ (Gnome-Look + GitHub)
+                // Блок файлов и папок, загруженных в панель задач (Drag-and-Drop через панель)
+                GlassPanel {
+                    objectName: "atmoObstacle"
+                    visible: Config && Config.stashedFiles.length > 0
+                    Layout.fillWidth: true
+                    implicitHeight: stashCursorCol.implicitHeight + 24
+
+                    ColumnLayout {
+                        id: stashCursorCol
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 8
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Text {
+                                text: "󰇚"
+                                color: Config ? Config.m3Primary : "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                            }
+                            Text {
+                                text: "Загружено в панель задач (" + (Config ? Config.stashedFiles.length : 0) + ")"
+                                color: "#ffffff"
+                                font.pixelSize: Config ? Config.fontSize + 1 : 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            StyledButton {
+                                text: "󰎟 Очистить файлы"
+                                implicitHeight: 22
+                                onClicked: if (Config) Config.clearStashedFiles()
+                            }
+                        }
+
+                        Item {
+                            id: stashCursorHoverWrap
+                            Layout.fillWidth: true
+                            implicitHeight: stashCursorListCol.implicitHeight
+                            property bool isHovering: false
+                            property real hovY: 0
+                            property real hovH: 36
+
+                            Timer {
+                                id: stashCursorHold
+                                interval: 45
+                                onTriggered: stashCursorHoverWrap.isHovering = false
+                            }
+
+                            Rectangle {
+                                z: 1
+                                opacity: stashCursorHoverWrap.isHovering ? 1.0 : 0.0
+                                x: 0; y: stashCursorHoverWrap.hovY
+                                width: stashCursorHoverWrap.width; height: stashCursorHoverWrap.hovH
+                                radius: curScroll.isM3 ? 8 : 0
+                                color: curScroll.isM3 && Config
+                                       ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.14)
+                                       : Qt.rgba(1, 1, 1, 0.10)
+                                Behavior on y { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                                Behavior on opacity { NumberAnimation { duration: 115 } }
+                            }
+
+                            ColumnLayout {
+                                id: stashCursorListCol
+                                z: 2; width: parent.width; spacing: 5
+
+                                Repeater {
+                                    model: Config ? Config.stashedFiles : []
+                                    delegate: Rectangle {
+                                        id: stashCursorRow
+                                        Layout.fillWidth: true
+                                        implicitHeight: 36
+                                        radius: curScroll.isM3 ? 8 : 0
+                                        color: Qt.rgba(1, 1, 1, 0.04)
+                                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                                        border.width: 1
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            acceptedButtons: Qt.NoButton
+                                            onEntered: {
+                                                stashCursorHold.stop()
+                                                stashCursorHoverWrap.hovY = stashCursorRow.y
+                                                stashCursorHoverWrap.hovH = stashCursorRow.height
+                                                stashCursorHoverWrap.isHovering = true
+                                            }
+                                            onExited: stashCursorHold.restart()
+                                        }
+
+                                        RowLayout {
+                                            anchors.fill: parent
+                                            anchors.leftMargin: 10
+                                            anchors.rightMargin: 8
+                                            spacing: 8
+
+                                            Text {
+                                                text: modelData.isDir ? "󰉋" : "󰀼"
+                                                color: Config ? Config.m3Primary : "#a8c7fa"
+                                                font.pixelSize: 14
+                                            }
+
+                                            Text {
+                                                text: modelData.name
+                                                color: "#ffffff"
+                                                font.pixelSize: Config ? Config.fontSize : 11
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
+                                            }
+
+                                            Text {
+                                                text: modelData.size + " • " + modelData.time
+                                                color: "#888888"
+                                                font.pixelSize: Config ? Config.fontSize - 2 : 9
+                                            }
+
+                                            StyledButton {
+                                                text: "󰄬 Установить курсор"
+                                                implicitHeight: 24
+                                                isActive: true
+                                                onClicked: {
+                                                    curScroll.selectedArchivePath = modelData.path
+                                                    Cursor.installCursor(modelData.path, curScroll.applyImmediately)
+                                                }
+                                            }
+
+                                            StyledButton {
+                                                text: "󰅖"
+                                                isIconOnly: true
+                                                implicitWidth: 24; implicitHeight: 24
+                                                onClicked: if (Config) Config.removeStashedFile(modelData.path)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // КАРТОЧКА ЛОКАЛЬНОЙ УСТАНОВКИ ИЗ ФАЙЛА ИЛИ ПАПКИ
                 GlassPanel {
                     objectName: "atmoObstacle"
                     Layout.fillWidth: true
-                    implicitHeight: colOnline.implicitHeight + 24
+                    implicitHeight: colInst.implicitHeight + 24
 
                     ColumnLayout {
-                        id: colOnline
+                        id: colInst
                         anchors.fill: parent
                         anchors.margins: 12
                         spacing: 10
@@ -335,7 +487,7 @@ ScrollView {
                             spacing: 10
 
                             Text {
-                                text: "󰖟 Онлайн-каталог курсоров (Gnome-Look / GitHub)"
+                                text: Config ? (Config.language, Config.trAuto("Установка из файла или папки")) : "Установка из файла или папки"
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize + 1
                                 font.bold: true
@@ -355,6 +507,82 @@ ScrollView {
                             }
                         }
 
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Rectangle {
+                                Layout.fillWidth: true
+                                implicitHeight: 28
+                                radius: curScroll.isM3 ? 8 : 0
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.color: pathInput.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.16)
+                                border.width: 1
+
+                                TextInput {
+                                    id: pathInput
+                                    anchors.fill: parent
+                                    anchors.leftMargin: 10
+                                    anchors.rightMargin: 10
+                                    verticalAlignment: TextInput.AlignVCenter
+                                    color: "#ffffff"
+                                    font.pixelSize: Config.fontSize
+                                    selectByMouse: true
+                                    clip: true
+                                    text: curScroll.selectedArchivePath
+                                    onTextEdited: curScroll.selectedArchivePath = text
+
+                                    Text {
+                                        anchors.fill: parent
+                                        verticalAlignment: Text.AlignVCenter
+                                        text: "Сбросьте архив на верхнюю панель или выберите файл (.tar.xz, .tar.gz, .zip, .hlc)..."
+                                        color: "#666666"
+                                        font.pixelSize: Config.fontSize
+                                        visible: !pathInput.text && !pathInput.activeFocus
+                                    }
+                                }
+                            }
+
+                            StyledButton {
+                                text: "󰉋 Выбрать файл..."
+                                onClicked: {
+                                    var p = Cursor.browseCursorArchive()
+                                    if (p !== "") {
+                                        curScroll.selectedArchivePath = p
+                                    }
+                                }
+                            }
+
+                            StyledButton {
+                                text: "󰄬 Установить"
+                                isActive: true
+                                onClicked: {
+                                    Cursor.installCursor(curScroll.selectedArchivePath, curScroll.applyImmediately)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // КАРТОЧКА ОНЛАЙН-ПОИСКА КУРСОРОВ (Gnome-Look + GitHub)
+                GlassPanel {
+                    objectName: "atmoObstacle"
+                    Layout.fillWidth: true
+                    implicitHeight: colOnline.implicitHeight + 24
+
+                    ColumnLayout {
+                        id: colOnline
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 10
+
+                        Text {
+                            text: "󰖟 Поиск курсоров по сайтам (Gnome-Look / GitHub)"
+                            color: "#ffffff"
+                            font.pixelSize: Config.fontSize + 1
+                            font.bold: true
+                        }
+
                         // Строка поиска и фильтров
                         RowLayout {
                             Layout.fillWidth: true
@@ -363,7 +591,7 @@ ScrollView {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: 28
-                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                radius: curScroll.isM3 ? 8 : 0
                                 color: Qt.rgba(1, 1, 1, 0.05)
                                 border.color: onlineSearchInput.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.16)
                                 border.width: 1
@@ -415,7 +643,7 @@ ScrollView {
 
                             StyledButton {
                                 text: Cursor.onlineLoading ? "󰑐 Поиск..." : "󰍉 Найти"
-                                isAccent: true
+                                isActive: true
                                 onClicked: Cursor.searchOnlineCursors(curScroll.searchQuery, curScroll.sourceCodes[curScroll.sourceFilterIdx])
                             }
                         }
@@ -425,7 +653,7 @@ ScrollView {
                             visible: Cursor.onlineLoading
                             Layout.fillWidth: true
                             implicitHeight: 42
-                            radius: (Theme && Theme.isRounded) ? 8 : 0
+                            radius: curScroll.isM3 ? 8 : 0
                             color: Qt.rgba(1, 1, 1, 0.03)
 
                             Text {
@@ -450,7 +678,7 @@ ScrollView {
                                     id: onlineCard
                                     Layout.fillWidth: true
                                     implicitHeight: cardInnerCol.implicitHeight + 20
-                                    radius: (Theme && Theme.isRounded) ? 12 : 0
+                                    radius: curScroll.isM3 ? 12 : 0
                                     color: Qt.rgba(1, 1, 1, 0.04)
                                     border.color: Qt.rgba(1, 1, 1, 0.13)
                                     border.width: 1
@@ -469,7 +697,7 @@ ScrollView {
                                         Rectangle {
                                             Layout.fillWidth: true
                                             implicitHeight: 110
-                                            radius: (Theme && Theme.isRounded) ? 9 : 0
+                                            radius: curScroll.isM3 ? 9 : 0
                                             color: Qt.rgba(0, 0, 0, 0.32)
                                             border.color: Qt.rgba(1, 1, 1, 0.10)
                                             border.width: 1
@@ -501,7 +729,7 @@ ScrollView {
                                                 anchors.margins: 6
                                                 height: 18
                                                 width: srcBadgeText.implicitWidth + 10
-                                                radius: (Theme && Theme.isRounded) ? 5 : 0
+                                                radius: curScroll.isM3 ? 5 : 0
                                                 color: Qt.rgba(0, 0, 0, 0.72)
                                                 border.color: Qt.rgba(1, 1, 1, 0.18)
                                                 border.width: 1
@@ -518,30 +746,25 @@ ScrollView {
                                         }
 
                                         // Заголовок и автор
-                                        RowLayout {
+                                        ColumnLayout {
                                             Layout.fillWidth: true
-                                            spacing: 6
+                                            spacing: 1
 
-                                            ColumnLayout {
+                                            Text {
+                                                text: modelData.title || "Cursor Theme"
+                                                color: "#ffffff"
+                                                font.pixelSize: Config.fontSize
+                                                font.bold: true
+                                                elide: Text.ElideRight
                                                 Layout.fillWidth: true
-                                                spacing: 1
+                                            }
 
-                                                Text {
-                                                    text: modelData.title || "Cursor Theme"
-                                                    color: "#ffffff"
-                                                    font.pixelSize: Config.fontSize
-                                                    font.bold: true
-                                                    elide: Text.ElideRight
-                                                    Layout.fillWidth: true
-                                                }
-
-                                                Text {
-                                                    text: "󰀄 " + (modelData.author || "author") + (modelData.downloads ? "  •  󰇚 " + modelData.downloads : "")
-                                                    color: "#888888"
-                                                    font.pixelSize: Config.fontSize - 2
-                                                    elide: Text.ElideRight
-                                                    Layout.fillWidth: true
-                                                }
+                                            Text {
+                                                text: "󰀄 " + (modelData.author || "author") + (modelData.downloads ? "  •  󰇚 " + modelData.downloads : "")
+                                                color: "#888888"
+                                                font.pixelSize: Config.fontSize - 2
+                                                elide: Text.ElideRight
+                                                Layout.fillWidth: true
                                             }
                                         }
 
@@ -562,7 +785,8 @@ ScrollView {
 
                                         StyledButton {
                                             Layout.fillWidth: true
-                                            isAccent: true
+                                            allowFullWidth: true
+                                            isActive: onlineCard.isThisDownloading
                                             text: onlineCard.isThisDownloading ? "󰑐 Скачивание..." : "󰇚 Скачать и установить"
                                             enabled: Cursor.downloadingId === "" && onlineCard.variantsList.length > 0
                                             onClicked: {
@@ -573,121 +797,6 @@ ScrollView {
                                                 }
                                             }
                                         }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                // КАРТОЧКА ЛОКАЛЬНОЙ УСТАНОВКИ ИЗ ФАЙЛА ИЛИ ПАПКИ
-                GlassPanel {
-                    objectName: "atmoObstacle"
-                    Layout.fillWidth: true
-                    implicitHeight: colInst.implicitHeight + 24
-
-                    ColumnLayout {
-                        id: colInst
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 10
-
-                        Text {
-                            text: Config ? (Config.language, Config.trAuto("Установка из локального файла или папки")) : "Установка из локального файла или папки"
-                            color: "#ffffff"
-                            font.pixelSize: Config.fontSize + 1
-                            font.bold: true
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-
-                            Rectangle {
-                                Layout.fillWidth: true
-                                implicitHeight: 28
-                                radius: (Theme && Theme.isRounded) ? 8 : 0
-                                color: Qt.rgba(1, 1, 1, 0.05)
-                                border.color: pathInput.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.16)
-                                border.width: 1
-
-                                TextInput {
-                                    id: pathInput
-                                    anchors.fill: parent
-                                    anchors.leftMargin: 10
-                                    anchors.rightMargin: 10
-                                    verticalAlignment: TextInput.AlignVCenter
-                                    color: "#ffffff"
-                                    font.pixelSize: Config.fontSize
-                                    selectByMouse: true
-                                    clip: true
-                                    text: curScroll.selectedArchivePath
-                                    onTextEdited: curScroll.selectedArchivePath = text
-
-                                    Text {
-                                        anchors.fill: parent
-                                        verticalAlignment: Text.AlignVCenter
-                                        text: "Путь к архиву (.tar.xz, .tar.gz, .zip, .hlc) или папке..."
-                                        color: "#666666"
-                                        font.pixelSize: Config.fontSize
-                                        visible: !pathInput.text && !pathInput.activeFocus
-                                    }
-                                }
-                            }
-
-                            StyledButton {
-                                text: "󰉋 Выбрать файл..."
-                                onClicked: {
-                                    var p = Cursor.browseCursorArchive()
-                                    if (p !== "") {
-                                        curScroll.selectedArchivePath = p
-                                    }
-                                }
-                            }
-
-                            StyledButton {
-                                text: "󰄬 Установить"
-                                isAccent: true
-                                onClicked: {
-                                    Cursor.installCursor(curScroll.selectedArchivePath, curScroll.applyImmediately)
-                                }
-                            }
-                        }
-
-                        // Зона перетаскивания (Drag & Drop)
-                        Rectangle {
-                            id: dropBox
-                            Layout.fillWidth: true
-                            implicitHeight: 54
-                            radius: (Theme && Theme.isRounded) ? 10 : 0
-                            color: cursorDropArea.containsDrag
-                                   ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.18) : Qt.rgba(1, 1, 1, 0.12))
-                                   : Qt.rgba(1, 1, 1, 0.03)
-                            border.color: cursorDropArea.containsDrag
-                                          ? (Config ? Config.m3Primary : "#ffffff")
-                                          : Qt.rgba(1, 1, 1, 0.14)
-                            border.width: 1
-
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                spacing: 2
-
-                                Text {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    text: cursorDropArea.containsDrag ? "󰇀 Отпустите файл для установки курсора" : "󰉍 Перетащите сюда архив или папку с курсором"
-                                    color: cursorDropArea.containsDrag ? "#ffffff" : "#cccccc"
-                                    font.pixelSize: Config.fontSize
-                                    font.bold: cursorDropArea.containsDrag
-                                }
-                            }
-
-                            DropArea {
-                                id: cursorDropArea
-                                anchors.fill: parent
-                                onDropped: (drop) => {
-                                    if (drop.hasUrls && drop.urls.length > 0) {
-                                        curScroll.selectedArchivePath = drop.urls[0].toString()
-                                        Cursor.installCursor(curScroll.selectedArchivePath, curScroll.applyImmediately)
                                     }
                                 }
                             }
@@ -728,7 +837,7 @@ ScrollView {
                             delegate: Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: 34
-                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                radius: curScroll.isM3 ? 8 : 0
                                 color: curScroll.selectedArchivePath === modelData.path
                                        ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.16) : Qt.rgba(1, 1, 1, 0.10))
                                        : Qt.rgba(1, 1, 1, 0.04)
@@ -804,7 +913,7 @@ ScrollView {
                                 delegate: Rectangle {
                                     Layout.fillWidth: true
                                     implicitHeight: 42
-                                    radius: (Theme && Theme.isRounded) ? 9 : 0
+                                    radius: curScroll.isM3 ? 9 : 0
                                     readonly property bool isActiveTheme: Cursor.theme === modelData
                                     color: isActiveTheme
                                            ? (Config ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.22) : Qt.rgba(1, 1, 1, 0.14))
@@ -823,7 +932,7 @@ ScrollView {
                                         Rectangle {
                                             width: 28
                                             height: 28
-                                            radius: (Theme && Theme.isRounded) ? 7 : 0
+                                            radius: curScroll.isM3 ? 7 : 0
                                             color: Qt.rgba(1, 1, 1, 0.06)
                                             border.color: Qt.rgba(1, 1, 1, 0.14)
                                             border.width: 1

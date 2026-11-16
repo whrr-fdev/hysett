@@ -9,6 +9,34 @@ ScrollView {
     contentWidth: availableWidth
     clip: true
 
+    property int borderColorTarget: 0 // 0 = activeBorder, 1 = inactiveBorder
+
+    function rgbaToHexColor(rgbaStr, fallbackHex) {
+        var m = String(rgbaStr || "").match(/rgba\(([0-9a-fA-F]{6})/)
+        if (m && m[1]) return "#" + m[1]
+        var m2 = String(rgbaStr || "").match(/#([0-9a-fA-F]{6})/)
+        if (m2 && m2[1]) return "#" + m2[1]
+        return fallbackHex
+    }
+
+    function hexToHyprRgba(colObj, alphaHex) {
+        var s = colObj.toString().replace("#", "")
+        if (s.length === 8) s = s.slice(2)
+        return "rgba(" + s.toLowerCase() + (alphaHex || "ff") + ")"
+    }
+
+    ColorPickerModal {
+        id: borderColorModal
+        onColorSelected: (newCol) => {
+            if (Look.borderSyncWithWallpaper) Look.borderSyncWithWallpaper = false
+            if (lookScroll.borderColorTarget === 0) {
+                Look.activeBorder = lookScroll.hexToHyprRgba(newCol, "ee")
+            } else {
+                Look.inactiveBorder = lookScroll.hexToHyprRgba(newCol, "aa")
+            }
+        }
+    }
+
     Item {
         width: lookScroll.availableWidth
         implicitHeight: contentCol.implicitHeight + 40
@@ -21,7 +49,6 @@ ScrollView {
             anchors.topMargin: 20
             spacing: 5
 
-            // Заголовок теперь внутри ScrollView — скроллится наверх вместе с контентом!
             Text {
                 text: Config ? (Config.language, Config.trAuto("Окна и оформление рабочего стола")) : "Окна и оформление рабочего стола"
                 color: "#ffffff"
@@ -38,7 +65,7 @@ ScrollView {
                 signal resetClicked()
 
                 Layout.fillWidth: true
-                implicitHeight: 32
+                implicitHeight: 36
                 radius: (Theme && Theme.isRounded) ? (Config ? Math.min(14, Config.m3CardRadius) : 12) : 0
 
                 RowLayout {
@@ -51,13 +78,14 @@ ScrollView {
                         text: rowRoot.title
                         color: "#cccccc"
                         font.pixelSize: Config.fontSize
-                        Layout.preferredWidth: 230
+                        Layout.preferredWidth: 250
+                        elide: Text.ElideRight
                     }
 
                     Item {
                         id: placeholder
                         Layout.fillWidth: true
-                        implicitHeight: 20
+                        implicitHeight: 26
                     }
 
                     Text {
@@ -239,31 +267,146 @@ ScrollView {
                 }
             }
 
-            // 16. Цвет активной рамки
+            // 16. Рамки окон в цвет обоев (динамическая палитра)
             SettingRow {
-                title: Config ? (Config.language, Config.trAuto("Цвет активной рамки (RGBA):")) : "Цвет активной рамки (RGBA):"
-                onResetClicked: Look.activeBorder = "rgba(ccccccff)"
-                controlItem: TextField {
+                title: Config ? (Config.language, Config.trAuto("Рамки окон в цвет обоев:")) : "Рамки окон в цвет обоев:"
+                onResetClicked: Look.borderSyncWithWallpaper = true
+                controlItem: RowLayout {
                     anchors.fill: parent
-                    text: Look.activeBorder
-                    color: "#ffffff"
-                    font.pixelSize: Config.fontSize
-                    background: Rectangle { color: "transparent" }
-                    onEditingFinished: Look.activeBorder = text
+                    spacing: 10
+                    StyledSwitch {
+                        checked: Look.borderSyncWithWallpaper
+                        onToggled: Look.borderSyncWithWallpaper = checked
+                    }
+                    Text {
+                        text: Look.borderSyncWithWallpaper
+                              ? "Автоматически из текущих обоев / темы"
+                              : "Ручной выбор цвета рамки"
+                        color: Look.borderSyncWithWallpaper ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                        font.pixelSize: Config.fontSize - 1
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
                 }
             }
 
-            // 17. Цвет неактивной рамки
+            // 17. Цвет активной рамки (не обрезается + кнопка Палитра с модальным окном)
+            SettingRow {
+                title: Config ? (Config.language, Config.trAuto("Цвет активной рамки (RGBA):")) : "Цвет активной рамки (RGBA):"
+                onResetClicked: { Look.borderSyncWithWallpaper = false; Look.activeBorder = "rgba(ccccccff)" }
+                controlItem: RowLayout {
+                    anchors.fill: parent
+                    spacing: 8
+
+                    Rectangle {
+                        Layout.preferredWidth: 20
+                        Layout.preferredHeight: 20
+                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                        color: lookScroll.rgbaToHexColor(Look.activeBorder, "#cccccc")
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.35)
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                lookScroll.borderColorTarget = 0
+                                borderColorModal.openPicker("Цвет активной рамки", lookScroll.rgbaToHexColor(Look.activeBorder, "#cccccc"))
+                            }
+                        }
+                    }
+
+                    TextField {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        topPadding: 0
+                        bottomPadding: 0
+                        leftPadding: 8
+                        rightPadding: 8
+                        verticalAlignment: TextInput.AlignVCenter
+                        text: Look.activeBorder
+                        color: "#ffffff"
+                        font.pixelSize: Config.fontSize
+                        background: Rectangle {
+                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                            color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+                            border.color: parent.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.14)
+                        }
+                        onEditingFinished: {
+                            Look.borderSyncWithWallpaper = false
+                            Look.activeBorder = text.trim()
+                        }
+                    }
+
+                    StyledButton {
+                        text: "󰏘 Палитра"
+                        implicitHeight: 22
+                        onClicked: {
+                            lookScroll.borderColorTarget = 0
+                            borderColorModal.openPicker("Цвет активной рамки", lookScroll.rgbaToHexColor(Look.activeBorder, "#cccccc"))
+                        }
+                    }
+                }
+            }
+
+            // 18. Цвет неактивной рамки (не обрезается + кнопка Палитра с модальным окном)
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Цвет неактивной рамки (RGBA):")) : "Цвет неактивной рамки (RGBA):"
-                onResetClicked: Look.inactiveBorder = "rgba(333333ff)"
-                controlItem: TextField {
+                onResetClicked: { Look.borderSyncWithWallpaper = false; Look.inactiveBorder = "rgba(333333ff)" }
+                controlItem: RowLayout {
                     anchors.fill: parent
-                    text: Look.inactiveBorder
-                    color: "#ffffff"
-                    font.pixelSize: Config.fontSize
-                    background: Rectangle { color: "transparent" }
-                    onEditingFinished: Look.inactiveBorder = text
+                    spacing: 8
+
+                    Rectangle {
+                        Layout.preferredWidth: 20
+                        Layout.preferredHeight: 20
+                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                        color: lookScroll.rgbaToHexColor(Look.inactiveBorder, "#333333")
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.35)
+
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                lookScroll.borderColorTarget = 1
+                                borderColorModal.openPicker("Цвет неактивной рамки", lookScroll.rgbaToHexColor(Look.inactiveBorder, "#333333"))
+                            }
+                        }
+                    }
+
+                    TextField {
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 24
+                        topPadding: 0
+                        bottomPadding: 0
+                        leftPadding: 8
+                        rightPadding: 8
+                        verticalAlignment: TextInput.AlignVCenter
+                        text: Look.inactiveBorder
+                        color: "#ffffff"
+                        font.pixelSize: Config.fontSize
+                        background: Rectangle {
+                            radius: (Theme && Theme.isRounded) ? 6 : 0
+                            color: Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+                            border.color: parent.activeFocus ? (Config ? Config.m3Primary : "#ffffff") : Qt.rgba(1, 1, 1, 0.14)
+                        }
+                        onEditingFinished: {
+                            Look.borderSyncWithWallpaper = false
+                            Look.inactiveBorder = text.trim()
+                        }
+                    }
+
+                    StyledButton {
+                        text: "󰏘 Палитра"
+                        implicitHeight: 22
+                        onClicked: {
+                            lookScroll.borderColorTarget = 1
+                            borderColorModal.openPicker("Цвет неактивной рамки", lookScroll.rgbaToHexColor(Look.inactiveBorder, "#333333"))
+                        }
+                    }
                 }
             }
 

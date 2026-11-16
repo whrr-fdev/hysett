@@ -81,9 +81,32 @@ for tname in ("HySett-M3-A", "HySett-M3-B"):
     for base_root in (os.path.join(home, ".local/share/themes"), os.path.join(home, ".themes")):
         shutil.rmtree(os.path.join(base_root, tname), ignore_errors=True)
 
-# 1. Рамки окон Hyprland
-subprocess.run(["hyprctl", "keyword", "general:col.active_border", f"rgba({pri_hex.lstrip('#')}ee)"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-subprocess.run(["hyprctl", "keyword", "general:col.inactive_border", f"rgba({high_hex.lstrip('#')}aa)"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+# 1. Рамки окон Hyprland (если включена синхронизация рамок с обоями в LookManager)
+look_lua_path = os.path.join(home, ".config/hypr/look.lua")
+border_sync_on = True
+if os.path.exists(look_lua_path):
+    try:
+        l_txt = open(look_lua_path, errors="ignore").read()
+        if "border_wallpaper_sync = false" in l_txt:
+            border_sync_on = False
+    except Exception:
+        pass
+
+if border_sync_on:
+    act_rgba = f"rgba({pri_hex.lstrip('#')}ee)"
+    inact_rgba = f"rgba({high_hex.lstrip('#')}aa)"
+    subprocess.run(["hyprctl", "keyword", "general:col.active_border", act_rgba], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["hyprctl", "keyword", "general:col.inactive_border", inact_rgba], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if os.path.exists(look_lua_path):
+        try:
+            import re as _re
+            l_txt = open(look_lua_path, errors="ignore").read()
+            l_txt = _re.sub(r'active_border\s*=\s*"[^"]*"', f'active_border = "{act_rgba}"', l_txt)
+            l_txt = _re.sub(r'inactive_border\s*=\s*"[^"]*"', f'inactive_border = "{inact_rgba}"', l_txt)
+            with open(look_lua_path, "w") as lf:
+                lf.write(l_txt)
+        except Exception:
+            pass
 
 # 2. Виджеты рабочего стола
 widgets_m3_sync = conf.get("widgets_m3_sync", "1") in ("1", "true")

@@ -185,10 +185,8 @@ Item {
         function onIsRoundedChanged() { timeRoot.paintActiveCanvas() }
     }
 
-    Timer {
-        interval: 33
+    FrameAnimation {
         running: timeRoot.visible && timeRoot.subTab === 0 && (!timeRoot.winObj || timeRoot.winObj.drawerActive)
-        repeat: true
         onTriggered: timeRoot.updateClockState()
     }
 
@@ -741,7 +739,7 @@ Item {
                                         var rOuter = 94
                                         var rInner = 80
 
-                                        var rawSecProg = timeRoot.curExactSeconds / 60.0
+                                        var rawSecProg = Math.max(0.0, Math.min(1.0, timeRoot.curExactSeconds / 60.0))
                                         var secProg = rawSecProg * timeRoot.dialIntroProgress
                                         var minProg = ((timeRoot.curMinutes + rawSecProg) / 60.0) * timeRoot.dialIntroProgress
 
@@ -765,16 +763,23 @@ Item {
                                         ctx.stroke()
 
                                         var startA = -Math.PI * 0.5
-                                        var endSecA = startA + Math.PI * 2 * (secProg > 0.002 ? secProg : 0.008)
-                                        ctx.beginPath()
-                                        ctx.arc(cx, cy, rOuter, startA, endSecA, false)
-                                        ctx.lineWidth = 7
-                                        ctx.lineCap = "round"
-                                        ctx.strokeStyle = primHex
-                                        ctx.stroke()
+                                        var fullTurn = Math.PI * 2
+                                        var headA = startA + fullTurn * secProg
+                                        var isUnwinding = (timeRoot.curMinutes % 2 === 1) && (timeRoot.dialIntroProgress >= 0.999)
+                                        var arcFrom = isUnwinding ? headA : startA
+                                        var arcTo = isUnwinding ? (startA + fullTurn) : Math.max(startA + 0.004, headA)
 
-                                        var dotX = cx + Math.cos(endSecA) * rOuter
-                                        var dotY = cy + Math.sin(endSecA) * rOuter
+                                        if (arcTo - arcFrom > 0.002) {
+                                            ctx.beginPath()
+                                            ctx.arc(cx, cy, rOuter, arcFrom, arcTo, false)
+                                            ctx.lineWidth = 7
+                                            ctx.lineCap = "round"
+                                            ctx.strokeStyle = primHex
+                                            ctx.stroke()
+                                        }
+
+                                        var dotX = cx + Math.cos(headA) * rOuter
+                                        var dotY = cy + Math.sin(headA) * rOuter
                                         ctx.beginPath()
                                         ctx.arc(dotX, dotY, 5.5, 0, Math.PI * 2)
                                         ctx.fillStyle = "#ffffff"

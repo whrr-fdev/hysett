@@ -6,7 +6,8 @@ _G.Canvas = _G.Canvas or {
     enabled = false,
     panning = false,
     inverted = false,
-    speed = 1.35,
+    speed = 1.45,
+    zoom_scale = 1.0,
     saved_state = {},
     virtual_pos = {},
 }
@@ -19,6 +20,28 @@ local IGNORED_CLASSES = {
     ["waybar"] = true,
     ["mako"] = true,
 }
+
+-- Спиральный порядок ячеек вокруг центра (0, 0), чтобы окна никогда не перекрывались
+local SPIRAL_CELLS = {
+    { 0,  0},
+    { 1,  0}, {-1,  0}, { 0,  1}, { 0, -1},
+    { 1,  1}, {-1,  1}, {-1, -1}, { 1, -1},
+    { 2,  0}, {-2,  0}, { 0,  2}, { 0, -2},
+    { 2,  1}, { 2, -1}, {-2,  1}, {-2, -1},
+    { 1,  2}, {-1,  2}, { 1, -2}, {-1, -2},
+    { 2,  2}, {-2,  2}, {-2, -2}, { 2, -2},
+    { 3,  0}, {-3,  0}, { 0,  3}, { 0, -3},
+}
+
+local function get_spiral_cell(idx)
+    if idx <= #SPIRAL_CELLS then
+        return SPIRAL_CELLS[idx][1], SPIRAL_CELLS[idx][2]
+    end
+    local cols = math.ceil(math.sqrt(idx))
+    local r = math.floor((idx - 1) / cols)
+    local c = ((idx - 1) % cols) - math.floor(cols / 2)
+    return c, r
+end
 
 local function notify(title, body)
     hl.exec_cmd("notify-send -a 'HySett Canvas' '" .. title .. "' '" .. body .. "'")
@@ -57,27 +80,46 @@ local function get_monitor_box()
     return 0, 0, 1920, 1080
 end
 
-local function move_win_exact(w, x, y)
-    local ix = math.floor(x + 0.5)
-    local iy = math.floor(y + 0.5)
-    _G.Canvas.virtual_pos[w.address] = { x = ix, y = iy }
-    hl.dispatch(hl.dsp.window.move({
-        x = ix,
-        y = iy,
-        relative = false,
-        window = w,
-    }))
+local function ensure_vp(w)
+    local vp = _G.Canvas.virtual_pos[w.address]
+    if not vp then
+        vp = {
+            x = w.at.x,
+            y = w.at.y,
+            w = w.size.x,
+            h = w.size.y,
+        }
+        _G.Canvas.virtual_pos[w.address] = vp
+    end
+    return vp
 end
 
-local function resize_win_exact(w, width, height)
-    local iw = math.max(220, math.floor(width + 0.5))
-    local ih = math.max(160, math.floor(height + 0.5))
-    hl.dispatch(hl.dsp.window.resize({
-        x = iw,
-        y = ih,
-        relative = false,
-        window = w,
-    }))
+local function apply_win_geom(w, x, y, width, height)
+    local vp = ensure_vp(w)
+    if width and height then
+        local iw = math.max(240, math.floor(width + 0.5))
+        local ih = math.max(160, math.floor(height + 0.5))
+        vp.w = iw
+        vp.h = ih
+        hl.dispatch(hl.dsp.window.resize({
+            x = iw,
+            y = ih,
+            relative = false,
+            window = w,
+        }))
+    end
+    if x and y then
+        local ix = math.floor(x + 0.5)
+        local iy = math.floor(y + 0.5)
+        vp.x = ix
+        vp.y = iy
+        hl.dispatch(hl.dsp.window.move({
+            x = ix,
+            y = iy,
+            relative = false,
+            window = w,
+        }))
+    end
 end
 
 local function focus_and_raise(w)
@@ -97,24 +139,22 @@ function _G.Canvas.pan_delta(raw_dx, raw_dy)
     if not ws then return end
     for _, w in pairs(hl.get_windows()) do
         if is_canvas_win(w, ws.id) and w.floating then
-            local vp = _G.Canvas.virtual_pos[w.address]
-            local cur_x = vp and vp.x or w.at.x
-            local cur_y = vp and vp.y or w.at.y
-            move_win_exact(w, cur_x + dx, cur_y + dy)
+            local vp = ensure_vp(w)
+            apply_win_geom(w, vp.x + dx, vp.y + dy, nil, nil)
         end
     end
 end
 
--- Сдвиг остальных окон при перетаскивании активного окна (Super+ЛКМ) к краю экрана
 function _G.Canvas.edge_push(raw_dx, raw_dy)
     if not _G.Canvas.enabled then return end
     local active = hl.get_active_window()
     if not active or not active.floating then return end
 
     local mx, my, mw, mh = get_monitor_box()
-    local margin = 16
+    local margin = 18
     local ax, ay = active.at.x, active.at.y
     local aw, ah = active.size.x, active.size.y
+    _G.Canvas.virtual_pos[active.address] = { x = ax, y = ay, w = aw, h = ah }
 
     local push_x, push_y = 0, 0
     if ax <= mx + margin and raw_dx < 0 then
@@ -135,10 +175,8 @@ function _G.Canvas.edge_push(raw_dx, raw_dy)
     if not ws then return end
     for _, w in pairs(hl.get_windows()) do
         if is_canvas_win(w, ws.id) and w.floating and w.address ~= active.address then
-            local vp = _G.Canvas.virtual_pos[w.address]
-            local cur_x = vp and vp.x or w.at.x
-            local cur_y = vp and vp.y or w.at.y
-            move_win_exact(w, cur_x + push_x, cur_y + push_y)
+            local vp = ensure_vp(w)
+            apply_win_geom(w, vp.x + push_x, vp.y + push_y, nil, nil)
         end
     end
 end
@@ -161,10 +199,10 @@ end
 function _G.Canvas.toggle_pan_lock()
     if not _G.Canvas.enabled then return end
     _G.Canvas.set_panning(not _G.Canvas.panning)
-    notify("Бесконечный холст", _G.Canvas.panning and "Фиксация перемещения мыши ВКЛЮЧЕНА" or "Фиксация перемещения мыши ВЫКЛЮЧЕНА")
+    notify("Бесконечный холст", _G.Canvas.panning and "Режим панорамирования мыши ВКЛЮЧЕН" or "Режим панорамирования мыши ВЫКЛЮЧЕН")
 end
 
--- Включение / выключение режима Бесконечного Холста
+-- Включение / выключение режима Бесконечного Холста (окна раскладываются раздельно по сетке без наложений)
 function _G.Canvas.toggle()
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -173,21 +211,34 @@ function _G.Canvas.toggle()
 
     if not _G.Canvas.enabled then
         _G.Canvas.enabled = true
+        _G.Canvas.zoom_scale = 1.0
         _G.Canvas.saved_state = {}
         _G.Canvas.virtual_pos = {}
         os.remove(PANLOCK_FILE)
 
         local active = hl.get_active_window()
-        local active_addr = active and active.address or ""
         local wins = get_ws_windows(ws.id)
-        local count = #wins
+        local active_addr = (active and active.address) or (wins[1] and wins[1].address) or ""
 
-        local tw_base = math.floor(mw * 0.62 + 0.5)
-        local th_base = math.floor(mh * 0.62 + 0.5)
-        local ring_idx = 0
-        local others = math.max(1, count - 1)
+        -- Базовый размер карточки окна на холсте и гарантированный зазор между ними
+        local card_w = math.floor(mw * 0.46 + 0.5)
+        local card_h = math.floor(mh * 0.46 + 0.5)
+        local gap_x  = 96
+        local gap_y  = 84
+        local step_x = card_w + gap_x
+        local step_y = card_h + gap_y
 
+        -- Упорядочиваем так, чтобы активное окно получило центральную ячейку (0, 0)
+        local ordered = {}
         for _, w in ipairs(wins) do
+            if w.address == active_addr then
+                table.insert(ordered, 1, w)
+            else
+                table.insert(ordered, w)
+            end
+        end
+
+        for idx, w in ipairs(ordered) do
             local ox, oy = w.at.x, w.at.y
             local ow, oh = w.size.x, w.size.y
             local was_float = w.floating
@@ -204,37 +255,24 @@ function _G.Canvas.toggle()
                 hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
             end
 
-            local tw = was_float and math.min(ow, math.floor(mw * 0.78)) or tw_base
-            local th = was_float and math.min(oh, math.floor(mh * 0.78)) or th_base
-            local tx, ty
+            local gx, gy = get_spiral_cell(idx)
+            local tx = cx + gx * step_x - card_w * 0.5
+            local ty = cy + gy * step_y - card_h * 0.5
 
-            if w.address == active_addr or count == 1 then
-                tx = cx - tw * 0.5
-                ty = cy - th * 0.5
-            else
-                ring_idx = ring_idx + 1
-                local angle = (ring_idx - 1) * (2.0 * math.pi / others)
-                local rad_x = math.floor(mw * 0.58)
-                local rad_y = math.floor(mh * 0.52)
-                tx = cx + math.cos(angle) * rad_x - tw * 0.5
-                ty = cy + math.sin(angle) * rad_y - th * 0.5
-            end
-
-            resize_win_exact(w, tw, th)
-            move_win_exact(w, tx, ty)
+            apply_win_geom(w, tx, ty, card_w, card_h)
         end
 
-        if active then
-            focus_and_raise(active)
+        if ordered[1] then
+            focus_and_raise(ordered[1])
         end
 
-        hl.exec_cmd("pkill -f 'hysett_infinite_canvas.py start_evdev'; python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
-        notify("Бесконечный холст ВКЛЮЧЕН", "Super+Alt+Мышь — двигать холст | Super+←/→/↑/↓ — к окну | Super+Shift+←/→/↑/↓ — двигать окно | Super+I — выход")
+        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
+        notify("Бесконечный холст ВКЛЮЧЕН", "Super+Alt+Мышь — двигать холст | Super+Стрелки — к окну | Ctrl+Super+←/→ — цикл | Super+I — выход")
     else
         _G.Canvas.enabled = false
         _G.Canvas.panning = false
         os.remove(PANLOCK_FILE)
-        hl.exec_cmd("pkill -f 'hysett_infinite_canvas.py start_evdev'")
+        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py stop_evdev &")
 
         local wins = get_ws_windows(ws.id)
         for _, w in ipairs(wins) do
@@ -243,8 +281,7 @@ function _G.Canvas.toggle()
                 if not st.was_float then
                     hl.dispatch(hl.dsp.window.float({ action = "off", window = w }))
                 else
-                    resize_win_exact(w, st.w, st.h)
-                    move_win_exact(w, st.x, st.y)
+                    apply_win_geom(w, st.x, st.y, st.w, st.h)
                 end
             elseif w.floating then
                 hl.dispatch(hl.dsp.window.float({ action = "off", window = w }))
@@ -262,18 +299,19 @@ local function pan_canvas_to_window(wins, target)
     local mx, my, mw, mh = get_monitor_box()
     local cx, cy = mx + mw * 0.5, my + mh * 0.5
 
-    local tcx = target.at.x + target.size.x * 0.5
-    local tcy = target.at.y + target.size.y * 0.5
+    local tvp = ensure_vp(target)
+    local tcx = tvp.x + tvp.w * 0.5
+    local tcy = tvp.y + tvp.h * 0.5
     local dx = cx - tcx
     local dy = cy - tcy
 
     for _, w in ipairs(wins) do
-        move_win_exact(w, w.at.x + dx, w.at.y + dy)
+        local vp = ensure_vp(w)
+        apply_win_geom(w, vp.x + dx, vp.y + dy, nil, nil)
     end
     focus_and_raise(target)
 end
 
--- Навигация по направлениям (left / right / up / down) как в sarodscommits/hyprland-infinitie-desktop-v2
 function _G.Canvas.navigate(dir)
     if not _G.Canvas.enabled then
         hl.dispatch(hl.dsp.focus({ direction = dir }))
@@ -295,14 +333,13 @@ function _G.Canvas.navigate(dir)
         return
     end
 
-    local mx, my, mw, mh = get_monitor_box()
-    local cx, cy = mx + mw * 0.5, my + mh * 0.5
     local active = hl.get_active_window()
     local ref = active or wins[1]
-    local rx = ref.at.x + ref.size.x * 0.5
-    local ry = ref.at.y + ref.size.y * 0.5
-    local rl, rr = ref.at.x, ref.at.x + ref.size.x
-    local rt, rb = ref.at.y, ref.at.y + ref.size.y
+    local rvp = ensure_vp(ref)
+    local rx = rvp.x + rvp.w * 0.5
+    local ry = rvp.y + rvp.h * 0.5
+    local rl, rr = rvp.x, rvp.x + rvp.w
+    local rt, rb = rvp.y, rvp.y + rvp.h
 
     local best_aligned, best_aligned_dist = nil, 1e18
     local best_dir, best_dir_dist = nil, 1e18
@@ -310,10 +347,11 @@ function _G.Canvas.navigate(dir)
 
     for _, w in ipairs(wins) do
         if w.address ~= ref.address then
-            local wx = w.at.x + w.size.x * 0.5
-            local wy = w.at.y + w.size.y * 0.5
-            local wl, wr = w.at.x, w.at.x + w.size.x
-            local wt, wb = w.at.y, w.at.y + w.size.y
+            local vp = ensure_vp(w)
+            local wx = vp.x + vp.w * 0.5
+            local wy = vp.y + vp.h * 0.5
+            local wl, wr = vp.x, vp.x + vp.w
+            local wt, wb = vp.y, vp.y + vp.h
             local overlap_v = not (wb <= rt or wt >= rb)
             local overlap_h = not (wr <= rl or wl >= rr)
 
@@ -321,21 +359,21 @@ function _G.Canvas.navigate(dir)
             local dist = 0
             local aligned = false
 
-            if dir == "left" and wx < rx - 5 then
+            if dir == "left" and wx < rx - 10 then
                 in_dir = true
-                dist = (rx - wx) + math.abs(ry - wy) * 0.35
+                dist = (rx - wx) + math.abs(ry - wy) * 0.4
                 aligned = overlap_v
-            elseif dir == "right" and wx > rx + 5 then
+            elseif dir == "right" and wx > rx + 10 then
                 in_dir = true
-                dist = (wx - rx) + math.abs(ry - wy) * 0.35
+                dist = (wx - rx) + math.abs(ry - wy) * 0.4
                 aligned = overlap_v
-            elseif dir == "up" and wy < ry - 5 then
+            elseif dir == "up" and wy < ry - 10 then
                 in_dir = true
-                dist = (ry - wy) + math.abs(rx - wx) * 0.35
+                dist = (ry - wy) + math.abs(rx - wx) * 0.4
                 aligned = overlap_h
-            elseif dir == "down" and wy > ry + 5 then
+            elseif dir == "down" and wy > ry + 10 then
                 in_dir = true
-                dist = (wy - ry) + math.abs(rx - wx) * 0.35
+                dist = (wy - ry) + math.abs(rx - wx) * 0.4
                 aligned = overlap_h
             end
 
@@ -364,7 +402,6 @@ function _G.Canvas.navigate(dir)
     end
 end
 
--- Сдвиг активного плавающего окна стрелками Super+Shift+Arrows с толканием холста у границ экрана
 function _G.Canvas.move_or_swap(dir)
     local active = hl.get_active_window()
     if not _G.Canvas.enabled and (not active or not active.floating) then
@@ -374,7 +411,7 @@ function _G.Canvas.move_or_swap(dir)
     end
     if not active or not active.floating then return end
 
-    local step = 48
+    local step = 52
     local dx, dy = 0, 0
     if dir == "left" or dir == "l" then dx = -step
     elseif dir == "right" or dir == "r" then dx = step
@@ -382,26 +419,27 @@ function _G.Canvas.move_or_swap(dir)
     elseif dir == "down" or dir == "d" then dy = step end
 
     local mx, my, mw, mh = get_monitor_box()
-    local nx = active.at.x + dx
-    local ny = active.at.y + dy
-    local aw, ah = active.size.x, active.size.y
+    local avp = ensure_vp(active)
+    local nx = avp.x + dx
+    local ny = avp.y + dy
 
     local hit_edge = (dx < 0 and nx <= mx + 12)
-                  or (dx > 0 and (nx + aw) >= (mx + mw - 12))
+                  or (dx > 0 and (nx + avp.w) >= (mx + mw - 12))
                   or (dy < 0 and ny <= my + 12)
-                  or (dy > 0 and (ny + ah) >= (my + mh - 12))
+                  or (dy > 0 and (ny + avp.h) >= (my + mh - 12))
 
     if hit_edge and _G.Canvas.enabled then
         local ws = hl.get_active_workspace()
         if ws then
             for _, w in ipairs(get_ws_windows(ws.id)) do
                 if w.floating and w.address ~= active.address then
-                    move_win_exact(w, w.at.x - dx, w.at.y - dy)
+                    local vp = ensure_vp(w)
+                    apply_win_geom(w, vp.x - dx, vp.y - dy, nil, nil)
                 end
             end
         end
     else
-        move_win_exact(active, nx, ny)
+        apply_win_geom(active, nx, ny, nil, nil)
     end
 end
 
@@ -430,6 +468,7 @@ function _G.Canvas.focus_cycle(dir)
     pan_canvas_to_window(wins, target)
 end
 
+-- Масштабирование с сохранением пропорций сетки, чтобы окна никогда не налезали друг на друга
 function _G.Canvas.zoom(factor)
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -439,27 +478,32 @@ function _G.Canvas.zoom(factor)
     end
     if #wins == 0 then return end
 
+    local cur_scale = _G.Canvas.zoom_scale or 1.0
+    local new_scale = math.max(0.42, math.min(1.65, cur_scale * factor))
+    local eff = new_scale / cur_scale
+    if math.abs(eff - 1.0) < 0.005 then return end
+    _G.Canvas.zoom_scale = new_scale
+
     local mx, my, mw, mh = get_monitor_box()
     local cx, cy = mx + mw * 0.5, my + mh * 0.5
 
     for _, w in ipairs(wins) do
-        local wx, wy = w.at.x, w.at.y
-        local ww, wh = w.size.x, w.size.y
-        local wcx = wx + ww * 0.5
-        local wcy = wy + wh * 0.5
+        local vp = ensure_vp(w)
+        local wcx = vp.x + vp.w * 0.5
+        local wcy = vp.y + vp.h * 0.5
 
-        local nw = math.max(260, math.min(math.floor(mw * 0.94), math.floor(ww * factor + 0.5)))
-        local nh = math.max(180, math.min(math.floor(mh * 0.92), math.floor(wh * factor + 0.5)))
-        local ncx = cx + (wcx - cx) * factor
-        local ncy = cy + (wcy - cy) * factor
+        local nw = vp.w * eff
+        local nh = vp.h * eff
+        local ncx = cx + (wcx - cx) * eff
+        local ncy = cy + (wcy - cy) * eff
         local nx = ncx - nw * 0.5
         local ny = ncy - nh * 0.5
 
-        resize_win_exact(w, nw, nh)
-        move_win_exact(w, nx, ny)
+        apply_win_geom(w, nx, ny, nw, nh)
     end
 end
 
+-- Собрать все окна на экране раздельной таблицей без перекрытий
 function _G.Canvas.gather_home()
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -473,22 +517,22 @@ function _G.Canvas.gather_home()
     local mx, my, mw, mh = get_monitor_box()
     local cols = math.ceil(math.sqrt(n))
     local rows = math.ceil(n / cols)
-    local pad_x, pad_y = 32, 48
+    local pad_x, pad_y = 28, 44
+    local gap = 22
     local cell_w = math.floor((mw - pad_x * 2) / cols)
-    local cell_h = math.floor((mh - pad_y - 32) / rows)
+    local cell_h = math.floor((mh - pad_y - 28) / rows)
+    local tw = math.max(240, cell_w - gap)
+    local th = math.max(160, cell_h - gap)
 
     for i, w in ipairs(wins) do
         local r = math.floor((i - 1) / cols)
         local c = (i - 1) % cols
-        local tw = math.min(cell_w - 20, w.size.x)
-        local th = math.min(cell_h - 20, w.size.y)
         local tx = mx + pad_x + c * cell_w + math.floor((cell_w - tw) * 0.5)
         local ty = my + pad_y + r * cell_h + math.floor((cell_h - th) * 0.5)
 
-        resize_win_exact(w, tw, th)
-        move_win_exact(w, tx, ty)
+        apply_win_geom(w, tx, ty, tw, th)
     end
-    notify("Бесконечный холст", "Все окна собраны в центр экрана")
+    notify("Бесконечный холст", "Все окна разложены без перекрытий")
 end
 
 function _G.Canvas.toggle_invert()

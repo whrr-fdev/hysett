@@ -4,6 +4,7 @@ import os
 import glob
 import struct
 import select
+import signal
 import time
 import subprocess
 
@@ -21,6 +22,7 @@ BTN_LEFT = 272
 BTN_MIDDLE = 274
 
 PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
+PID_FILE = "/tmp/hysett_canvas_evdev.pid"
 
 
 def repl_lua(code):
@@ -31,7 +33,42 @@ def repl_lua(code):
     )
 
 
+def stop_existing():
+    my_pid = os.getpid()
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, "r") as f:
+                old_pid = int(f.read().strip())
+            if old_pid != my_pid:
+                os.kill(old_pid, signal.SIGTERM)
+        except Exception:
+            pass
+        try:
+            os.remove(PID_FILE)
+        except Exception:
+            pass
+
+    for proc_dir in glob.glob("/proc/[0-9]*"):
+        try:
+            pid = int( os.path.basename(proc_dir) )
+            if pid == my_pid:
+                continue
+            with open(f"{proc_dir}/cmdline", "rb") as f:
+                cmd = f.read().decode("utf-8", errors="ignore")
+            if "hysett_infinite_canvas.py" in cmd and ("start_evdev" in cmd or "_daemon" in cmd):
+                os.kill(pid, signal.SIGTERM)
+        except Exception:
+            pass
+
+
 def start_evdev_listener():
+    stop_existing()
+    try:
+        with open(PID_FILE, "w") as f:
+            f.write(str(os.getpid()))
+    except Exception:
+        pass
+
     fds = []
     for dev in sorted(glob.glob("/dev/input/event*")):
         try:
@@ -62,13 +99,13 @@ def start_evdev_listener():
             break
 
         now = time.monotonic()
-        if now - last_panlock_check > 0.15:
+        if now - last_panlock_check > 0.04:
             panlock_cached = os.path.exists(PANLOCK_FILE)
             last_panlock_check = now
 
         for fd in rlist:
             try:
-                raw = os.read(fd, EVENT_SIZE * 32)
+                raw = os.read(fd, EVENT_SIZE * 64)
             except Exception:
                 continue
             if not raw:
@@ -115,10 +152,12 @@ def start_evdev_listener():
 
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "toggle"
-    if cmd == "toggle":
-        repl_lua("if _G.Canvas then _G.Canvas.toggle() end")
-    elif cmd == "start_evdev":
+    if cmd in ("start_evdev", "_daemon"):
         start_evdev_listener()
+    elif cmd == "stop_evdev":
+        stop_existing()
+    elif cmd == "toggle":
+        repl_lua("if _G.Canvas then _G.Canvas.toggle() end")
     elif cmd == "next":
         repl_lua("if _G.Canvas then _G.Canvas.focus_cycle('next') end")
     elif cmd == "prev":

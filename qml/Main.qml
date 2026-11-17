@@ -5578,39 +5578,71 @@ ApplicationWindow {
                     }
                 }
 
-                // Кнопка-глазик «Режим стримера» в правом верхнем углу экрана приветствия
-                Rectangle {
-                    id: streamerTopBtn
+                // Кнопка-глазик «Режим стримера» + иконка Настроек справа от него в правом верхнем углу экрана приветствия
+                Row {
+                    id: welcomeTopRightBtns
                     z: 220
                     visible: pageController.currentIndex === 0
                     anchors.top: parent.top
                     anchors.right: parent.right
                     anchors.topMargin: 10
                     anchors.rightMargin: 14
-                    readonly property bool isOn: Config ? Config.streamerMode : false
-                    width: 28
-                    height: 26
-                    radius: (Theme && Theme.isRounded) ? (Config ? Math.min(8, Math.round(Config.m3ControlRadius * 0.65)) : 7) : 0
-                    color: isOn
-                           ? (Config ? Config.m3Primary : "#ffffff")
-                           : (streamerBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28))
-                    border.width: 1
-                    border.color: isOn ? "transparent" : Qt.rgba(1, 1, 1, 0.18)
-                    Behavior on color { ColorAnimation { duration: 140 } }
+                    spacing: 6
 
-                    Text {
-                        anchors.centerIn: parent
-                        text: streamerTopBtn.isOn ? "󰈉" : "󰈈"
-                        font.pixelSize: 13
-                        color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                    Rectangle {
+                        id: streamerTopBtn
+                        readonly property bool isOn: Config ? Config.streamerMode : false
+                        width: 28
+                        height: 26
+                        radius: (Theme && Theme.isRounded) ? (Config ? Math.min(8, Math.round(Config.m3ControlRadius * 0.65)) : 7) : 0
+                        color: isOn
+                               ? (Config ? Config.m3Primary : "#ffffff")
+                               : (streamerBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28))
+                        border.width: 1
+                        border.color: isOn ? "transparent" : Qt.rgba(1, 1, 1, 0.18)
+                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: streamerTopBtn.isOn ? "󰈉" : "󰈈"
+                            font.pixelSize: 13
+                            color: streamerTopBtn.isOn ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                        }
+
+                        MouseArea {
+                            id: streamerBtnMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: if (Config) Config.streamerMode = !Config.streamerMode
+                        }
                     }
 
-                    MouseArea {
-                        id: streamerBtnMa
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: if (Config) Config.streamerMode = !Config.streamerMode
+                    Rectangle {
+                        id: settingsTopBtn
+                        visible: !Config || Config.isTabVisible(17)
+                        width: 28
+                        height: 26
+                        radius: (Theme && Theme.isRounded) ? (Config ? Math.min(8, Math.round(Config.m3ControlRadius * 0.65)) : 7) : 0
+                        color: settingsBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28)
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.18)
+                        Behavior on color { ColorAnimation { duration: 140 } }
+
+                        Text {
+                            anchors.centerIn: parent
+                            text: "󰒓"
+                            font.pixelSize: 13
+                            color: "#ffffff"
+                        }
+
+                        MouseArea {
+                            id: settingsBtnMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: pageController.switchPage(17)
+                        }
                     }
                 }
 

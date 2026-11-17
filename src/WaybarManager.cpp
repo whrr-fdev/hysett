@@ -3685,7 +3685,7 @@ for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', '
         c = d.get('country') or ''
         cc = d.get('countryCode') or d.get('country_code') or ''
         if c:
-            print(f'{c} ({cc})' if cc else c)
+            print(c)
             break
     except Exception:
         pass

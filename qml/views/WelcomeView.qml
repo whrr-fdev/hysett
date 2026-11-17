@@ -178,7 +178,7 @@ Item {
     Rectangle {
         id: welcomeGeoBadge
         z: 20
-        readonly property string geoStr: (Waybar && Waybar.netConnected) ? Waybar.geoLocationText : ""
+        readonly property string geoStr: (Waybar && Waybar.netConnected) ? Waybar.geoLocationText.replace(/\s*\([^)]*\)/g, "") : ""
         visible: opacity > 0.01
         opacity: geoStr.length > 0 ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
@@ -447,8 +447,7 @@ Item {
                             { title: "󰍛  Загрузчик", desc: "Автовыбор ОС, таймаут и порядок UEFI", idx: 32, kw: "загрузчик биос уефи автовыбор таймаут ядро grub systemd-boot limine efibootmgr bootloader bios uefi" },
                             { title: "󰆍  Терминал", desc: "Шрифт Kitty, плагин Tide v6 и тема", idx: 33, kw: "терминал консоль шрифт размер промпт фиш китти плагин тема kitty fish tide prompt font terminal" },
                             { title: "󰆾  Холст", desc: "Бесконечный рабочий стол и бинды", idx: 34, kw: "холст бесконечный стол плоскость сетка зум панорамирование окна canvas infinite desktop" },
-                            { title: "󰁯  Бэкап", desc: "Архивы системы и пакеты", idx: 29, kw: "бэкап архив восстановление пакеты pacman aur backup restore packages" },
-                            { title: "󰒓  Настройки", desc: "Тема MD3, шрифт, стекло", idx: 17, kw: "настройки шрифт масштаб жидкое стекло подсветка границ вспышка курсор язык цвет акцент палитра высота окна боковое меню settings font scale liquid glass border glow flash language color accent palette md3" }
+                            { title: "󰁯  Бэкап", desc: "Архивы системы и пакеты", idx: 29, kw: "бэкап архив восстановление пакеты pacman aur backup restore packages" }
                         ]
 
                         Button {

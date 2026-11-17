@@ -3707,6 +3707,13 @@ for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', '
 
 void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
     s_isScreenLocked = locked;
+    if (locked) {
+        QFile lf("/tmp/hysett_screen_locked");
+        if (lf.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lf.write("1"); lf.close(); }
+        QProcess::startDetached("pkill", {"-CONT", "-x", "mpvpaper"});
+    } else {
+        QFile::remove("/tmp/hysett_screen_locked");
+    }
     if (win) s_shellWin = win;
     if (!s_shellWin) return;
 

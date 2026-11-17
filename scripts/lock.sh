@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
-~/.config/hypr/scripts/update_lock_bg.sh >/dev/null 2>&1 &
+pkill -CONT -x mpvpaper 2>/dev/null || true
 exec /home/whrr/hysett/build/hysett --lock

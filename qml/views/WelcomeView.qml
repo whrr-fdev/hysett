@@ -188,7 +188,7 @@ Item {
         anchors.topMargin: 12
         height: 26
         width: geoRow.implicitWidth + 18
-        radius: welcomeRoot.isM3 ? 13 : 0
+        radius: welcomeRoot.isM3 ? 7 : 0
         color: welcomeRoot.isM3 && Config
                ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.72)
                : Qt.rgba(1, 1, 1, 0.06)

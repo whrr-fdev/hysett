@@ -3707,13 +3707,29 @@ for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', '
 
 
 void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
+    if (s_isScreenLocked == locked && locked) return;
     s_isScreenLocked = locked;
     if (locked) {
         QFile lf("/tmp/hysett_screen_locked");
         if (lf.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lf.write("1"); lf.close(); }
+        if (QProcess::execute("pkill", {"-9", "-x", "clock_overlay"}) == 0) {
+            usleep(40000);
+        }
         QProcess::startDetached("pkill", {"-CONT", "-x", "mpvpaper"});
+        QTimer::singleShot(60, this, []() {
+            QProcess::startDetached("sh", {"-c", "hyprctl --batch "keyword decoration:blur:new_optimizations false ; keyword decoration:blur:new_optimizations true" >/dev/null 2>&1"});
+        });
     } else {
         QFile::remove("/tmp/hysett_screen_locked");
+        QFile cf(QDir::homePath() + "/.config/hypr/scripts/clock.conf");
+        if (cf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString val = QString::fromUtf8(cf.readAll()).trimmed();
+            cf.close();
+            if (val == "1" || val == "true") {
+                QString bin = QDir::homePath() + "/hysett/bin/clock_overlay";
+                if (QFile::exists(bin)) QProcess::startDetached(bin, {});
+            }
+        }
     }
     if (win) s_shellWin = win;
     if (!s_shellWin) return;

@@ -112,6 +112,12 @@ fn build_clock_css(cfg: &ClockConfig) -> String {
 }
 
 fn refresh_labels(day_label: &Label, date_label: &Label, time_label: &Label, cfg: &ClockConfig) {
+    if std::path::Path::new("/tmp/hysett_screen_locked").exists() {
+        day_label.set_text("");
+        date_label.set_text("");
+        time_label.set_text("");
+        return;
+    }
     let now = Local::now();
     day_label.set_visible(cfg.show_weekday);
     date_label.set_visible(cfg.show_date);
@@ -192,7 +198,7 @@ fn build_ui(app: &Application) {
         if is_locked != *last_locked.borrow() {
             *last_locked.borrow_mut() = is_locked;
             vbox_lock.set_opacity(if is_locked { 0.0 } else { 1.0 });
-            vbox_lock.set_visible(!is_locked);
+            refresh_labels(&d_lbl, &dt_lbl, &t_lbl, &cfg_clone.borrow());
         }
         let raw = fs::read_to_string(style_conf_path()).unwrap_or_default();
         if raw != *last_raw.borrow() {

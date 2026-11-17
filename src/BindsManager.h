@@ -2,6 +2,8 @@
 #include <QObject>
 #include <QVariantList>
 #include <QVariantMap>
+#include <QFileSystemWatcher>
+#include <QTimer>
 
 class BindsManager : public QObject {
     Q_OBJECT
@@ -24,6 +26,7 @@ signals:
 
 private:
     QString luaPath() const;
+    void ensureWatched();
 
     struct BindEntry {
         int startLine;
@@ -38,4 +41,7 @@ private:
     };
     QVector<BindEntry> m_entries;
     QVariantList m_items;
+    QFileSystemWatcher *m_watcher = nullptr;
+    QTimer *m_reloadTimer = nullptr;
+    bool m_saving = false;
 };

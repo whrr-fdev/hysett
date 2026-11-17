@@ -204,6 +204,7 @@ ScrollView {
                             TextField {
                                 id: keyField
                                 text: modelData.keys
+                                onAccepted: Binds.updateItem(index, modelData.enabled, keyField.text, bindCard.isMulti ? multiCodeArea.text : singleCmdField.text)
                                 color: "#ffffff"
                                 font.pixelSize: Config.fontSize
                                 font.bold: true
@@ -221,6 +222,7 @@ ScrollView {
                             TextField {
                                 id: singleCmdField
                                 visible: !bindCard.isMulti || !bindCard.expanded
+                                onAccepted: if (!bindCard.isMulti) Binds.updateItem(index, modelData.enabled, keyField.text, singleCmdField.text)
                                 readOnly: bindCard.isMulti
                                 text: bindCard.isMulti ? modelData.cmd.replace(/\n/g, "  ↵  ") : modelData.cmd
                                 color: bindCard.isMulti ? "#bbbbbb" : "#ffffff"

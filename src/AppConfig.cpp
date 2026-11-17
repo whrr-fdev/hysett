@@ -16,7 +16,64 @@
 #include <QProcess>
 #include <QDateTime>
 
+
+static void ensureInfiniteCanvasFilesExist() {
+    QString home = QDir::homePath();
+    QString hyprDir = home + "/.config/hypr";
+    QString scriptsDir = hyprDir + "/scripts";
+    QDir().mkpath(scriptsDir);
+
+    QString srcLua = home + "/hysett/scripts/infinite_canvas.lua";
+    QString dstLua = hyprDir + "/infinite_canvas.lua";
+    if (!QFile::exists(dstLua) && QFile::exists(srcLua)) {
+        QFile::copy(srcLua, dstLua);
+    }
+
+    QString srcPy = home + "/hysett/scripts/hysett_infinite_canvas.py";
+    QString dstPy = scriptsDir + "/hysett_infinite_canvas.py";
+    if (!QFile::exists(dstPy) && QFile::exists(srcPy)) {
+        QFile::link(srcPy, dstPy);
+    }
+
+    QString canvasJson = hyprDir + "/canvas.json";
+    if (!QFile::exists(canvasJson)) {
+        QFile jf(canvasJson);
+        if (jf.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+            jf.write("{\n"
+                     "  \"speed\": 3.2,\n"
+                     "  \"accel\": 1.6,\n"
+                     "  \"min_gap\": 12,\n"
+                     "  \"key_step\": 110,\n"
+                     "  \"init_scale\": 0.78,\n"
+                     "  \"all_workspaces\": true,\n"
+                     "  \"edge_push_enabled\": true,\n"
+                     "  \"inverted\": false\n"
+                     "}\n");
+            jf.close();
+        }
+    }
+
+    QString hyprLua = hyprDir + "/hyprland.lua";
+    if (QFile::exists(hyprLua)) {
+        QFile hf(hyprLua);
+        if (hf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString content = QString::fromUtf8(hf.readAll());
+            hf.close();
+            if (!content.contains("infinite_canvas.lua")) {
+                if (hf.open(QIODevice::Append | QIODevice::Text)) {
+                    QTextStream out(&hf);
+                    out << "\n-- Бесконечный холст (Infinite Desktop / Canvas Mode)\n";
+                    out << "pcall(dofile, os.getenv(\"HOME\") .. \"/.config/hypr/infinite_canvas.lua\")\n";
+                    out << "hl.bind(mainMod .. \" + S\", function() if _G.Canvas then _G.Canvas.toggle() end end)\n";
+                    hf.close();
+                }
+            }
+        }
+    }
+}
+
 AppConfig::AppConfig(QObject *parent) : QObject(parent) {
+    ensureInfiniteCanvasFilesExist();
     m_wallpapersDir = QDir::homePath() + "/Pictures/Wallpapers";
     m_musicDir = QDir::homePath() + "/Music/YandexMusic";
     m_backupsDir = QDir::homePath() + "/hysett/backups/archives";
@@ -1184,6 +1241,7 @@ void AppConfig::completeFirstRunSetup(const QString &wallDir, const QString &mus
     QDir().mkpath(m_wallpapersDir);
     QDir().mkpath(m_musicDir);
     QDir().mkpath(m_backupsDir);
+    ensureInfiniteCanvasFilesExist();
     m_firstRunCompleted = true;
     emit pathsChanged();
     emit firstRunChanged();

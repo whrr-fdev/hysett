@@ -92,7 +92,34 @@ int findFirstArgComma(const QString &line, int afterBindParen) {
 } // namespace
 
 BindsManager::BindsManager(QObject *parent) : QObject(parent) {
+    m_watcher = new QFileSystemWatcher(this);
+    m_reloadTimer = new QTimer(this);
+    m_reloadTimer->setSingleShot(true);
+    m_reloadTimer->setInterval(120);
+    connect(m_reloadTimer, &QTimer::timeout, this, [this]() {
+        ensureWatched();
+        if (!m_saving) reload();
+    });
+    connect(m_watcher, &QFileSystemWatcher::fileChanged, this, [this](const QString &) {
+        if (!m_saving) m_reloadTimer->start();
+    });
+    connect(m_watcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString &) {
+        if (!m_saving) m_reloadTimer->start();
+    });
+    ensureWatched();
     reload();
+}
+
+void BindsManager::ensureWatched() {
+    if (!m_watcher) return;
+    QString dir = QDir::homePath() + "/.config/hypr";
+    QString file = luaPath();
+    if (QDir(dir).exists() && !m_watcher->directories().contains(dir)) {
+        m_watcher->addPath(dir);
+    }
+    if (QFile::exists(file) && !m_watcher->files().contains(file)) {
+        m_watcher->addPath(file);
+    }
 }
 
 QString BindsManager::luaPath() const {
@@ -255,6 +282,7 @@ void BindsManager::reload() {
 }
 
 void BindsManager::toggleItem(int index, bool enabled) {
+    struct SaveGuard { bool &f; SaveGuard(bool &b) : f(b) { f = true; } ~SaveGuard() { f = false; } } guard(m_saving);
     if (index < 0 || index >= m_entries.size()) return;
     m_entries[index].enabled = enabled;
     QVariantMap vm = m_items[index].toMap();
@@ -281,11 +309,13 @@ void BindsManager::toggleItem(int index, bool enabled) {
             file.close();
         }
     }
+    ensureWatched();
     QProcess::startDetached("hyprctl", {"reload"});
     emit itemsChanged();
 }
 
 void BindsManager::updateItem(int index, bool enabled, const QString &keys, const QString &cmd) {
+    struct SaveGuard { bool &f; SaveGuard(bool &b) : f(b) { f = true; } ~SaveGuard() { f = false; } } guard(m_saving);
     if (index < 0 || index >= m_entries.size()) return;
     BindEntry &be = m_entries[index];
 
@@ -333,11 +363,13 @@ void BindsManager::updateItem(int index, bool enabled, const QString &keys, cons
         file.close();
     }
 
+    ensureWatched();
     QProcess::startDetached("hyprctl", {"reload"});
     reload();
 }
 
 void BindsManager::deleteItem(int index) {
+    struct SaveGuard { bool &f; SaveGuard(bool &b) : f(b) { f = true; } ~SaveGuard() { f = false; } } guard(m_saving);
     if (index < 0 || index >= m_entries.size()) return;
     int sLine = m_entries[index].startLine;
     int eLine = m_entries[index].endLine;
@@ -359,11 +391,13 @@ void BindsManager::deleteItem(int index) {
             file.close();
         }
     }
+    ensureWatched();
     QProcess::startDetached("hyprctl", {"reload"});
     reload();
 }
 
 void BindsManager::addItem(const QString &keys, const QString &cmd, bool isLuaFunc) {
+    struct SaveGuard { bool &f; SaveGuard(bool &b) : f(b) { f = true; } ~SaveGuard() { f = false; } } guard(m_saving);
     if (keys.trimmed().isEmpty() || cmd.trimmed().isEmpty()) return;
 
     QFile file(luaPath());
@@ -391,6 +425,7 @@ void BindsManager::addItem(const QString &keys, const QString &cmd, bool isLuaFu
         for (const auto &l : lines) out << l << "\n";
         file.close();
     }
+    ensureWatched();
     QProcess::startDetached("hyprctl", {"reload"});
     reload();
 }

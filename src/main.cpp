@@ -64,6 +64,8 @@ int main(int argc, char *argv[]) {
             launchTarget = "search";
         } else if (arg == "--power") {
             launchTarget = "power";
+        } else if (arg == "--lock") {
+            launchTarget = "lock";
         } else if (arg == "--clipboard") {
             launchTarget = "clipboard";
         } else {

@@ -127,6 +127,7 @@ class WaybarManager : public QObject {
     Q_PROPERTY(QString kbLayout READ kbLayout NOTIFY kbLayoutChanged)
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged)
     Q_PROPERTY(bool canvasActive READ canvasActive NOTIFY recordingChanged)
+    Q_PROPERTY(QString lockScreenConfigJson READ lockScreenConfigJson NOTIFY lockConfigChanged)
     Q_PROPERTY(QString recordingTimeText READ recordingTimeText NOTIFY recordingChanged)
     Q_PROPERTY(bool btConnected READ btConnected NOTIFY sysStatsChanged)
     Q_PROPERTY(int btConnectedCount READ btConnectedCount NOTIFY sysStatsChanged)
@@ -497,6 +498,11 @@ public:
     Q_INVOKABLE void killProcess(int pid);
     Q_INVOKABLE void refreshWeather();
     Q_INVOKABLE void syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH);
+    Q_INVOKABLE void setLockScreenLayer(QQuickWindow *win, bool locked);
+    Q_INVOKABLE void verifyLockPassword(const QString &password);
+    Q_INVOKABLE void prepareLockScreenBg();
+    QString lockScreenConfigJson() const;
+    Q_INVOKABLE void saveLockScreenConfig(const QString &jsonStr);
 
 signals:
     void stateChanged();
@@ -518,6 +524,8 @@ signals:
     void kbLayoutChanged();
     void weatherChanged();
     void recordingChanged();
+    void lockConfigChanged();
+    void lockAuthResult(bool success, const QString &errorMsg);
 
 private:
     void initSpecs();
@@ -676,6 +684,7 @@ private:
     QString m_kbLayout = "RU";
     bool m_recording = false;
     bool m_canvasActive = false;
+    bool m_authBusy = false;
     qint64 m_recordingStartSec = 0;
     QString m_recordingTimeText = "00:00";
     bool m_btConnected = false;

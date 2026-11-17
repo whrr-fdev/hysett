@@ -2382,7 +2382,16 @@ void WaybarManager::clearClipboard() {
     m_clipboardItems.clear(); m_rawClipboardLines.clear(); emit clipboardChanged();
 }
 
+static bool s_isScreenLocked = false;
+
 void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH) {
+    if (s_isScreenLocked) {
+        if (win) {
+            win->setMask(QRegion(0, 0, win->width() > 0 ? win->width() : 1920, win->height() > 0 ? win->height() : 1080));
+            applyShellKbInteractivity(win, true);
+        }
+        return;
+    }
     if (m_drawerOpenState != drawerOpen) {
         m_drawerOpenState = drawerOpen;
         if (m_sysTimer) m_sysTimer->setInterval(drawerOpen ? 500 : 1500);
@@ -3690,4 +3699,129 @@ for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', '
     except Exception:
         pass
 )PY"});
+}
+
+
+
+void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
+    s_isScreenLocked = locked;
+    if (win) s_shellWin = win;
+    if (!s_shellWin) return;
+
+    // Останавливаем живые видео-обои mpvpaper при блокировке и возобновляем при разблокировке
+    if (locked) {
+        QProcess::startDetached("pkill", {"-STOP", "-x", "mpvpaper"});
+    } else {
+        QProcess::startDetached("pkill", {"-CONT", "-x", "mpvpaper"});
+    }
+
+#ifdef HAVE_LAYERSHELLQT
+    if (auto *ls = LayerShellQt::Window::get(s_shellWin)) {
+        ls->setLayer(locked ? LayerShellQt::Window::LayerOverlay : LayerShellQt::Window::LayerTop);
+        ls->setKeyboardInteractivity(
+            locked
+                ? LayerShellQt::Window::KeyboardInteractivityExclusive
+                : LayerShellQt::Window::KeyboardInteractivityNone
+        );
+    }
+#endif
+    if (locked) {
+        const int sw = s_shellWin->width() > 0 ? s_shellWin->width() : 1920;
+        const int sh = s_shellWin->height() > 0 ? s_shellWin->height() : 1080;
+        QRegion fullReg(0, 0, sw, sh);
+        s_shellWin->setMask(fullReg);
+        s_lastKbState = 1;
+        s_shellWin->requestActivate();
+    } else {
+        s_lastKbState = -1;
+        s_shellWin->requestUpdate();
+    }
+}
+
+void WaybarManager::prepareLockScreenBg() {
+    QProcess::startDetached("sh", {"-c", "~/.config/hypr/scripts/update_lock_bg.sh >/dev/null 2>&1"});
+}
+
+void WaybarManager::verifyLockPassword(const QString &password) {
+    if (password.isEmpty()) {
+        emit lockAuthResult(false, "Введите пароль");
+        return;
+    }
+    if (m_authBusy) return;
+    m_authBusy = true;
+
+    QProcess *p = new QProcess(this);
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("HYSETT_LOCK_PW", password);
+    p->setProcessEnvironment(env);
+
+    connect(p, &QProcess::finished, this, [this, p](int exitCode, QProcess::ExitStatus) {
+        m_authBusy = false;
+        p->deleteLater();
+        if (exitCode == 0) {
+            emit lockAuthResult(true, "");
+        } else {
+            emit lockAuthResult(false, "Неверный пароль");
+        }
+    });
+
+    p->start("python3", {"-c", R"PY(
+import os, sys, pty, select, time, subprocess
+
+pw = os.environ.get("HYSETT_LOCK_PW", "")
+user = os.environ.get("USER", "whrr")
+master, slave = pty.openpty()
+proc = subprocess.Popen(
+    ["su", "-c", "true", user],
+    stdin=slave, stdout=slave, stderr=slave, close_fds=True
+)
+os.close(slave)
+
+sent = False
+deadline = time.monotonic() + 4.0
+while time.monotonic() < deadline:
+    r, _, _ = select.select([master], [], [], 0.05)
+    if r:
+        try:
+            data = os.read(master, 1024)
+            if not data:
+                break
+            if not sent and (b":" in data or b"Password" in data or b"\xd0\x9f\xd0\xb0\xd1\x80\xd0\xbe\xd0\xbb\xd1\x8c" in data):
+                os.write(master, (pw + "\n").encode("utf-8"))
+                sent = True
+        except OSError:
+            break
+    if proc.poll() is not None:
+        break
+
+try:
+    os.close(master)
+except OSError:
+    pass
+
+ret = proc.wait(timeout=2)
+sys.exit(0 if ret == 0 else 1)
+)PY"});
+}
+
+QString WaybarManager::lockScreenConfigJson() const {
+    QString path = QDir::homePath() + "/.config/hypr/scripts/lockscreen_layout.json";
+    QFile f(path);
+    if (f.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString s = QString::fromUtf8(f.readAll()).trimmed();
+        f.close();
+        if (!s.isEmpty()) return s;
+    }
+    return QString();
+}
+
+void WaybarManager::saveLockScreenConfig(const QString &jsonStr) {
+    QString dir = QDir::homePath() + "/.config/hypr/scripts";
+    QDir().mkpath(dir);
+    QFile f(dir + "/lockscreen_layout.json");
+    if (f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        f.write(jsonStr.toUtf8());
+        f.close();
+    }
+    emit lockConfigChanged();
 }

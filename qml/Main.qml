@@ -812,6 +812,12 @@ ApplicationWindow {
         }
     }
 
+    function activateLockScreen(inEditMode) {
+        root.drawerOpen = false
+        if (Waybar) Waybar.setLockScreenLayer(root, true)
+        lockOverlay.lockNow(inEditMode === true)
+    }
+
     function handleExternalTrigger() {
         if (!Config) return
         var cmd = Config.consumeLaunchCmd()
@@ -839,6 +845,8 @@ ApplicationWindow {
             root.openDrawerWithMode("power")
         } else if (cmd === "clipboard") {
             root.openDrawerWithMode("clipboard")
+        } else if (cmd === "lock") {
+            root.activateLockScreen(false)
         } else {
             root.openDrawerWithMode("settings")
         }
@@ -879,9 +887,9 @@ ApplicationWindow {
     function triggerPowerAction(idx) {
         root.drawerOpen = false
         if (!Waybar) return
-        if (idx === 0) Waybar.runCommand("/home/whrr/.config/hypr/scripts/lock.sh")
-        else if (idx === 1) Waybar.runCommand("/home/whrr/.config/hypr/scripts/lock.sh & sleep 0.3 && systemctl suspend && sleep 1.0 && /home/whrr/.config/hypr/scripts/resume_restore.sh")
-        else if (idx === 2) Waybar.runCommand("/home/whrr/.config/hypr/scripts/lock.sh & sleep 0.3 && systemctl hibernate && sleep 1.0 && /home/whrr/.config/hypr/scripts/resume_restore.sh")
+        if (idx === 0) root.activateLockScreen(false)
+        else if (idx === 1) { root.activateLockScreen(false); Waybar.runCommand("sleep 0.25 && systemctl suspend && sleep 1.0 && /home/whrr/.config/hypr/scripts/resume_restore.sh") }
+        else if (idx === 2) { root.activateLockScreen(false); Waybar.runCommand("sleep 0.25 && systemctl hibernate && sleep 1.0 && /home/whrr/.config/hypr/scripts/resume_restore.sh") }
         else if (idx === 3) Waybar.runCommand("hyprshutdown --post-cmd \"bash -c 'pkill -KILL -u $(whoami)'\"")
         else if (idx === 4) Waybar.runCommand("systemctl reboot")
         else if (idx === 5) Waybar.runCommand("systemctl poweroff")
@@ -5538,7 +5546,8 @@ ApplicationWindow {
                             "views/WebShareView.qml",
                             "views/BootloaderView.qml",
                             "views/TerminalView.qml",
-                            "views/CanvasView.qml"
+                            "views/CanvasView.qml",
+                            "views/LockScreenView.qml"
                         ]
 
                         Loader {
@@ -5971,6 +5980,14 @@ ApplicationWindow {
                     NumberAnimation on u_progress { id: clickAnim; from: 0.001; to: 1.0; duration: 460; running: false; easing.type: Easing.OutCubic }
                     fragmentShader: "qrc:/shaders/qml/shaders/click_fx.frag.qsb"
                 }
+            }
+        }
+
+        LockScreenOverlay {
+            id: lockOverlay
+            onActiveChanged: {
+                if (Waybar) Waybar.setLockScreenLayer(root, active)
+                if (!active) root.syncInputMask()
             }
         }
     }

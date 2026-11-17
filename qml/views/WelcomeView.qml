@@ -446,6 +446,7 @@ Item {
                             { title: "󰍛  Загрузчик", desc: "Автовыбор ОС, таймаут и порядок UEFI", idx: 32, kw: "загрузчик биос уефи автовыбор таймаут ядро grub systemd-boot limine efibootmgr bootloader bios uefi" },
                             { title: "󰆍  Терминал", desc: "Шрифт Kitty, плагин Tide v6 и тема", idx: 33, kw: "терминал консоль шрифт размер промпт фиш китти плагин тема kitty fish tide prompt font terminal" },
                             { title: "󰆾  Холст", desc: "Бесконечный рабочий стол и бинды", idx: 34, kw: "холст бесконечный стол плоскость сетка зум панорамирование окна canvas infinite desktop" },
+                            { title: "󰌾  Блокировка", desc: "Экран блокировки, виджеты и пароль", idx: 35, kw: "блокировка экран пароль замок виджеты часы уведомления lockscreen password lock" },
                             { title: "󰁯  Бэкап", desc: "Архивы системы и пакеты", idx: 29, kw: "бэкап архив восстановление пакеты pacman aur backup restore packages" }
                         ]
 

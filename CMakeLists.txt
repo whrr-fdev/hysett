@@ -95,6 +95,7 @@ qt_add_qml_module(hysett
         qml/components/StyledComboBox.qml
         qml/components/SegmentedButton.qml
         qml/components/ColorPickerModal.qml
+        qml/components/LockScreenOverlay.qml
         qml/views/PlaceholderView.qml
         qml/views/WelcomeView.qml
         qml/views/LookSettingsView.qml
@@ -132,6 +133,7 @@ qt_add_qml_module(hysett
         qml/views/BootloaderView.qml
         qml/views/TerminalView.qml
         qml/views/CanvasView.qml
+        qml/views/LockScreenView.qml
 )
 
 target_link_libraries(hysett PRIVATE

@@ -219,7 +219,7 @@ Item {
         MouseArea {
             anchors.fill: parent
             cursorShape: Qt.PointingHandCursor
-            onClicked: if (Waybar) Waybar.refreshGeoLocation()
+            onClicked: welcomeRoot.navigateTo(26)
         }
     }
 

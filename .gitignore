@@ -9,3 +9,5 @@ scripts/ym_downloaded.json
 scripts/*.bak*
 bypass-lists/repos/
 bypass-lists/update.log
+widgets/*/target/
+backups/*/widgets/*/target/

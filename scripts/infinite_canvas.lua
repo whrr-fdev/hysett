@@ -2,6 +2,10 @@
 -- HySett Infinite Canvas (Бесконечный холст для Hyprland Lua)
 -- ============================================================================
 
+local PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
+local ACTIVE_FILE  = "/tmp/hysett_canvas_active"
+local STATE_FILE   = "/tmp/hysett_canvas_state.lua"
+
 _G.Canvas = _G.Canvas or {
     enabled = false,
     panning = false,
@@ -11,7 +15,6 @@ _G.Canvas = _G.Canvas or {
     min_gap = 12,
     key_step = 110,
     init_scale = 0.78,
-    zoom_scale = 1.0,
     all_workspaces = true,
     edge_push_enabled = true,
     active_ws_id = 1,
@@ -20,10 +23,77 @@ _G.Canvas = _G.Canvas or {
     virtual_pos = {},
     win_order = {},
 }
-if not _G.Canvas.init_scale then _G.Canvas.init_scale = 0.78 end
 
-local PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
-local ACTIVE_FILE  = "/tmp/hysett_canvas_active"
+-- Восстанавливаем состояние холста после hyprctl reload (при переключении комментариев биндов в hyprland.lua)
+local function load_persisted_state()
+    local f = io.open(STATE_FILE, "r")
+    if not f then return end
+    f:close()
+    local ok, data = pcall(dofile, STATE_FILE)
+    if ok and type(data) == "table" then
+        for k, v in pairs(data) do
+            _G.Canvas[k] = v
+        end
+    end
+end
+
+local function save_persisted_state()
+    if not _G.Canvas.enabled then
+        os.remove(STATE_FILE)
+        return
+    end
+    local f = io.open(STATE_FILE, "w")
+    if not f then return end
+    f:write("return {\n")
+    f:write(string.format("  enabled = %s,\n", tostring(_G.Canvas.enabled)))
+    f:write(string.format("  inverted = %s,\n", tostring(_G.Canvas.inverted)))
+    f:write(string.format("  speed = %s,\n", tostring(_G.Canvas.speed or 3.2)))
+    f:write(string.format("  accel = %s,\n", tostring(_G.Canvas.accel or 1.6)))
+    f:write(string.format("  min_gap = %d,\n", math.floor(_G.Canvas.min_gap or 12)))
+    f:write(string.format("  key_step = %d,\n", math.floor(_G.Canvas.key_step or 110)))
+    f:write(string.format("  init_scale = %s,\n", tostring(_G.Canvas.init_scale or 0.78)))
+    f:write(string.format("  active_ws_id = %d,\n", math.floor(_G.Canvas.active_ws_id or 1)))
+    f:write(string.format("  next_order_seq = %d,\n", math.floor(_G.Canvas.next_order_seq or 1)))
+
+    f:write("  win_order = {\n")
+    for k, v in pairs(_G.Canvas.win_order or {}) do
+        f:write(string.format("    [%q] = %d,\n", tostring(k), math.floor(v)))
+    end
+    f:write("  },\n")
+
+    f:write("  saved_state = {\n")
+    for k, st in pairs(_G.Canvas.saved_state or {}) do
+        f:write(string.format(
+            "    [%q] = { order = %d, workspace_id = %d, was_float = %s, x = %d, y = %d, w = %d, h = %d },\n",
+            tostring(k),
+            math.floor(st.order or 1),
+            math.floor(st.workspace_id or 1),
+            tostring(st.was_float and true or false),
+            math.floor(st.x or 0),
+            math.floor(st.y or 0),
+            math.floor(st.w or 600),
+            math.floor(st.h or 400)
+        ))
+    end
+    f:write("  },\n")
+
+    f:write("  virtual_pos = {\n")
+    for k, vp in pairs(_G.Canvas.virtual_pos or {}) do
+        f:write(string.format(
+            "    [%q] = { x = %d, y = %d, w = %d, h = %d },\n",
+            tostring(k),
+            math.floor(vp.x or 0),
+            math.floor(vp.y or 0),
+            math.floor(vp.w or 600),
+            math.floor(vp.h or 400)
+        ))
+    end
+    f:write("  },\n")
+    f:write("}\n")
+    f:close()
+end
+
+load_persisted_state()
 
 local IGNORED_CLASSES = {
     ["hypratmooverlay"] = true,
@@ -241,7 +311,6 @@ local function find_free_spot(win_w, win_h, origin_cx, origin_cy, ignore_addr, p
     return origin_cx + (#placed_list) * step_x - win_w * 0.5, center_y
 end
 
--- При входе в режим холста все окна чуть уменьшаются (по умолчанию 78%), чтобы удобно помещаться в сетке
 local function calc_initial_canvas_size(orig_w, orig_h)
     local sc = _G.Canvas.init_scale or 0.78
     local tw = math.max(340, math.floor(orig_w * sc + 0.5))
@@ -251,6 +320,7 @@ end
 
 function _G.Canvas.set_option(key, val)
     _G.Canvas[key] = val
+    save_persisted_state()
     if key == "min_gap" and _G.Canvas.enabled then
         _G.Canvas.gather_home()
     end
@@ -279,45 +349,7 @@ function _G.Canvas.pan_delta(raw_dx, raw_dy)
     if active then
         hl.dispatch(hl.dsp.focus({ window = active }))
     end
-end
-
-function _G.Canvas.edge_push(raw_dx, raw_dy)
-    if not _G.Canvas.enabled or _G.Canvas.edge_push_enabled == false then return end
-    local active = hl.get_active_window()
-    if not active or not active.floating then return end
-
-    local mx, my, mw, mh = get_monitor_box()
-    local margin = 18
-    local ax, ay = active.at.x, active.at.y
-    local aw, ah = active.size.x, active.size.y
-    local vp_act = ensure_vp(active)
-    vp_act.x = ax; vp_act.y = ay; vp_act.w = aw; vp_act.h = ah
-
-    local mult = 2.4
-    local push_x, push_y = 0, 0
-    if ax <= mx + margin and raw_dx < 0 then
-        push_x = -raw_dx * mult
-    elseif (ax + aw) >= (mx + mw - margin) and raw_dx > 0 then
-        push_x = -raw_dx * mult
-    end
-
-    if ay <= my + margin and raw_dy < 0 then
-        push_y = -raw_dy * mult
-    elseif (ay + ah) >= (my + mh - margin) and raw_dy > 0 then
-        push_y = -raw_dy * mult
-    end
-
-    if push_x == 0 and push_y == 0 then return end
-
-    local ws = hl.get_active_workspace()
-    if not ws then return end
-    for _, w in pairs(hl.get_windows()) do
-        if is_canvas_win(w, ws.id) and w.floating and w.address ~= active.address then
-            local vp = ensure_vp(w)
-            apply_win_geom(w, vp.x + push_x, vp.y + push_y, nil, nil)
-        end
-    end
-    hl.dispatch(hl.dsp.focus({ window = active }))
+    save_persisted_state()
 end
 
 function _G.Canvas.set_panning(active)
@@ -340,6 +372,7 @@ function _G.Canvas.toggle_pan_lock()
     _G.Canvas.set_panning(not _G.Canvas.panning)
 end
 
+-- Когда открывается новое окно: ставим на свободное место, двигаем камеру к нему и передаём фокус
 function _G.Canvas.on_window_open(addr_str)
     if not _G.Canvas.enabled then return end
     local target_key = norm_addr(addr_str)
@@ -363,7 +396,8 @@ function _G.Canvas.on_window_open(addr_str)
     local mx, my, mw, mh = get_monitor_box()
     local cx, cy = mx + mw * 0.5, my + mh * 0.5
 
-    local orig_w, orig_h = new_win.size.x, new_win.size.y
+    local orig_w = math.max(520, new_win.size.x)
+    local orig_h = math.max(360, new_win.size.y)
     if new_win.workspace.id ~= ws.id then
         hl.dispatch(hl.dsp.window.move({
             workspace = ws.id,
@@ -405,6 +439,7 @@ function _G.Canvas.on_window_open(addr_str)
     local center_y = cy - nh * 0.5
     apply_win_geom(new_win, center_x, center_y, nw, nh)
     focus_and_raise(new_win)
+    save_persisted_state()
 end
 
 function _G.Canvas.toggle()
@@ -415,7 +450,6 @@ function _G.Canvas.toggle()
 
     if not _G.Canvas.enabled then
         _G.Canvas.enabled = true
-        _G.Canvas.zoom_scale = 1.0
         _G.Canvas.active_ws_id = ws.id
         _G.Canvas.saved_state = {}
         _G.Canvas.virtual_pos = {}
@@ -501,15 +535,14 @@ function _G.Canvas.toggle()
             focus_and_raise(ordered[1])
         end
 
-        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py start_evdev &")
+        save_persisted_state()
+        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py enable_binds_and_daemon &")
     else
         _G.Canvas.enabled = false
         _G.Canvas.panning = false
-        _G.Canvas.zoom_scale = 1.0
         os.remove(PANLOCK_FILE)
+        os.remove(STATE_FILE)
         set_active_indicator(false)
-        hl.exec_cmd("hyprctl keyword cursor:zoom_factor 1.0 >/dev/null 2>&1 &")
-        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py stop_evdev &")
 
         local all_wins = {}
         for _, w in pairs(hl.get_windows()) do
@@ -565,6 +598,7 @@ function _G.Canvas.toggle()
         _G.Canvas.saved_state = {}
         _G.Canvas.virtual_pos = {}
         _G.Canvas.win_order = {}
+        hl.exec_cmd("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py disable_binds_and_stop &")
     end
 end
 
@@ -584,6 +618,7 @@ local function pan_canvas_to_window(wins, target)
         apply_win_geom(w, vp.x + dx, vp.y + dy, nil, nil)
     end
     focus_and_raise(target)
+    save_persisted_state()
 end
 
 function _G.Canvas.navigate(dir)
@@ -716,6 +751,7 @@ function _G.Canvas.move_or_swap(dir)
     else
         apply_win_geom(active, nx, ny, nil, nil)
     end
+    save_persisted_state()
 end
 
 function _G.Canvas.focus_cycle(dir)
@@ -743,26 +779,6 @@ function _G.Canvas.focus_cycle(dir)
     pan_canvas_to_window(wins, target)
 end
 
--- Масштабирование колесиком БЕЗ ресайза самих окон (только GPU zoom_factor и раздвижение позиций)
-function _G.Canvas.zoom(factor)
-    if not _G.Canvas.enabled then return end
-    local ws = hl.get_active_workspace()
-    if not ws then return end
-
-    local cur_s = _G.Canvas.zoom_scale or 1.0
-    local new_s = math.max(1.0, math.min(3.0, cur_s * factor))
-    _G.Canvas.zoom_scale = new_s
-    pcall(function() hl.config({ cursor = { zoom_factor = new_s } }) end)
-    hl.exec_cmd(string.format("hyprctl keyword cursor:zoom_factor %.2f >/dev/null 2>&1 &", new_s))
-end
-
-function _G.Canvas.zoom_reset()
-    if not _G.Canvas.enabled then return end
-    _G.Canvas.zoom_scale = 1.0
-    pcall(function() hl.config({ cursor = { zoom_factor = 1.0 } }) end)
-    hl.exec_cmd("hyprctl keyword cursor:zoom_factor 1.0 >/dev/null 2>&1 &")
-end
-
 function _G.Canvas.gather_home()
     local ws = hl.get_active_workspace()
     if not ws then return end
@@ -786,8 +802,10 @@ function _G.Canvas.gather_home()
     if wins[1] then
         pan_canvas_to_window(wins, wins[1])
     end
+    save_persisted_state()
 end
 
 function _G.Canvas.toggle_invert()
     _G.Canvas.inverted = not _G.Canvas.inverted
+    save_persisted_state()
 end

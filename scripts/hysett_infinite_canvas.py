@@ -15,19 +15,16 @@ EV_KEY = 1
 EV_REL = 2
 REL_X = 0
 REL_Y = 1
-REL_WHEEL = 8
-REL_WHEEL_HI_RES = 11
 
 KEY_LEFTMETA = 125
 KEY_RIGHTMETA = 126
-KEY_LEFTALT = 56
-KEY_RIGHTALT = 100
 BTN_LEFT = 272
 BTN_MIDDLE = 274
 
 PANLOCK_FILE = "/tmp/hysett_canvas_panlock"
 PID_FILE = "/tmp/hysett_canvas_evdev.pid"
 CONF_FILE = os.path.expanduser("~/.config/hypr/canvas.json")
+HYPR_LUA = os.path.expanduser("~/.config/hypr/hyprland.lua")
 
 
 def get_hypr_sock_path(sock_name=".socket.sock"):
@@ -77,6 +74,42 @@ def repl_lua(code):
     )
 
 
+def switch_hyprland_binds(canvas_on):
+    if not os.path.exists(HYPR_LUA):
+        return
+    try:
+        with open(HYPR_LUA, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+
+        new_lines = []
+        for ln in lines:
+            if "-- [NORMAL_BIND]" in ln:
+                clean = ln.lstrip()
+                if clean.startswith("--"):
+                    clean = clean.lstrip("- ").lstrip()
+                if canvas_on:
+                    new_lines.append("-- " + clean)
+                else:
+                    new_lines.append(clean)
+            elif "-- [CANVAS_BIND]" in ln:
+                clean = ln.lstrip()
+                if clean.startswith("--"):
+                    clean = clean.lstrip("- ").lstrip()
+                if canvas_on:
+                    new_lines.append(clean)
+                else:
+                    new_lines.append("-- " + clean)
+            else:
+                new_lines.append(ln)
+
+        with open(HYPR_LUA, "w", encoding="utf-8") as f:
+            f.writelines(new_lines)
+
+        subprocess.run(["hyprctl", "reload"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
 def stop_existing():
     my_pid = os.getpid()
     if os.path.exists(PID_FILE):
@@ -111,8 +144,8 @@ def connect_hypr_event_sock():
         return None
     try:
         s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        s.setblocking(False)
         s.connect(sock_path)
+        s.setblocking(False)
         return s
     except Exception:
         return None
@@ -137,22 +170,21 @@ def start_evdev_listener():
 
     hypr_sock = connect_hypr_event_sock()
     sock_buf = ""
+    pending_new_wins = []
 
     super_down = False
-    alt_down = False
     lmb_down = False
     mmb_down = False
     acc_x = 0.0
     acc_y = 0.0
-    edge_x = 0.0
-    edge_y = 0.0
-    wheel_acc = 0
     last_flush = time.monotonic()
-    last_wheel_time = 0.0
     panlock_cached = False
     last_panlock_check = 0.0
 
     while True:
+        if hypr_sock is None:
+            hypr_sock = connect_hypr_event_sock()
+
         wait_list = list(fds)
         if hypr_sock is not None:
             wait_list.append(hypr_sock)
@@ -184,7 +216,7 @@ def start_evdev_listener():
                                 if addr:
                                     if not addr.startswith("0x"):
                                         addr = "0x" + addr
-                                    repl_lua(f"if _G.Canvas then _G.Canvas.on_window_open('{addr}') end")
+                                    pending_new_wins.append((now + 0.05, addr))
                 except Exception:
                     pass
                 continue
@@ -203,40 +235,27 @@ def start_evdev_listener():
                     pressed = (val == 1)
                     if code in (KEY_LEFTMETA, KEY_RIGHTMETA):
                         super_down = pressed
-                    elif code in (KEY_LEFTALT, KEY_RIGHTALT):
-                        alt_down = pressed
                     elif code == BTN_LEFT:
                         lmb_down = pressed
                     elif code == BTN_MIDDLE:
                         mmb_down = pressed
                 elif etype == EV_REL:
-                    if code == REL_WHEEL and super_down and alt_down and val != 0:
-                        wheel_acc += (1 if val > 0 else -1)
-                        continue
-                    if code == REL_WHEEL_HI_RES and super_down and alt_down and abs(val) >= 60:
-                        if now - last_wheel_time > 0.05:
-                            wheel_acc += (1 if val > 0 else -1)
-                            last_wheel_time = now
-                        continue
-
-                    is_canvas_drag = (super_down and alt_down and lmb_down) or (super_down and mmb_down) or panlock_cached
+                    # В режиме Холста: просто Super + ЛКМ (или Super + СКМ, или panlock) двигает весь холст!
+                    is_canvas_drag = (super_down and (lmb_down or mmb_down)) or panlock_cached
                     if is_canvas_drag:
                         if code == REL_X:
                             acc_x += val
                         elif code == REL_Y:
                             acc_y += val
-                    elif super_down and lmb_down and not alt_down:
-                        if code == REL_X:
-                            edge_x += val
-                        elif code == REL_Y:
-                            edge_y += val
 
-        if wheel_acc != 0:
-            w_step = wheel_acc
-            wheel_acc = 0
-            last_wheel_time = now
-            factor = 1.15 if w_step > 0 else 0.87
-            repl_lua(f"if _G.Canvas then _G.Canvas.zoom({factor}) end")
+        if pending_new_wins:
+            still_waiting = []
+            for due_t, addr in pending_new_wins:
+                if now >= due_t:
+                    repl_lua(f"if _G.Canvas then _G.Canvas.on_window_open('{addr}') end")
+                else:
+                    still_waiting.append((due_t, addr))
+            pending_new_wins = still_waiting
 
         if now - last_flush >= 0.008:
             last_flush = now
@@ -246,13 +265,6 @@ def start_evdev_listener():
             acc_y -= dy
             if dx != 0 or dy != 0:
                 repl_lua(f"if _G.Canvas then _G.Canvas.pan_delta({dx}, {dy}) end")
-
-            edx = int(round(edge_x))
-            edy = int(round(edge_y))
-            edge_x = 0.0
-            edge_y = 0.0
-            if edx != 0 or edy != 0:
-                repl_lua(f"if _G.Canvas then _G.Canvas.edge_push({edx}, {edy}) end")
 
 
 def update_setting(key, val_str):
@@ -292,6 +304,12 @@ if __name__ == "__main__":
         start_evdev_listener()
     elif cmd == "stop_evdev":
         stop_existing()
+    elif cmd == "enable_binds_and_daemon":
+        switch_hyprland_binds(True)
+        start_evdev_listener()
+    elif cmd == "disable_binds_and_stop":
+        switch_hyprland_binds(False)
+        stop_existing()
     elif cmd == "toggle":
         repl_lua("if _G.Canvas then _G.Canvas.toggle() end")
     elif cmd == "next":
@@ -304,12 +322,6 @@ if __name__ == "__main__":
         repl_lua("if _G.Canvas then _G.Canvas.toggle_invert() end")
     elif cmd == "panlock":
         repl_lua("if _G.Canvas then _G.Canvas.toggle_pan_lock() end")
-    elif cmd == "zoom_in":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom(1.15) end")
-    elif cmd == "zoom_out":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom(0.87) end")
-    elif cmd == "zoom_reset":
-        repl_lua("if _G.Canvas then _G.Canvas.zoom_reset() end")
     elif cmd == "nav" and len(sys.argv) > 2:
         repl_lua(f"if _G.Canvas then _G.Canvas.navigate('{sys.argv[2]}') end")
     elif cmd == "set" and len(sys.argv) > 3:

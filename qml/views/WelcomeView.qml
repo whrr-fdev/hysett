@@ -133,15 +133,21 @@ Item {
     Connections {
         target: welcomeRoot.winObj
         function onDrawerOpenChanged() {
-            if (welcomeRoot.winObj && welcomeRoot.winObj.drawerOpen && welcomeRoot.visible) {
-                welcomeRoot.playCardsEntrance()
-                welcomeRoot.focusSearchInput()
+            if (welcomeRoot.winObj) {
+                if (welcomeSearchField.text.length > 0) welcomeSearchField.text = ""
+                welcomeRoot.settingsSearchQuery = ""
+                if (welcomeRoot.winObj.drawerOpen && welcomeRoot.visible) {
+                    welcomeRoot.playCardsEntrance()
+                    welcomeRoot.focusSearchInput()
+                }
             }
         }
     }
 
     onVisibleChanged: {
         if (visible) {
+            if (welcomeSearchField.text.length > 0) welcomeSearchField.text = ""
+            welcomeRoot.settingsSearchQuery = ""
             recalcCardsLayout()
             focusSearchInput()
         }

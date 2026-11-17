@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Window
 import QtQuick.Controls
 import QtQuick.Layouts
 import HySett
@@ -20,7 +21,6 @@ Item {
     property real widgetsEnterProgress: 0.0
     property real shakeOffset: 0.0
 
-    // Настройки внешнего вида и позиций виджетов (0..1 от ширины/высоты экрана)
     property real bgBlurStrength: 0.62
     property real bgDimStrength: 0.38
     property int clockFontSize: 78
@@ -66,7 +66,6 @@ Item {
     function ingestMakoNotifications() {
         if (!lockRoot.active || !Mako) return
         var lists = [Mako.activePopups || [], Mako.history || []]
-        var changed = false
         for (var li = 0; li < lists.length; ++li) {
             var arr = lists[li]
             for (var i = 0; i < arr.length; ++i) {
@@ -95,7 +94,6 @@ Item {
                     lockedNotifsModel.insert(0, { "appSource": app, "count": 1 })
                 }
                 lockRoot.totalLockedNotifs += 1
-                changed = true
             }
         }
     }
@@ -173,7 +171,6 @@ Item {
         editMode = (openInEditMode === true)
         dotsModel.clear()
 
-        // Фиксируем уже существующие в истории уведомления, чтобы на экране блокировки копились только новые (и текущие активные попапы)
         var initSeen = {}
         if (Mako && Mako.history) {
             var h = Mako.history
@@ -199,6 +196,8 @@ Item {
     function unlockNow() {
         editMode = false
         checkingAuth = false
+        // Мгновенно возвращаем маску ввода и фокус рабочему столу/браузеру в начале анимации разблокировки
+        if (Waybar) Waybar.setLockScreenLayer(ApplicationWindow.window, false)
         unlockAnim.restart()
     }
 
@@ -222,8 +221,7 @@ Item {
             } else {
                 lockRoot.failedAttempts += 1
                 lockRoot.errorText = errorMsg + " (" + lockRoot.failedAttempts + ")"
-                lockRoot.passwordText = ""
-                dotsModel.clear()
+                lockRoot.clearPasswordAnimated()
                 shakeAnim.restart()
                 lockKeyCatcher.forceActiveFocus()
             }
@@ -232,7 +230,6 @@ Item {
 
     Component.onCompleted: loadConfig()
 
-    // Плавная двухфазная пружинная анимация появления экрана блокировки
     ParallelAnimation {
         id: lockInAnim
         NumberAnimation {
@@ -262,14 +259,14 @@ Item {
                 target: lockRoot
                 property: "revealProgress"
                 to: 0.0
-                duration: 240
+                duration: 220
                 easing.type: Easing.InCubic
             }
             NumberAnimation {
                 target: lockRoot
                 property: "widgetsEnterProgress"
                 to: 1.08
-                duration: 240
+                duration: 220
                 easing.type: Easing.InCubic
             }
         }
@@ -279,6 +276,7 @@ Item {
                 lockRoot.widgetsEnterProgress = 0.0
                 lockRoot.passwordText = ""
                 dotsModel.clear()
+                if (Waybar) Waybar.setLockScreenLayer(ApplicationWindow.window, false)
             }
         }
     }
@@ -295,26 +293,32 @@ Item {
     ListModel { id: dotsModel }
 
     function appendPasswordChar(ch) {
-        if (checkingAuth) return
+        if (checkingAuth || editMode) return
         errorText = ""
         passwordText += ch
-        dotsModel.append({ "charStr": ch })
+        dotsModel.append({ "charStr": ch, "closing": false })
     }
 
     function popPasswordChar() {
-        if (checkingAuth || passwordText.length === 0) return
+        if (checkingAuth || editMode || passwordText.length === 0) return
         passwordText = passwordText.slice(0, -1)
-        if (dotsModel.count > 0) dotsModel.remove(dotsModel.count - 1)
+        for (var i = dotsModel.count - 1; i >= 0; --i) {
+            if (!dotsModel.get(i).closing) {
+                dotsModel.setProperty(i, "closing", true)
+                break
+            }
+        }
     }
 
-    function clearPassword() {
-        if (checkingAuth) return
+    function clearPasswordAnimated() {
         passwordText = ""
-        dotsModel.clear()
+        for (var i = 0; i < dotsModel.count; ++i) {
+            dotsModel.setProperty(i, "closing", true)
+        }
     }
 
     function submitPassword() {
-        if (checkingAuth) return
+        if (checkingAuth || editMode) return
         if (passwordText.length === 0) {
             shakeAnim.restart()
             return
@@ -329,19 +333,23 @@ Item {
         focus: lockRoot.active
         Keys.onPressed: (event) => {
             if (!lockRoot.active) return
+            if (event.key === Qt.Key_Escape && lockRoot.editMode) {
+                lockRoot.unlockNow()
+                event.accepted = true
+                return
+            }
             if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                 lockRoot.submitPassword()
                 event.accepted = true
             } else if (event.key === Qt.Key_Backspace) {
-                if (event.modifiers & Qt.ControlModifier) lockRoot.clearPassword()
+                if (event.modifiers & Qt.ControlModifier) lockRoot.clearPasswordAnimated()
                 else lockRoot.popPasswordChar()
                 event.accepted = true
             } else if (event.key === Qt.Key_Escape) {
-                if (lockRoot.editMode) lockRoot.editMode = false
-                else lockRoot.clearPassword()
+                lockRoot.clearPasswordAnimated()
                 event.accepted = true
             } else if (event.key === Qt.Key_U && (event.modifiers & Qt.ControlModifier)) {
-                lockRoot.clearPassword()
+                lockRoot.clearPasswordAnimated()
                 event.accepted = true
             } else if (event.text && event.text.length > 0 && event.text.charCodeAt(0) >= 32 && !(event.modifiers & Qt.ControlModifier) && !(event.modifiers & Qt.AltModifier)) {
                 lockRoot.appendPasswordChar(event.text)
@@ -359,7 +367,7 @@ Item {
             var now = new Date()
             lockClockTxt.text = Qt.formatDateTime(now, lockRoot.clockShowSeconds ? "hh:mm:ss" : "hh:mm")
             lockDateTxt.text = Qt.formatDateTime(now, "dddd, d MMMM yyyy")
-            if (!lockKeyCatcher.activeFocus && !lockRoot.editMode) {
+            if (!lockKeyCatcher.activeFocus) {
                 lockKeyCatcher.forceActiveFocus()
             }
         }
@@ -369,7 +377,6 @@ Item {
         anchors.fill: parent
         opacity: Math.min(1.0, lockRoot.revealProgress * 1.15)
 
-        // 1. Фон текущих обоев с плавным зумом при появлении
         Rectangle {
             id: bgFallback
             anchors.fill: parent
@@ -412,7 +419,7 @@ Item {
             onClicked: lockKeyCatcher.forceActiveFocus()
         }
 
-        // Осевые направляющие в режиме перетаскивания виджетов
+        // Осевые направляющие (видны только при запуске Полноэкранного редактора из настроек HySett)
         Rectangle {
             visible: lockRoot.editMode
             anchors.horizontalCenter: parent.horizontalCenter
@@ -426,7 +433,6 @@ Item {
             height: 1; color: Qt.rgba(1, 1, 1, 0.16)
         }
 
-        // Контейнер всех виджетов с упругим пружинным масштабированием при входе
         Item {
             anchors.fill: parent
             scale: 0.88 + 0.12 * lockRoot.widgetsEnterProgress
@@ -566,8 +572,8 @@ Item {
                     Rectangle {
                         id: pwPill
                         anchors.horizontalCenter: parent.horizontalCenter
-                        readonly property real contentW: lockRoot.showPlainPassword ? plainPwText.implicitWidth : dotsRow.implicitWidth
-                        width: Math.max(270, Math.min(480, contentW + 104))
+                        readonly property real contentW: lockRoot.showPlainPassword ? plainPwText.implicitWidth : dotsRow.width
+                        width: Math.max(270, Math.min(500, contentW + 108))
                         height: 50
                         radius: (Theme && Theme.isRounded) ? 25 : 0
                         color: Qt.rgba(0.07, 0.08, 0.11, 0.78)
@@ -579,7 +585,7 @@ Item {
                             return Qt.rgba(1, 1, 1, 0.25)
                         }
 
-                        Behavior on width { NumberAnimation { duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.25 } }
+                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
                         Behavior on border.color { ColorAnimation { duration: 180 } }
 
                         Text {
@@ -597,43 +603,74 @@ Item {
                         Text {
                             anchors.centerIn: parent
                             visible: opacity > 0.01
-                            opacity: lockRoot.passwordText.length === 0 ? 0.55 : 0.0
-                            Behavior on opacity { NumberAnimation { duration: 140 } }
+                            opacity: (lockRoot.passwordText.length === 0 && dotsModel.count === 0) ? 0.55 : 0.0
+                            Behavior on opacity { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
                             text: lockRoot.checkingAuth ? "Проверка..." : "Введите пароль..."
                             color: "#ffffff"
                             font.pixelSize: 13
                         }
 
+                        // Плавный ряд точек пароля (плавное расширение слота + пружинный зум + плавное сжатие при Backspace)
                         Row {
                             id: dotsRow
                             anchors.centerIn: parent
-                            spacing: 7
+                            spacing: 0
                             visible: !lockRoot.showPlainPassword
 
                             Repeater {
                                 model: dotsModel
                                 delegate: Item {
-                                    id: dotWrap
-                                    width: 11; height: 11
-                                    property real dotScale: 0.0
-                                    Component.onCompleted: dotAppearAnim.start()
+                                    id: dotSlot
+                                    readonly property bool isClosing: model.closing === true
+                                    property real animW: 0.0
+                                    property real dotSc: 0.0
+                                    property real dotOp: 0.0
+                                    property real dotY: 7.0
 
-                                    NumberAnimation {
-                                        id: dotAppearAnim
-                                        target: dotWrap
-                                        property: "dotScale"
-                                        from: 0.0; to: 1.0
-                                        duration: 240
-                                        easing.type: Easing.OutBack
-                                        easing.overshoot: 2.1
+                                    width: animW
+                                    height: 24
+
+                                    Component.onCompleted: enterDotAnim.start()
+
+                                    onIsClosingChanged: {
+                                        if (isClosing) {
+                                            enterDotAnim.stop()
+                                            exitDotAnim.start()
+                                        }
+                                    }
+
+                                    ParallelAnimation {
+                                        id: enterDotAnim
+                                        NumberAnimation { target: dotSlot; property: "animW"; from: 0.0; to: 17.0; duration: 200; easing.type: Easing.OutQuint }
+                                        NumberAnimation { target: dotSlot; property: "dotSc"; from: 0.0; to: 1.0; duration: 250; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
+                                        NumberAnimation { target: dotSlot; property: "dotOp"; from: 0.0; to: 1.0; duration: 160; easing.type: Easing.OutCubic }
+                                        NumberAnimation { target: dotSlot; property: "dotY";  from: 7.0; to: 0.0; duration: 220; easing.type: Easing.OutQuint }
+                                    }
+
+                                    SequentialAnimation {
+                                        id: exitDotAnim
+                                        ParallelAnimation {
+                                            NumberAnimation { target: dotSlot; property: "animW"; to: 0.0; duration: 150; easing.type: Easing.OutQuint }
+                                            NumberAnimation { target: dotSlot; property: "dotSc"; to: 0.0; duration: 140; easing.type: Easing.InBack }
+                                            NumberAnimation { target: dotSlot; property: "dotOp"; to: 0.0; duration: 120; easing.type: Easing.OutQuad }
+                                            NumberAnimation { target: dotSlot; property: "dotY";  to: -5.0; duration: 140; easing.type: Easing.OutQuad }
+                                        }
+                                        ScriptAction {
+                                            script: {
+                                                if (index >= 0 && index < dotsModel.count) {
+                                                    dotsModel.remove(index)
+                                                }
+                                            }
+                                        }
                                     }
 
                                     Rectangle {
                                         anchors.centerIn: parent
+                                        anchors.verticalCenterOffset: dotSlot.dotY
                                         width: 11; height: 11
                                         radius: (Theme && Theme.isRounded) ? 5.5 : 1
-                                        scale: dotWrap.dotScale
-                                        opacity: Math.min(1.0, dotWrap.dotScale * 1.2)
+                                        scale: dotSlot.dotSc
+                                        opacity: dotSlot.dotOp
                                         color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                                     }
                                 }
@@ -802,7 +839,7 @@ Item {
                 }
             }
 
-            // ==================== ВИДЖЕТ 5: СКРЫТЫЕ УВЕДОМЛЕНИЯ (ТОЛЬКО КОЛИЧЕСТВО И ОТКУДА) ====================
+            // ==================== ВИДЖЕТ 5: СКРЫТЫЕ УВЕДОМЛЕНИЯ ====================
             Item {
                 id: wNotifications
                 readonly property var cfg: lockRoot.widgetsCfg["notifications"] || { enabled: true, nx: 0.5, ny: 0.71 }
@@ -1079,7 +1116,7 @@ Item {
             }
         }
 
-        // Панель управления раскладкой в режиме редактирования
+        // Панель управления раскладкой (доступна ТОЛЬКО при открытии Полноэкранного редактора из настроек HySett)
         Rectangle {
             id: editToolbar
             visible: lockRoot.editMode
@@ -1101,7 +1138,7 @@ Item {
                 RowLayout {
                     spacing: 10
                     Text {
-                        text: "󰕰  Перетаскивай виджеты мышью в любое место экрана"
+                        text: "󰕰  Редактор макета блокировки (перетаскивай виджеты мышью)"
                         color: "#ffffff"
                         font.pixelSize: 12
                         font.bold: true
@@ -1114,11 +1151,11 @@ Item {
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: lockRoot.resetLayout() }
                     }
                     Rectangle {
-                        height: 24; width: 90
+                        height: 24; width: 140
                         radius: (Theme && Theme.isRounded) ? 6 : 0
                         color: (Config && Theme && Theme.isRounded) ? Config.m3Primary : "#69f0ae"
-                        Text { anchors.centerIn: parent; text: "✓ Готово"; color: "#000000"; font.pixelSize: 11; font.bold: true }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: { lockRoot.editMode = false; lockKeyCatcher.forceActiveFocus() } }
+                        Text { anchors.centerIn: parent; text: "✓ Сохранить и выйти"; color: "#000000"; font.pixelSize: 11; font.bold: true }
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: lockRoot.unlockNow() }
                     }
                 }
 
@@ -1151,50 +1188,6 @@ Item {
                             }
                         }
                     }
-                }
-            }
-        }
-
-        // Кнопка включения режима перетаскивания виджетов в правом нижнем углу
-        Rectangle {
-            anchors.right: parent.right
-            anchors.bottom: parent.bottom
-            anchors.rightMargin: 18
-            anchors.bottomMargin: 18
-            height: 30
-            width: editModeBtnRow.implicitWidth + 18
-            radius: (Theme && Theme.isRounded) ? 8 : 0
-            color: lockRoot.editMode
-                   ? ((Config && Theme && Theme.isRounded) ? Config.m3Primary : "#69f0ae")
-                   : (editToggleMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.35))
-            border.width: 1
-            border.color: lockRoot.editMode ? "transparent" : Qt.rgba(1, 1, 1, 0.18)
-
-            Row {
-                id: editModeBtnRow
-                anchors.centerIn: parent
-                spacing: 6
-                Text {
-                    text: "󰕰"
-                    color: lockRoot.editMode ? "#000000" : "#ffffff"
-                    font.pixelSize: 13
-                }
-                Text {
-                    text: lockRoot.editMode ? "Сохранить раскладку" : "Двигать виджеты"
-                    color: lockRoot.editMode ? "#000000" : "#dddddd"
-                    font.pixelSize: 11
-                    font.bold: true
-                }
-            }
-
-            MouseArea {
-                id: editToggleMa
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: {
-                    lockRoot.editMode = !lockRoot.editMode
-                    if (!lockRoot.editMode) lockKeyCatcher.forceActiveFocus()
                 }
             }
         }

@@ -2383,6 +2383,7 @@ void WaybarManager::clearClipboard() {
 }
 
 static bool s_isScreenLocked = false;
+static bool s_forceMaskReset = false;
 
 void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool notifOpen, int notifX, int notifY, int notifW, int notifH) {
     if (s_isScreenLocked) {
@@ -2414,7 +2415,8 @@ void WaybarManager::syncShellRegion(QQuickWindow *win, bool drawerOpen, bool not
         reg += QRegion(notifX, notifY, notifW, notifH + 6);
     }
 
-    if (reg != s_lastReg) {
+    if (reg != s_lastReg || s_forceMaskReset) {
+        s_forceMaskReset = false;
         s_lastReg = reg;
         win->setMask(reg);
     }
@@ -3708,13 +3710,6 @@ void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
     if (win) s_shellWin = win;
     if (!s_shellWin) return;
 
-    // Останавливаем живые видео-обои mpvpaper при блокировке и возобновляем при разблокировке
-    if (locked) {
-        QProcess::startDetached("pkill", {"-STOP", "-x", "mpvpaper"});
-    } else {
-        QProcess::startDetached("pkill", {"-CONT", "-x", "mpvpaper"});
-    }
-
 #ifdef HAVE_LAYERSHELLQT
     if (auto *ls = LayerShellQt::Window::get(s_shellWin)) {
         ls->setLayer(locked ? LayerShellQt::Window::LayerOverlay : LayerShellQt::Window::LayerTop);
@@ -3733,7 +3728,11 @@ void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
         s_lastKbState = 1;
         s_shellWin->requestActivate();
     } else {
+        s_forceMaskReset = true;
         s_lastKbState = -1;
+        bool logicalOpen = s_shellWin->property("drawerOpen").toBool();
+        syncShellRegion(s_shellWin, logicalOpen, false, 0, 0, 0, 0);
+        applyShellKbInteractivity(s_shellWin, false);
         s_shellWin->requestUpdate();
     }
 }

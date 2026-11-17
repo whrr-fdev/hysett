@@ -384,6 +384,13 @@ static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive);
 static qint64 s_ignoreWinEventsUntilMs = 0;
 
 void WaybarManager::onHyprEventReady() {
+    {
+        bool cAct = QFile::exists("/tmp/hysett_canvas_active");
+        if (m_canvasActive != cAct) {
+            m_canvasActive = cAct;
+            emit recordingChanged();
+        }
+    }
     char buf[4096];
     ssize_t n = ::read(m_hyprEventFd, buf, sizeof(buf) - 1);
     if (n <= 0) return;

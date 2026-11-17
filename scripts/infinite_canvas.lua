@@ -511,17 +511,15 @@ function _G.Canvas.toggle()
             local key = norm_addr(w.address)
             local st = _G.Canvas.saved_state[key]
 
+            hl.dispatch(hl.dsp.focus({ window = w }))
             if st.workspace_id ~= ws.id then
                 hl.dispatch(hl.dsp.window.move({
                     workspace = ws.id,
-                    window = w,
                     follow = false,
                 }))
             end
-
-            hl.dispatch(hl.dsp.focus({ window = w }))
             if not st.was_float then
-                hl.dispatch(hl.dsp.window.float({ action = "on", window = w }))
+                hl.dispatch(hl.dsp.window.float({ action = "on" }))
             end
 
             local tw, th = calc_initial_canvas_size(st.w, st.h)
@@ -564,14 +562,14 @@ function _G.Canvas.toggle()
             local key = norm_addr(w.address)
             local st = _G.Canvas.saved_state[key]
             if st then
+                apply_win_geom(w, st.x, st.y, st.w, st.h)
                 if st.workspace_id and w.workspace.id ~= st.workspace_id then
+                    hl.dispatch(hl.dsp.focus({ window = w }))
                     hl.dispatch(hl.dsp.window.move({
                         workspace = st.workspace_id,
-                        window = w,
                         follow = false,
                     }))
                 end
-                apply_win_geom(w, st.x, st.y, st.w, st.h)
             end
         end
 

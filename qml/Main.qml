@@ -5983,6 +5983,18 @@ ApplicationWindow {
             }
         }
 
+        Binding {
+            target: topBarContainer
+            property: "opacity"
+            value: 0.0
+            when: lockOverlay.visible
+        }
+        Binding {
+            target: mergedShellBg
+            property: "visible"
+            value: false
+            when: lockOverlay.visible
+        }
         LockScreenOverlay {
             id: lockOverlay
             onActiveChanged: {

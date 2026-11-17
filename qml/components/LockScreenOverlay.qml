@@ -123,6 +123,8 @@ Item {
         } catch (e) {}
     }
 
+    onBgBlurStrengthChanged: if (active && Theme) Theme.applyEffectiveBlur(Math.max(0.12, bgBlurStrength))
+
     function saveConfig() {
         if (!Waybar) return
         var obj = {
@@ -182,9 +184,8 @@ Item {
         totalLockedNotifs = 0
         lockedNotifsModel.clear()
 
-        bgImg.source = ""
-        bgImg.source = "file:///home/whrr/.cache/lock_bg.png?t=" + Date.now()
         active = true
+        if (Theme) Theme.applyEffectiveBlur(Math.max(0.12, lockRoot.bgBlurStrength))
         ingestMakoNotifications()
         unlockAnim.stop()
         lockInAnim.restart()
@@ -198,6 +199,7 @@ Item {
         checkingAuth = false
         // Мгновенно возвращаем маску ввода и фокус рабочему столу/браузеру в начале анимации разблокировки
         if (Waybar) Waybar.setLockScreenLayer(ApplicationWindow.window, false)
+        if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
         unlockAnim.restart()
     }
 
@@ -277,6 +279,7 @@ Item {
                 lockRoot.passwordText = ""
                 dotsModel.clear()
                 if (Waybar) Waybar.setLockScreenLayer(ApplicationWindow.window, false)
+        if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
             }
         }
     }
@@ -377,41 +380,11 @@ Item {
         anchors.fill: parent
         opacity: Math.min(1.0, lockRoot.revealProgress * 1.15)
 
+        // Полупрозрачная вуаль поверх живого xray-блюра видео-обоев Hyprland (без статичной картинки)
         Rectangle {
-            id: bgFallback
+            id: liveBlurBackdrop
             anchors.fill: parent
-            color: "#0b0d12"
-            scale: 1.07 - 0.07 * lockRoot.revealProgress
-
-            Image {
-                id: bgImg
-                anchors.fill: parent
-                fillMode: Image.PreserveAspectCrop
-                source: "file:///home/whrr/.cache/lock_bg.png"
-                asynchronous: true
-                cache: false
-                smooth: true
-            }
-        }
-
-        ShaderEffectSource {
-            id: bgBlurSrc
-            sourceItem: bgFallback
-            anchors.fill: parent
-            live: true
-            hideSource: true
-            textureSize: Qt.size(Math.max(320, Math.round(lockRoot.width * (1.0 - lockRoot.bgBlurStrength * 0.72))),
-                                 Math.max(180, Math.round(lockRoot.height * (1.0 - lockRoot.bgBlurStrength * 0.72))))
-            smooth: true
-        }
-
-        ShaderEffect {
-            anchors.fill: parent
-            property var source: bgBlurSrc
-            property real blurStrength: lockRoot.bgBlurStrength * lockRoot.revealProgress
-            property real dimStrength: lockRoot.bgDimStrength * lockRoot.revealProgress
-            property color tintColor: Qt.rgba(0.03, 0.04, 0.06, 1.0)
-            fragmentShader: "qrc:/shaders/qml/shaders/dialog_blur.frag.qsb"
+            color: Qt.rgba(0.03, 0.04, 0.06, Math.max(0.04, lockRoot.bgDimStrength * lockRoot.revealProgress))
         }
 
         MouseArea {

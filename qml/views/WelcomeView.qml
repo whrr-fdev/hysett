@@ -183,19 +183,16 @@ Item {
         opacity: geoStr.length > 0 ? 1.0 : 0.0
         Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
         anchors.left: parent.left
-        anchors.leftMargin: 18
+        anchors.leftMargin: 14
         anchors.top: parent.top
-        anchors.topMargin: 12
+        anchors.topMargin: 10
         height: 26
         width: geoRow.implicitWidth + 18
-        radius: welcomeRoot.isM3 ? 7 : 0
-        color: welcomeRoot.isM3 && Config
-               ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.72)
-               : Qt.rgba(1, 1, 1, 0.06)
+        radius: (Theme && Theme.isRounded) ? (Config ? Math.min(8, Math.round(Config.m3ControlRadius * 0.65)) : 7) : 0
+        color: geoBtnMa.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(0, 0, 0, 0.28)
         border.width: 1
-        border.color: welcomeRoot.isM3 && Config
-                      ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.25)
-                      : Qt.rgba(1, 1, 1, 0.12)
+        border.color: Qt.rgba(1, 1, 1, 0.18)
+        Behavior on color { ColorAnimation { duration: 140 } }
 
         Row {
             id: geoRow
@@ -209,7 +206,7 @@ Item {
             }
             Text {
                 text: (Config && Config.streamerMode) ? "Скрыто" : welcomeGeoBadge.geoStr
-                color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#dddddd"
+                color: "#ffffff"
                 font.pixelSize: Config ? Config.fontSize - 1 : 11
                 font.bold: true
                 anchors.verticalCenter: parent.verticalCenter
@@ -217,7 +214,9 @@ Item {
         }
 
         MouseArea {
+            id: geoBtnMa
             anchors.fill: parent
+            hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
             onClicked: welcomeRoot.navigateTo(26)
         }

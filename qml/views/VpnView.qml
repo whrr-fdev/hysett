@@ -552,7 +552,7 @@ ScrollView {
                 }
 
                 Text {
-                    text: "󰍎 2ip.io:"
+                    text: "󰍎  2ip.io:"
                     color: "#cccccc"
                     font.pixelSize: Config.fontSize - 1
                     font.bold: true
@@ -1300,7 +1300,7 @@ ScrollView {
                                                     border.width: 1; border.color: "#ffd54f"
                                                     Text {
                                                         id: audSubTxt; anchors.centerIn: parent
-                                                        text: "󰑐 ПРОВЕРКА..."
+                                                        text: "󰑐  ПРОВЕРКА..."
                                                         font.pixelSize: Config.fontSize - 2; font.bold: true
                                                         color: "#ffd54f"
                                                     }
@@ -1313,7 +1313,7 @@ ScrollView {
                                                     color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)
                                                     Text {
                                                         id: verSubTxt; anchors.centerIn: parent
-                                                        text: "✓ РАБОЧИЙ"
+                                                        text: "✓  РАБОЧИЙ"
                                                         font.pixelSize: Config.fontSize - 2; font.bold: true
                                                         color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
                                                     }
@@ -1996,7 +1996,7 @@ ScrollView {
                                                     border.width: 1; border.color: "#ffd54f"
                                                     Text {
                                                         id: audWlTxt; anchors.centerIn: parent
-                                                        text: "󰑐 ПРОВЕРКА..."
+                                                        text: "󰑐  ПРОВЕРКА..."
                                                         font.pixelSize: Config.fontSize - 2; font.bold: true
                                                         color: "#ffd54f"
                                                     }
@@ -2009,7 +2009,7 @@ ScrollView {
                                                     color: isSel ? Qt.rgba(0, 0, 0, 0.22) : Qt.rgba(0.4, 0.95, 0.68, 0.20)
                                                     Text {
                                                         id: verWlBadgeTxt; anchors.centerIn: parent
-                                                        text: "✓ РАБОЧИЙ"
+                                                        text: "✓  РАБОЧИЙ"
                                                         font.pixelSize: Config.fontSize - 2; font.bold: true
                                                         color: isSel ? (Config ? Config.accentTextColor : "#000000") : "#69f0ae"
                                                     }

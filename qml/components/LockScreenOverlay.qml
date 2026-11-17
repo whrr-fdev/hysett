@@ -96,6 +96,11 @@ Item {
                 lockRoot.totalLockedNotifs += 1
             }
         }
+        if (!lockRoot.editMode && Mako.activePopups && Mako.activePopups.length > 0) {
+            Qt.callLater(() => {
+                if (lockRoot.active && !lockRoot.editMode && Mako) Mako.dismissAll()
+            })
+        }
     }
 
     function loadConfig() {
@@ -176,11 +181,16 @@ Item {
         dotsModel.clear()
 
         var initSeen = {}
-        if (Mako && Mako.history) {
-            var h = Mako.history
+        if (Mako) {
+            var h = Mako.history || []
             for (var i = 0; i < h.length; ++i) {
                 if (h[i].id !== undefined) initSeen[String(h[i].id)] = true
             }
+            var ap = Mako.activePopups || []
+            for (var j = 0; j < ap.length; ++j) {
+                if (ap[j].id !== undefined) initSeen[String(ap[j].id)] = true
+            }
+            if (!editMode && ap.length > 0) Mako.dismissAll()
         }
         seenNotifIds = initSeen
         totalLockedNotifs = 0
@@ -770,19 +780,30 @@ Item {
 
                     Rectangle {
                         height: 26
-                        width: kbTxt.implicitWidth + 20
+                        width: kbInnerRow.implicitWidth + 22
                         radius: (Theme && Theme.isRounded) ? 8 : 0
                         color: Qt.rgba(0.08, 0.09, 0.12, 0.72)
                         border.width: 1
                         border.color: lockRoot.editMode ? "#69f0ae" : Qt.rgba(1, 1, 1, 0.16)
 
-                        Text {
-                            id: kbTxt
+                        Row {
+                            id: kbInnerRow
                             anchors.centerIn: parent
-                            text: "󰌌  " + (Waybar ? Waybar.kbLayout : "EN")
-                            color: "#ffffff"
-                            font.pixelSize: 11
-                            font.bold: true
+                            spacing: 7
+                            Text {
+                                text: "󰌌"
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                font.pixelSize: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                id: kbTxt
+                                text: Waybar ? Waybar.kbLayout : "EN"
+                                color: "#ffffff"
+                                font.pixelSize: 11
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
 
                         MouseArea {
@@ -799,19 +820,30 @@ Item {
                     Rectangle {
                         visible: Waybar && Waybar.netConnected && Waybar.geoLocationText.length > 0
                         height: 26
-                        width: lockGeoTxt.implicitWidth + 20
+                        width: lockGeoInnerRow.implicitWidth + 22
                         radius: (Theme && Theme.isRounded) ? 8 : 0
                         color: Qt.rgba(0.08, 0.09, 0.12, 0.72)
                         border.width: 1
                         border.color: lockRoot.editMode ? "#69f0ae" : Qt.rgba(1, 1, 1, 0.16)
 
-                        Text {
-                            id: lockGeoTxt
+                        Row {
+                            id: lockGeoInnerRow
                             anchors.centerIn: parent
-                            text: "󰇧  " + ((Config && Config.streamerMode) ? "Скрыто" : (Waybar ? Waybar.geoLocationText.replace(/\s*\([^)]*\)/g, "") : ""))
-                            color: "#dddddd"
-                            font.pixelSize: 11
-                            font.bold: true
+                            spacing: 7
+                            Text {
+                                text: "󰇧"
+                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae"
+                                font.pixelSize: 12
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
+                            Text {
+                                id: lockGeoTxt
+                                text: (Config && Config.streamerMode) ? "Скрыто" : (Waybar ? Waybar.geoLocationText.replace(/\s*\([^)]*\)/g, "") : "")
+                                color: "#dddddd"
+                                font.pixelSize: 11
+                                font.bold: true
+                                anchors.verticalCenter: parent.verticalCenter
+                            }
                         }
                     }
                 }
@@ -894,7 +926,12 @@ Item {
                                     anchors.rightMargin: 10
                                     spacing: 8
                                     Text {
-                                        text: "󰌾  " + (modelData ? modelData.appSource : model.appSource)
+                                        text: "󰌾"
+                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"
+                                        font.pixelSize: 12
+                                    }
+                                    Text {
+                                        text: modelData ? modelData.appSource : model.appSource
                                         color: "#eaeaea"
                                         font.pixelSize: 11
                                         font.bold: true
@@ -1090,10 +1127,22 @@ Item {
                     Row {
                         id: lockSysRow
                         anchors.centerIn: parent
-                        spacing: 12
-                        Text { text: " " + (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 12; font.bold: true }
-                        Text { text: " " + (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 12; font.bold: true }
-                        Text { text: "󰍛 " + (Waybar ? Waybar.memUsageText : "0.0G"); color: "#ffffff"; font.pixelSize: 12; font.bold: true }
+                        spacing: 14
+                        Row {
+                            spacing: 6
+                            Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                        Row {
+                            spacing: 6
+                            Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        }
+                        Row {
+                            spacing: 6
+                            Text { text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        }
                     }
                 }
 
@@ -1142,17 +1191,25 @@ Item {
                         font.bold: true
                     }
                     Rectangle {
-                        height: 24; width: 90
+                        height: 24; width: 98
                         radius: (Theme && Theme.isRounded) ? 6 : 0
                         color: Qt.rgba(1, 1, 1, 0.10)
-                        Text { anchors.centerIn: parent; text: "↺ Сбросить"; color: "#ffffff"; font.pixelSize: 11 }
+                        Row {
+                            anchors.centerIn: parent; spacing: 6
+                            Text { text: "↺"; color: "#ffffff"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: "Сбросить"; color: "#ffffff"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter }
+                        }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: lockRoot.resetLayout() }
                     }
                     Rectangle {
-                        height: 24; width: 140
+                        height: 24; width: 152
                         radius: (Theme && Theme.isRounded) ? 6 : 0
                         color: (Config && Theme && Theme.isRounded) ? Config.m3Primary : "#69f0ae"
-                        Text { anchors.centerIn: parent; text: "✓ Сохранить и выйти"; color: "#000000"; font.pixelSize: 11; font.bold: true }
+                        Row {
+                            anchors.centerIn: parent; spacing: 6
+                            Text { text: "✓"; color: "#000000"; font.pixelSize: 11; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                            Text { text: "Сохранить и выйти"; color: "#000000"; font.pixelSize: 11; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                        }
                         MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: lockRoot.unlockNow() }
                     }
                 }
@@ -1164,20 +1221,32 @@ Item {
                         delegate: Rectangle {
                             readonly property var wItem: lockRoot.widgetsCfg[modelData] || { enabled: true, title: modelData }
                             height: 24
-                            width: chipTxt.implicitWidth + 14
+                            width: chipInnerRow.implicitWidth + 16
                             radius: (Theme && Theme.isRounded) ? 6 : 0
                             color: wItem.enabled
                                    ? ((Config && Theme && Theme.isRounded) ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.25) : Qt.rgba(0.4, 0.95, 0.65, 0.22))
                                    : Qt.rgba(1, 1, 1, 0.06)
                             border.width: 1
                             border.color: wItem.enabled ? ((Config && Theme && Theme.isRounded) ? Config.m3Primary : "#69f0ae") : Qt.rgba(1, 1, 1, 0.15)
-                            Text {
-                                id: chipTxt
+                            Row {
+                                id: chipInnerRow
                                 anchors.centerIn: parent
-                                text: (wItem.enabled ? "✓ " : "○ ") + wItem.title
-                                color: wItem.enabled ? "#ffffff" : "#888888"
-                                font.pixelSize: 10
-                                font.bold: wItem.enabled
+                                spacing: 6
+                                Text {
+                                    text: wItem.enabled ? "✓" : "○"
+                                    color: wItem.enabled ? ((Config && Theme && Theme.isRounded) ? Config.m3Primary : "#69f0ae") : "#888888"
+                                    font.pixelSize: 10
+                                    font.bold: true
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    id: chipTxt
+                                    text: wItem.title
+                                    color: wItem.enabled ? "#ffffff" : "#888888"
+                                    font.pixelSize: 10
+                                    font.bold: wItem.enabled
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
                             }
                             MouseArea {
                                 anchors.fill: parent

@@ -73,7 +73,7 @@ Button {
         opacity: control.iconAlpha
 
         readonly property int iconBoxW: control.isM3 ? 20 : 18
-        readonly property int gap: control.isM3 ? 10 : 7
+        readonly property int gap: control.isM3 ? 10 : 8
         readonly property int totalExpandedW: iconBoxW + gap + lblText.implicitWidth
         readonly property int targetIconX: control.collapsed
                                            ? Math.round((width - iconBoxW) * 0.5)

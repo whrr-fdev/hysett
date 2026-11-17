@@ -1,0 +1,11 @@
+/home/whrr/hysett/widgets/sysinfo/target/release/deps/gtk4_layer_shell-c24219d5717125b7.d: /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/lib.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/mod.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/enums.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/functions.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/manual.rs
+
+/home/whrr/hysett/widgets/sysinfo/target/release/deps/libgtk4_layer_shell-c24219d5717125b7.rlib: /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/lib.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/mod.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/enums.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/functions.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/manual.rs
+
+/home/whrr/hysett/widgets/sysinfo/target/release/deps/libgtk4_layer_shell-c24219d5717125b7.rmeta: /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/lib.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/mod.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/enums.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/functions.rs /home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/manual.rs
+
+/home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/lib.rs:
+/home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/mod.rs:
+/home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/enums.rs:
+/home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/auto/functions.rs:
+/home/whrr/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gtk4-layer-shell-0.8.1/src/manual.rs:

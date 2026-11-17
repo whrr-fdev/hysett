@@ -69,6 +69,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
         m_vramHistory.append(10); m_netHistory.append(0);
     }
 
+    QFile::remove("/tmp/hysett_screen_locked");
     initSpecs();
     m_specs = m_defaults;
     loadState();

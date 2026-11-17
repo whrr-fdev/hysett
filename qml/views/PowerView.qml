@@ -83,12 +83,12 @@ Item {
 
             Repeater {
                 model: [
-                    { label: "󰌾   Lock", idx: 0 },
-                    { label: "󰒲   Sleep", idx: 1 },
-                    { label: "󰤄   Hibernate", idx: 2 },
-                    { label: "󰍃   Logout", idx: 3 },
-                    { label: "󰜉   Reboot", idx: 4 },
-                    { label: "⏻   Shutdown", idx: 5 }
+                    { icon: "󰌾", label: "Lock", idx: 0 },
+                    { icon: "󰒲", label: "Sleep", idx: 1 },
+                    { icon: "󰤄", label: "Hibernate", idx: 2 },
+                    { icon: "󰍃", label: "Logout", idx: 3 },
+                    { icon: "󰜉", label: "Reboot", idx: 4 },
+                    { icon: "⏻", label: "Shutdown", idx: 5 }
                 ]
                 delegate: Rectangle {
                     x: 0
@@ -101,13 +101,27 @@ Item {
                     border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.18)
                     border.width: 1
 
-                    Text {
+                    Row {
                         anchors.centerIn: parent
-                        text: modelData.label
-                        font.pixelSize: 14
-                        font.bold: parent.isSel
-                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                        Behavior on color { ColorAnimation { duration: 120 } }
+                        spacing: 10
+                        Item {
+                            width: 20; height: 20
+                            anchors.verticalCenter: parent.verticalCenter
+                            Text {
+                                anchors.centerIn: parent
+                                text: modelData.icon
+                                font.pixelSize: 15
+                                color: parent.parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                            }
+                        }
+                        Text {
+                            text: modelData.label
+                            font.pixelSize: 14
+                            font.bold: parent.parent.isSel
+                            color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                            anchors.verticalCenter: parent.verticalCenter
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                        }
                     }
 
                     MouseArea {

@@ -466,24 +466,32 @@ Rectangle {
 
             contentItem: Item {
                 anchors.fill: parent
-                Text {
-                    id: closeIconTxt
-                    text: "✕"
-                    color: closeBtn.hovered ? "#ff6b6b" : "#888888"
-                    font.pixelSize: 11
+                readonly property int iconBoxW: bar.isM3 ? 20 : 18
+                readonly property int gap: bar.isM3 ? 10 : 8
+                Item {
+                    id: closeIconBox
+                    width: parent.iconBoxW
+                    height: parent.iconBoxW
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.verticalCenterOffset: bar.closeDropY
                     scale: bar.closePopScale
                     x: (bar.collapsed
                         ? Math.round((parent.width - width) * 0.5)
                         : ((Config && Config.alignCenter)
-                           ? Math.round((parent.width - (width + (bar.isM3 ? 10 : 7) + closeLblTxt.implicitWidth)) * 0.5)
+                           ? Math.round((parent.width - (width + parent.gap + closeLblTxt.implicitWidth)) * 0.5)
                            : (bar.isM3 ? 14 : 10))) + bar.closeStepX
                     Behavior on x { enabled: !closeCascadeAnim.running; NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+                    Text {
+                        id: closeIconTxt
+                        anchors.centerIn: parent
+                        text: "✕"
+                        color: closeBtn.hovered ? "#ff6b6b" : "#888888"
+                        font.pixelSize: 11
+                    }
                 }
                 Text {
                     id: closeLblTxt
-                    x: closeIconTxt.x + closeIconTxt.width + (bar.isM3 ? 10 : 7)
+                    x: closeIconBox.x + closeIconBox.width + parent.gap
                     anchors.verticalCenter: parent.verticalCenter
                     anchors.verticalCenterOffset: bar.closeDropY
                     text: Config ? (Config.language, Config.trAuto("Закрыть")) : "Закрыть"

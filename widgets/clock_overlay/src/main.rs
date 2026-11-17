@@ -172,9 +172,15 @@ fn build_ui(app: &Application) {
 
     refresh_labels(&day_label, &date_label, &time_label, &current_cfg.borrow());
 
+    let init_locked = std::path::Path::new("/tmp/hysett_screen_locked").exists();
+    vbox.set_opacity(if init_locked { 0.0 } else { 1.0 });
+    vbox.set_visible(!init_locked);
+
     let last_raw = Rc::new(RefCell::new(
         fs::read_to_string(style_conf_path()).unwrap_or_default(),
     ));
+    let last_locked = Rc::new(RefCell::new(init_locked));
+    let vbox_lock = vbox.clone();
     let provider_clone = css_provider.clone();
     let cfg_clone = current_cfg.clone();
     let d_lbl = day_label.clone();
@@ -182,6 +188,12 @@ fn build_ui(app: &Application) {
     let t_lbl = time_label.clone();
 
     glib::timeout_add_local(Duration::from_millis(80), move || {
+        let is_locked = std::path::Path::new("/tmp/hysett_screen_locked").exists();
+        if is_locked != *last_locked.borrow() {
+            *last_locked.borrow_mut() = is_locked;
+            vbox_lock.set_opacity(if is_locked { 0.0 } else { 1.0 });
+            vbox_lock.set_visible(!is_locked);
+        }
         let raw = fs::read_to_string(style_conf_path()).unwrap_or_default();
         if raw != *last_raw.borrow() {
             *last_raw.borrow_mut() = raw;

@@ -7,6 +7,19 @@ CheckBox {
     font.pixelSize: Config ? Config.fontSize : 11
     readonly property bool isM3: Theme && Theme.isRounded
 
+    readonly property string fullTxt: Config ? (Config.language, Config.trAuto(control.text)) : control.text
+    readonly property var splitParts: {
+        var s = fullTxt.trim()
+        if (!s) return { icon: "", label: "" }
+        var cp = s.codePointAt(0)
+        if (cp >= 0xE000 || (cp >= 0x2190 && cp <= 0x2BFF)) {
+            var chLen = cp > 0xFFFF ? 2 : 1
+            var rest = s.slice(chLen).replace(/^[\uFE0E\uFE0F]+/, "").trim()
+            if (rest.length > 0) return { icon: s.slice(0, chLen), label: rest }
+        }
+        return { icon: "", label: s }
+    }
+
     scale: control.hovered ? 1.03 : 1.0
     Behavior on scale { NumberAnimation { duration: 120 } }
 
@@ -28,12 +41,38 @@ CheckBox {
         Behavior on radius { NumberAnimation { duration: 150 } }
     }
 
-    contentItem: Text {
-        text: Config ? (Config.language, Config.trAuto(control.text)) : control.text
-        font: control.font
-        color: control.checked ? "#ffffff" : "#cccccc"
-        verticalAlignment: Text.AlignVCenter
-        leftPadding: control.indicator.width + 8
-        Behavior on color { ColorAnimation { duration: 120 } }
+    contentItem: Item {
+        implicitWidth: cbRow.implicitWidth + control.indicator.width + 8
+        implicitHeight: Math.max(18, cbRow.implicitHeight)
+
+        Row {
+            id: cbRow
+            x: control.indicator.width + 8
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: control.splitParts.icon.length > 0 ? 7 : 0
+
+            Item {
+                visible: control.splitParts.icon.length > 0
+                width: 16
+                height: 16
+                anchors.verticalCenter: parent.verticalCenter
+
+                Text {
+                    anchors.centerIn: parent
+                    text: control.splitParts.icon
+                    font.pixelSize: control.font.pixelSize + 1
+                    color: control.checked ? (control.isM3 && Config ? Config.m3Primary : "#ffffff") : "#aaaaaa"
+                    Behavior on color { ColorAnimation { duration: 120 } }
+                }
+            }
+
+            Text {
+                text: control.splitParts.label
+                font: control.font
+                color: control.checked ? "#ffffff" : "#cccccc"
+                anchors.verticalCenter: parent.verticalCenter
+                Behavior on color { ColorAnimation { duration: 120 } }
+            }
+        }
     }
 }

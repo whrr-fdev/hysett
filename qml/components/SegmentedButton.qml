@@ -107,7 +107,7 @@ Item {
                     var cp = s.codePointAt(0)
                     if (cp >= 0xE000 || (cp >= 0x2190 && cp <= 0x2BFF)) {
                         var chLen = cp > 0xFFFF ? 2 : 1
-                        var rest = s.slice(chLen).trim()
+                        var rest = s.slice(chLen).replace(/^[\uFE0E\uFE0F]+/, "").trim()
                         if (rest.length > 0) return { icon: s.slice(0, chLen), label: rest }
                     }
                     return { icon: "", label: s }
@@ -119,8 +119,8 @@ Item {
 
                     Item {
                         visible: segItem.splitParts.icon.length > 0
-                        width: 15
-                        height: 16
+                        width: 17
+                        height: 17
                         anchors.verticalCenter: parent.verticalCenter
 
                         Text {

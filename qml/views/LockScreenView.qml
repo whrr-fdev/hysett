@@ -185,12 +185,19 @@ ScrollView {
                                 Row {
                                     id: tokenRow
                                     anchors.centerIn: parent
-                                    spacing: 6
+                                    spacing: 7
                                     Text {
-                                        text: miniToken.wObj.icon + "  " + miniToken.wObj.title
+                                        text: miniToken.wObj.icon
+                                        color: dragTokenMa.pressed ? "#000000" : ((Config && Theme && Theme.isRounded) ? Config.m3Primary : "#69f0ae")
+                                        font.pixelSize: Config.fontSize
+                                        anchors.verticalCenter: parent.verticalCenter
+                                    }
+                                    Text {
+                                        text: miniToken.wObj.title
                                         color: dragTokenMa.pressed ? "#000000" : "#ffffff"
                                         font.pixelSize: Config.fontSize - 1
                                         font.bold: true
+                                        anchors.verticalCenter: parent.verticalCenter
                                     }
                                 }
 
@@ -245,9 +252,20 @@ ScrollView {
                             model: ["clock", "greeting", "password", "status", "notifications", "media", "weather", "sysinfo"]
                             delegate: RowLayout {
                                 Layout.fillWidth: true
+                                spacing: 9
                                 readonly property var wObj: lsScroll.widgetsCfg[modelData] || { enabled: true, title: modelData, icon: "󰕰" }
+                                Item {
+                                    Layout.preferredWidth: 18
+                                    Layout.preferredHeight: 18
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: wObj.icon
+                                        color: (Config && Theme && Theme.isRounded) ? Config.m3Primary : "#ffffff"
+                                        font.pixelSize: Config.fontSize + 1
+                                    }
+                                }
                                 Text {
-                                    text: wObj.icon + "  " + wObj.title
+                                    text: wObj.title
                                     color: "#dddddd"
                                     font.pixelSize: Config.fontSize
                                     Layout.fillWidth: true

@@ -812,7 +812,18 @@ fn build_ui(app: &Application) {
         let t_area = temp_area.clone();
         let p_lbls = proc_labels.clone();
 
+        let init_locked = std::path::Path::new("/tmp/hysett_screen_locked").exists();
+        r_root.set_opacity(if init_locked { 0.0 } else { 1.0 });
+        r_root.set_visible(!init_locked);
+        let last_locked = Rc::new(RefCell::new(init_locked));
+
         glib::timeout_add_local(Duration::from_millis(80), move || {
+            let is_locked = std::path::Path::new("/tmp/hysett_screen_locked").exists();
+            if is_locked != *last_locked.borrow() {
+                *last_locked.borrow_mut() = is_locked;
+                r_root.set_opacity(if is_locked { 0.0 } else { 1.0 });
+                r_root.set_visible(!is_locked);
+            }
             let current_raw = fs::read_to_string(style_conf_path()).unwrap_or_default();
             if current_raw != *last_raw.borrow() {
                 *last_raw.borrow_mut() = current_raw;

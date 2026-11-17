@@ -882,7 +882,7 @@ Item {
                                 spacing: 10
 
                                 Text {
-                                    text: "󰖟 Поиск курсоров по сайтам (Gnome-Look / GitHub)"
+                                    text: "󰖟   Поиск курсоров по сайтам (Gnome-Look / GitHub)"
                                     color: "#ffffff"
                                     font.pixelSize: Config.fontSize + 1
                                     font.bold: true
@@ -961,7 +961,7 @@ Item {
 
                                     Text {
                                         anchors.centerIn: parent
-                                        text: "󰑐 Загрузка карточек курсоров с Gnome-Look и GitHub..."
+                                        text: "󰑐   Загрузка карточек курсоров с Gnome-Look и GitHub..."
                                         color: "#cccccc"
                                         font.pixelSize: Config.fontSize
                                     }
@@ -1059,7 +1059,7 @@ Item {
                                                     }
 
                                                     Text {
-                                                        text: "󰀄 " + (modelData.author || "author") + (modelData.downloads ? "  •  󰇚 " + modelData.downloads : "")
+                                                        text: "󰀄  " + (modelData.author || "author") + (modelData.downloads ? "  •  󰇚  " + modelData.downloads : "")
                                                         color: "#888888"
                                                         font.pixelSize: Config.fontSize - 2
                                                         elide: Text.ElideRight
@@ -1118,7 +1118,7 @@ Item {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "󰉍 Архивы в папке «Загрузки»"
+                                        text: "󰉍   Архивы в папке «Загрузки»"
                                         color: "#ffffff"
                                         font.pixelSize: Config.fontSize + 1
                                         font.bold: true

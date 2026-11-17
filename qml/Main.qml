@@ -2308,10 +2308,10 @@ ApplicationWindow {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "sysinfo") return sysRow.implicitWidth + 24
                                 if (modKey === "tray") return Math.max(28, trayRow.implicitWidth + 22)
-                                if (modKey === "usb") return ((Devices && Devices.usbDrivesCount > 0) ? (usbPillInnerRow.implicitWidth + 14) : 16) + clusterEdgePad
-                                if (modKey === "bluetooth") return ((Waybar && Waybar.btConnectedCount > 0) ? (btPillInnerRow.implicitWidth + 14) : 16) + clusterEdgePad
+                                if (modKey === "usb") return ((Devices && Devices.usbDrivesCount > 0) ? (usbPillInnerRow.implicitWidth + 16) : 16) + clusterEdgePad
+                                if (modKey === "bluetooth") return ((Waybar && Waybar.btConnectedCount > 0) ? (btPillInnerRow.implicitWidth + 16) : 16) + clusterEdgePad
                                 if (modKey === "network" || modKey === "clipboard") return 16 + clusterEdgePad
-                                if (modKey === "volume") return volInnerRow.implicitWidth + 6 + clusterEdgePad
+                                if (modKey === "volume") return volInnerRow.implicitWidth + 8 + clusterEdgePad
                                 if (modKey === "language") return 21 + clusterEdgePad
                                 if (modKey === "clock") return barClockText.implicitWidth + 8 + clusterEdgePad
                                 if (modKey === "power") return 28
@@ -2349,10 +2349,10 @@ ApplicationWindow {
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
                                 radius: topBarContainer.pillRadius; color: topBarContainer.pillColor; border.width: topBarContainer.pillBorderWidth; border.color: topBarContainer.pillBorderColor
                                 Row {
-                                    id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 5
-                                    Item { width: 40; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                                    Item { width: 36; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
-                                    Item { width: 41; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 3; Text { text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    id: sysRow; height: topBarContainer.pillHeight; anchors.centerIn: parent; spacing: 6
+                                    Item { width: 42; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuUsage : 0) + "%"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 38; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: ""; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: (Waybar ? Waybar.cpuTemp : 40) + "°C"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
+                                    Item { width: 43; height: topBarContainer.pillHeight; Row { anchors.centerIn: parent; spacing: 4; Text { text: "󰍛"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#cccccc"; font.pixelSize: 11; anchors.verticalCenter: parent.verticalCenter } Text { text: Waybar ? Waybar.memUsageText : "0.0G"; color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter } } }
                                 }
                                 MouseArea { enabled: !topBarContainer.editMode; anchors.fill: parent; anchors.margins: -4; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 21) }
                             }
@@ -2472,7 +2472,7 @@ ApplicationWindow {
                                     Row {
                                         id: usbPillInnerRow
                                         anchors.centerIn: parent
-                                        spacing: 3
+                                        spacing: 5
                                         Text {
                                             text: "󱊟"
                                             color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
@@ -2526,7 +2526,7 @@ ApplicationWindow {
                                     Row {
                                         id: btPillInnerRow
                                         anchors.centerIn: parent
-                                        spacing: 3
+                                        spacing: 5
                                         Text {
                                             text: "󰂱"
                                             color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
@@ -2564,7 +2564,7 @@ ApplicationWindow {
                                 visible: modKey === "volume"
                                 anchors.fill: parent
                                 Row {
-                                    id: volInnerRow; anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; spacing: 3
+                                    id: volInnerRow; anchors.centerIn: parent; anchors.horizontalCenterOffset: rightModBody.innerShiftX; spacing: 5
                                     Text { text: (Waybar && Waybar.muted) ? "󰝟" : "󰕾"; color: (Waybar && Waybar.muted) ? "#ff6b6b" : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"); font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
                                     Text { text: (Waybar && Waybar.muted) ? "Mute" : ((Waybar ? Waybar.volume : 50) + "%"); color: (Theme && Theme.isRounded && Config) ? Config.m3OnPrimaryContainer : "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                                 }
@@ -3479,7 +3479,7 @@ ApplicationWindow {
         Item {
             id: notifClipBox
             x: root.notifX; y: root.notifY; width: root.notifW; height: root.animNotifH
-            clip: true; visible: root.notifActive; z: 15
+            clip: true; visible: root.notifActive && !lockOverlay.visible; z: 15
 
             MouseArea {
                 anchors.fill: parent
@@ -3609,7 +3609,7 @@ ApplicationWindow {
             width: root.effDrawerW
             height: root.animDrawerH
             clip: !root.isVortexWindowAnimActive
-            visible: root.drawerActive
+            visible: root.drawerActive && !lockOverlay.visible
             z: 5
 
             Item {
@@ -4101,11 +4101,11 @@ ApplicationWindow {
 
                             Repeater {
                                 model: [
-                                    { label: "󰖟   Опубликовать по ссылке (Сайт / Файл)", idx: 0 },
-                                    { label: "󰄜   Отправить на телефон", idx: 1 },
-                                    { label: "󰅧   Быстрая ссылка + QR в облако", idx: 2 },
-                                    { label: "󰆏   Скопировать путь в буфер обмена", idx: 3 },
-                                    { label: "󰉋   Открыть файл в системе", idx: 5 }
+                                    { icon: "󰖟", label: "Опубликовать по ссылке (Сайт / Файл)", idx: 0 },
+                                    { icon: "󰄜", label: "Отправить на телефон", idx: 1 },
+                                    { icon: "󰅧", label: "Быстрая ссылка + QR в облако", idx: 2 },
+                                    { icon: "󰆏", label: "Скопировать путь в буфер обмена", idx: 3 },
+                                    { icon: "󰉋", label: "Открыть файл в системе", idx: 4 }
                                 ]
                                 delegate: Rectangle {
                                     x: 0
@@ -4118,15 +4118,29 @@ ApplicationWindow {
                                     border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
                                     border.width: 1
 
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        anchors.left: parent.left
+                                    RowLayout {
+                                        anchors.fill: parent
                                         anchors.leftMargin: 12
-                                        text: modelData.label
-                                        font.pixelSize: 11
-                                        font.bold: false
-                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                        Behavior on color { ColorAnimation { duration: 110 } }
+                                        anchors.rightMargin: 12
+                                        spacing: 9
+                                        Item {
+                                            Layout.preferredWidth: 18
+                                            Layout.preferredHeight: 18
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: modelData.icon
+                                                font.pixelSize: 12
+                                                color: parent.parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : (Config ? Config.m3Primary : "#ffffff")
+                                            }
+                                        }
+                                        Text {
+                                            text: modelData.label
+                                            font.pixelSize: 11
+                                            color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                            elide: Text.ElideRight
+                                            Layout.fillWidth: true
+                                            Behavior on color { ColorAnimation { duration: 110 } }
+                                        }
                                     }
 
                                     MouseArea {
@@ -4373,12 +4387,12 @@ ApplicationWindow {
                             Repeater {
                                 id: powerRepeater
                                 model: [
-                                    { label: "󰌾   Lock", idx: 0 },
-                                    { label: "󰒲   Sleep", idx: 1 },
-                                    { label: "󰤄   Hibernate", idx: 2 },
-                                    { label: "󰍃   Logout", idx: 3 },
-                                    { label: "󰜉   Reboot", idx: 4 },
-                                    { label: "⏻   Shutdown", idx: 5 }
+                                    { icon: "󰌾", label: "Lock", idx: 0 },
+                                    { icon: "󰒲", label: "Sleep", idx: 1 },
+                                    { icon: "󰤄", label: "Hibernate", idx: 2 },
+                                    { icon: "󰍃", label: "Logout", idx: 3 },
+                                    { icon: "󰜉", label: "Reboot", idx: 4 },
+                                    { icon: "⏻", label: "Shutdown", idx: 5 }
                                 ]
                                 delegate: Rectangle {
                                     x: 0
@@ -4391,13 +4405,26 @@ ApplicationWindow {
                                     border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.16)
                                     border.width: 1
 
-                                    Text {
+                                    Row {
                                         anchors.centerIn: parent
-                                        text: modelData.label
-                                        font.pixelSize: 12
-                                        font.bold: false
-                                        color: parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
-                                        Behavior on color { ColorAnimation { duration: 120 } }
+                                        spacing: 9
+                                        Item {
+                                            width: 18; height: 18
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            Text {
+                                                anchors.centerIn: parent
+                                                text: modelData.icon
+                                                font.pixelSize: 13
+                                                color: parent.parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                            }
+                                        }
+                                        Text {
+                                            text: modelData.label
+                                            font.pixelSize: 12
+                                            color: parent.parent.isSel ? (Config ? Config.accentTextColor : "#000000") : "#ffffff"
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            Behavior on color { ColorAnimation { duration: 120 } }
+                                        }
                                     }
 
                                     MouseArea {
@@ -5131,7 +5158,7 @@ ApplicationWindow {
                                             }
                                             Text {
                                                 visible: modelData.battery !== undefined && modelData.battery >= 0
-                                                text: "󰁹 " + modelData.battery + "%"
+                                                text: "󰁹  " + modelData.battery + "%"
                                                 color: Config ? Config.m3Primary : "#69f0ae"
                                                 font.pixelSize: 9
                                                 font.bold: true
@@ -5991,6 +6018,18 @@ ApplicationWindow {
         }
         Binding {
             target: mergedShellBg
+            property: "visible"
+            value: false
+            when: lockOverlay.visible
+        }
+        Binding {
+            target: notifClipBox
+            property: "visible"
+            value: false
+            when: lockOverlay.visible
+        }
+        Binding {
+            target: drawerClipBox
             property: "visible"
             value: false
             when: lockOverlay.visible

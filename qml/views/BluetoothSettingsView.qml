@@ -271,7 +271,7 @@ ScrollView {
                                     Text {
                                         id: batTagTxt
                                         anchors.centerIn: parent
-                                        text: "󰁹 " + modelData.battery + "%"
+                                        text: "󰁹  " + modelData.battery + "%"
                                         color: Config ? Config.m3Primary : "#ffffff"
                                         font.pixelSize: Config.fontSize - 2
                                         font.bold: true

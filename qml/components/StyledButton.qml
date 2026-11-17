@@ -26,7 +26,7 @@ Button {
         var nextCh = s.length > chLen ? s.charAt(chLen) : ""
         // '+' или '-' отделяем как иконку только если после них идет пробел ("+ Добавить"), а не цифра ("+15 сек")
         if (cp >= 0xE000 || (cp >= 0x2190 && cp <= 0x2BFF) || ((cp === 0x002B || cp === 0x002D) && nextCh === " ")) {
-            var rest = s.slice(chLen).trim()
+            var rest = s.slice(chLen).replace(/^[\uFE0E\uFE0F]+/, "").trim()
             if (rest.length > 0) {
                 return { icon: s.slice(0, chLen), label: rest }
             }

@@ -585,27 +585,30 @@ Item {
 
                             contentItem: RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: welcomeRoot.isM3 ? 11 : 8
-                                anchors.rightMargin: welcomeRoot.isM3 ? 11 : 8
-                                spacing: welcomeRoot.isM3 ? 11 : 6
+                                anchors.leftMargin: welcomeRoot.isM3 ? 11 : 10
+                                anchors.rightMargin: welcomeRoot.isM3 ? 11 : 10
+                                spacing: welcomeRoot.isM3 ? 11 : 9
 
                                 Rectangle {
-                                    visible: welcomeRoot.isM3
-                                    Layout.preferredWidth: 30
-                                    Layout.preferredHeight: 30
-                                    radius: Config ? Math.min(14, Config.m3ControlRadius + 2) : 12
-                                    color: cardBtn.hovered
-                                           ? (Config ? Config.m3Primary : "#a8c7fa")
-                                           : (Config ? Config.m3SecondaryContainer : "#282c38")
+                                    Layout.preferredWidth: welcomeRoot.isM3 ? 30 : 24
+                                    Layout.preferredHeight: welcomeRoot.isM3 ? 30 : 24
+                                    radius: welcomeRoot.isM3 ? (Config ? Math.min(14, Config.m3ControlRadius + 2) : 12) : 0
+                                    color: welcomeRoot.isM3
+                                           ? (cardBtn.hovered
+                                              ? (Config ? Config.m3Primary : "#a8c7fa")
+                                              : (Config ? Config.m3SecondaryContainer : "#282c38"))
+                                           : "transparent"
                                     Behavior on color { ColorAnimation { duration: 150 } }
 
                                     Text {
                                         anchors.centerIn: parent
                                         text: cardBtn.iconPart
-                                        font.pixelSize: 15
-                                        color: cardBtn.hovered
-                                               ? (Config ? Config.accentTextColor : "#000000")
-                                               : (Config ? Config.m3Primary : "#ffffff")
+                                        font.pixelSize: welcomeRoot.isM3 ? 15 : 14
+                                        color: welcomeRoot.isM3
+                                               ? (cardBtn.hovered
+                                                  ? (Config ? Config.accentTextColor : "#000000")
+                                                  : (Config ? Config.m3Primary : "#ffffff"))
+                                               : (cardBtn.hovered && Config ? Config.m3Primary : "#ffffff")
                                         Behavior on color { ColorAnimation { duration: 150 } }
                                     }
                                 }
@@ -616,7 +619,7 @@ Item {
                                     spacing: 2
 
                                     Text {
-                                        text: welcomeRoot.isM3 ? cardBtn.textPart : cardBtn.rawTitle
+                                        text: cardBtn.textPart
                                         color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#ffffff"
                                         font.pixelSize: Config.fontSize + (welcomeRoot.isM3 ? 1 : 0)
                                         font.bold: welcomeRoot.isM3

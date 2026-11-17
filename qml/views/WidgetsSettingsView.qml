@@ -162,8 +162,8 @@ RowLayout {
                     onClicked: subTab = 0
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
-                    Text { text: "󰌌"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (wMouse0.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                    Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18; Text { anchors.centerIn: parent; text: "󰌌"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (wMouse0.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 } }
                     Text { text: Config ? (Config.language, Config.trAuto("Оверлей клавиш")) : "Оверлей клавиш"; color: subTab === 0 ? (Config ? Config.accentTextColor : "#000000") : (wMouse0.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                     StyledSwitch { z: 10; inverted: subTab === 0; checked: Widgets.kbRunning; onToggled: Widgets.toggleKbProcess(checked) }
                 }
@@ -183,8 +183,8 @@ RowLayout {
                     onClicked: subTab = 1
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
-                    Text { text: "󰕰"; color: subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (wMouse1.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                    Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18; Text { anchors.centerIn: parent; text: "󰕰"; color: subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (wMouse1.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 } }
                     Text { text: Config ? (Config.language, Config.trAuto("Часы на фоне")) : "Часы на фоне"; color: subTab === 1 ? (Config ? Config.accentTextColor : "#000000") : (wMouse1.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                     StyledSwitch { z: 10; inverted: subTab === 1; checked: Widgets.clockRunning; onToggled: Widgets.toggleClockProcess(checked) }
                 }
@@ -204,8 +204,8 @@ RowLayout {
                     onClicked: subTab = 2
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
-                    Text { text: "󰍹"; color: subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (wMouse2.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                    Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18; Text { anchors.centerIn: parent; text: "󰍹"; color: subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (wMouse2.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 } }
                     Text { text: Config ? (Config.language, Config.trAuto("Системный оверлей")) : "Системный оверлей"; color: subTab === 2 ? (Config ? Config.accentTextColor : "#000000") : (wMouse2.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                     StyledSwitch { z: 10; inverted: subTab === 2; checked: Widgets.sysRunning; onToggled: Widgets.toggleSysProcess(checked) }
                 }
@@ -225,8 +225,8 @@ RowLayout {
                     onClicked: subTab = 3
                 }
                 RowLayout {
-                    anchors.fill: parent; anchors.leftMargin: 8; anchors.rightMargin: 8; spacing: 6
-                    Text { text: "󱐌"; color: subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (wMouse3.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 }
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                    Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18; Text { anchors.centerIn: parent; text: "󱐌"; color: subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (wMouse3.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 } }
                     Text { text: Config ? (Config.language, Config.trAuto("Информеры")) : "Информеры"; color: subTab === 3 ? (Config ? Config.accentTextColor : "#000000") : (wMouse3.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
                 }
             }

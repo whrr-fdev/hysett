@@ -3717,7 +3717,7 @@ void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
         }
         QProcess::startDetached("pkill", {"-CONT", "-x", "mpvpaper"});
         QTimer::singleShot(60, this, []() {
-            QProcess::startDetached("sh", {"-c", "hyprctl --batch "keyword decoration:blur:new_optimizations false ; keyword decoration:blur:new_optimizations true" >/dev/null 2>&1"});
+            QProcess::startDetached("hyprctl", {"--batch", "keyword decoration:blur:new_optimizations false ; keyword decoration:blur:new_optimizations true"});
         });
     } else {
         QFile::remove("/tmp/hysett_screen_locked");

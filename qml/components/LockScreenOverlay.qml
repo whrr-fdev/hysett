@@ -168,6 +168,8 @@ Item {
         loadConfig()
         if (Waybar) Waybar.prepareLockScreenBg()
         passwordText = ""
+        charDotCounts = []
+        pendingDotsToSpawn = 0
         errorText = ""
         checkingAuth = false
         editMode = (openInEditMode === true)
@@ -294,27 +296,61 @@ Item {
     }
 
     ListModel { id: dotsModel }
+    property var charDotCounts: []
+    property int pendingDotsToSpawn: 0
+
+    Timer {
+        id: staggeredDotTimer
+        interval: 42
+        repeat: true
+        running: lockRoot.pendingDotsToSpawn > 0
+        onTriggered: {
+            if (lockRoot.pendingDotsToSpawn > 0) {
+                lockRoot.pendingDotsToSpawn -= 1
+                dotsModel.append({ "closing": false })
+            }
+        }
+    }
 
     function appendPasswordChar(ch) {
         if (checkingAuth || editMode) return
         errorText = ""
         passwordText += ch
-        dotsModel.append({ "charStr": ch, "closing": false })
+        // От 2 до 4 визуальных точек на 1 нажатую клавишу: первая сразу, остальные плавно через 42 мс
+        var countForKey = 2 + Math.floor(Math.random() * 3)
+        var arr = charDotCounts.slice()
+        arr.push(countForKey)
+        charDotCounts = arr
+
+        dotsModel.append({ "closing": false })
+        pendingDotsToSpawn += (countForKey - 1)
     }
 
     function popPasswordChar() {
         if (checkingAuth || editMode || passwordText.length === 0) return
         passwordText = passwordText.slice(0, -1)
-        for (var i = dotsModel.count - 1; i >= 0; --i) {
+        var arr = charDotCounts.slice()
+        var toRemove = arr.length > 0 ? arr.pop() : 1
+        charDotCounts = arr
+
+        if (pendingDotsToSpawn > 0) {
+            var takePending = Math.min(pendingDotsToSpawn, toRemove)
+            pendingDotsToSpawn -= takePending
+            toRemove -= takePending
+        }
+
+        for (var i = dotsModel.count - 1; i >= 0 && toRemove > 0; --i) {
             if (!dotsModel.get(i).closing) {
                 dotsModel.setProperty(i, "closing", true)
-                break
+                toRemove -= 1
             }
         }
     }
 
     function clearPasswordAnimated() {
         passwordText = ""
+        charDotCounts = []
+        pendingDotsToSpawn = 0
         for (var i = 0; i < dotsModel.count; ++i) {
             dotsModel.setProperty(i, "closing", true)
         }
@@ -389,6 +425,7 @@ Item {
 
         MouseArea {
             anchors.fill: parent
+            cursorShape: Qt.ArrowCursor
             onClicked: lockKeyCatcher.forceActiveFocus()
         }
 
@@ -456,9 +493,10 @@ Item {
 
                 MouseArea {
                     id: clockDragMa
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -512,9 +550,10 @@ Item {
 
                 MouseArea {
                     id: greetDragMa
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -545,8 +584,8 @@ Item {
                     Rectangle {
                         id: pwPill
                         anchors.horizontalCenter: parent.horizontalCenter
-                        readonly property real contentW: lockRoot.showPlainPassword ? plainPwText.implicitWidth : dotsRow.width
-                        width: Math.max(270, Math.min(500, contentW + 108))
+                        readonly property real contentW: Math.min(340, dotsRow.width)
+                        width: Math.max(270, Math.min(440, contentW + 96))
                         height: 50
                         radius: (Theme && Theme.isRounded) ? 25 : 0
                         color: Qt.rgba(0.07, 0.08, 0.11, 0.78)
@@ -583,125 +622,105 @@ Item {
                             font.pixelSize: 13
                         }
 
-                        // Плавный ряд точек пароля (плавное расширение слота + пружинный зум + плавное сжатие при Backspace)
-                        Row {
-                            id: dotsRow
-                            anchors.centerIn: parent
-                            spacing: 0
-                            visible: !lockRoot.showPlainPassword
+                        // Область с обрезкой (clip: true), чтобы точки никогда не выходили за пределы капсулы
+                        Item {
+                            id: dotsViewport
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.leftMargin: 46
+                            anchors.rightMargin: 46
+                            anchors.verticalCenter: parent.verticalCenter
+                            height: 28
+                            clip: true
 
-                            Repeater {
-                                model: dotsModel
-                                delegate: Item {
-                                    id: dotSlot
-                                    readonly property bool isClosing: model.closing === true
-                                    property real animW: 0.0
-                                    property real dotSc: 0.0
-                                    property real dotOp: 0.0
-                                    property real dotY: 7.0
+                            Row {
+                                id: dotsRow
+                                anchors.verticalCenter: parent.verticalCenter
+                                x: width <= dotsViewport.width ? Math.round((dotsViewport.width - width) * 0.5) : (dotsViewport.width - width)
+                                Behavior on x { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+                                spacing: 0
 
-                                    width: animW
-                                    height: 24
+                                Repeater {
+                                    model: dotsModel
+                                    delegate: Item {
+                                        id: dotSlot
+                                        readonly property bool isClosing: model.closing === true
+                                        property real animW: 0.0
+                                        property real dotSc: 0.0
+                                        property real dotOp: 0.0
+                                        property real dotY: 7.0
 
-                                    Component.onCompleted: enterDotAnim.start()
+                                        width: animW
+                                        height: 24
 
-                                    onIsClosingChanged: {
-                                        if (isClosing) {
-                                            enterDotAnim.stop()
-                                            exitDotAnim.start()
+                                        Component.onCompleted: enterDotAnim.start()
+
+                                        onIsClosingChanged: {
+                                            if (isClosing) {
+                                                enterDotAnim.stop()
+                                                exitDotAnim.start()
+                                            }
                                         }
-                                    }
 
-                                    ParallelAnimation {
-                                        id: enterDotAnim
-                                        NumberAnimation { target: dotSlot; property: "animW"; from: 0.0; to: 17.0; duration: 200; easing.type: Easing.OutQuint }
-                                        NumberAnimation { target: dotSlot; property: "dotSc"; from: 0.0; to: 1.0; duration: 250; easing.type: Easing.OutBack; easing.overshoot: 2.2 }
-                                        NumberAnimation { target: dotSlot; property: "dotOp"; from: 0.0; to: 1.0; duration: 160; easing.type: Easing.OutCubic }
-                                        NumberAnimation { target: dotSlot; property: "dotY";  from: 7.0; to: 0.0; duration: 220; easing.type: Easing.OutQuint }
-                                    }
-
-                                    SequentialAnimation {
-                                        id: exitDotAnim
                                         ParallelAnimation {
-                                            NumberAnimation { target: dotSlot; property: "animW"; to: 0.0; duration: 150; easing.type: Easing.OutQuint }
-                                            NumberAnimation { target: dotSlot; property: "dotSc"; to: 0.0; duration: 140; easing.type: Easing.InBack }
-                                            NumberAnimation { target: dotSlot; property: "dotOp"; to: 0.0; duration: 120; easing.type: Easing.OutQuad }
-                                            NumberAnimation { target: dotSlot; property: "dotY";  to: -5.0; duration: 140; easing.type: Easing.OutQuad }
+                                            id: enterDotAnim
+                                            NumberAnimation { target: dotSlot; property: "animW"; from: 0.0; to: 15.0; duration: 190; easing.type: Easing.OutQuint }
+                                            NumberAnimation { target: dotSlot; property: "dotSc"; from: 0.0; to: 1.0; duration: 240; easing.type: Easing.OutBack; easing.overshoot: 2.1 }
+                                            NumberAnimation { target: dotSlot; property: "dotOp"; from: 0.0; to: 1.0; duration: 150; easing.type: Easing.OutCubic }
+                                            NumberAnimation { target: dotSlot; property: "dotY";  from: 6.0; to: 0.0; duration: 200; easing.type: Easing.OutQuint }
                                         }
-                                        ScriptAction {
-                                            script: {
-                                                if (index >= 0 && index < dotsModel.count) {
-                                                    dotsModel.remove(index)
+
+                                        SequentialAnimation {
+                                            id: exitDotAnim
+                                            ParallelAnimation {
+                                                NumberAnimation { target: dotSlot; property: "animW"; to: 0.0; duration: 140; easing.type: Easing.OutQuint }
+                                                NumberAnimation { target: dotSlot; property: "dotSc"; to: 0.0; duration: 130; easing.type: Easing.InBack }
+                                                NumberAnimation { target: dotSlot; property: "dotOp"; to: 0.0; duration: 110; easing.type: Easing.OutQuad }
+                                                NumberAnimation { target: dotSlot; property: "dotY";  to: -5.0; duration: 130; easing.type: Easing.OutQuad }
+                                            }
+                                            ScriptAction {
+                                                script: {
+                                                    if (index >= 0 && index < dotsModel.count) {
+                                                        dotsModel.remove(index)
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    Rectangle {
-                                        anchors.centerIn: parent
-                                        anchors.verticalCenterOffset: dotSlot.dotY
-                                        width: 11; height: 11
-                                        radius: (Theme && Theme.isRounded) ? 5.5 : 1
-                                        scale: dotSlot.dotSc
-                                        opacity: dotSlot.dotOp
-                                        color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                        Rectangle {
+                                            anchors.centerIn: parent
+                                            anchors.verticalCenterOffset: dotSlot.dotY
+                                            width: 10; height: 10
+                                            radius: (Theme && Theme.isRounded) ? 5 : 1
+                                            scale: dotSlot.dotSc
+                                            opacity: dotSlot.dotOp
+                                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        Text {
-                            id: plainPwText
-                            anchors.centerIn: parent
-                            visible: lockRoot.showPlainPassword && lockRoot.passwordText.length > 0
-                            text: lockRoot.passwordText
-                            color: "#ffffff"
-                            font.pixelSize: 14
-                            font.bold: true
-                            font.family: "monospace"
-                        }
-
-                        Row {
+                        // Кнопка отправки справа (без глазика показа пароля)
+                        Rectangle {
                             anchors.right: parent.right
-                            anchors.rightMargin: 14
+                            anchors.rightMargin: 12
                             anchors.verticalCenter: parent.verticalCenter
-                            spacing: 8
-
+                            visible: lockRoot.passwordText.length > 0
+                            width: 26; height: 26
+                            radius: (Theme && Theme.isRounded) ? 13 : 0
+                            color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
                             Text {
-                                visible: lockRoot.passwordText.length > 0
-                                text: lockRoot.showPlainPassword ? "󰈉" : "󰈈"
-                                color: Qt.rgba(1, 1, 1, 0.65)
-                                font.pixelSize: 14
-                                anchors.verticalCenter: parent.verticalCenter
-                                MouseArea {
-                                    anchors.fill: parent
-                                    anchors.margins: -4
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        lockRoot.showPlainPassword = !lockRoot.showPlainPassword
-                                        lockKeyCatcher.forceActiveFocus()
-                                    }
-                                }
+                                anchors.centerIn: parent
+                                text: "󰁔"
+                                color: (Config && Theme && Theme.isRounded) ? Config.accentTextColor : "#000000"
+                                font.pixelSize: 13
+                                font.bold: true
                             }
-
-                            Rectangle {
-                                visible: lockRoot.passwordText.length > 0
-                                width: 26; height: 26
-                                radius: (Theme && Theme.isRounded) ? 13 : 0
-                                color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"
-                                anchors.verticalCenter: parent.verticalCenter
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: "󰁔"
-                                    color: (Config && Theme && Theme.isRounded) ? Config.accentTextColor : "#000000"
-                                    font.pixelSize: 13
-                                    font.bold: true
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: lockRoot.submitPassword()
-                                }
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: lockRoot.submitPassword()
                             }
                         }
                     }
@@ -718,9 +737,10 @@ Item {
 
                 MouseArea {
                     id: pwDragMa
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -797,9 +817,10 @@ Item {
                 }
 
                 MouseArea {
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -892,9 +913,10 @@ Item {
                 }
 
                 MouseArea {
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -986,9 +1008,10 @@ Item {
                 }
 
                 MouseArea {
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -1032,9 +1055,10 @@ Item {
                 }
 
                 MouseArea {
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {
@@ -1074,9 +1098,10 @@ Item {
                 }
 
                 MouseArea {
+                    visible: lockRoot.editMode
                     enabled: lockRoot.editMode
                     anchors.fill: parent
-                    cursorShape: Qt.SizeAllCursor
+                    cursorShape: lockRoot.editMode ? Qt.SizeAllCursor : Qt.ArrowCursor
                     property real startX: 0; property real startY: 0
                     onPressed: (m) => { startX = m.x; startY = m.y }
                     onPositionChanged: (m) => {

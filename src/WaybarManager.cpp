@@ -3772,41 +3772,23 @@ void WaybarManager::verifyLockPassword(const QString &password) {
     });
 
     p->start("python3", {"-c", R"PY(
-import os, sys, pty, select, time, subprocess
+import os, sys, subprocess
 
 pw = os.environ.get("HYSETT_LOCK_PW", "")
 user = os.environ.get("USER", "whrr")
-master, slave = pty.openpty()
-proc = subprocess.Popen(
-    ["su", "-c", "true", user],
-    stdin=slave, stdout=slave, stderr=slave, close_fds=True
-)
-os.close(slave)
+chkpwd = "/usr/bin/unix_chkpwd" if os.path.exists("/usr/bin/unix_chkpwd") else "/usr/sbin/unix_chkpwd"
 
-sent = False
-deadline = time.monotonic() + 4.0
-while time.monotonic() < deadline:
-    r, _, _ = select.select([master], [], [], 0.05)
-    if r:
-        try:
-            data = os.read(master, 1024)
-            if not data:
-                break
-            if not sent and (b":" in data or b"Password" in data or b"\xd0\x9f\xd0\xb0\xd1\x80\xd0\xbe\xd0\xbb\xd1\x8c" in data):
-                os.write(master, (pw + "\n").encode("utf-8"))
-                sent = True
-        except OSError:
-            break
-    if proc.poll() is not None:
-        break
-
-try:
-    os.close(master)
-except OSError:
-    pass
-
-ret = proc.wait(timeout=2)
-sys.exit(0 if ret == 0 else 1)
+if os.path.exists(chkpwd):
+    proc = subprocess.Popen(
+        [chkpwd, user, "nullok"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
+    proc.communicate(input=pw.encode("utf-8") + b"\x00", timeout=1.5)
+    sys.exit(0 if proc.returncode == 0 else 1)
+else:
+    sys.exit(1)
 )PY"});
 }
 

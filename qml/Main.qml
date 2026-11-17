@@ -1198,7 +1198,7 @@ ApplicationWindow {
                             width: {
                                 if (modKey === "sep") return topBarContainer.editMode ? 12 : 5
                                 if (modKey === "launcher") return (topBarContainer.pillHeight + 8) * topBarContainer.launcherVis
-                                if (modKey === "workspaces") return (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
+                                if (modKey === "workspaces") return (Waybar && Waybar.canvasActive) ? (topBarContainer.pillHeight + 8) : (wsModuleItem.isDots ? (wsDotsRow.implicitWidth + 12) : (wsRow.implicitWidth + 4))
                                 if (modKey === "weather") return wLbl.implicitWidth + 24
                                 if (modKey === "media") {
                                     var dlW = ymDownloadPillBox.width
@@ -1280,6 +1280,8 @@ ApplicationWindow {
                                 id: wsModuleItem
                                 visible: modKey === "workspaces"
                                 width: parent.width; height: topBarContainer.pillHeight; anchors.centerIn: parent
+                                Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
+                                readonly property bool isCanvas: Waybar ? Waybar.canvasActive : false
                                 readonly property bool isDots: Waybar ? Waybar.workspaceDots : false
                                 readonly property int dotSz: Waybar ? Waybar.workspaceDotSize : 5
                                 readonly property int actDotSz: Math.max(dotSz + 2, Math.round(dotSz * 1.8))
@@ -1298,13 +1300,52 @@ ApplicationWindow {
                                     return 0
                                 }
 
-                                WheelHandler { enabled: !topBarContainer.editMode; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
+                                WheelHandler { enabled: !topBarContainer.editMode && !wsModuleItem.isCanvas; onWheel: (e) => { if (Waybar) Waybar.stepWorkspace(e.angleDelta.y > 0 ? -1 : 1) } }
+
+                                // Значок Бесконечного Холста на месте рабочих столов
+                                Rectangle {
+                                    id: wsCanvasIndicator
+                                    z: 6
+                                    visible: opacity > 0.01
+                                    opacity: wsModuleItem.isCanvas ? 1.0 : 0.0
+                                    Behavior on opacity { NumberAnimation { duration: 160 } }
+                                    anchors.fill: parent
+                                    radius: wsModuleItem.outerR
+                                    color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.06)
+                                    border.width: topBarContainer.pillBorderWidth
+                                    border.color: Qt.rgba(1, 1, 1, 0.11)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "󰆾"
+                                        font.pixelSize: 11
+                                        color: (Theme && Theme.isRounded && Config)
+                                               ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.85)
+                                               : Qt.rgba(1, 1, 1, 0.82)
+                                    }
+
+                                    MouseArea {
+                                        enabled: !topBarContainer.editMode && wsModuleItem.isCanvas
+                                        anchors.fill: parent
+                                        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: (mouse) => {
+                                            if (!Waybar) return
+                                            if (mouse.button === Qt.RightButton)
+                                                Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py home")
+                                            else if (mouse.button === Qt.MiddleButton)
+                                                Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py toggle")
+                                            else
+                                                root.openDrawerWithMode("settings", 34)
+                                        }
+                                    }
+                                }
 
                                 // Таблетка фона для режима точек (без обводки, точно как у остальных таблеток панели)
                                 Rectangle {
                                     id: wsOuterPill
                                     z: 0
-                                    visible: wsModuleItem.isDots
+                                    visible: !wsModuleItem.isCanvas && wsModuleItem.isDots
                                     anchors.fill: parent
                                     radius: wsModuleItem.outerR
                                     color: topBarContainer.pillColor
@@ -1313,7 +1354,7 @@ ApplicationWindow {
                                 }
 
                                 Row {
-                                    id: wsRow; z: 1; visible: !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
+                                    id: wsRow; z: 1; visible: !wsModuleItem.isCanvas && !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
                                         id: wsRep
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces.length : 0
@@ -1337,7 +1378,7 @@ ApplicationWindow {
                                 Rectangle {
                                     id: wsHoverPill
                                     z: 2
-                                    visible: !wsModuleItem.isDots
+                                    visible: !wsModuleItem.isCanvas && !wsModuleItem.isDots
                                     width: wsModuleItem.wsBtnW
                                     height: topBarContainer.pillHeight
                                     anchors.verticalCenter: parent.verticalCenter
@@ -1357,7 +1398,7 @@ ApplicationWindow {
                                 Rectangle {
                                     id: wsActivePill
                                     z: 3
-                                    visible: !wsModuleItem.isDots
+                                    visible: !wsModuleItem.isCanvas && !wsModuleItem.isDots
                                     width: wsModuleItem.wsBtnW
                                     height: topBarContainer.pillHeight
                                     anchors.verticalCenter: parent.verticalCenter
@@ -1378,7 +1419,7 @@ ApplicationWindow {
 
                                 // Режим 1: Номера (1..5) — делегаты не пересоздаются при смене стола
                                 Row {
-                                    z: 4; visible: !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
+                                    z: 4; visible: !wsModuleItem.isCanvas && !wsModuleItem.isDots; anchors.centerIn: parent; spacing: wsModuleItem.wsGap
                                     Repeater {
                                         model: (modKey === "workspaces" && Waybar) ? Waybar.workspaces.length : 0
                                         delegate: Item {
@@ -1420,7 +1461,7 @@ ApplicationWindow {
                                 Row {
                                     id: wsDotsRow
                                     z: 4
-                                    visible: wsModuleItem.isDots
+                                    visible: !wsModuleItem.isCanvas && wsModuleItem.isDots
                                     anchors.centerIn: parent
                                     spacing: 3
 
@@ -1975,54 +2016,6 @@ ApplicationWindow {
                 move: Transition { NumberAnimation { properties: "x"; duration: 150; easing.type: Easing.OutQuint } }
                 anchors.right: parent.right; anchors.rightMargin: (Theme && Theme.isRounded) ? 8 : 4; anchors.verticalCenter: parent.verticalCenter
                 spacing: 0
-
-                // Индикатор Бесконечного Холста (Super + S)
-                Row {
-                    anchors.verticalCenter: parent.verticalCenter
-                    spacing: 0
-                    visible: canvasPillBox.width > 0.5
-                    Rectangle {
-                        id: canvasPillBox
-                        property bool isCanvas: Waybar ? Waybar.canvasActive : false
-                        opacity: isCanvas ? 1.0 : 0.0
-                        clip: true
-                        height: topBarContainer.pillHeight
-                        width: isCanvas ? (canvasRow.implicitWidth + 12) : 0
-                        Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutQuint } }
-                        Behavior on opacity { NumberAnimation { duration: 160 } }
-                        anchors.verticalCenter: parent.verticalCenter
-                        radius: topBarContainer.pillRadius
-                        color: (Theme && Theme.isRounded) ? topBarContainer.pillColor : Qt.rgba(1, 1, 1, 0.06)
-                        border.width: topBarContainer.pillBorderWidth
-                        border.color: Qt.rgba(1, 1, 1, 0.11)
-
-                        Row {
-                            id: canvasRow
-                            height: topBarContainer.pillHeight
-                            anchors.centerIn: parent
-                            spacing: 0
-                            Text {
-                                text: "󰆾"
-                                color: (Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3OnPrimaryContainer.r, Config.m3OnPrimaryContainer.g, Config.m3OnPrimaryContainer.b, 0.85) : Qt.rgba(1, 1, 1, 0.82)
-                                font.pixelSize: 11
-                                anchors.verticalCenter: parent.verticalCenter
-                            }
-                        }
-                        MouseArea {
-                            anchors.fill: parent
-                            acceptedButtons: Qt.LeftButton | Qt.RightButton
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: (mouse) => {
-                                if (!Waybar) return
-                                if (mouse.button === Qt.RightButton)
-                                    Waybar.runCommand("python3 /home/whrr/hysett/scripts/hysett_infinite_canvas.py home")
-                                else
-                                    root.openDrawerWithMode("settings", 34)
-                            }
-                        }
-                    }
-                    Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
-                }
 
                 // Таблетка записи экрана
                 Row {

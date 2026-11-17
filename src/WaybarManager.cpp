@@ -1692,6 +1692,7 @@ void WaybarManager::pollFastState() {
     }
 
     pollMediaState();
+    pollHyprState();
     QProcess *wp = new QProcess(this);
     connect(wp, &QProcess::finished, this, [this, wp]() {
         QString out = QString::fromUtf8(wp->readAllStandardOutput()).trimmed();
@@ -2065,12 +2066,15 @@ static void applyShellKbInteractivity(QQuickWindow *win, bool exclusive) {
 }
 
 static void runHyprEvalSilent(const QString &luaExpr) {
-    QProcess p;
-    p.setProgram("hyprctl");
-    p.setArguments({"eval", luaExpr});
-    p.setStandardOutputFile(QProcess::nullDevice());
-    p.setStandardErrorFile(QProcess::nullDevice());
-    p.startDetached();
+    QString res = queryHyprCtlSocket("repl " + luaExpr);
+    if (res.isEmpty()) {
+        QProcess p;
+        p.setProgram("hyprctl");
+        p.setArguments({"repl", luaExpr});
+        p.setStandardOutputFile(QProcess::nullDevice());
+        p.setStandardErrorFile(QProcess::nullDevice());
+        p.startDetached();
+    }
 }
 
 static int s_pendingTargetWs = -1;

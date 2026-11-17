@@ -4137,12 +4137,15 @@ ApplicationWindow {
 
                 // ПКМ-МЕНЮ VPN
                 Item {
+                    id: vpnPopupRoot
                     anchors.fill: parent
                     visible: root.drawerMode === "vpnmenu"
+                    property int selectedIdx: 0
+
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 12
-                        spacing: 6
+                        spacing: 8
 
                         RowLayout {
                             Layout.fillWidth: true
@@ -4176,66 +4179,91 @@ ApplicationWindow {
                             }
                         }
 
-                        Repeater {
-                            model: [
-                                {
-                                    label: (Waybar && Waybar.vpnActive) ? "󰅖  Отключить VPN" : "󰐊  Включить VPN",
-                                    act: 0,
-                                    danger: (Waybar && Waybar.vpnActive)
-                                },
-                                {
-                                    label: (Waybar && Waybar.vpnActive && Waybar.vpnActiveIsWl)
-                                           ? "󰔡  Включить Обычный VPN"
-                                           : "󰔡  Включить Белые списки",
-                                    act: 1,
-                                    danger: false
-                                },
-                                {
-                                    label: "󰒓  Открыть настройки VPN",
-                                    act: 2,
-                                    danger: false
-                                }
-                            ]
+                        Item {
+                            id: vpnItemsArea
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+                            readonly property int itemCount: 3
+                            readonly property int itemGap: 6
+                            readonly property real btnH: Math.max(28, (height - itemGap * (itemCount - 1)) / itemCount)
 
-                            delegate: Rectangle {
-                                Layout.fillWidth: true
-                                Layout.fillHeight: true
-                                radius: (Theme && Theme.isRounded) ? 8 : 0
-                                color: vpnMenuMa.containsMouse
-                                       ? (modelData.danger ? "#ff5252" : (Config ? Config.m3Primary : "#ffffff"))
-                                       : "transparent"
-                                border.color: vpnMenuMa.containsMouse
-                                              ? "transparent"
-                                              : (modelData.act === 0 && !(Waybar && Waybar.vpnActive)
-                                                 ? Qt.rgba(0.4, 0.95, 0.65, 0.38)
-                                                 : (modelData.danger ? Qt.rgba(1, 0.32, 0.32, 0.38) : Qt.rgba(1, 1, 1, 0.14)))
-                                border.width: 1
+                            // Плавно скользящая плашка наведения
+                            Rectangle {
+                                id: vpnSlidePill
+                                width: parent.width
+                                height: vpnItemsArea.btnH
+                                radius: (Theme && Theme.isRounded) ? 9 : 0
+                                y: vpnPopupRoot.selectedIdx * (vpnItemsArea.btnH + vpnItemsArea.itemGap)
+                                color: (vpnPopupRoot.selectedIdx === 0 && Waybar && Waybar.vpnActive)
+                                       ? "#ff5252"
+                                       : (Config ? Config.m3Primary : "#ffffff")
+                                Behavior on y { NumberAnimation { duration: 210; easing.type: Easing.OutQuint } }
+                                Behavior on color { ColorAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            }
 
-                                Text {
-                                    anchors.centerIn: parent
-                                    text: modelData.label
-                                    font.pixelSize: 11
-                                    font.bold: modelData.act === 0
-                                    color: vpnMenuMa.containsMouse
-                                           ? (modelData.danger ? "#ffffff" : (Config ? Config.accentTextColor : "#000000"))
-                                           : (modelData.danger ? "#ff6b6b" : (modelData.act === 0 ? "#69f0ae" : "#ffffff"))
-                                }
+                            Column {
+                                anchors.fill: parent
+                                spacing: vpnItemsArea.itemGap
 
-                                MouseArea {
-                                    id: vpnMenuMa
-                                    anchors.fill: parent
-                                    hoverEnabled: true
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: {
-                                        if (!Waybar) return
-                                        if (modelData.act === 0) {
-                                            Waybar.toggleVpn()
-                                            root.drawerOpen = false
-                                        } else if (modelData.act === 1) {
-                                            Waybar.toggleVpnForMode(!(Waybar && Waybar.vpnActiveIsWl))
-                                            root.drawerOpen = false
-                                        } else if (modelData.act === 2) {
-                                            root.openDrawerWithMode("settings", 26)
+                                Repeater {
+                                    model: [
+                                        {
+                                            label: (Waybar && Waybar.vpnActive) ? "󰅖  Отключить VPN" : "󰐊  Включить VPN",
+                                            act: 0,
+                                            danger: (Waybar && Waybar.vpnActive)
+                                        },
+                                        {
+                                            label: (Waybar && Waybar.vpnActive && Waybar.vpnActiveIsWl)
+                                                   ? "󰔡  Включить Обычный VPN"
+                                                   : "󰔡  Включить Белые списки",
+                                            act: 1,
+                                            danger: false
+                                        },
+                                        {
+                                            label: "󰒓  Открыть настройки VPN",
+                                            act: 2,
+                                            danger: false
+                                        }
+                                    ]
+
+                                    delegate: Rectangle {
+                                        width: vpnItemsArea.width
+                                        height: vpnItemsArea.btnH
+                                        readonly property bool isSel: vpnPopupRoot.selectedIdx === modelData.act
+                                        radius: (Theme && Theme.isRounded) ? 9 : 0
+                                        color: "transparent"
+                                        border.color: isSel ? "transparent" : Qt.rgba(1, 1, 1, 0.14)
+                                        border.width: 1
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: modelData.label
+                                            font.pixelSize: 11
+                                            font.bold: isSel || modelData.act === 0
+                                            color: isSel
+                                                   ? (modelData.danger ? "#ffffff" : (Config ? Config.accentTextColor : "#000000"))
+                                                   : (modelData.danger ? "#ff6b6b" : (modelData.act === 0 ? "#69f0ae" : "#ffffff"))
+                                            Behavior on color { ColorAnimation { duration: 110 } }
+                                        }
+
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onEntered: vpnPopupRoot.selectedIdx = modelData.act
+                                            onPositionChanged: vpnPopupRoot.selectedIdx = modelData.act
+                                            onClicked: {
+                                                if (!Waybar) return
+                                                if (modelData.act === 0) {
+                                                    Waybar.toggleVpn()
+                                                    root.drawerOpen = false
+                                                } else if (modelData.act === 1) {
+                                                    Waybar.toggleVpnForMode(!(Waybar && Waybar.vpnActiveIsWl))
+                                                    root.drawerOpen = false
+                                                } else if (modelData.act === 2) {
+                                                    root.openDrawerWithMode("settings", 26)
+                                                }
+                                            }
                                         }
                                     }
                                 }

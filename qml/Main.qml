@@ -245,7 +245,7 @@ ApplicationWindow {
         }
     }
 
-    readonly property bool isCompactPopup: drawerMode === "traymenu" || drawerMode === "filedrop" || drawerMode === "usb" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
+    readonly property bool isCompactPopup: drawerMode === "vpnmenu" || drawerMode === "traymenu" || drawerMode === "filedrop" || drawerMode === "usb" || drawerMode === "volume" || drawerMode === "bluetooth" || drawerMode === "clipboard" || drawerMode === "calendar" || drawerMode === "power" 
 
     property real barExpandProgress: 0.0
     property real drawerProgress: 0.0
@@ -478,6 +478,7 @@ ApplicationWindow {
 
     readonly property int targetDrawerW: {
         var isM3 = (Theme && Theme.isRounded)
+        if (drawerMode === "vpnmenu") return isM3 ? 252 : 238
         if (drawerMode === "traymenu") return 230
         if (drawerMode === "filedrop") return isM3 ? 336 : 316
         if (drawerMode === "power") return isM3 ? 280 : 260
@@ -489,6 +490,7 @@ ApplicationWindow {
     }
     readonly property int targetDrawerH: {
         var isM3 = (Theme && Theme.isRounded)
+        if (drawerMode === "vpnmenu") return isM3 ? 176 : 166
         if (drawerMode === "traymenu") return 196
         if (drawerMode === "filedrop") return isM3 ? 270 : 252
         if (drawerMode === "power") return isM3 ? 316 : 296
@@ -1090,7 +1092,7 @@ ApplicationWindow {
             readonly property bool showSeps: Waybar ? Waybar.barSeparators : false
             readonly property bool uniformMode: Waybar ? Waybar.uniformBarSpacing : true
             readonly property real extraExpandW: uniformMode ? Math.max(0, root.barW - root.baseBarW) : 0
-            readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true) && ((Waybar && (Waybar.trayApps.length > 0 || Waybar.vpnActive)) || editMode)
+            readonly property bool trayBlockVis: (Waybar ? (Waybar.hiddenBarModules, Waybar.isBarModuleVisible("tray")) : true)
             readonly property int macroGapsCount: 5 + (centerTitlePill.visible ? 1 : 0) + (trayBlockVis ? 1 : 0)
             readonly property real baseGroupGap: Waybar ? Waybar.groupSpacing : 6
             readonly property real macroStepGap: baseGroupGap + (macroGapsCount > 0 ? (extraExpandW / macroGapsCount) : 0)
@@ -2241,7 +2243,7 @@ ApplicationWindow {
                             var _u = Devices ? Devices.usbDrivesCount : 0
                             if (modKey === "sep") return true
                             if (Waybar && !Waybar.isBarModuleVisible(modKey)) return false
-                            if (modKey === "tray") return (Waybar && (Waybar.trayApps.length > 0 || Waybar.vpnActive)) || topBarContainer.editMode
+                            if (modKey === "tray") return true
                             if (modKey === "usb") return _u > 0 || topBarContainer.editMode
                             return true
                         }
@@ -2354,20 +2356,45 @@ ApplicationWindow {
                                 Row {
                                     id: trayRow; anchors.centerIn: parent; spacing: 7
                                     Rectangle {
-                                        visible: Waybar ? Waybar.vpnActive : false
+                                        id: vpnTrayPill
+                                        readonly property bool isOn: Waybar ? Waybar.vpnActive : false
+                                        visible: true
                                         width: 32; height: topBarContainer.pillHeight - 4
                                         anchors.verticalCenter: parent.verticalCenter
                                         radius: (Theme && Theme.isRounded) ? Math.max(4, topBarContainer.pillRadius - 2) : 0
-                                        color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
-                                        border.color: topBarContainer.isOutlinePills ? topBarContainer.pillBorderColor : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
-                                        border.width: topBarContainer.isOutlinePills ? topBarContainer.pillBorderWidth : 1
-                                        Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 9; font.bold: true }
+                                        color: isOn
+                                               ? ((topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer)
+                                               : Qt.rgba(1.0, 0.24, 0.24, 0.16)
+                                        border.color: isOn
+                                                      ? (topBarContainer.isOutlinePills ? topBarContainer.pillBorderColor : ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"))
+                                                      : "#ff5252"
+                                        border.width: isOn ? (topBarContainer.isOutlinePills ? topBarContainer.pillBorderWidth : 1) : 1
+                                        Behavior on color { ColorAnimation { duration: 160 } }
+                                        Behavior on border.color { ColorAnimation { duration: 160 } }
+
+                                        Text {
+                                            anchors.centerIn: parent
+                                            text: "VPN"
+                                            color: vpnTrayPill.isOn
+                                                   ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff")
+                                                   : "#ff5252"
+                                            font.pixelSize: 9
+                                            font.bold: true
+                                            Behavior on color { ColorAnimation { duration: 160 } }
+                                        }
                                         MouseArea {
                                             enabled: !topBarContainer.editMode
                                             anchors.fill: parent
-                                            acceptedButtons: Qt.LeftButton
+                                            acceptedButtons: Qt.LeftButton | Qt.RightButton
                                             cursorShape: Qt.PointingHandCursor
-                                            onClicked: root.openDrawerWithMode("settings", 26)
+                                            onClicked: (mouse) => {
+                                                if (mouse.button === Qt.RightButton) {
+                                                    var gp = vpnTrayPill.mapToItem(sceneRoot, vpnTrayPill.width * 0.5, 0)
+                                                    root.openDrawerWithMode("vpnmenu", undefined, gp.x)
+                                                } else {
+                                                    root.openDrawerWithMode("settings", 26)
+                                                }
+                                            }
                                         }
                                     }
                                     Repeater {
@@ -3153,14 +3180,37 @@ ApplicationWindow {
                         Column {
                             id: vTrayCol; anchors.centerIn: parent; spacing: 6
                             Rectangle {
-                                visible: Waybar ? Waybar.vpnActive : false
+                                id: vVpnTrayPill
+                                readonly property bool isOn: Waybar ? Waybar.vpnActive : false
+                                visible: true
                                 width: topBarContainer.pillHeight - 4; height: 16
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 radius: (Theme && Theme.isRounded) ? 5 : 0
-                                color: (topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer
-                                border.color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; border.width: 1
-                                Text { anchors.centerIn: parent; text: "VPN"; color: (Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff"; font.pixelSize: 7; font.bold: true }
-                                MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: root.openDrawerWithMode("settings", 26) }
+                                color: isOn
+                                       ? ((topBarContainer.isOutlinePills || !Theme || !Theme.isRounded || !Config) ? "transparent" : Config.m3SecondaryContainer)
+                                       : Qt.rgba(1.0, 0.24, 0.24, 0.16)
+                                border.color: isOn ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff") : "#ff5252"
+                                border.width: 1
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: "VPN"
+                                    color: vVpnTrayPill.isOn ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#ffffff") : "#ff5252"
+                                    font.pixelSize: 7
+                                    font.bold: true
+                                }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: (mouse) => {
+                                        if (mouse.button === Qt.RightButton) {
+                                            var gp = vVpnTrayPill.mapToItem(sceneRoot, vVpnTrayPill.width * 0.5, 0)
+                                            root.openDrawerWithMode("vpnmenu", undefined, gp.x)
+                                        } else {
+                                            root.openDrawerWithMode("settings", 26)
+                                        }
+                                    }
+                                }
                             }
                             Repeater {
                                 model: Waybar ? Waybar.trayApps : []
@@ -4078,6 +4128,115 @@ ApplicationWindow {
                                         onEntered: root.fileDropSelectedIndex = modelData.idx
                                         onPositionChanged: root.fileDropSelectedIndex = modelData.idx
                                         onClicked: root.executeDroppedFileAction(modelData.idx)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ПКМ-МЕНЮ VPN
+                Item {
+                    anchors.fill: parent
+                    visible: root.drawerMode === "vpnmenu"
+                    ColumnLayout {
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        spacing: 6
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 6
+                            Text {
+                                text: "󰦝  VPN"
+                                color: "#ffffff"
+                                font.pixelSize: 12
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+                            Rectangle {
+                                height: 20
+                                width: vpnPopupStateTxt.implicitWidth + 14
+                                radius: (Theme && Theme.isRounded) ? 6 : 0
+                                color: (Waybar && Waybar.vpnActive)
+                                       ? Qt.rgba(0.25, 0.95, 0.55, 0.16)
+                                       : Qt.rgba(1.0, 0.25, 0.25, 0.18)
+                                border.width: 1
+                                border.color: (Waybar && Waybar.vpnActive) ? "#69f0ae" : "#ff5252"
+                                Text {
+                                    id: vpnPopupStateTxt
+                                    anchors.centerIn: parent
+                                    text: (Waybar && Waybar.vpnActive)
+                                          ? (Waybar.vpnActiveIsWl ? "● БС АКТИВЕН" : "● ПОДКЛЮЧЕН")
+                                          : "● ВЫКЛЮЧЕН"
+                                    color: (Waybar && Waybar.vpnActive) ? "#69f0ae" : "#ff5252"
+                                    font.pixelSize: 9
+                                    font.bold: true
+                                }
+                            }
+                        }
+
+                        Repeater {
+                            model: [
+                                {
+                                    label: (Waybar && Waybar.vpnActive) ? "󰅖  Отключить VPN" : "󰐊  Включить VPN",
+                                    act: 0,
+                                    danger: (Waybar && Waybar.vpnActive)
+                                },
+                                {
+                                    label: (Waybar && Waybar.vpnActive && Waybar.vpnActiveIsWl)
+                                           ? "󰔡  Включить Обычный VPN"
+                                           : "󰔡  Включить Белые списки",
+                                    act: 1,
+                                    danger: false
+                                },
+                                {
+                                    label: "󰒓  Открыть настройки VPN",
+                                    act: 2,
+                                    danger: false
+                                }
+                            ]
+
+                            delegate: Rectangle {
+                                Layout.fillWidth: true
+                                Layout.fillHeight: true
+                                radius: (Theme && Theme.isRounded) ? 8 : 0
+                                color: vpnMenuMa.containsMouse
+                                       ? (modelData.danger ? "#ff5252" : (Config ? Config.m3Primary : "#ffffff"))
+                                       : "transparent"
+                                border.color: vpnMenuMa.containsMouse
+                                              ? "transparent"
+                                              : (modelData.act === 0 && !(Waybar && Waybar.vpnActive)
+                                                 ? Qt.rgba(0.4, 0.95, 0.65, 0.38)
+                                                 : (modelData.danger ? Qt.rgba(1, 0.32, 0.32, 0.38) : Qt.rgba(1, 1, 1, 0.14)))
+                                border.width: 1
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: modelData.label
+                                    font.pixelSize: 11
+                                    font.bold: modelData.act === 0
+                                    color: vpnMenuMa.containsMouse
+                                           ? (modelData.danger ? "#ffffff" : (Config ? Config.accentTextColor : "#000000"))
+                                           : (modelData.danger ? "#ff6b6b" : (modelData.act === 0 ? "#69f0ae" : "#ffffff"))
+                                }
+
+                                MouseArea {
+                                    id: vpnMenuMa
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: {
+                                        if (!Waybar) return
+                                        if (modelData.act === 0) {
+                                            Waybar.toggleVpn()
+                                            root.drawerOpen = false
+                                        } else if (modelData.act === 1) {
+                                            Waybar.toggleVpnForMode(!(Waybar && Waybar.vpnActiveIsWl))
+                                            root.drawerOpen = false
+                                        } else if (modelData.act === 2) {
+                                            root.openDrawerWithMode("settings", 26)
+                                        }
                                     }
                                 }
                             }

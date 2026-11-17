@@ -158,39 +158,6 @@ ScrollView {
                         anchors.margins: 7
                         spacing: 6
 
-                        // Подпись из комментария над биндом (если есть)
-                        RowLayout {
-                            Layout.fillWidth: true
-                            visible: (modelData.description && modelData.description.length > 0) || bindCard.isMulti
-                            spacing: 8
-
-                            Rectangle {
-                                visible: bindCard.isFn
-                                height: 18
-                                width: fnBadgeTxt.implicitWidth + 12
-                                radius: (Theme && Theme.isRounded) ? 4 : 0
-                                color: bindCard.isMulti
-                                       ? ((Theme && Theme.isRounded && Config) ? Qt.rgba(Config.m3Primary.r, Config.m3Primary.g, Config.m3Primary.b, 0.22) : Qt.rgba(0.4, 0.85, 1.0, 0.18))
-                                       : Qt.rgba(1, 1, 1, 0.09)
-                                Text {
-                                    id: fnBadgeTxt
-                                    anchors.centerIn: parent
-                                    text: bindCard.isMulti ? "LUA ФУНКЦИЯ" : "ДИСПЕТЧЕР"
-                                    color: bindCard.isMulti ? ((Theme && Theme.isRounded && Config) ? Config.m3Primary : "#69f0ae") : "#cccccc"
-                                    font.pixelSize: Config.fontSize - 3
-                                    font.bold: true
-                                }
-                            }
-
-                            Text {
-                                text: modelData.description || ""
-                                color: "#aaaaaa"
-                                font.pixelSize: Config.fontSize - 1
-                                elide: Text.ElideRight
-                                Layout.fillWidth: true
-                            }
-                        }
-
                         RowLayout {
                             id: itemRow
                             Layout.fillWidth: true

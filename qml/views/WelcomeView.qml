@@ -137,6 +137,7 @@ Item {
                 if (welcomeSearchField.text.length > 0) welcomeSearchField.text = ""
                 welcomeRoot.settingsSearchQuery = ""
                 if (welcomeRoot.winObj.drawerOpen && welcomeRoot.visible) {
+                    if (Waybar) Waybar.refreshGeoLocation()
                     welcomeRoot.playCardsEntrance()
                     welcomeRoot.focusSearchInput()
                 }
@@ -171,6 +172,55 @@ Item {
         function onHiddenSidebarTabsChanged() { welcomeRoot.recalcCardsLayout() }
         function onLanguageChanged() { welcomeRoot.recalcCardsLayout() }
         function onWelcomeCardsAnimTypeChanged() { welcomeRoot.playCardsEntrance() }
+    }
+
+    // Геолокация (страна с иконкой) в верхнем левом углу экрана приветствия (скрывается, если нет интернета)
+    Rectangle {
+        id: welcomeGeoBadge
+        z: 20
+        readonly property string geoStr: (Waybar && Waybar.netConnected) ? Waybar.geoLocationText : ""
+        visible: opacity > 0.01
+        opacity: geoStr.length > 0 ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
+        anchors.left: parent.left
+        anchors.leftMargin: 18
+        anchors.top: parent.top
+        anchors.topMargin: 12
+        height: 26
+        width: geoRow.implicitWidth + 18
+        radius: welcomeRoot.isM3 ? 13 : 0
+        color: welcomeRoot.isM3 && Config
+               ? Qt.rgba(Config.m3SurfaceContainerHigh.r, Config.m3SurfaceContainerHigh.g, Config.m3SurfaceContainerHigh.b, 0.72)
+               : Qt.rgba(1, 1, 1, 0.06)
+        border.width: 1
+        border.color: welcomeRoot.isM3 && Config
+                      ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.25)
+                      : Qt.rgba(1, 1, 1, 0.12)
+
+        Row {
+            id: geoRow
+            anchors.centerIn: parent
+            spacing: 6
+            Text {
+                text: "󰇧"
+                color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#69f0ae"
+                font.pixelSize: 13
+                anchors.verticalCenter: parent.verticalCenter
+            }
+            Text {
+                text: (Config && Config.streamerMode) ? "Скрыто" : welcomeGeoBadge.geoStr
+                color: welcomeRoot.isM3 && Config ? Config.m3OnPrimaryContainer : "#dddddd"
+                font.pixelSize: Config ? Config.fontSize - 1 : 11
+                font.bold: true
+                anchors.verticalCenter: parent.verticalCenter
+            }
+        }
+
+        MouseArea {
+            anchors.fill: parent
+            cursorShape: Qt.PointingHandCursor
+            onClicked: if (Waybar) Waybar.refreshGeoLocation()
+        }
     }
 
     ScrollView {

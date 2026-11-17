@@ -98,6 +98,7 @@ WaybarManager::WaybarManager(QObject *parent) : QObject(parent) {
         vstF.close();
     }
     pollWeather();
+    refreshGeoLocation();
     QTimer::singleShot(600, this, &WaybarManager::refreshClipboard);
     loadYmIndexFromDisk();
     QTimer::singleShot(800, this, &WaybarManager::refreshYmLibrary);
@@ -462,6 +463,7 @@ void WaybarManager::pollHyprState() {
 }
 
 void WaybarManager::pollSysStats() {
+    { static int s_geoTick = 0; if (!m_netConnected) { if (!m_geoLocationText.isEmpty()) { m_geoLocationText.clear(); emit sysStatsChanged(); } } else if (m_geoLocationText.isEmpty() || ++s_geoTick >= 15) { s_geoTick = 0; refreshGeoLocation(); } }
     {
         static qint64 s_lastIpCheckMtime = 0;
         QFileInfo icInfo("/tmp/hysett_vpn_ipcheck.json");
@@ -3649,4 +3651,55 @@ bool WaybarManager::toggleYmFavorite(const QString &trackPath, const QString &fu
         emit ymFavoritesChanged();
         return true;
     }
+}
+
+
+void WaybarManager::refreshGeoLocation() {
+    if (!m_netConnected) {
+        if (!m_geoLocationText.isEmpty()) {
+            m_geoLocationText.clear();
+            emit sysStatsChanged();
+        }
+        return;
+    }
+    if (m_geoBusy) return;
+    m_geoBusy = true;
+
+    QProcess *p = new QProcess(this);
+    connect(p, &QProcess::finished, this, [this, p]() {
+        m_geoBusy = false;
+        QString out = QString::fromUtf8(p->readAllStandardOutput()).trimmed();
+        p->deleteLater();
+        if (!m_netConnected) out.clear();
+        if (m_geoLocationText != out) {
+            m_geoLocationText = out;
+            emit sysStatsChanged();
+        }
+    });
+    p->start("python3", {"-c",
+        "import urllib.request, json
+"
+        "for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', 'https://ipwho.is/?lang=ru']:
+"
+        "  try:
+"
+        "    req = urllib.request.Request(u, headers={'User-Agent': 'curl/8.0'})
+"
+        "    d = json.loads(urllib.request.urlopen(req, timeout=3).read().decode('utf-8'))
+"
+        "    c = d.get('country') or ''
+"
+        "    cc = d.get('countryCode') or d.get('country_code') or ''
+"
+        "    if c:
+"
+        "      print(f'{c} ({cc})' if cc else c)
+"
+        "      break
+"
+        "  except Exception:
+"
+        "    pass
+"
+    });
 }

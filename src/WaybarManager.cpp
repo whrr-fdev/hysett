@@ -3676,30 +3676,18 @@ void WaybarManager::refreshGeoLocation() {
             emit sysStatsChanged();
         }
     });
-    p->start("python3", {"-c",
-        "import urllib.request, json
-"
-        "for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', 'https://ipwho.is/?lang=ru']:
-"
-        "  try:
-"
-        "    req = urllib.request.Request(u, headers={'User-Agent': 'curl/8.0'})
-"
-        "    d = json.loads(urllib.request.urlopen(req, timeout=3).read().decode('utf-8'))
-"
-        "    c = d.get('country') or ''
-"
-        "    cc = d.get('countryCode') or d.get('country_code') or ''
-"
-        "    if c:
-"
-        "      print(f'{c} ({cc})' if cc else c)
-"
-        "      break
-"
-        "  except Exception:
-"
-        "    pass
-"
-    });
+    p->start("python3", {"-c", R"PY(
+import urllib.request, json
+for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', 'https://ipwho.is/?lang=ru']:
+    try:
+        req = urllib.request.Request(u, headers={'User-Agent': 'curl/8.0'})
+        d = json.loads(urllib.request.urlopen(req, timeout=3).read().decode('utf-8'))
+        c = d.get('country') or ''
+        cc = d.get('countryCode') or d.get('country_code') or ''
+        if c:
+            print(f'{c} ({cc})' if cc else c)
+            break
+    except Exception:
+        pass
+)PY"});
 }

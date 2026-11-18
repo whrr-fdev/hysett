@@ -778,8 +778,8 @@ RowLayout {
                                 }
                                 SegmentedButton {
                                     Layout.fillWidth: true
-                                    model: ["󰸉  Сразу обои (скрывать окна)", "󰖲  Видно другие окна"]
-                                    currentIndex: (Theme && !Theme.windowXray) ? 1 : 0
+                                    options: ["󰸉  Сразу обои (скрывать окна)", "󰖲  Видно другие окна"]
+                                    selectedIndex: (Theme && !Theme.windowXray) ? 1 : 0
                                     onSelected: (idx) => { if (Theme) Theme.windowXray = (idx === 0) }
                                 }
                             }

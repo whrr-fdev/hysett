@@ -9,6 +9,7 @@ class ThemeEngine : public QObject {
     Q_PROPERTY(int cornerRadius READ cornerRadius NOTIFY cornerRadiusChanged)
     Q_PROPERTY(bool isRounded READ isRounded NOTIFY isRoundedChanged)
     Q_PROPERTY(qreal windowBlur READ windowBlur WRITE setWindowBlur NOTIFY windowBlurChanged)
+    Q_PROPERTY(bool windowXray READ windowXray WRITE setWindowXray NOTIFY windowXrayChanged)
     Q_PROPERTY(qreal glassRefraction READ glassRefraction WRITE setGlassRefraction NOTIFY glassRefractionChanged)
     Q_PROPERTY(bool controlsLiquidGlass READ controlsLiquidGlass WRITE setControlsLiquidGlass NOTIFY controlsLiquidGlassChanged)
     Q_PROPERTY(QColor accentColor READ accentColor NOTIFY accentColorChanged)
@@ -21,6 +22,8 @@ public:
     bool isRounded() const { return m_cornerRadius > 0; }
     qreal windowBlur() const { return m_windowBlur; }
     void setWindowBlur(qreal val);
+    bool windowXray() const { return m_windowXray; }
+    void setWindowXray(bool val);
     qreal glassRefraction() const { return m_glassRefraction; }
     void setGlassRefraction(qreal val);
     bool controlsLiquidGlass() const { return m_controlsLiquidGlass; }
@@ -29,6 +32,7 @@ public:
     QColor backgroundColor() const { return m_backgroundColor; }
 
     Q_INVOKABLE void applyEffectiveBlur(qreal val);
+    Q_INVOKABLE void applyEffectiveXray(bool xray);
     Q_INVOKABLE void toggleThemeState();
     Q_INVOKABLE void setRoundedState(bool rounded);
     Q_INVOKABLE void reloadTheme();
@@ -37,6 +41,7 @@ signals:
     void cornerRadiusChanged();
     void isRoundedChanged();
     void windowBlurChanged();
+    void windowXrayChanged();
     void glassRefractionChanged();
     void controlsLiquidGlassChanged();
     void accentColorChanged();
@@ -44,6 +49,7 @@ signals:
 
 private:
     void checkThemeFile();
+    void syncHyprlandLuaXray(bool xray);
     QFileSystemWatcher *m_watcher;
     QTimer *m_muteTimer;
     QTimer *m_blurTimer = nullptr;
@@ -51,6 +57,8 @@ private:
     bool m_ignoreWatcher = false;
     int m_cornerRadius = 8;
     qreal m_windowBlur = 0.10;
+    bool m_windowXray = true;
+    bool m_effectiveXray = true;
     qreal m_glassRefraction = 0.0;
     bool m_controlsLiquidGlass = false;
     QColor m_accentColor = QColor("#ffffff");

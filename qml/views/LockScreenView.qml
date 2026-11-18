@@ -24,7 +24,8 @@ ScrollView {
         "notifications": { enabled: true,  nx: 0.50, ny: 0.71, title: "Скрытые уведомления", icon: "󰂚" },
         "media":         { enabled: true,  nx: 0.50, ny: 0.85, title: "Музыкальный плеер", icon: "󰎆" },
         "weather":       { enabled: true,  nx: 0.12, ny: 0.08, title: "Погода", icon: "󰖙" },
-        "sysinfo":       { enabled: true,  nx: 0.88, ny: 0.08, title: "Система CPU/RAM", icon: "" }
+        "sysinfo":       { enabled: true,  nx: 0.88, ny: 0.08, title: "Система CPU/RAM", icon: "" },
+        "power":         { enabled: true,  nx: 0.95, ny: 0.92, title: "Меню питания", icon: "⏻" }
     })
 
     function defaultWidgetsCfg() {
@@ -166,7 +167,7 @@ ScrollView {
                         Rectangle { anchors.verticalCenter: parent.verticalCenter; anchors.left: parent.left; anchors.right: parent.right; height: 1; color: Qt.rgba(1, 1, 1, 0.12) }
 
                         Repeater {
-                            model: ["clock", "greeting", "password", "status", "notifications", "media", "weather", "sysinfo"]
+                            model: ["clock", "greeting", "password", "status", "notifications", "media", "weather", "sysinfo", "power"]
                             delegate: Rectangle {
                                 id: miniToken
                                 readonly property var wObj: lsScroll.widgetsCfg[modelData] || { enabled: true, nx: 0.5, ny: 0.5, title: modelData, icon: "󰕰" }
@@ -249,7 +250,7 @@ ScrollView {
                         rowSpacing: 8
 
                         Repeater {
-                            model: ["clock", "greeting", "password", "status", "notifications", "media", "weather", "sysinfo"]
+                            model: ["clock", "greeting", "password", "status", "notifications", "media", "weather", "sysinfo", "power"]
                             delegate: RowLayout {
                                 Layout.fillWidth: true
                                 spacing: 9

@@ -813,14 +813,23 @@ ApplicationWindow {
     }
 
     function activateLockScreen(inEditMode) {
+        var wantEdit = (inEditMode === true)
+        if (lockOverlay.active && lockOverlay.editMode === wantEdit) {
+            lockOverlay.ensureFocus()
+            return
+        }
         root.drawerOpen = false
         if (Waybar) Waybar.setLockScreenLayer(root, true)
-        lockOverlay.lockNow(inEditMode === true)
+        lockOverlay.lockNow(wantEdit)
     }
 
     function handleExternalTrigger() {
         if (!Config) return
         var cmd = Config.consumeLaunchCmd()
+        if (lockOverlay.active) {
+            lockOverlay.ensureFocus()
+            return
+        }
         if (cmd === "wallpaper") {
             if (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && root.isWallpaperExpanded) {
                 root.drawerOpen = false
@@ -921,7 +930,7 @@ ApplicationWindow {
     Shortcut {
         sequences: ["Escape"]
         context: Qt.ApplicationShortcut
-        enabled: root.drawerOpen || root.isWallpaperExpanded || root.isSettingsMaximized || root.barSavePromptOpen
+        enabled: !lockOverlay.active && (root.drawerOpen || root.isWallpaperExpanded || root.isSettingsMaximized || root.barSavePromptOpen)
         onActivated: {
             if (root.isWallpaperExpanded) root.isWallpaperExpanded = false
             else if (root.isSettingsMaximized) root.isSettingsMaximized = false
@@ -933,19 +942,19 @@ ApplicationWindow {
     Shortcut {
         sequences: ["Up", "K"]
         context: Qt.ApplicationShortcut
-        enabled: root.drawerOpen && root.drawerMode === "power"
+        enabled: !lockOverlay.active && root.drawerOpen && root.drawerMode === "power"
         onActivated: root.powerSelectedIndex = (root.powerSelectedIndex + 5) % 6
     }
     Shortcut {
         sequences: ["Down", "J"]
         context: Qt.ApplicationShortcut
-        enabled: root.drawerOpen && root.drawerMode === "power"
+        enabled: !lockOverlay.active && root.drawerOpen && root.drawerMode === "power"
         onActivated: root.powerSelectedIndex = (root.powerSelectedIndex + 1) % 6
     }
     Shortcut {
         sequences: ["Return", "Enter", "Space"]
         context: Qt.ApplicationShortcut
-        enabled: root.drawerOpen && root.drawerMode === "power"
+        enabled: !lockOverlay.active && root.drawerOpen && root.drawerMode === "power"
         onActivated: root.triggerPowerAction(root.powerSelectedIndex)
     }
 

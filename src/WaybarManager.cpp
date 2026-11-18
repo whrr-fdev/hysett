@@ -3707,9 +3707,9 @@ for u in ['http://ip-api.com/json/?fields=status,country,countryCode&lang=ru', '
 
 
 void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
-    if (s_isScreenLocked == locked && locked) return;
+    bool wasLocked = s_isScreenLocked;
     s_isScreenLocked = locked;
-    if (locked) {
+    if (locked && !wasLocked) {
         QFile lf("/tmp/hysett_screen_locked");
         if (lf.open(QIODevice::WriteOnly | QIODevice::Truncate)) { lf.write("1"); lf.close(); }
         if (QProcess::execute("pkill", {"-9", "-x", "clock_overlay"}) == 0) {
@@ -3719,7 +3719,7 @@ void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
         QTimer::singleShot(60, this, []() {
             QProcess::startDetached("hyprctl", {"--batch", "keyword decoration:blur:new_optimizations false ; keyword decoration:blur:new_optimizations true"});
         });
-    } else {
+    } else if (!locked && wasLocked) {
         QFile::remove("/tmp/hysett_screen_locked");
         QFile cf(QDir::homePath() + "/.config/hypr/scripts/clock.conf");
         if (cf.open(QIODevice::ReadOnly | QIODevice::Text)) {
@@ -3751,6 +3751,24 @@ void WaybarManager::setLockScreenLayer(QQuickWindow *win, bool locked) {
         s_shellWin->setMask(fullReg);
         s_lastKbState = 1;
         s_shellWin->requestActivate();
+        s_shellWin->requestUpdate();
+        QTimer::singleShot(35, this, []() {
+            if (s_isScreenLocked && s_shellWin) {
+#ifdef HAVE_LAYERSHELLQT
+                if (auto *ls = LayerShellQt::Window::get(s_shellWin)) {
+                    ls->setLayer(LayerShellQt::Window::LayerOverlay);
+                    ls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityExclusive);
+                }
+#endif
+                s_shellWin->requestActivate();
+                s_shellWin->requestUpdate();
+            }
+        });
+        QTimer::singleShot(110, this, []() {
+            if (s_isScreenLocked && s_shellWin) {
+                s_shellWin->requestActivate();
+            }
+        });
     } else {
         s_forceMaskReset = true;
         s_lastKbState = -1;

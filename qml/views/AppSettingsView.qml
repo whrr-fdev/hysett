@@ -769,6 +769,23 @@ RowLayout {
 
                             RowLayout {
                                 Layout.fillWidth: true
+                                spacing: 10
+                                Text {
+                                    text: "Видимость сквозь окно HySett:"
+                                    color: "#cccccc"
+                                    font.pixelSize: Config.fontSize
+                                    Layout.preferredWidth: 230
+                                }
+                                SegmentedButton {
+                                    Layout.fillWidth: true
+                                    model: ["󰸉  Сразу обои (скрывать окна)", "󰖲  Видно другие окна"]
+                                    currentIndex: (Theme && !Theme.windowXray) ? 1 : 0
+                                    onSelected: (idx) => { if (Theme) Theme.windowXray = (idx === 0) }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
                                 Text { text: "Главный фон окна:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
                                 StyledSlider { Layout.fillWidth: true; from: 0.0; to: 1.0; value: Config.opacity; onMoved: Config.opacity = value }
                                 Text { text: Math.round(Config.opacity * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 48; horizontalAlignment: Text.AlignRight }

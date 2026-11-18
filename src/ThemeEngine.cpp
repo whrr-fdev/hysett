@@ -25,7 +25,6 @@ static void sendHyprSocketCmd(const QString &req) {
     ::close(fd);
 }
 #include "ThemeEngine.h"
-#include <QFile>
 #include <QTextStream>
 #include <QDir>
 #include <QProcess>
@@ -77,8 +76,9 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
     connect(m_blurTimer, &QTimer::timeout, this, [this]() {
         qreal val = m_pendingBlur;
         int rnd = (m_cornerRadius > 0) ? 12 : 0;
+        QString xrayStr = m_effectiveXray ? "true" : "false";
         if (val <= 0.01) {
-            QProcess::startDetached("hyprctl", {"eval", QString("hl.config({ decoration = { rounding = %1, rounding_power = 2, blur = { enabled = false, size = 1, passes = 1 } } })").arg(rnd)});
+            QProcess::startDetached("hyprctl", {"eval", QString("hl.config({ decoration = { rounding = %1, rounding_power = 2, blur = { enabled = false, xray = %2, size = 1, passes = 1 } } })").arg(rnd).arg(xrayStr)});
             return;
         }
         int bPasses = 1;
@@ -93,7 +93,8 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
             bPasses = 3;
             bSize = qMax(4, qRound(4.0 + ((val - 0.80) / 0.20) * 5.0));
         }
-        QString cmd = QString("hl.config({ decoration = { rounding = %3, rounding_power = 2, blur = { enabled = true, size = %1, passes = %2 } } })").arg(bSize).arg(bPasses).arg(rnd);
+        QString cmd = QString("hl.config({ decoration = { rounding = %3, rounding_power = 2, blur = { enabled = true, xray = %4, size = %1, passes = %2 } } })")
+                          .arg(bSize).arg(bPasses).arg(rnd).arg(xrayStr);
         sendHyprSocketCmd("eval " + cmd);
     });
 
@@ -107,6 +108,7 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
             QString k = line.left(eq).trimmed();
             QString v = line.mid(eq + 1).trimmed();
             if (k == "window_blur") { m_windowBlur = std::clamp(v.toDouble(), 0.0, 1.0); m_appliedBlur = m_windowBlur; }
+            else if (k == "window_xray") { m_windowXray = (v == "1" || v == "true"); m_effectiveXray = m_windowXray; }
             else if (k == "glass_refraction") m_glassRefraction = std::clamp(v.toDouble(), 0.0, 1.0);
             else if (k == "controls_liquid_glass") m_controlsLiquidGlass = (v == "1" || v == "true");
         }
@@ -131,6 +133,9 @@ ThemeEngine::ThemeEngine(QObject *parent) : QObject(parent) {
     });
 
     checkThemeFile();
+    QTimer::singleShot(350, this, [this]() {
+        applyEffectiveXray(m_windowXray);
+    });
 }
 
 void ThemeEngine::checkThemeFile() {
@@ -156,6 +161,46 @@ void ThemeEngine::applyEffectiveBlur(qreal val) {
     m_appliedBlur = val;
     m_pendingBlur = val;
     m_blurTimer->start();
+}
+
+void ThemeEngine::syncHyprlandLuaXray(bool xray) {
+    QString luaPath = QDir::homePath() + "/.config/hypr/hyprland.lua";
+    QFile f(luaPath);
+    if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+    QString txt = QString::fromUtf8(f.readAll());
+    f.close();
+
+    QString bVal = xray ? "true" : "false";
+    QRegularExpression reLayer(R"((name\s*=\s*"waybar-blur"[\s\S]{1,160}?xray\s*=\s*)(true|false))");
+    txt.replace(reLayer, QString("\\1%1").arg(bVal));
+
+    QRegularExpression reBlur(R"((blur\s*=\s*\{[\s\S]{1,120}?xray\s*=\s*)(true|false))");
+    txt.replace(reBlur, QString("\\1%1").arg(bVal));
+
+    if (f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+        f.write(txt.toUtf8());
+        f.close();
+    }
+}
+
+void ThemeEngine::applyEffectiveXray(bool xray) {
+    m_effectiveXray = xray;
+    QString bVal = xray ? "true" : "false";
+    sendHyprSocketCmd(QString("eval hl.config({ decoration = { blur = { xray = %1 } } })").arg(bVal));
+    sendHyprSocketCmd(QString("eval hl.layer_rule({ name = \"waybar-blur\", match = { namespace = \"waybar\" }, blur = true, ignore_alpha = 0, xray = %1 })").arg(bVal));
+    QProcess::startDetached("hyprctl", {
+        "--batch",
+        QString("keyword decoration:blur:xray %1 ; keyword decoration:blur:new_optimizations false ; keyword decoration:blur:new_optimizations true").arg(bVal)
+    });
+}
+
+void ThemeEngine::setWindowXray(bool val) {
+    if (m_windowXray == val) return;
+    m_windowXray = val;
+    updateConfKey("window_xray", m_windowXray ? "1" : "0");
+    syncHyprlandLuaXray(m_windowXray);
+    emit windowXrayChanged();
+    applyEffectiveXray(m_windowXray);
 }
 
 void ThemeEngine::setWindowBlur(qreal val) {

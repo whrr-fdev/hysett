@@ -535,3 +535,8 @@
 - Возвращена комфортная минимальная прозрачность `62%` с блюром для Firefox и AyuGram в `LookManager` (убран `.*firefox.*` из `0.999 override`).
 - Исправлена задержка открытия окна настроек: `pageController.recentTabs` очищается при закрытии шторки (макс. 4 вкладки в кэше за сессию).
 - В `Main.qml` прозрачность вкладки «Обои» (`wallpapersLiveOpacity`) жёстко отделена от `Config.opacity` главного окна настроек.
+
+## Выполнено в Шаге 60 (Постоянная прозрачность уведомлений, Ползунки прочих окон, Шапка Zed, Neovide и Foot)
+- В `Main.qml` уведомления больше не меняют прозрачность при открытии окна настроек: `notifAlpha` отвязан от `root.drawerActive`, `overlapsOpenDrawer` проверяет реальное перекрытие, подложка использует `notifAlpha`.
+- В `LookManager` и `LookSettingsView.qml` добавлены 2 отдельных ползунка `otherActiveOpacity` и `otherInactiveOpacity` для браузера, AyuGram и прочих окон.
+- В `sync_m3_windows.py` добавлен `title_bar.inactive_background` для Zed (шапка остаётся прозрачной при потере фокуса), скрыта статусная строка паддинг-окон `TZAtaraxis` в `hysett_neovide.lua` (убраны дубли `[Нет имени]`) и добавлена нативная прозрачность/блюр для терминала `foot` (`~/.config/foot/foot.ini` + `0.999 override`).

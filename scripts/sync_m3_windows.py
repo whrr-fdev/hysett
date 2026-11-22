@@ -359,7 +359,7 @@ for gver in ("gtk-3.0", "gtk-4.0"):
         f.write(gtk_css)
 
 
-# 3b. Neovide (прозрачность только фона, текст 100% чёткий)
+# 3b. Neovide (прозрачный Normal фон, без дублей [Нет имени] от TZAtaraxis, яркий текст ошибок)
 nvim_dir = os.path.join(home, ".config/nvim")
 os.makedirs(nvim_dir, exist_ok=True)
 nv_op = win_act_alpha if bg_only_opacity else 1.0
@@ -369,47 +369,43 @@ with open(nv_lua_path, "w") as nf:
     vim.g.neovide_opacity = 1.0
     vim.g.neovide_normal_opacity = {nv_op:.2f}
     vim.g.neovide_window_blurred = true
+    vim.g.neovide_floating_shadow = false
+    vim.g.neovide_floating_blur_amount_x = 0.0
+    vim.g.neovide_floating_blur_amount_y = 0.0
 
-    local function fix_dark_fg_highlights()
-        vim.api.nvim_set_hl(0, "StatusLine", {{ fg = "#cfd5e0", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "StatusLineNC", {{ fg = "#7e8594", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "WinBar", {{ fg = "#cfd5e0", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "WinBarNC", {{ fg = "#7e8594", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "TabLine", {{ fg = "#9aa0ad", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "TabLineFill", {{ fg = "#7e8594", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "TabLineSel", {{ fg = "#ffffff", bg = "#1c1f26", bold = true }})
+    local function fix_neovide_ui()
+        -- Убираем статусную строку и дубли [Нет имени] от паддинг-окон TZAtaraxis
+        vim.opt.laststatus = 0
+        vim.opt.ruler = false
+        vim.opt.showmode = false
+        vim.opt.statusline = " "
+        vim.opt.fillchars:append({{ stl = " ", stlnc = " ", eob = " " }})
+        vim.api.nvim_set_hl(0, "StatusLine", {{ fg = "NONE", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "StatusLineNC", {{ fg = "NONE", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "WinBar", {{ fg = "NONE", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "WinBarNC", {{ fg = "NONE", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "VertSplit", {{ fg = "NONE", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "WinSeparator", {{ fg = "NONE", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "EndOfBuffer", {{ fg = "NONE", bg = "NONE" }})
+        -- Яркие читаемые сообщения и ошибки
         vim.api.nvim_set_hl(0, "ErrorMsg", {{ fg = "#ff7b7b", bg = "NONE", bold = true }})
         vim.api.nvim_set_hl(0, "WarningMsg", {{ fg = "#ffd166", bg = "NONE", bold = true }})
         vim.api.nvim_set_hl(0, "MsgArea", {{ fg = "#e6e8ee", bg = "NONE" }})
         vim.api.nvim_set_hl(0, "ModeMsg", {{ fg = "#e6e8ee", bg = "NONE", bold = true }})
         vim.api.nvim_set_hl(0, "MoreMsg", {{ fg = "#9cd1f2", bg = "NONE", bold = true }})
-        vim.api.nvim_set_hl(0, "NonText", {{ fg = "#5c6370", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "EndOfBuffer", {{ fg = "#3a3f4b", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "NonText", {{ fg = "#6c7380", bg = "NONE" }})
         vim.api.nvim_set_hl(0, "LineNr", {{ fg = "#6c7380", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "VertSplit", {{ fg = "#3a3f4b", bg = "NONE" }})
-        vim.api.nvim_set_hl(0, "WinSeparator", {{ fg = "#3a3f4b", bg = "NONE" }})
-        -- Автоподсветка любых остальных групп, у которых fg стал почти чёрным на прозрачном фоне
-        for _, name in ipairs(vim.fn.getcompletion("", "highlight")) do
-            local ok, hl = pcall(vim.api.nvim_get_hl, 0, {{ name = name, link = false }})
-            if ok and hl and hl.fg and not hl.bg and not hl.reverse then
-                local r = math.floor(hl.fg / 65536) % 256
-                local g = math.floor(hl.fg / 256) % 256
-                local b = hl.fg % 256
-                local lum = 0.299 * r + 0.587 * g + 0.114 * b
-                if lum < 68 then
-                    hl.fg = 0xb8beca
-                    pcall(vim.api.nvim_set_hl, 0, name, hl)
-                end
-            end
-        end
     end
 
     local grp = vim.api.nvim_create_augroup("HySettNeovideContrast", {{ clear = true }})
     vim.api.nvim_create_autocmd({{ "VimEnter", "ColorScheme", "BufWinEnter", "WinEnter" }}, {{
         group = grp,
-        callback = function() vim.schedule(fix_dark_fg_highlights) end,
+        callback = function()
+            vim.schedule(fix_neovide_ui)
+            vim.defer_fn(fix_neovide_ui, 80)
+        end,
     }})
-    vim.schedule(fix_dark_fg_highlights)
+    vim.schedule(fix_neovide_ui)
 end
 """)
 init_lua_path = os.path.join(nvim_dir, "init.lua")
@@ -419,6 +415,45 @@ if os.path.exists(init_lua_path):
     if "hysett_neovide.lua" not in init_txt:
         with open(init_lua_path, "a", encoding="utf-8") as inf:
             inf.write("\n" + hook_line + "\n")
+
+# 3b2. Foot терминал (нативная прозрачность alpha фона + цвета темы, сохраняя [main])
+foot_dir = os.path.join(home, ".config/foot")
+foot_ini = os.path.join(foot_dir, "foot.ini")
+os.makedirs(foot_dir, exist_ok=True)
+foot_alpha = max(0.02, win_act_alpha) if bg_only_opacity else 1.0
+foot_bg = surf_hex.lstrip("#")
+foot_c8 = "7c8290" if is_pure_black else rgb_to_hex(*adjust_hsl(sec, min_l=0.48, max_l=0.60)).lstrip("#")
+foot_pri = pri_hex.lstrip("#")
+foot_sec = sec_hex.lstrip("#")
+foot_ter = ter_hex.lstrip("#")
+foot_main_block = "[main]\nfont=monospace:size=12\npad=20x20 center\n"
+if os.path.exists(foot_ini):
+    f_raw = open(foot_ini, encoding="utf-8", errors="ignore").read()
+    if "[colors-dark]" in f_raw:
+        foot_main_block = f_raw.split("[colors-dark]")[0].rstrip() + "\n"
+    elif "[colors]" in f_raw:
+        foot_main_block = f_raw.split("[colors]")[0].rstrip() + "\n"
+    else:
+        foot_main_block = f_raw.rstrip() + "\n"
+
+foot_colors_block = f"""
+[colors-dark]
+alpha={foot_alpha:.2f}
+background={foot_bg}
+foreground=eef0f5
+regular0={foot_bg}
+bright0={foot_c8}
+regular4={foot_pri}
+bright4={foot_pri}
+regular5={foot_ter}
+bright5={foot_ter}
+regular6={foot_sec}
+bright6={foot_sec}
+regular7=e6e8ee
+bright7=ffffff
+"""
+with open(foot_ini, "w", encoding="utf-8") as ff:
+    ff.write(foot_main_block + foot_colors_block)
 
 # 3c. Zed (прозрачный фон с блюром и 100% чётким текстом через theme_overrides)
 zed_settings_path = os.path.join(home, ".config/zed/settings.json")
@@ -454,7 +489,9 @@ if os.path.exists(zed_settings_path):
             "tab.active_background": high_hex + z_ca if z_trans else high_hex,
             "toolbar.background": z_cont if z_trans else cont_hex,
             "title_bar.background": z_cont if z_trans else cont_hex,
+            "title_bar.inactive_background": (cont_hex + f"{max(0, min(255, int(round(max(0.025, win_inact_alpha) * 255)))):02x}") if z_trans else cont_hex,
             "status_bar.background": z_cont if z_trans else cont_hex,
+            "panel.focused_border": "#00000000",
             "terminal.background": "#00000000" if z_trans else surf_hex,
         }
         with open(zed_settings_path, "w", encoding="utf-8") as zf:

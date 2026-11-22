@@ -151,6 +151,30 @@ ScrollView {
                 }
             }
 
+            // 2-other-a. Отдельная прозрачность прочих активных окон (браузер, AyuGram и др.)
+            SettingRow {
+                visible: Look.bgOnlyOpacity
+                title: "Браузер, AyuGram (активные):"
+                displayVal: Math.round(Look.otherActiveOpacity * 100) + "%"
+                onResetClicked: Look.otherActiveOpacity = 0.75
+                controlItem: StyledSlider {
+                    anchors.fill: parent; from: 0.15; to: 1.0; stepSize: 0.02; value: Look.otherActiveOpacity
+                    onMoved: Look.otherActiveOpacity = value
+                }
+            }
+
+            // 2-other-b. Отдельная прозрачность прочих неактивных окон
+            SettingRow {
+                visible: Look.bgOnlyOpacity
+                title: "Браузер, AyuGram (неактивные):"
+                displayVal: Math.round(Look.otherInactiveOpacity * 100) + "%"
+                onResetClicked: Look.otherInactiveOpacity = 0.65
+                controlItem: StyledSlider {
+                    anchors.fill: parent; from: 0.15; to: 1.0; stepSize: 0.02; value: Look.otherInactiveOpacity
+                    onMoved: Look.otherInactiveOpacity = value
+                }
+            }
+
             // 2a. Отдельная прозрачность фона самого окна HySett
             SettingRow {
                 title: "Прозрачность фона HySett:"

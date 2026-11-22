@@ -1042,7 +1042,7 @@ ApplicationWindow {
             property color notifBgCol: (Theme && Theme.isRounded && Config) ? surfCol : (Mako ? Mako.bgColor : surfCol)
             property real notifAlpha: (Waybar && Waybar.barMatchWindows && Look)
                                       ? Math.max((Waybar.barBlurEnabled ? 0.025 : 0.0), Look.activeOpacity)
-                                      : (root.drawerActive ? currentOpacity : (Waybar ? Waybar.barOpacity : 0.88))
+                                      : (Waybar ? Waybar.barOpacity : 0.88)
             property color outCol: Config ? Config.m3Outline : "#2b2b2b"
 
             property vector2d u_resolution: Qt.vector2d(width, height)
@@ -3552,16 +3552,18 @@ ApplicationWindow {
                 acceptedButtons: Qt.AllButtons
             }
 
-            readonly property bool overlapsOpenDrawer: root.drawerActive
+            readonly property bool overlapsOpenDrawer: root.drawerActive &&
+                root.notifX < (root.drawerX + root.effDrawerW) &&
+                (root.notifX + root.notifW) > root.drawerX &&
+                root.notifY < (root.drawerY + root.animDrawerH) &&
+                (root.notifY + root.animNotifH) > root.drawerY
 
             Rectangle {
                 anchors.fill: parent
                 visible: notifClipBox.overlapsOpenDrawer
-                color: mergedShellBg.surfCol
-                opacity: mergedShellBg.currentOpacity
+                color: Qt.rgba(mergedShellBg.notifBgCol.r * 0.50, mergedShellBg.notifBgCol.g * 0.50, mergedShellBg.notifBgCol.b * 0.50, mergedShellBg.notifAlpha)
                 radius: (Theme && Theme.isRounded) ? Math.round(mergedShellBg.u_radius * 1.25) : 0
-                border.width: 1
-                border.color: Config ? Qt.rgba(Config.m3Outline.r, Config.m3Outline.g, Config.m3Outline.b, 0.32) : Qt.rgba(1, 1, 1, 0.20)
+                border.width: 0
             }
 
             Column {

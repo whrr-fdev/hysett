@@ -11,6 +11,8 @@ class LookManager : public QObject {
     Q_PROPERTY(qreal activeOpacity READ activeOpacity WRITE setActiveOpacity NOTIFY lookChanged)
     Q_PROPERTY(qreal inactiveOpacity READ inactiveOpacity WRITE setInactiveOpacity NOTIFY lookChanged)
     Q_PROPERTY(bool bgOnlyOpacity READ bgOnlyOpacity WRITE setBgOnlyOpacity NOTIFY lookChanged)
+    Q_PROPERTY(qreal otherActiveOpacity READ otherActiveOpacity WRITE setOtherActiveOpacity NOTIFY lookChanged)
+    Q_PROPERTY(qreal otherInactiveOpacity READ otherInactiveOpacity WRITE setOtherInactiveOpacity NOTIFY lookChanged)
     Q_PROPERTY(bool dimInactive READ dimInactive WRITE setDimInactive NOTIFY lookChanged)
     Q_PROPERTY(qreal dimStrength READ dimStrength WRITE setDimStrength NOTIFY lookChanged)
     Q_PROPERTY(qreal dimAround READ dimAround WRITE setDimAround NOTIFY lookChanged)
@@ -42,6 +44,12 @@ public:
 
     bool bgOnlyOpacity() const { return m_bgOnlyOpacity; }
     void setBgOnlyOpacity(bool v);
+
+    qreal otherActiveOpacity() const { return m_otherActiveOpacity; }
+    void setOtherActiveOpacity(qreal v);
+
+    qreal otherInactiveOpacity() const { return m_otherInactiveOpacity; }
+    void setOtherInactiveOpacity(qreal v);
 
     bool dimInactive() const { return m_dimInactive; }
     void setDimInactive(bool v);
@@ -117,6 +125,8 @@ private:
     qreal m_activeOpacity = 0.85;
     qreal m_inactiveOpacity = 0.75;
     bool m_bgOnlyOpacity = true;
+    qreal m_otherActiveOpacity = 0.75;
+    qreal m_otherInactiveOpacity = 0.65;
     bool m_dimInactive = false;
     qreal m_dimStrength = 0.75;
     qreal m_dimAround = 0.40;

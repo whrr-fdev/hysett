@@ -646,6 +646,8 @@ ApplicationWindow {
                     return
                 }
                 root.isWallpaperExpanded = false
+                if ((tabIdx === 12 || tabIdx === 16) && Apps) Qt.callLater(() => Apps.refresh())
+                if (tabIdx === 14 && Wallpapers) Qt.callLater(() => Wallpapers.reloadWallpapers())
                 if (tabIdx === 21 && Waybar) Waybar.refreshProcesses()
                 if (tabIdx === 23 && Waybar && Waybar.clipboardItems.length === 0) Qt.callLater(() => Waybar.refreshClipboard())
                 pageController.switchPage(tabIdx)
@@ -719,6 +721,18 @@ ApplicationWindow {
             root.requestActivate()
             sceneRoot.forceActiveFocus()
             Qt.callLater(syncTabBlur)
+            if (root.drawerMode === "settings") {
+                contentAutoRefreshTimer.restart()
+            }
+        }
+    }
+    Timer {
+        id: contentAutoRefreshTimer
+        interval: 120
+        repeat: false
+        onTriggered: {
+            if (Apps) Apps.refresh()
+            if (Wallpapers) Wallpapers.reloadWallpapers()
         }
     }
     Timer {
@@ -745,6 +759,9 @@ ApplicationWindow {
             gc()
             if (Hypr) Hypr.deepCleanMemory()
             delayedRamTrimTimer.restart()
+            if (root.drawerMode === "settings") {
+                contentAutoRefreshTimer.restart()
+            }
         }
     }
     onNotifActiveChanged: syncInputMask()
@@ -835,6 +852,7 @@ ApplicationWindow {
                 root.drawerOpen = false
             } else if (root.drawerOpen) {
                 root.drawerMode = "settings"
+                if (Wallpapers) Qt.callLater(() => Wallpapers.reloadWallpapers())
                 pageController.jumpToPageInstant(14)
                 root.isWallpaperExpanded = true
                 root.barExpandProgress = 1.0

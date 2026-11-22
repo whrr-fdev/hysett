@@ -1034,7 +1034,7 @@ ApplicationWindow {
                     ? parent.height
                     : Math.min(parent.height, root.barRectY + root.actualBarH + 115)
             z: 2
-            property real currentOpacity: (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass)
+            property real currentOpacity: (root.drawerActive && root.drawerMode === "settings" && pageController.currentIndex === 14)
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
                                           : (Config ? Config.opacity : 0.85)
             Behavior on currentOpacity { enabled: pageController.currentIndex === 14; NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
@@ -5278,11 +5278,19 @@ ApplicationWindow {
 
                     onCurrentIndexChanged: {
                         root.syncWallpapersModeState()
-                        if (currentIndex > 0) {
+                        if (root.drawerActive && currentIndex > 0) {
                             var arr = recentTabs.filter(function(v) { return v !== currentIndex })
                             arr.push(currentIndex)
-                            if (arr.length > 8) arr.shift()
+                            if (arr.length > 4) arr.shift()
                             recentTabs = arr
+                        }
+                    }
+                    Connections {
+                        target: root
+                        function onDrawerActiveChanged() {
+                            if (!root.drawerActive) {
+                                pageController.recentTabs = [0]
+                            }
                         }
                     }
 

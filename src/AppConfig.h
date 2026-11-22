@@ -24,6 +24,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(qreal cardOpacity READ cardOpacity WRITE setCardOpacity NOTIFY cardOpacityChanged)
     Q_PROPERTY(qreal wallpapersOpacity READ wallpapersOpacity WRITE setWallpapersOpacity NOTIFY wallpapersOpacityChanged)
     Q_PROPERTY(qreal wallpapersBlur READ wallpapersBlur WRITE setWallpapersBlur NOTIFY wallpapersBlurChanged)
+    Q_PROPERTY(qreal wallpaperDim READ wallpaperDim WRITE setWallpaperDim NOTIFY wallpaperDimChanged)
     Q_PROPERTY(qreal dialogOpacity READ dialogOpacity WRITE setDialogOpacity NOTIFY dialogOpacityChanged)
     Q_PROPERTY(qreal dialogBlur READ dialogBlur WRITE setDialogBlur NOTIFY dialogBlurChanged)
     Q_PROPERTY(bool autoGlass READ autoGlass WRITE setAutoGlass NOTIFY autoGlassChanged)
@@ -162,6 +163,8 @@ public:
     void setWallpapersOpacity(qreal v);
     qreal wallpapersBlur() const { return m_wallpapersBlur; }
     void setWallpapersBlur(qreal v);
+    qreal wallpaperDim() const { return m_wallpaperDim; }
+    void setWallpaperDim(qreal v);
     qreal dialogOpacity() const { return m_dialogOpacity; }
     void setDialogOpacity(qreal v);
     qreal dialogBlur() const { return m_dialogBlur; }
@@ -435,6 +438,7 @@ signals:
     void cardOpacityChanged();
     void wallpapersOpacityChanged();
     void wallpapersBlurChanged();
+    void wallpaperDimChanged();
     void dialogOpacityChanged();
     void dialogBlurChanged();
     void autoGlassChanged();
@@ -495,6 +499,7 @@ private:
     qreal m_cardOpacity = 0.10;
     qreal m_wallpapersOpacity = 0.30;
     qreal m_wallpapersBlur = 0.02;
+    qreal m_wallpaperDim = 0.0;
     qreal m_dialogOpacity = 0.45;
     qreal m_dialogBlur = 0.65;
     bool m_autoGlass = true;

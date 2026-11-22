@@ -280,6 +280,33 @@ int main(int argc, char *argv[]) {
                 strutWin->show();
                 QObject::connect(&waybarManager, &WaybarManager::stateChanged, strutWin, updateStrut);
             }
+            static QQuickWindow *wallDimWin = nullptr;
+            if (!wallDimWin) {
+                wallDimWin = new QQuickWindow();
+                wallDimWin->setFlag(Qt::WindowTransparentForInput, true);
+                wallDimWin->setFlag(Qt::WindowDoesNotAcceptFocus, true);
+                wallDimWin->setMask(QRegion(-10, -10, 1, 1));
+                if (auto *dls = LayerShellQt::Window::get(wallDimWin)) {
+                    dls->setLayer(LayerShellQt::Window::LayerBottom);
+                    dls->setExclusiveZone(-1);
+                    dls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+                    dls->setAnchors(LayerShellQt::Window::Anchors(
+                        LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom |
+                        LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight));
+                    dls->setScope(QStringLiteral("hysett-wall-dim"));
+                }
+                auto updateWallDim = [&]() {
+                    qreal dim = appConfig.wallpaperDim();
+                    if (dim <= 0.005) {
+                        if (wallDimWin->isVisible()) wallDimWin->hide();
+                    } else {
+                        wallDimWin->setColor(QColor(0, 0, 0, qBound(0, qRound(dim * 255.0), 225)));
+                        if (!wallDimWin->isVisible()) wallDimWin->show();
+                    }
+                };
+                updateWallDim();
+                QObject::connect(&appConfig, &AppConfig::wallpaperDimChanged, wallDimWin, updateWallDim);
+            }
 #endif
             w->show();
         }

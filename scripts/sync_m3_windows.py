@@ -574,8 +574,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
 }}
 #main-window, #navigator-toolbox, #TabsToolbar, #titlebar, #TabsToolbar-customization-target,
 #main-window:-moz-window-inactive, #navigator-toolbox:-moz-window-inactive {{
-    background: {surf_act_css} !important;
-    background-color: {surf_act_css} !important;
+    background: {surf_hex} !important;
+    background-color: {surf_hex} !important;
     background-image: none !important;
     color: #eef0f5 !important;
     border: none !important;
@@ -583,8 +583,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
 }}
 #nav-bar, #PersonalToolbar, #PlacesToolbar, .browser-toolbar:not(#TabsToolbar), findbar,
 #nav-bar:-moz-window-inactive, #PersonalToolbar:-moz-window-inactive {{
-    background: {cont_act_css} !important;
-    background-color: {cont_act_css} !important;
+    background: {cont_hex} !important;
+    background-color: {cont_hex} !important;
     background-image: none !important;
     color: #eef0f5 !important;
     border: none !important;
@@ -641,8 +641,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
     box-shadow: none !important;
 }}
 #urlbar-background, #urlbar > .urlbar-background, .searchbar-textbox {{
-    background: {surf_act_css} !important;
-    background-color: {surf_act_css} !important;
+    background: {surf_hex} !important;
+    background-color: {surf_hex} !important;
     background-image: none !important;
     border: 1px solid {high_hex} !important;
     border-radius: {max(ctrl_r, 14) if is_rounded else 0}px !important;
@@ -671,8 +671,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
     color: {pri_hex} !important;
 }}
 menupopup, panel, .panel-subview-body, .menupopup-arrowscrollbox {{
-    background: {cont_act_css} !important;
-    background-color: {cont_act_css} !important;
+    background: {cont_hex} !important;
+    background-color: {cont_hex} !important;
     color: #eef0f5 !important;
     border-radius: {card_r}px !important;
     border: 1px solid {high_hex} !important;

@@ -304,6 +304,24 @@ Item {
                                     }
                                 }
                             }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 3
+
+                                RowLayout {
+                                    Text { text: "Затемнение обоев:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                    Text { text: Math.round((Config ? Config.wallpaperDim : 0.0) * 100) + "%"; color: "#ffffff"; font.pixelSize: Config.fontSize }
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 0.0
+                                    to: 0.85
+                                    stepSize: 0.01
+                                    value: Config ? Config.wallpaperDim : 0.0
+                                    onMoved: if (Config) Config.wallpaperDim = value
+                                }
+                            }
                         }
                     }
 

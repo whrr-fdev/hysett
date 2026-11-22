@@ -546,6 +546,7 @@ void AppConfig::load() {
             else if (key == "card_opacity") m_cardOpacity = std::clamp(val.toDouble(), 0.0, 1.0);
             else if (key == "wallpapers_opacity") m_wallpapersOpacity = std::clamp(val.toDouble(), 0.0, 1.0);
             else if (key == "wallpapers_blur") m_wallpapersBlur = std::clamp(val.toDouble(), 0.0, 1.0);
+            else if (key == "wallpaper_dim") m_wallpaperDim = std::clamp(val.toDouble(), 0.0, 0.85);
             else if (key == "dialog_opacity") m_dialogOpacity = std::clamp(val.toDouble(), 0.05, 1.0);
             else if (key == "dialog_blur") m_dialogBlur = std::clamp(val.toDouble(), 0.0, 1.0);
             else if (key == "auto_glass") m_autoGlass = (val == "1" || val == "true");
@@ -637,6 +638,7 @@ void AppConfig::save() {
             extra["card_opacity"] = QString::number(m_cardOpacity, 'f', 2);
             extra["wallpapers_opacity"] = QString::number(m_wallpapersOpacity, 'f', 2);
             extra["wallpapers_blur"] = QString::number(m_wallpapersBlur, 'f', 2);
+            extra["wallpaper_dim"] = QString::number(m_wallpaperDim, 'f', 2);
             extra["dialog_opacity"] = QString::number(m_dialogOpacity, 'f', 2);
             extra["dialog_blur"] = QString::number(m_dialogBlur, 'f', 2);
             extra["auto_glass"] = m_autoGlass ? "1" : "0";
@@ -752,6 +754,7 @@ void AppConfig::setSidebarOpacity(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!q
 void AppConfig::setCardOpacity(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzzyCompare(m_cardOpacity, v)) { m_cardOpacity = v; emit cardOpacityChanged(); save(); } }
 void AppConfig::setWallpapersOpacity(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzzyCompare(m_wallpapersOpacity, v)) { m_wallpapersOpacity = v; emit wallpapersOpacityChanged(); save(); } }
 void AppConfig::setWallpapersBlur(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzzyCompare(m_wallpapersBlur, v)) { m_wallpapersBlur = v; emit wallpapersBlurChanged(); save(); } }
+void AppConfig::setWallpaperDim(qreal v) { v = std::clamp(v, 0.0, 0.85); if (!qFuzzyCompare(m_wallpaperDim, v)) { m_wallpaperDim = v; emit wallpaperDimChanged(); save(); } }
 void AppConfig::setDialogOpacity(qreal v) { v = std::clamp(v, 0.05, 1.0); if (!qFuzzyCompare(m_dialogOpacity, v)) { m_dialogOpacity = v; emit dialogOpacityChanged(); save(); } }
 void AppConfig::setDialogBlur(qreal v) { v = std::clamp(v, 0.0, 1.0); if (!qFuzzyCompare(m_dialogBlur, v)) { m_dialogBlur = v; emit dialogBlurChanged(); save(); } }
 void AppConfig::setAutoGlass(bool v) { if (m_autoGlass != v) { m_autoGlass = v; emit autoGlassChanged(); save(); } }

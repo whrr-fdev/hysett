@@ -1061,11 +1061,11 @@ ApplicationWindow {
                 }
                 return Qt.vector4d(0.46, 0.46, 0.46, 0.80)
             }
-            readonly property bool hideBarBorderSingleWin: Waybar && (Waybar.activeWorkspaceWindowCount === 1) && (!Look || Look.noBorderSingleWindow)
+            readonly property bool hideBarBorderFewWins: Waybar && (Waybar.activeWorkspaceWindowCount <= 1)
             readonly property vector4d inactiveWinBorderVec: parseHyprRgbaVec(Look ? Look.inactiveBorder : "rgba(767676cc)")
             property vector4d u_outline_color: root.drawerActive
-                                               ? Qt.vector4d(outCol.r, outCol.g, outCol.b, 0.32)
-                                               : (hideBarBorderSingleWin ? Qt.vector4d(0, 0, 0, 0.0) : inactiveWinBorderVec)
+                                               ? inactiveWinBorderVec
+                                               : (hideBarBorderFewWins ? Qt.vector4d(0, 0, 0, 0.0) : inactiveWinBorderVec)
             readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : "#ffffff")
             property vector3d u_glow_color: Qt.vector3d(activeWaveTint.r, activeWaveTint.g, activeWaveTint.b)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)

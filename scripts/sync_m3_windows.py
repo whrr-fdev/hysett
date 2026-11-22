@@ -349,23 +349,30 @@ popover > contents, menu, .menu, tooltip, dialog {{
     color: #f2f4f8 !important;
 }}
 """
+gtk4_blur_rule = ""
+if bg_only_opacity and win_act_alpha < 0.99:
+    gtk4_blur_rule = "\n/* GTK 4.24+ ext-background-effect-v1: запросить системный блюр Hyprland */\nwindow, .background {\n    backdrop-filter: blur(20px);\n}\n"
+
 for gver in ("gtk-3.0", "gtk-4.0"):
     gdir = os.path.join(home, ".config", gver)
     os.makedirs(gdir, exist_ok=True)
     with open(os.path.join(gdir, "gtk.css"), "w") as f:
-        f.write(gtk_css)
+        f.write(gtk_css + (gtk4_blur_rule if gver == "gtk-4.0" else ""))
 
 
 # 3b. Neovide (прозрачность только фона, текст 100% чёткий)
 nvim_dir = os.path.join(home, ".config/nvim")
 os.makedirs(nvim_dir, exist_ok=True)
-nv_op = win_act_alpha if bg_only_opacity else 1.0
+nv_op = max(0.02, win_act_alpha) if bg_only_opacity else 1.0
 nv_lua_path = os.path.join(nvim_dir, "hysett_neovide.lua")
 with open(nv_lua_path, "w") as nf:
     nf.write(f"""if vim.g.neovide then
     vim.g.neovide_opacity = {nv_op:.2f}
     vim.g.neovide_normal_opacity = {nv_op:.2f}
     vim.g.neovide_window_blurred = true
+    vim.g.neovide_text_gamma = 0.0
+    vim.g.neovide_text_contrast = 0.5
+    vim.api.nvim_set_hl(0, "EndOfBuffer", {{ fg = "NONE", bg = "NONE" }})
 end
 """)
 init_lua_path = os.path.join(nvim_dir, "init.lua")
@@ -390,27 +397,29 @@ if os.path.exists(zed_settings_path):
         z_ca = f"{max(0, min(255, int(round(min(1.0, z_a + 0.04) * 255)))):02x}"
         z_surf = surf_hex + z_aa
         z_cont = cont_hex + z_ca
-        z_ov = zdata.get("theme_overrides", {})
-        if not isinstance(z_ov, dict):
-            z_ov = {}
-        z_ov["*"] = {
-            "background.appearance": "blurred" if (bg_only_opacity and win_act_alpha < 0.99) else "opaque",
-            "background": z_surf,
-            "surface.background": z_surf,
+        if isinstance(zdata.get("theme_overrides"), dict) and "*" in zdata["theme_overrides"]:
+            del zdata["theme_overrides"]["*"]
+            if not zdata["theme_overrides"]:
+                del zdata["theme_overrides"]
+        z_trans = (bg_only_opacity and win_act_alpha < 0.99)
+        zdata["experimental.theme_overrides"] = {
+            "background.appearance": "blurred" if z_trans else "opaque",
+            "background": z_surf if z_trans else surf_hex,
+            "surface.background": z_surf if z_trans else surf_hex,
             "elevated_surface.background": cont_hex + "ee",
-            "editor.background": "#00000000" if (bg_only_opacity and win_act_alpha < 0.99) else surf_hex,
-            "editor.gutter.background": "#00000000" if (bg_only_opacity and win_act_alpha < 0.99) else surf_hex,
-            "editor.active_line.background": high_hex + "55",
-            "panel.background": z_cont,
-            "tab_bar.background": z_cont,
-            "tab.inactive_background": z_surf,
-            "tab.active_background": high_hex + z_ca,
-            "toolbar.background": z_cont,
-            "title_bar.background": z_cont,
-            "status_bar.background": z_cont,
-            "terminal.background": "#00000000" if (bg_only_opacity and win_act_alpha < 0.99) else surf_hex,
+            "editor.background": "#00000000" if z_trans else surf_hex,
+            "editor.gutter.background": "#00000000" if z_trans else surf_hex,
+            "editor.subheader.background": z_cont if z_trans else cont_hex,
+            "editor.active_line.background": high_hex + "44",
+            "panel.background": z_cont if z_trans else cont_hex,
+            "tab_bar.background": z_cont if z_trans else cont_hex,
+            "tab.inactive_background": "#00000000" if z_trans else surf_hex,
+            "tab.active_background": high_hex + z_ca if z_trans else high_hex,
+            "toolbar.background": z_cont if z_trans else cont_hex,
+            "title_bar.background": z_cont if z_trans else cont_hex,
+            "status_bar.background": z_cont if z_trans else cont_hex,
+            "terminal.background": "#00000000" if z_trans else surf_hex,
         }
-        zdata["theme_overrides"] = z_ov
         with open(zed_settings_path, "w", encoding="utf-8") as zf:
             json.dump(zdata, zf, indent=2, ensure_ascii=False)
             zf.write("\n")

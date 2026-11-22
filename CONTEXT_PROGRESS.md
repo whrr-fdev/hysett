@@ -510,3 +510,9 @@
 - В `WaybarManager`, `Main.qml`, `merged_shell.frag` и `WaybarSettingsView.qml` добавлен режим `barMatchWindows` (прозрачность и блюр панели повторяют окна при закрытых настройках) и синхронизация обводки панели с `Look.inactiveBorder` с автоскрытием обводки при 1 окне на столе (`activeWorkspaceWindowCount == 1`).
 - Добавлена нативная прозрачность только фона (текст 100% чёткий) для `Neovide` (`~/.config/nvim/hysett_neovide.lua`) и `Zed` (`theme_overrides` в `~/.config/zed/settings.json`) + `0.999 override` в `LookManager`.
 - Исправлен сброс `decoration:blur:size = 1` в `look.lua` (установлено `size = 8, passes = 3`) для полноценного блюра проводника Nautilus.
+
+## Выполнено в Шаге 56 (Блюр GTK 4.24 Nautilus, Точная обводка панели/HySett, Zed experimental.theme_overrides и Neovide)
+- В `sync_m3_windows.py` добавлено `backdrop-filter: blur(20px)` в `gtk-4.0/gtk.css` для включения системного блюра Hyprland в GTK 4.24+ (`ext-background-effect-v1`) без изменения `decoration:blur:size`.
+- В `merged_shell.frag`, `Main.qml` и `LookManager` исправлено двойное затемнение 1px рамки (честный premultiplied alpha 1-в-1 с `Look.inactiveBorder`), обводка применена к панели (при >=2 окнах, при 0 и 1 окне скрывается) и к окну настроек `HySett`, добавлен `QFileSystemWatcher` на `look.lua`.
+- Убрана неработающая кнопка применения темы AyuGram из `AppSettingsView.qml`.
+- Исправлена прозрачность Zed (`experimental.theme_overrides` вместо `theme_overrides["*"]`) и скорректирован минимум `0.02` + `EndOfBuffer` для Neovide.

@@ -4,6 +4,7 @@
 #include <QTextStream>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QDateTime>
 #include <cstring>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -46,6 +47,29 @@ LookManager::LookManager(QObject *parent) : QObject(parent) {
     });
 
     loadFromDisk();
+
+    m_lookWatcher = new QFileSystemWatcher(this);
+    QString lookPath = QDir::homePath() + "/.config/hypr/look.lua";
+    if (QFile::exists(lookPath)) m_lookWatcher->addPath(lookPath);
+    QString hyprDir = QDir::homePath() + "/.config/hypr";
+    if (QDir(hyprDir).exists()) m_lookWatcher->addPath(hyprDir);
+    auto reloadBorders = [this, lookPath]() {
+        if (QDateTime::currentMSecsSinceEpoch() < m_ignoreWatchUntilMs) return;
+        if (QFile::exists(lookPath) && !m_lookWatcher->files().contains(lookPath))
+            m_lookWatcher->addPath(lookPath);
+        QFile rf(lookPath);
+        if (!rf.open(QIODevice::ReadOnly | QIODevice::Text)) return;
+        QString cur = QString::fromUtf8(rf.readAll());
+        rf.close();
+        bool changed = false;
+        auto ma = QRegularExpression("active_border\\s*=\\s*\"([^\"]+)\"").match(cur);
+        auto mi = QRegularExpression("inactive_border\\s*=\\s*\"([^\"]+)\"").match(cur);
+        if (ma.hasMatch() && ma.captured(1) != m_activeBorder) { m_activeBorder = ma.captured(1); changed = true; }
+        if (mi.hasMatch() && mi.captured(1) != m_inactiveBorder) { m_inactiveBorder = mi.captured(1); changed = true; }
+        if (changed) emit lookChanged();
+    };
+    connect(m_lookWatcher, &QFileSystemWatcher::fileChanged, this, reloadBorders);
+    connect(m_lookWatcher, &QFileSystemWatcher::directoryChanged, this, reloadBorders);
 }
 
 void LookManager::loadFromDisk() {
@@ -302,6 +326,7 @@ void LookManager::writeLookLua() {
     out << "    match   = { class = \"^(kitty|waybar-btop|neovide|dev\\\\.zed\\\\.Zed|.*zed.*|org\\\\.gnome\\\\..*|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
     out << "    opacity = \"" << bgOpRule << "\",\n";
     out << "})\n";
+    m_ignoreWatchUntilMs = QDateTime::currentMSecsSinceEpoch() + 250;
     file.flush();
     file.close();
     sendHyprLuaEval("dofile(os.getenv(\"HOME\") .. \"/.config/hypr/look.lua\")");

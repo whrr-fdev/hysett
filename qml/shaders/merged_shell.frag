@@ -273,7 +273,7 @@ void main() {
     if (mask <= 0.001) { fragColor = vec4(0.0); return; }
 
     float distInward = max(0.0, -trueD);
-    float outlineMask = exp(-distInward * 1.55);
+    float outlineMask = 1.0 - smoothstep(0.65, 1.35, distInward);
 
     float bigSettingsMix = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0);
     vec3 barRgb = u_bg_color.rgb * mix(0.42, 1.0, bigSettingsMix * barMergeProx);
@@ -287,8 +287,9 @@ void main() {
     vec4 activeFill = mix(shellFill, vec4(u_notif_color.rgb * 0.50, max(0.88, u_notif_color.a)), notifBlend);
 
     float borderAmt = outlineMask * u_outline_color.a;
-    vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, borderAmt);
-    float baseAlpha = clamp(max(activeFill.a, borderAmt), 0.0, 0.98);
+    float baseAlpha = clamp(borderAmt + activeFill.a * (1.0 - borderAmt), 0.0, 1.0);
+    vec3 premulCombined = u_outline_color.rgb * borderAmt + activeFill.rgb * activeFill.a * (1.0 - borderAmt);
+    vec3 baseRgb = (baseAlpha > 0.001) ? (premulCombined / baseAlpha) : activeFill.rgb;
 
     if (u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0 && u_cursor_strength > 0.01 && u_mouse.x > -50.0) {
         float dm0 = length(p - u_mouse);

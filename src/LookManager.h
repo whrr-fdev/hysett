@@ -3,6 +3,7 @@
 #include <QString>
 #include <QVector>
 #include <QTimer>
+#include <QFileSystemWatcher>
 
 class LookManager : public QObject {
     Q_OBJECT
@@ -146,4 +147,6 @@ private:
     QVector<Snapshot> m_history;
     QTimer *m_saveTimer = nullptr;
     QTimer *m_opacitySyncTimer = nullptr;
+    QFileSystemWatcher *m_lookWatcher = nullptr;
+    qint64 m_ignoreWatchUntilMs = 0;
 };

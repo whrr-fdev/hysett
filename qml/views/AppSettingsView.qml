@@ -343,6 +343,38 @@ RowLayout {
                                     onToggled: if (Config) Config.m3DynamicWallpaperColors = checked
                                 }
                             }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                opacity: (Config && Config.m3DynamicWallpaperColors) ? 1.0 : 0.45
+                                Text {
+                                    text: "Затемнение цветов с обоев:"
+                                    color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 260
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 0.0; to: 1.0; stepSize: 0.05
+                                    enabled: Config ? Config.m3DynamicWallpaperColors : true
+                                    value: Config ? Config.m3WallpaperDarkness : 0.55
+                                    onMoved: if (Config) Config.m3WallpaperDarkness = value
+                                }
+                                Text {
+                                    text: Math.round((Config ? Config.m3WallpaperDarkness : 0.55) * 100) + "%"
+                                    color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Синхронизация темы AyuGram:"
+                                    color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true
+                                }
+                                StyledButton {
+                                    text: "󰔁  Применить тему в AyuGram"
+                                    onClicked: if (Config) Config.applyAyuGramTheme()
+                                }
+                            }
                         }
                     }
 

@@ -117,6 +117,7 @@ class AppConfig : public QObject {
     Q_PROPERTY(QColor m3SurfaceContainerHigh READ m3SurfaceContainerHigh NOTIFY cardBgColorChanged)
     Q_PROPERTY(QColor m3Outline READ m3Outline NOTIFY accentColorChanged)
     Q_PROPERTY(bool m3DynamicWallpaperColors READ m3DynamicWallpaperColors WRITE setM3DynamicWallpaperColors NOTIFY m3AttributesChanged)
+    Q_PROPERTY(qreal m3WallpaperDarkness READ m3WallpaperDarkness WRITE setM3WallpaperDarkness NOTIFY m3AttributesChanged)
     Q_PROPERTY(QColor m3SecondaryColor READ m3SecondaryColor WRITE setM3SecondaryColor NOTIFY accentColorChanged)
     Q_PROPERTY(QColor m3TertiaryColor READ m3TertiaryColor WRITE setM3TertiaryColor NOTIFY accentColorChanged)
     Q_PROPERTY(QColor m3TertiaryContainer READ m3TertiaryContainer NOTIFY accentColorChanged)
@@ -374,7 +375,10 @@ public:
     QColor m3Outline() const;
     bool m3DynamicWallpaperColors() const { return m_m3DynamicWallpaperColors; }
     void setM3DynamicWallpaperColors(bool v);
+    qreal m3WallpaperDarkness() const { return m_m3WallpaperDarkness; }
+    void setM3WallpaperDarkness(qreal v);
     Q_INVOKABLE void extractPaletteFromWallpaper();
+    Q_INVOKABLE void applyAyuGramTheme();
 
     QColor m3SecondaryColor() const { return m_m3SecondaryColor; }
     void setM3SecondaryColor(const QColor &c);
@@ -574,6 +578,7 @@ private:
     QColor m_windowBgColor = QColor("#000000");
     QColor m_cardBgColor = QColor("#0a0a0a");
     bool m_m3DynamicWallpaperColors = true;
+    qreal m_m3WallpaperDarkness = 0.55;
     QColor m_m3SecondaryColor = QColor("#222222");
     QColor m_m3TertiaryColor = QColor("#2e2e2e");
     int m_m3Preset = 0;

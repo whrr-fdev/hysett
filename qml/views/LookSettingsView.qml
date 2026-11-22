@@ -106,13 +106,36 @@ ScrollView {
                 }
             }
 
+            // 0. Режим прозрачности только фона (без потери яркости текста)
+            SettingRow {
+                title: "Не менять прозрачность текста:"
+                onResetClicked: Look.bgOnlyOpacity = true
+                controlItem: RowLayout {
+                    anchors.fill: parent
+                    spacing: 10
+                    StyledSwitch {
+                        checked: Look.bgOnlyOpacity
+                        onToggled: Look.bgOnlyOpacity = checked
+                    }
+                    Text {
+                        text: Look.bgOnlyOpacity
+                              ? "Прозрачным становится только фон окон (текст 100% чёткий даже на 0%)"
+                              : "Обычная прозрачность всего окна целиком вместе с текстом"
+                        color: Look.bgOnlyOpacity ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                        font.pixelSize: Config.fontSize - 1
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+
             // 1. Прозрачность активного окна
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Прозрачность активного окна:")) : "Прозрачность активного окна:"
-                displayVal: Number(Look.activeOpacity).toFixed(2)
+                displayVal: Math.round(Look.activeOpacity * 100) + "%"
                 onResetClicked: Look.activeOpacity = 0.85
                 controlItem: StyledSlider {
-                    anchors.fill: parent; from: 0.1; to: 1.0; stepSize: 0.05; value: Look.activeOpacity
+                    anchors.fill: parent; from: 0.0; to: 1.0; stepSize: 0.02; value: Look.activeOpacity
                     onMoved: Look.activeOpacity = value
                 }
             }
@@ -120,11 +143,33 @@ ScrollView {
             // 2. Прозрачность неактивного
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Прозрачность неактивного:")) : "Прозрачность неактивного:"
-                displayVal: Number(Look.inactiveOpacity).toFixed(2)
+                displayVal: Math.round(Look.inactiveOpacity * 100) + "%"
                 onResetClicked: Look.inactiveOpacity = 0.75
                 controlItem: StyledSlider {
-                    anchors.fill: parent; from: 0.1; to: 1.0; stepSize: 0.05; value: Look.inactiveOpacity
+                    anchors.fill: parent; from: 0.0; to: 1.0; stepSize: 0.02; value: Look.inactiveOpacity
                     onMoved: Look.inactiveOpacity = value
+                }
+            }
+
+            // 2a. Отдельная прозрачность фона самого окна HySett
+            SettingRow {
+                title: "Прозрачность фона HySett:"
+                displayVal: Math.round((Config ? Config.opacity : 0.70) * 100) + "%"
+                onResetClicked: if (Config) Config.opacity = 0.70
+                controlItem: StyledSlider {
+                    anchors.fill: parent; from: 0.0; to: 1.0; stepSize: 0.02; value: Config ? Config.opacity : 0.70
+                    onMoved: if (Config) Config.opacity = value
+                }
+            }
+
+            // 2b. Отдельная прозрачность карточек HySett
+            SettingRow {
+                title: "Прозрачность карточек HySett:"
+                displayVal: Math.round((Config ? Config.cardOpacity : 0.10) * 100) + "%"
+                onResetClicked: if (Config) Config.cardOpacity = 0.10
+                controlItem: StyledSlider {
+                    anchors.fill: parent; from: 0.0; to: 1.0; stepSize: 0.02; value: Config ? Config.cardOpacity : 0.10
+                    onMoved: if (Config) Config.cardOpacity = value
                 }
             }
 

@@ -586,6 +586,7 @@ void AppConfig::load() {
             else if (key == "window_bg_color" && QColor::isValidColorName(val)) m_windowBgColor = QColor(val);
             else if (key == "card_bg_color" && QColor::isValidColorName(val)) m_cardBgColor = QColor(val);
             else if (key == "m3_dynamic_wallpaper_colors") m_m3DynamicWallpaperColors = (val == "1" || val == "true");
+            else if (key == "m3_wallpaper_darkness") m_m3WallpaperDarkness = std::clamp(val.toDouble(), 0.0, 1.0);
             else if (key == "m3_secondary_color" && QColor::isValidColorName(val)) m_m3SecondaryColor = QColor(val);
             else if (key == "m3_tertiary_color" && QColor::isValidColorName(val)) m_m3TertiaryColor = QColor(val);
             else if (key == "m3_preset") m_m3Preset = std::clamp(val.toInt(), 0, 5);
@@ -678,6 +679,7 @@ void AppConfig::save() {
             extra["window_open_anim_type"] = m_windowOpenAnimType;
             extra["m3_dynamic_wallpaper"] = m_m3DynamicWallpaperColors ? "1" : "0";
             extra["m3_dynamic_wallpaper_colors"] = m_m3DynamicWallpaperColors ? "1" : "0";
+            extra["m3_wallpaper_darkness"] = QString::number(m_m3WallpaperDarkness, 'f', 2);
             extra["m3_preset"] = QString::number(m_m3Preset);
             extra["m3_window_radius"] = QString::number(m_m3WindowRadius);
             extra["m3_card_radius"] = QString::number(m_m3CardRadius);
@@ -915,8 +917,8 @@ QColor AppConfig::m3Primary() const {
 QColor AppConfig::m3PrimaryContainer() const {
     float h, s, l, a;
     m_accentColor.getHslF(&h, &s, &l, &a);
-    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.11f, 0.11f, 0.11f, 0.94f);
-    float targetL = std::clamp(0.20f + float(m_m3ContrastLevel) * 0.10f, 0.14f, 0.38f);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.04f, 0.04f, 0.04f, 0.96f);
+    float targetL = std::clamp(0.16f + float(m_m3ContrastLevel) * 0.08f - float(m_m3WallpaperDarkness) * 0.06f, 0.08f, 0.34f);
     return QColor::fromHslF(h, std::clamp(s * 0.72f, 0.0f, 1.0f), targetL, 0.94f);
 }
 
@@ -931,18 +933,23 @@ QColor AppConfig::m3SecondaryContainer() const {
     float h, s, l, a;
     m_m3SecondaryColor.getHslF(&h, &s, &l, &a);
     if (m_syncColorsWithAccent) m_accentColor.getHslF(&h, &s, &l, &a);
-    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.08f, 0.08f, 0.08f, 0.92f);
-    return QColor::fromHslF(h, std::clamp(s * 0.45f, 0.0f, 1.0f), 0.22f, 0.90f);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.025f, 0.025f, 0.025f, 0.94f);
+    float targetL = std::clamp(0.20f - float(m_m3WallpaperDarkness) * 0.08f, 0.09f, 0.24f);
+    return QColor::fromHslF(h, std::clamp(s * 0.45f, 0.0f, 1.0f), targetL, 0.90f);
 }
 
 QColor AppConfig::m3TertiaryContainer() const {
     float h, s, l, a;
     m_m3TertiaryColor.getHslF(&h, &s, &l, &a);
-    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.12f, 0.12f, 0.12f, 0.92f);
-    return QColor::fromHslF(h, std::clamp(s * 0.55f, 0.0f, 1.0f), 0.25f, 0.90f);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.04f, 0.04f, 0.04f, 0.94f);
+    float targetL = std::clamp(0.22f - float(m_m3WallpaperDarkness) * 0.08f, 0.10f, 0.26f);
+    return QColor::fromHslF(h, std::clamp(s * 0.55f, 0.0f, 1.0f), targetL, 0.90f);
 }
 
 QColor AppConfig::m3Surface() const {
+    if (!m_m3DynamicWallpaperColors && m_windowBgColor == QColor("#000000") && m_m3SurfaceTintStrength < 0.01) {
+        return QColor(0, 0, 0, 255);
+    }
     float tint = float(m_m3SurfaceTintStrength) * 0.10f;
     float base = 1.0f - tint;
     return QColor::fromRgbF(
@@ -954,6 +961,9 @@ QColor AppConfig::m3Surface() const {
 }
 
 QColor AppConfig::m3SurfaceContainer() const {
+    if (!m_m3DynamicWallpaperColors && m_windowBgColor == QColor("#000000") && m_m3SurfaceTintStrength < 0.01) {
+        return QColor(4, 4, 4, 255);
+    }
     float tint = float(m_m3SurfaceTintStrength) * 0.16f;
     float base = 1.0f - tint * 0.75f;
     return QColor::fromRgbF(
@@ -965,8 +975,11 @@ QColor AppConfig::m3SurfaceContainer() const {
 }
 
 QColor AppConfig::m3SurfaceContainerHigh() const {
+    if (!m_m3DynamicWallpaperColors && m_windowBgColor == QColor("#000000") && m_m3SurfaceTintStrength < 0.01) {
+        return QColor(11, 11, 11, 255);
+    }
     float tint = float(m_m3SurfaceTintStrength) * 0.22f;
-    float lift = 0.015f + float(m_m3ContrastLevel) * 0.02f;
+    float lift = 0.012f + float(m_m3ContrastLevel) * 0.018f;
     return QColor::fromRgbF(
         std::clamp(m_cardBgColor.redF() * 0.82f + m_accentColor.redF() * tint + lift, 0.0f, 1.0f),
         std::clamp(m_cardBgColor.greenF() * 0.82f + m_accentColor.greenF() * tint + lift, 0.0f, 1.0f),
@@ -1017,13 +1030,15 @@ void AppConfig::extractPaletteFromWallpaper() {
     double binHueSum[36] = {0.0};
     double binSatSum[36] = {0.0};
 
+    float darkAmt = std::clamp(float(m_m3WallpaperDarkness), 0.0f, 1.0f);
     for (int y = 0; y < small.height(); ++y) {
         for (int x = 0; x < small.width(); ++x) {
             QColor px = small.pixelColor(x, y);
             float h, s, l, a;
             px.getHslF(&h, &s, &l, &a);
-            if (h < 0.0f || s < 0.02f || l < 0.05f || l > 0.95f) continue;
-            double chromaWeight = double(s) * (1.0 - std::abs(2.0 * double(l) - 1.0) * 0.75);
+            if (h < 0.0f || s < 0.02f || l < 0.03f || l > 0.95f) continue;
+            double darkBias = 1.0 + double(darkAmt) * (1.0 - double(l)) * 1.6;
+            double chromaWeight = double(s) * (1.0 - std::abs(2.0 * double(l) - 1.0) * 0.68) * darkBias;
             int bin = std::clamp(int(h * 36.0f), 0, 35);
             binWeight[bin] += chromaWeight;
             binHueSum[bin] += double(h) * chromaWeight;
@@ -1042,21 +1057,30 @@ void AppConfig::extractPaletteFromWallpaper() {
 
     if (bestBin == -1 || maxW < 0.005) {
         // Нейтрально-монохромные обои
-        m_accentColor = QColor("#d0d8e8");
-        m_m3SecondaryColor = QColor("#b8c0d0");
-        m_m3TertiaryColor = QColor("#d4c4d8");
-        m_windowBgColor = QColor("#111317");
-        m_cardBgColor = QColor("#1c1f26");
+        float gPri = std::clamp(0.84f - darkAmt * 0.34f, 0.46f, 0.84f);
+        float gSec = std::clamp(0.74f - darkAmt * 0.34f, 0.36f, 0.74f);
+        float gWin = std::clamp(0.06f - darkAmt * 0.05f, 0.008f, 0.06f);
+        float gCard = std::clamp(0.11f - darkAmt * 0.08f, 0.025f, 0.11f);
+        m_accentColor = QColor::fromHslF(0.60f, 0.08f, gPri);
+        m_m3SecondaryColor = QColor::fromHslF(0.60f, 0.06f, gSec);
+        m_m3TertiaryColor = QColor::fromHslF(0.72f, 0.08f, gPri);
+        m_windowBgColor = QColor::fromHslF(0.60f, 0.06f, gWin);
+        m_cardBgColor = QColor::fromHslF(0.60f, 0.06f, gCard);
     } else {
         float domH = float(binHueSum[bestBin] / maxW);
         float avgS = float(binSatSum[bestBin] / maxW);
-        float priS = std::clamp(avgS * 1.85f + 0.32f, 0.52f, 0.88f);
+        float priS = std::clamp(avgS * 1.70f + (0.30f - darkAmt * 0.06f), 0.42f, 0.86f);
+        float priL = std::clamp(0.76f - darkAmt * 0.40f, 0.32f, 0.76f);
+        float secL = std::clamp(0.70f - darkAmt * 0.38f, 0.28f, 0.70f);
+        float terL = std::clamp(0.76f - darkAmt * 0.38f, 0.34f, 0.76f);
+        float winL = std::clamp(0.045f - darkAmt * 0.032f, 0.010f, 0.048f);
+        float cardL = std::clamp(0.085f - darkAmt * 0.055f, 0.025f, 0.090f);
 
-        m_accentColor = QColor::fromHslF(domH, priS, 0.78f);
-        m_m3SecondaryColor = QColor::fromHslF(std::fmod(domH + 0.035f, 1.0f), std::clamp(priS * 0.48f, 0.26f, 0.58f), 0.74f);
-        m_m3TertiaryColor = QColor::fromHslF(std::fmod(domH + 0.15f, 1.0f), std::clamp(priS * 0.70f, 0.36f, 0.78f), 0.80f);
-        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.32f, 0.14f, 0.35f), 0.045f);
-        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * 0.36f, 0.16f, 0.40f), 0.085f);
+        m_accentColor = QColor::fromHslF(domH, priS, priL);
+        m_m3SecondaryColor = QColor::fromHslF(std::fmod(domH + 0.035f, 1.0f), std::clamp(priS * 0.50f, 0.24f, 0.58f), secL);
+        m_m3TertiaryColor = QColor::fromHslF(std::fmod(domH + 0.15f, 1.0f), std::clamp(priS * 0.68f, 0.32f, 0.76f), terL);
+        m_windowBgColor = QColor::fromHslF(domH, std::clamp(priS * (0.34f - darkAmt * 0.08f), 0.12f, 0.36f), winL);
+        m_cardBgColor = QColor::fromHslF(domH, std::clamp(priS * (0.38f - darkAmt * 0.08f), 0.14f, 0.42f), cardL);
     }
 
     if (m_syncColorsWithAccent) {
@@ -1070,6 +1094,31 @@ void AppConfig::extractPaletteFromWallpaper() {
     m_colorsDirty = true; emit cardBgColorChanged();
     m_colorsDirty = true; emit m3AttributesChanged();
     save();
+}
+
+void AppConfig::setM3WallpaperDarkness(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (!qFuzzyCompare(m_m3WallpaperDarkness, v)) {
+        m_m3WallpaperDarkness = v;
+        m_colorsDirty = true;
+        emit m3AttributesChanged();
+        if (m_m3DynamicWallpaperColors) {
+            extractPaletteFromWallpaper();
+        } else {
+            save();
+        }
+    }
+}
+
+void AppConfig::applyAyuGramTheme() {
+    QProcess::execute("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
+    QString themePath = QDir::homePath() + "/.cache/hysett_ayugram.tdesktop-theme";
+    if (QFileInfo::exists(themePath)) {
+        QProcess::startDetached("/bin/bash", {"-c",
+            "env -u QT_SCALE_FACTOR TDESKTOP_USE_PORTAL=1 DESKTOP_APP_I_KNOW_ABOUT_GTK_INCOMPATIBILITY=1 "
+            "DESKTOP_APP_DISABLE_GTK_INTEGRATION=1 QT_QPA_PLATFORMTHEME=kde AyuGram \"" + themePath + "\" >/dev/null 2>&1 &"
+        });
+    }
 }
 
 void AppConfig::setM3SecondaryColor(const QColor &c) {
@@ -1190,10 +1239,10 @@ void AppConfig::resetToDefaultMonochrome() {
     m_m3SurfaceTintStrength = 0.0;
     m_m3ContrastLevel = 0.50;
     m_accentColor = QColor("#ffffff");
-    m_m3SecondaryColor = QColor("#222222");
-    m_m3TertiaryColor = QColor("#2e2e2e");
+    m_m3SecondaryColor = QColor("#121212");
+    m_m3TertiaryColor = QColor("#1c1c1c");
     m_windowBgColor = QColor("#000000");
-    m_cardBgColor = QColor("#0a0a0a");
+    m_cardBgColor = QColor("#040404");
     m_borderGlowCustomColor = QColor("#ffffff");
     m_cursorCustomColor = QColor("#ffffff");
     m_borderGlowColorMode = 0;

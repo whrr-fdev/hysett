@@ -137,6 +137,7 @@ qt_add_qml_module(hysett
         qml/views/TerminalView.qml
         qml/views/CanvasView.qml
         qml/views/LockScreenView.qml
+        qml/views/RecordingView.qml
 )
 
 target_link_libraries(hysett PRIVATE

@@ -48,6 +48,25 @@ class AppConfig : public QObject {
     Q_PROPERTY(int screenDrawBrushStyle READ screenDrawBrushStyle WRITE setScreenDrawBrushStyle NOTIFY screenDrawChanged)
     Q_PROPERTY(qreal screenDrawGlowStrength READ screenDrawGlowStrength WRITE setScreenDrawGlowStrength NOTIFY screenDrawChanged)
     Q_PROPERTY(bool screenDrawShowHint READ screenDrawShowHint WRITE setScreenDrawShowHint NOTIFY screenDrawChanged)
+    Q_PROPERTY(QString recDir READ recDir WRITE setRecDir NOTIFY captureSettingsChanged)
+    Q_PROPERTY(int recFps READ recFps WRITE setRecFps NOTIFY captureSettingsChanged)
+    Q_PROPERTY(QString recCodec READ recCodec WRITE setRecCodec NOTIFY captureSettingsChanged)
+    Q_PROPERTY(QString recQuality READ recQuality WRITE setRecQuality NOTIFY captureSettingsChanged)
+    Q_PROPERTY(QString recContainer READ recContainer WRITE setRecContainer NOTIFY captureSettingsChanged)
+    Q_PROPERTY(QString recEncoder READ recEncoder WRITE setRecEncoder NOTIFY captureSettingsChanged)
+    Q_PROPERTY(int recAudioMode READ recAudioMode WRITE setRecAudioMode NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool recCursor READ recCursor WRITE setRecCursor NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool recCopyClipboard READ recCopyClipboard WRITE setRecCopyClipboard NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool recNotify READ recNotify WRITE setRecNotify NOTIFY captureSettingsChanged)
+    Q_PROPERTY(QString scrDir READ scrDir WRITE setScrDir NOTIFY captureSettingsChanged)
+    Q_PROPERTY(QString scrFormat READ scrFormat WRITE setScrFormat NOTIFY captureSettingsChanged)
+    Q_PROPERTY(int scrJpegQuality READ scrJpegQuality WRITE setScrJpegQuality NOTIFY captureSettingsChanged)
+    Q_PROPERTY(int scrDelay READ scrDelay WRITE setScrDelay NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool scrFreezeRegion READ scrFreezeRegion WRITE setScrFreezeRegion NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool scrCursor READ scrCursor WRITE setScrCursor NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool scrSaveFile READ scrSaveFile WRITE setScrSaveFile NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool scrCopyClipboard READ scrCopyClipboard WRITE setScrCopyClipboard NOTIFY captureSettingsChanged)
+    Q_PROPERTY(bool scrNotify READ scrNotify WRITE setScrNotify NOTIFY captureSettingsChanged)
     Q_PROPERTY(bool webShareRunning READ webShareRunning NOTIFY webShareChanged)
     Q_PROPERTY(QString webShareUrl READ webShareUrl NOTIFY webShareChanged)
     Q_PROPERTY(QString webShareQrPath READ webShareQrPath NOTIFY webShareChanged)
@@ -232,6 +251,49 @@ public:
     void setScreenDrawGlowStrength(qreal v);
     bool screenDrawShowHint() const { return m_screenDrawShowHint; }
     void setScreenDrawShowHint(bool v);
+    QString recDir() const { return m_recDir; }
+    void setRecDir(const QString &v);
+    int recFps() const { return m_recFps; }
+    void setRecFps(int v);
+    QString recCodec() const { return m_recCodec; }
+    void setRecCodec(const QString &v);
+    QString recQuality() const { return m_recQuality; }
+    void setRecQuality(const QString &v);
+    QString recContainer() const { return m_recContainer; }
+    void setRecContainer(const QString &v);
+    QString recEncoder() const { return m_recEncoder; }
+    void setRecEncoder(const QString &v);
+    int recAudioMode() const { return m_recAudioMode; }
+    void setRecAudioMode(int v);
+    bool recCursor() const { return m_recCursor; }
+    void setRecCursor(bool v);
+    bool recCopyClipboard() const { return m_recCopyClipboard; }
+    void setRecCopyClipboard(bool v);
+    bool recNotify() const { return m_recNotify; }
+    void setRecNotify(bool v);
+    QString scrDir() const { return m_scrDir; }
+    void setScrDir(const QString &v);
+    QString scrFormat() const { return m_scrFormat; }
+    void setScrFormat(const QString &v);
+    int scrJpegQuality() const { return m_scrJpegQuality; }
+    void setScrJpegQuality(int v);
+    int scrDelay() const { return m_scrDelay; }
+    void setScrDelay(int v);
+    bool scrFreezeRegion() const { return m_scrFreezeRegion; }
+    void setScrFreezeRegion(bool v);
+    bool scrCursor() const { return m_scrCursor; }
+    void setScrCursor(bool v);
+    bool scrSaveFile() const { return m_scrSaveFile; }
+    void setScrSaveFile(bool v);
+    bool scrCopyClipboard() const { return m_scrCopyClipboard; }
+    void setScrCopyClipboard(bool v);
+    bool scrNotify() const { return m_scrNotify; }
+    void setScrNotify(bool v);
+    Q_INVOKABLE void toggleScreenRecording();
+    Q_INVOKABLE void takeScreenshot(const QString &mode);
+    Q_INVOKABLE void openRecordDir();
+    Q_INVOKABLE void openScreenDir();
+    Q_INVOKABLE void resetCaptureDefaults();
 
     bool firstRunCompleted() const { return m_firstRunCompleted; }
     void setFirstRunCompleted(bool v);
@@ -485,6 +547,7 @@ signals:
     void musicPrivacyModeChanged();
     void streamerModeChanged();
     void screenDrawChanged();
+    void captureSettingsChanged();
     void webShareChanged();
     void stashedFilesChanged();
     void bootloaderChanged();
@@ -519,6 +582,7 @@ private:
     QString configFilePath() const;
     void syncHyprlandLuaHeight(int h) const;
     void initTranslations();
+    void writeCaptureConf() const;
 
     int m_fontSize = 11;
     qreal m_uiScale = 1.0;
@@ -557,6 +621,25 @@ private:
     int m_screenDrawBrushStyle = 1;
     qreal m_screenDrawGlowStrength = 0.90;
     bool m_screenDrawShowHint = true;
+    QString m_recDir;
+    int m_recFps = 60;
+    QString m_recCodec = "h264";
+    QString m_recQuality = "very_high";
+    QString m_recContainer = "mp4";
+    QString m_recEncoder = "gpu_fallback";
+    int m_recAudioMode = 0;
+    bool m_recCursor = true;
+    bool m_recCopyClipboard = true;
+    bool m_recNotify = true;
+    QString m_scrDir;
+    QString m_scrFormat = "png";
+    int m_scrJpegQuality = 92;
+    int m_scrDelay = 0;
+    bool m_scrFreezeRegion = true;
+    bool m_scrCursor = false;
+    bool m_scrSaveFile = true;
+    bool m_scrCopyClipboard = true;
+    bool m_scrNotify = true;
     QString m_lastPhoneScreenMode = "usb";
     bool m_webShareRunning = false;
     QString m_webShareUrl;

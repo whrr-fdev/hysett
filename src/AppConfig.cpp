@@ -523,6 +523,8 @@ void AppConfig::syncHyprlandLuaHeight(int h) const {
 }
 
 void AppConfig::load() {
+    if (m_recDir.isEmpty()) m_recDir = QDir::homePath() + "/Videos/Records";
+    if (m_scrDir.isEmpty()) m_scrDir = QDir::homePath() + "/Pictures/Screens";
     QFile file(configFilePath());
     if (file.open(QIODevice::ReadOnly | QIODevice::Text)) {
         QTextStream in(&file);
@@ -569,6 +571,25 @@ void AppConfig::load() {
             else if (key == "screen_draw_brush_style") m_screenDrawBrushStyle = std::clamp(val.toInt(), 0, 2);
             else if (key == "screen_draw_glow_strength") m_screenDrawGlowStrength = std::clamp(val.toDouble(), 0.0, 1.5);
             else if (key == "screen_draw_show_hint") m_screenDrawShowHint = (val == "1" || val == "true");
+            else if (key == "rec_dir" && !val.isEmpty()) m_recDir = val;
+            else if (key == "rec_fps") m_recFps = std::clamp(val.toInt(), 15, 240);
+            else if (key == "rec_codec" && (val == "h264" || val == "hevc" || val == "av1")) m_recCodec = val;
+            else if (key == "rec_quality" && (val == "medium" || val == "high" || val == "very_high" || val == "ultra")) m_recQuality = val;
+            else if (key == "rec_container" && (val == "mp4" || val == "mkv")) m_recContainer = val;
+            else if (key == "rec_encoder" && (val == "gpu_fallback" || val == "gpu" || val == "cpu")) m_recEncoder = val;
+            else if (key == "rec_audio_mode") m_recAudioMode = std::clamp(val.toInt(), 0, 3);
+            else if (key == "rec_cursor") m_recCursor = (val == "1" || val == "true");
+            else if (key == "rec_copy_clipboard") m_recCopyClipboard = (val == "1" || val == "true");
+            else if (key == "rec_notify") m_recNotify = (val == "1" || val == "true");
+            else if (key == "scr_dir" && !val.isEmpty()) m_scrDir = val;
+            else if (key == "scr_format" && (val == "png" || val == "jpg")) m_scrFormat = val;
+            else if (key == "scr_jpeg_quality") m_scrJpegQuality = std::clamp(val.toInt(), 50, 100);
+            else if (key == "scr_delay") m_scrDelay = std::clamp(val.toInt(), 0, 10);
+            else if (key == "scr_freeze_region") m_scrFreezeRegion = (val == "1" || val == "true");
+            else if (key == "scr_cursor") m_scrCursor = (val == "1" || val == "true");
+            else if (key == "scr_save_file") m_scrSaveFile = (val == "1" || val == "true");
+            else if (key == "scr_copy_clipboard") m_scrCopyClipboard = (val == "1" || val == "true");
+            else if (key == "scr_notify") m_scrNotify = (val == "1" || val == "true");
             else if (key == "first_run_completed") m_firstRunCompleted = (val == "1" || val == "true");
             else if (key == "auto_check_updates_on_boot") m_autoCheckUpdatesOnBoot = (val == "1" || val == "true");
             else if (key == "auto_update_notify") m_autoUpdateNotify = (val == "1" || val == "true");
@@ -616,6 +637,7 @@ void AppConfig::load() {
             else if (key == "slider_thickness") m_sliderThickness = std::clamp(val.toDouble(), 1.2, 6.0);
         }
     }
+    writeCaptureConf();
 }
 
 static QTimer *s_cfgSaveTimer = nullptr;
@@ -672,6 +694,25 @@ void AppConfig::save() {
             extra["screen_draw_brush_style"] = QString::number(m_screenDrawBrushStyle);
             extra["screen_draw_glow_strength"] = QString::number(m_screenDrawGlowStrength, 'f', 2);
             extra["screen_draw_show_hint"] = m_screenDrawShowHint ? "1" : "0";
+            extra["rec_dir"] = m_recDir;
+            extra["rec_fps"] = QString::number(m_recFps);
+            extra["rec_codec"] = m_recCodec;
+            extra["rec_quality"] = m_recQuality;
+            extra["rec_container"] = m_recContainer;
+            extra["rec_encoder"] = m_recEncoder;
+            extra["rec_audio_mode"] = QString::number(m_recAudioMode);
+            extra["rec_cursor"] = m_recCursor ? "1" : "0";
+            extra["rec_copy_clipboard"] = m_recCopyClipboard ? "1" : "0";
+            extra["rec_notify"] = m_recNotify ? "1" : "0";
+            extra["scr_dir"] = m_scrDir;
+            extra["scr_format"] = m_scrFormat;
+            extra["scr_jpeg_quality"] = QString::number(m_scrJpegQuality);
+            extra["scr_delay"] = QString::number(m_scrDelay);
+            extra["scr_freeze_region"] = m_scrFreezeRegion ? "1" : "0";
+            extra["scr_cursor"] = m_scrCursor ? "1" : "0";
+            extra["scr_save_file"] = m_scrSaveFile ? "1" : "0";
+            extra["scr_copy_clipboard"] = m_scrCopyClipboard ? "1" : "0";
+            extra["scr_notify"] = m_scrNotify ? "1" : "0";
             extra["first_run_completed"] = m_firstRunCompleted ? "1" : "0";
             extra["auto_check_updates_on_boot"] = m_autoCheckUpdatesOnBoot ? "1" : "0";
             extra["auto_update_notify"] = m_autoUpdateNotify ? "1" : "0";
@@ -727,6 +768,7 @@ void AppConfig::save() {
                 for (auto it = extra.begin(); it != extra.end(); ++it) out << it.key() << "=" << it.value() << "\n";
                 wfile.close();
             }
+            writeCaptureConf();
             if (m_colorsDirty) {
                 m_colorsDirty = false;
                 QProcess::startDetached("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
@@ -2269,4 +2311,106 @@ void AppConfig::setScreenDrawGlowStrength(qreal v) {
 }
 void AppConfig::setScreenDrawShowHint(bool v) {
     if (m_screenDrawShowHint != v) { m_screenDrawShowHint = v; emit screenDrawChanged(); save(); }
+}
+
+
+void AppConfig::writeCaptureConf() const {
+    QString dirPath = QDir::homePath() + "/.config/hypr/scripts";
+    QDir().mkpath(dirPath);
+    QFile f(dirPath + "/capture.conf");
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) return;
+    auto esc = [](QString s) {
+        s.replace(QChar(34), QString());
+        s.replace(QChar(36), QString());
+        s.replace(QChar(96), QString());
+        return s.trimmed();
+    };
+    QTextStream out(&f);
+    out << "REC_DIR=" << QChar(34) << esc(m_recDir.isEmpty() ? (QDir::homePath() + "/Videos/Records") : m_recDir) << QChar(34) << Qt::endl;
+    out << "REC_FPS=" << QChar(34) << m_recFps << QChar(34) << Qt::endl;
+    out << "REC_CODEC=" << QChar(34) << esc(m_recCodec) << QChar(34) << Qt::endl;
+    out << "REC_QUALITY=" << QChar(34) << esc(m_recQuality) << QChar(34) << Qt::endl;
+    out << "REC_CONTAINER=" << QChar(34) << esc(m_recContainer) << QChar(34) << Qt::endl;
+    out << "REC_ENCODER=" << QChar(34) << esc(m_recEncoder) << QChar(34) << Qt::endl;
+    out << "REC_AUDIO_MODE=" << QChar(34) << m_recAudioMode << QChar(34) << Qt::endl;
+    out << "REC_CURSOR=" << QChar(34) << (m_recCursor ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "REC_COPY_CLIPBOARD=" << QChar(34) << (m_recCopyClipboard ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "REC_NOTIFY=" << QChar(34) << (m_recNotify ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "SCR_DIR=" << QChar(34) << esc(m_scrDir.isEmpty() ? (QDir::homePath() + "/Pictures/Screens") : m_scrDir) << QChar(34) << Qt::endl;
+    out << "SCR_FORMAT=" << QChar(34) << esc(m_scrFormat) << QChar(34) << Qt::endl;
+    out << "SCR_JPEG_QUALITY=" << QChar(34) << m_scrJpegQuality << QChar(34) << Qt::endl;
+    out << "SCR_DELAY=" << QChar(34) << m_scrDelay << QChar(34) << Qt::endl;
+    out << "SCR_FREEZE_REGION=" << QChar(34) << (m_scrFreezeRegion ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "SCR_CURSOR=" << QChar(34) << (m_scrCursor ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "SCR_SAVE_FILE=" << QChar(34) << (m_scrSaveFile ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "SCR_COPY_CLIPBOARD=" << QChar(34) << (m_scrCopyClipboard ? 1 : 0) << QChar(34) << Qt::endl;
+    out << "SCR_NOTIFY=" << QChar(34) << (m_scrNotify ? 1 : 0) << QChar(34) << Qt::endl;
+    f.close();
+}
+
+void AppConfig::setRecDir(const QString &v) { QString t = v.trimmed(); if (!t.isEmpty() && m_recDir != t) { m_recDir = t; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecFps(int v) { int c = std::clamp(v, 15, 240); if (m_recFps != c) { m_recFps = c; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecCodec(const QString &v) { if (m_recCodec != v && (v == "h264" || v == "hevc" || v == "av1")) { m_recCodec = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecQuality(const QString &v) { if (m_recQuality != v && (v == "medium" || v == "high" || v == "very_high" || v == "ultra")) { m_recQuality = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecContainer(const QString &v) { if (m_recContainer != v && (v == "mp4" || v == "mkv")) { m_recContainer = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecEncoder(const QString &v) { if (m_recEncoder != v && (v == "gpu_fallback" || v == "gpu" || v == "cpu")) { m_recEncoder = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecAudioMode(int v) { int c = std::clamp(v, 0, 3); if (m_recAudioMode != c) { m_recAudioMode = c; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecCursor(bool v) { if (m_recCursor != v) { m_recCursor = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecCopyClipboard(bool v) { if (m_recCopyClipboard != v) { m_recCopyClipboard = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setRecNotify(bool v) { if (m_recNotify != v) { m_recNotify = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrDir(const QString &v) { QString t = v.trimmed(); if (!t.isEmpty() && m_scrDir != t) { m_scrDir = t; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrFormat(const QString &v) { if (m_scrFormat != v && (v == "png" || v == "jpg")) { m_scrFormat = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrJpegQuality(int v) { int c = std::clamp(v, 50, 100); if (m_scrJpegQuality != c) { m_scrJpegQuality = c; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrDelay(int v) { int c = std::clamp(v, 0, 10); if (m_scrDelay != c) { m_scrDelay = c; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrFreezeRegion(bool v) { if (m_scrFreezeRegion != v) { m_scrFreezeRegion = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrCursor(bool v) { if (m_scrCursor != v) { m_scrCursor = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrSaveFile(bool v) { if (m_scrSaveFile != v) { m_scrSaveFile = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrCopyClipboard(bool v) { if (m_scrCopyClipboard != v) { m_scrCopyClipboard = v; emit captureSettingsChanged(); save(); } }
+void AppConfig::setScrNotify(bool v) { if (m_scrNotify != v) { m_scrNotify = v; emit captureSettingsChanged(); save(); } }
+
+void AppConfig::toggleScreenRecording() {
+    writeCaptureConf();
+    QProcess::startDetached("/bin/bash", {QDir::homePath() + "/.config/hypr/scripts/record.sh"});
+}
+
+void AppConfig::takeScreenshot(const QString &mode) {
+    writeCaptureConf();
+    QString arg = (mode == "region") ? "region" : "full";
+    QProcess::startDetached("/bin/bash", {QDir::homePath() + "/.config/hypr/scripts/screenshot.sh", arg});
+}
+
+void AppConfig::openRecordDir() {
+    QString p = m_recDir.isEmpty() ? (QDir::homePath() + "/Videos/Records") : m_recDir;
+    QDir().mkpath(p);
+    QProcess::startDetached("xdg-open", {p});
+}
+
+void AppConfig::openScreenDir() {
+    QString p = m_scrDir.isEmpty() ? (QDir::homePath() + "/Pictures/Screens") : m_scrDir;
+    QDir().mkpath(p);
+    QProcess::startDetached("xdg-open", {p});
+}
+
+void AppConfig::resetCaptureDefaults() {
+    m_recDir = QDir::homePath() + "/Videos/Records";
+    m_recFps = 60;
+    m_recCodec = "h264";
+    m_recQuality = "very_high";
+    m_recContainer = "mp4";
+    m_recEncoder = "gpu_fallback";
+    m_recAudioMode = 0;
+    m_recCursor = true;
+    m_recCopyClipboard = true;
+    m_recNotify = true;
+    m_scrDir = QDir::homePath() + "/Pictures/Screens";
+    m_scrFormat = "png";
+    m_scrJpegQuality = 92;
+    m_scrDelay = 0;
+    m_scrFreezeRegion = true;
+    m_scrCursor = false;
+    m_scrSaveFile = true;
+    m_scrCopyClipboard = true;
+    m_scrNotify = true;
+    emit captureSettingsChanged();
+    save();
 }

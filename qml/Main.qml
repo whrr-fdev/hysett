@@ -2120,7 +2120,7 @@ ApplicationWindow {
                             Rectangle { width: 8; height: 8; radius: 4; color: "#ff4d4d"; anchors.verticalCenter: parent.verticalCenter }
                             Text { text: Waybar ? Waybar.recordingTimeText : "00:00"; color: "#ffffff"; font.pixelSize: 10; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
                         }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") }
+                        MouseArea { anchors.fill: parent; acceptedButtons: Qt.LeftButton | Qt.RightButton; cursorShape: Qt.PointingHandCursor; onClicked: (m) => { if (m.button === Qt.RightButton) root.openDrawerWithMode("settings", 36); else if (Waybar) Waybar.runCommand("~/.config/hypr/scripts/record.sh") } }
                     }
                     Item { width: Waybar ? Waybar.spacing : 4; height: 1 }
                 }
@@ -5656,7 +5656,8 @@ ApplicationWindow {
                             "views/BootloaderView.qml",
                             "views/TerminalView.qml",
                             "views/CanvasView.qml",
-                            "views/LockScreenView.qml"
+                            "views/LockScreenView.qml",
+                            "views/RecordingView.qml"
                         ]
 
                         Loader {

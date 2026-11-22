@@ -578,45 +578,5 @@ Window {
             opacity: 0.9
         }
 
-        // Компактная подсказка внизу экрана (исчезает сразу при отпускании бинда)
-        Rectangle {
-            visible: drawWin.inputCaptured && (!Config || Config.screenDrawShowHint)
-            anchors.horizontalCenter: parent.horizontalCenter
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: 24
-            height: 30
-            width: hintRow.implicitWidth + 24
-            radius: (Theme && Theme.isRounded) ? 15 : 0
-            color: Qt.rgba(0.06, 0.06, 0.08, 0.78)
-            border.width: 1
-            border.color: drawWin.currentStrokeColor()
-
-            Row {
-                id: hintRow
-                anchors.centerIn: parent
-                spacing: 8
-                Rectangle {
-                    width: 10; height: 10; radius: 5
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: drawWin.currentStrokeColor()
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: "#ffffff"
-                    font.pixelSize: 11
-                    font.bold: true
-                    text: (drawWin.testBypassRecording ? "Тест кисти" : "Рисование")
-                          + "  " + (Config ? Config.screenDrawLineWidth.toFixed(1) : "5.0") + " px"
-                }
-                Text {
-                    anchors.verticalCenter: parent.verticalCenter
-                    color: "#bbbbbb"
-                    font.pixelSize: 11
-                    text: drawWin.testBypassRecording
-                          ? "·  ЛКМ: кисть  ·  Shift: стрелка  ·  Ctrl: рамка  ·  1-7: цвет  ·  Esc: завершить"
-                          : "·  Shift: стрелка  ·  Ctrl: рамка  ·  ПКМ: отмена  ·  Колесо: размер  ·  1-7: цвет  ·  Esc: выход"
-                }
-            }
-        }
     }
 }

@@ -382,7 +382,8 @@ Rectangle {
                         { title: "Загрузчик", icon: "󰍛", idx: 32 },
                         { title: "Терминал", icon: "󰆍", idx: 33 },
                         { title: "Холст", icon: "󰆾", idx: 34 },
-                        { title: "Блокировка", icon: "󰌾", idx: 35 }
+                        { title: "Блокировка", icon: "󰌾", idx: 35 },
+                        { title: "Запись", icon: "󰑋", idx: 36 }
                     ]
 
                     NavButton {

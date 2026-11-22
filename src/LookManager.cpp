@@ -264,7 +264,7 @@ void LookManager::writeLookLua() {
     QTextStream out(&file);
     auto effOp = [&](qreal raw) {
         if (!m_bgOnlyOpacity) return std::clamp(raw, 0.10, 1.00);
-        return (raw >= 0.99) ? 1.00 : std::clamp(0.45 + raw * 0.55, 0.45, 1.00);
+        return 1.00;
     };
     qreal effAct = effOp(m_activeOpacity);
     qreal effInact = effOp(m_inactiveOpacity);
@@ -325,7 +325,7 @@ void LookManager::writeLookLua() {
         : QString("%1 override %2 override").arg(effAct, 0, 'f', 2).arg(effInact, 0, 'f', 2);
     out << "hl.window_rule({\n";
     out << "    name    = \"hysett-bg-only-opacity\",\n";
-    out << "    match   = { class = \"^(kitty|waybar-btop|neovide|dev\\\\.zed\\\\.Zed|.*zed.*|org\\\\.gnome\\\\..*|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
+    out << "    match   = { class = \"^(kitty|waybar-btop|.*firefox.*|neovide|dev\\\\.zed\\\\.Zed|.*zed.*|org\\\\.gnome\\\\..*|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
     out << "    opacity = \"" << bgOpRule << "\",\n";
     out << "})\n";
     m_ignoreWatchUntilMs = QDateTime::currentMSecsSinceEpoch() + 250;
@@ -339,7 +339,7 @@ void LookManager::setActiveOpacity(qreal v) {
     if (!qFuzzyCompare(m_activeOpacity, v)) {
         pushBackup();
         m_activeOpacity = v;
-        qreal eff = m_bgOnlyOpacity ? ((v >= 0.99) ? 1.00 : std::clamp(0.45 + v * 0.55, 0.45, 1.00)) : std::clamp(v, 0.10, 1.00);
+        qreal eff = m_bgOnlyOpacity ? 1.00 : std::clamp(v, 0.10, 1.00);
         applyKeyword("decoration:active_opacity", QString::number(eff, 'f', 2));
         scheduleSaveAndApply();
         if (m_opacitySyncTimer) m_opacitySyncTimer->start();
@@ -350,7 +350,7 @@ void LookManager::setInactiveOpacity(qreal v) {
     if (!qFuzzyCompare(m_inactiveOpacity, v)) {
         pushBackup();
         m_inactiveOpacity = v;
-        qreal eff = m_bgOnlyOpacity ? ((v >= 0.99) ? 1.00 : std::clamp(0.45 + v * 0.55, 0.45, 1.00)) : std::clamp(v, 0.10, 1.00);
+        qreal eff = m_bgOnlyOpacity ? 1.00 : std::clamp(v, 0.10, 1.00);
         applyKeyword("decoration:inactive_opacity", QString::number(eff, 'f', 2));
         scheduleSaveAndApply();
         if (m_opacitySyncTimer) m_opacitySyncTimer->start();
@@ -359,8 +359,8 @@ void LookManager::setInactiveOpacity(qreal v) {
 void LookManager::setBgOnlyOpacity(bool v) {
     if (m_bgOnlyOpacity != v) {
         m_bgOnlyOpacity = v;
-        qreal effA = m_bgOnlyOpacity ? ((m_activeOpacity >= 0.99) ? 1.00 : std::clamp(0.45 + m_activeOpacity * 0.55, 0.45, 1.00)) : std::clamp(m_activeOpacity, 0.10, 1.00);
-        qreal effI = m_bgOnlyOpacity ? ((m_inactiveOpacity >= 0.99) ? 1.00 : std::clamp(0.45 + m_inactiveOpacity * 0.55, 0.45, 1.00)) : std::clamp(m_inactiveOpacity, 0.10, 1.00);
+        qreal effA = m_bgOnlyOpacity ? 1.00 : std::clamp(m_activeOpacity, 0.10, 1.00);
+        qreal effI = m_bgOnlyOpacity ? 1.00 : std::clamp(m_inactiveOpacity, 0.10, 1.00);
         applyKeyword("decoration:active_opacity", QString::number(effA, 'f', 2));
         applyKeyword("decoration:inactive_opacity", QString::number(effI, 'f', 2));
         scheduleSaveAndApply();

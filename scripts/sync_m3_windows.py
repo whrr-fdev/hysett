@@ -369,6 +369,47 @@ with open(nv_lua_path, "w") as nf:
     vim.g.neovide_opacity = 1.0
     vim.g.neovide_normal_opacity = {nv_op:.2f}
     vim.g.neovide_window_blurred = true
+
+    local function fix_dark_fg_highlights()
+        vim.api.nvim_set_hl(0, "StatusLine", {{ fg = "#cfd5e0", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "StatusLineNC", {{ fg = "#7e8594", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "WinBar", {{ fg = "#cfd5e0", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "WinBarNC", {{ fg = "#7e8594", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "TabLine", {{ fg = "#9aa0ad", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "TabLineFill", {{ fg = "#7e8594", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "TabLineSel", {{ fg = "#ffffff", bg = "#1c1f26", bold = true }})
+        vim.api.nvim_set_hl(0, "ErrorMsg", {{ fg = "#ff7b7b", bg = "NONE", bold = true }})
+        vim.api.nvim_set_hl(0, "WarningMsg", {{ fg = "#ffd166", bg = "NONE", bold = true }})
+        vim.api.nvim_set_hl(0, "MsgArea", {{ fg = "#e6e8ee", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "ModeMsg", {{ fg = "#e6e8ee", bg = "NONE", bold = true }})
+        vim.api.nvim_set_hl(0, "MoreMsg", {{ fg = "#9cd1f2", bg = "NONE", bold = true }})
+        vim.api.nvim_set_hl(0, "NonText", {{ fg = "#5c6370", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "EndOfBuffer", {{ fg = "#3a3f4b", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "LineNr", {{ fg = "#6c7380", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "VertSplit", {{ fg = "#3a3f4b", bg = "NONE" }})
+        vim.api.nvim_set_hl(0, "WinSeparator", {{ fg = "#3a3f4b", bg = "NONE" }})
+        -- Автоподсветка любых остальных групп, у которых fg стал почти чёрным на прозрачном фоне
+        for _, name in ipairs(vim.fn.getcompletion("", "highlight")) do
+            local ok, hl = pcall(vim.api.nvim_get_hl, 0, {{ name = name, link = false }})
+            if ok and hl and hl.fg and not hl.bg and not hl.reverse then
+                local r = math.floor(hl.fg / 65536) % 256
+                local g = math.floor(hl.fg / 256) % 256
+                local b = hl.fg % 256
+                local lum = 0.299 * r + 0.587 * g + 0.114 * b
+                if lum < 68 then
+                    hl.fg = 0xb8beca
+                    pcall(vim.api.nvim_set_hl, 0, name, hl)
+                end
+            end
+        end
+    end
+
+    local grp = vim.api.nvim_create_augroup("HySettNeovideContrast", {{ clear = true }})
+    vim.api.nvim_create_autocmd({{ "VimEnter", "ColorScheme", "BufWinEnter", "WinEnter" }}, {{
+        group = grp,
+        callback = function() vim.schedule(fix_dark_fg_highlights) end,
+    }})
+    vim.schedule(fix_dark_fg_highlights)
 end
 """)
 init_lua_path = os.path.join(nvim_dir, "init.lua")
@@ -533,8 +574,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
 }}
 #main-window, #navigator-toolbox, #TabsToolbar, #titlebar, #TabsToolbar-customization-target,
 #main-window:-moz-window-inactive, #navigator-toolbox:-moz-window-inactive {{
-    background: {surf_hex} !important;
-    background-color: {surf_hex} !important;
+    background: {surf_act_css} !important;
+    background-color: {surf_act_css} !important;
     background-image: none !important;
     color: #eef0f5 !important;
     border: none !important;
@@ -542,8 +583,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
 }}
 #nav-bar, #PersonalToolbar, #PlacesToolbar, .browser-toolbar:not(#TabsToolbar), findbar,
 #nav-bar:-moz-window-inactive, #PersonalToolbar:-moz-window-inactive {{
-    background: {cont_hex} !important;
-    background-color: {cont_hex} !important;
+    background: {cont_act_css} !important;
+    background-color: {cont_act_css} !important;
     background-image: none !important;
     color: #eef0f5 !important;
     border: none !important;
@@ -600,8 +641,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
     box-shadow: none !important;
 }}
 #urlbar-background, #urlbar > .urlbar-background, .searchbar-textbox {{
-    background: {surf_hex} !important;
-    background-color: {surf_hex} !important;
+    background: {surf_act_css} !important;
+    background-color: {surf_act_css} !important;
     background-image: none !important;
     border: 1px solid {high_hex} !important;
     border-radius: {max(ctrl_r, 14) if is_rounded else 0}px !important;
@@ -630,8 +671,8 @@ ff_chrome_css = f"""/* HySett Material Design 3 Clean Firefox UI */
     color: {pri_hex} !important;
 }}
 menupopup, panel, .panel-subview-body, .menupopup-arrowscrollbox {{
-    background: {cont_hex} !important;
-    background-color: {cont_hex} !important;
+    background: {cont_act_css} !important;
+    background-color: {cont_act_css} !important;
     color: #eef0f5 !important;
     border-radius: {card_r}px !important;
     border: 1px solid {high_hex} !important;
@@ -702,6 +743,8 @@ req_prefs = {
     "browser.theme.toolbar-theme": "0",
     "browser.display.background_color": "\"" + surf_hex + "\"",
     "extensions.activeThemeID": "\"default-theme@mozilla.org\"",
+    "widget.wayland.opaque-region.enabled-for-firefox": "false",
+    "browser.tabs.allow_transparent_browser": "true",
 }
 
 ff_profiles = glob.glob(os.path.expanduser("~/.mozilla/firefox/*")) + glob.glob(os.path.expanduser("~/.config/mozilla/firefox/*"))
@@ -988,6 +1031,6 @@ try:
     clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore"))
     naut_wins = [c for c in clients if "nautilus" in str(c.get("class", "")).lower() and int(c.get("workspace", {}).get("id", 0)) > 0]
     if not naut_wins:
-        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; GDK_WAYLAND_DISABLE=ext_background_effect_manager_v1 nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
+        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; GSK_RENDERER=ngl GDK_WAYLAND_DISABLE=ext_background_effect_manager_v1 nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
 except Exception:
     pass

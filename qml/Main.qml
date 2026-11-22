@@ -1040,7 +1040,9 @@ ApplicationWindow {
             Behavior on currentOpacity { enabled: pageController.currentIndex === 14; NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
             property color surfCol: Config ? Config.m3Surface : "#000000"
             property color notifBgCol: (Theme && Theme.isRounded && Config) ? surfCol : (Mako ? Mako.bgColor : surfCol)
-            property real notifAlpha: root.drawerActive ? currentOpacity : (Waybar ? Waybar.barOpacity : 0.88)
+            property real notifAlpha: (Waybar && Waybar.barMatchWindows && Look)
+                                      ? Math.max((Waybar.barBlurEnabled ? 0.025 : 0.0), Look.activeOpacity)
+                                      : (root.drawerActive ? currentOpacity : (Waybar ? Waybar.barOpacity : 0.88))
             property color outCol: Config ? Config.m3Outline : "#2b2b2b"
 
             property vector2d u_resolution: Qt.vector2d(width, height)
@@ -1062,10 +1064,11 @@ ApplicationWindow {
                 return Qt.vector4d(0.46, 0.46, 0.46, 0.80)
             }
             readonly property bool hideBarBorder: (Look && Look.activeBorderOnly) || (Waybar && Waybar.activeWorkspaceWindowCount <= 1)
+            readonly property bool isFloatingSettingsOpen: root.drawerActive && root.drawerMode === "settings" && Config && Config.floatingWindowMode && !root.isDockedToBar
             readonly property vector4d activeWinBorderVec: parseHyprRgbaVec(Look ? Look.activeBorder : "rgba(ffffff38)")
             readonly property vector4d inactiveWinBorderVec: parseHyprRgbaVec(Look ? Look.inactiveBorder : "rgba(767676cc)")
             property vector4d u_outline_color: root.drawerActive
-                                               ? ((Look && Look.activeBorderOnly) ? activeWinBorderVec : inactiveWinBorderVec)
+                                               ? (isFloatingSettingsOpen ? activeWinBorderVec : Qt.vector4d(0, 0, 0, 0.0))
                                                : (hideBarBorder ? Qt.vector4d(0, 0, 0, 0.0) : inactiveWinBorderVec)
             readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : "#ffffff")
             property vector3d u_glow_color: Qt.vector3d(activeWaveTint.r, activeWaveTint.g, activeWaveTint.b)
@@ -5271,9 +5274,16 @@ ApplicationWindow {
                     property int previousIndex: 0
                     property bool inTransition: false
                     property int sidebarW: sidebar.width
+                    property var recentTabs: [0]
 
                     onCurrentIndexChanged: {
                         root.syncWallpapersModeState()
+                        if (currentIndex > 0) {
+                            var arr = recentTabs.filter(function(v) { return v !== currentIndex })
+                            arr.push(currentIndex)
+                            if (arr.length > 8) arr.shift()
+                            recentTabs = arr
+                        }
                     }
 
                     function basePageX(idx) { return idx === 0 ? 0 : sidebarW }
@@ -5647,7 +5657,8 @@ ApplicationWindow {
                             height: pageController.height
                             active: index === 0 || (root.drawerActive && root.drawerMode === "settings" && (
                                     index === pageController.currentIndex ||
-                                    (pageController.inTransition && index === pageController.previousIndex)))
+                                    (pageController.inTransition && index === pageController.previousIndex) ||
+                                    pageController.recentTabs.indexOf(index) !== -1))
                             source: modelData
                             visible: index === 0
                             opacity: index === 0 ? 1.0 : 0.0

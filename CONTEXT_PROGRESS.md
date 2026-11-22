@@ -522,3 +522,10 @@
 - В `LookManager`, `LookSettingsView.qml`, `Main.qml` и `sync_m3_windows.py` добавлен переключатель `activeBorderOnly` (по умолчанию вкл.): убирает обводку неактивных окон (`rgba(00000000)`) и панели задач, оставляя деликатную границу (`rgba(ffffff38)` / `4c`) только у активного окна и открытого окна `HySett`.
 - Исправлен зелёный диалог выбора файлов (`xdg-desktop-portal-kde`): добавлена синхронизация `~/.local/share/color-schemes/HySettM3.colors`.
 - В `hysett_neovide.lua` выставлены `neovide_opacity = 1.0` + `neovide_normal_opacity = alpha` (устранено почернение шрифта `ErrorMsg`), в `kitty/hysett-m3.conf` поднят `color8` до `#7c8290` для читаемости подсказок `fish`, а минимальный порог `active_opacity` для прочих окон (включая `AyuGram`) снижен до `0.45`.
+
+## Выполнено в Шаге 58 (Блюр уведомлений, 100% чёткий текст в Firefox/AyuGram, LRU-кэш вкладок, Границы плавающего окна и Neovide)
+- В `merged_shell.frag` и `Main.qml` убран хардкод непрозрачности `0.88` у уведомлений — теперь уведомления прозрачные с блюром как окна и панель.
+- В `LookManager` при `bgOnlyOpacity = true` Hyprland держит `active_opacity/inactive_opacity = 1.00` (текст в Firefox и AyuGram больше не становится прозрачным), а интерфейс Firefox (`userChrome.css`/`userContent.css`) переведён на нативную `rgba`-прозрачность фона с блюром.
+- В `Main.qml` (`pageController`/`pageLoader`) добавлен кэш `recentTabs` (8 последних вкладок на время открытой шторки) для устранения фризов переключения.
+- В `merged_shell.frag` и `Main.qml` настроены границы: в плавающем режиме обводка активного окна рисуется только на самом окне настроек (без обводки на панели), при открытии из панели обводки нет нигде.
+- Для `Nautilus` добавлен `GSK_RENDERER=ngl` (убирает микростаттеры прокрутки GTK 4.24 на NVIDIA), а в `hysett_neovide.lua` добавлен автофикс светлого текста для всех групп `StatusLine`/`StatusLineNC`/`ErrorMsg`/тёмных `fg` после `TrueZen`.

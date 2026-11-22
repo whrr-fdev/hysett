@@ -284,9 +284,11 @@ void main() {
     float popupOrSettingsAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
     float effAlpha = mix(barBaseAlpha, popupOrSettingsAlpha, drwBlend);
     vec4 shellFill = vec4(darkBgRgb, effAlpha);
-    vec4 activeFill = mix(shellFill, vec4(u_notif_color.rgb * 0.50, max(0.88, u_notif_color.a)), notifBlend);
+    vec4 activeFill = mix(shellFill, vec4(u_notif_color.rgb * 0.50, max(0.025, u_notif_color.a)), notifBlend);
 
-    float borderAmt = outlineMask * u_outline_color.a;
+    float isFloatingDrw = step(1.0, u_drawer_rect.z) * step(1.0, u_drawer_rect.w) * (1.0 - smoothstep(0.05, 0.35, barMergeProx));
+    float borderTargetMask = mix(1.0, drwBlend, isFloatingDrw);
+    float borderAmt = outlineMask * u_outline_color.a * borderTargetMask * (1.0 - notifBlend);
     float baseAlpha = clamp(borderAmt + activeFill.a * (1.0 - borderAmt), 0.0, 1.0);
     vec3 premulCombined = u_outline_color.rgb * borderAmt + activeFill.rgb * activeFill.a * (1.0 - borderAmt);
     vec3 baseRgb = (baseAlpha > 0.001) ? (premulCombined / baseAlpha) : activeFill.rgb;

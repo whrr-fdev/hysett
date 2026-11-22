@@ -325,6 +325,29 @@ ScrollView {
                 }
             }
 
+            // 14b. Граница только у активного окна (убрать у неактивных и панели)
+            SettingRow {
+                title: "Граница только у активного окна:"
+                onResetClicked: Look.activeBorderOnly = true
+                controlItem: RowLayout {
+                    anchors.fill: parent
+                    spacing: 10
+                    StyledSwitch {
+                        checked: Look.activeBorderOnly
+                        onToggled: Look.activeBorderOnly = checked
+                    }
+                    Text {
+                        text: Look.activeBorderOnly
+                              ? "Без обводки у неактивных окон и панели, мягкая граница у активного"
+                              : "Обводка у всех окон и у панели задач"
+                        color: Look.activeBorderOnly ? (Config ? Config.m3Primary : "#69f0ae") : "#888888"
+                        font.pixelSize: Config.fontSize - 1
+                        Layout.fillWidth: true
+                        elide: Text.ElideRight
+                    }
+                }
+            }
+
             // 15. Анимации
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Анимации:")) : "Анимации:"

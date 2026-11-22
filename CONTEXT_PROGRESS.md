@@ -516,3 +516,9 @@
 - В `merged_shell.frag`, `Main.qml` и `LookManager` исправлено двойное затемнение 1px рамки (честный premultiplied alpha 1-в-1 с `Look.inactiveBorder`), обводка применена к панели (при >=2 окнах, при 0 и 1 окне скрывается) и к окну настроек `HySett`, добавлен `QFileSystemWatcher` на `look.lua`.
 - Убрана неработающая кнопка применения темы AyuGram из `AppSettingsView.qml`.
 - Исправлена прозрачность Zed (`experimental.theme_overrides` вместо `theme_overrides["*"]`) и скорректирован минимум `0.02` + `EndOfBuffer` для Neovide.
+
+## Выполнено в Шаге 57 (Плавный блюр Nautilus без лагов, Граница только у активного окна, Фикс зелёного диалога KDE, Neovide и Kitty color8)
+- Удалён тормозящий CSS `backdrop-filter: blur(20px)` из `gtk-4.0/gtk.css` и подключён `GDK_WAYLAND_DISABLE=ext_background_effect_manager_v1` в `hyprland.lua` и сервисе `nautilus` (плавная прокрутка + нативный GPU-блюр Hyprland).
+- В `LookManager`, `LookSettingsView.qml`, `Main.qml` и `sync_m3_windows.py` добавлен переключатель `activeBorderOnly` (по умолчанию вкл.): убирает обводку неактивных окон (`rgba(00000000)`) и панели задач, оставляя деликатную границу (`rgba(ffffff38)` / `4c`) только у активного окна и открытого окна `HySett`.
+- Исправлен зелёный диалог выбора файлов (`xdg-desktop-portal-kde`): добавлена синхронизация `~/.local/share/color-schemes/HySettM3.colors`.
+- В `hysett_neovide.lua` выставлены `neovide_opacity = 1.0` + `neovide_normal_opacity = alpha` (устранено почернение шрифта `ErrorMsg`), в `kitty/hysett-m3.conf` поднят `color8` до `#7c8290` для читаемости подсказок `fish`, а минимальный порог `active_opacity` для прочих окон (включая `AyuGram`) снижен до `0.45`.

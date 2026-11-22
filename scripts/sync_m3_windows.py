@@ -23,10 +23,13 @@ bg_only_opacity = True
 raw_act_op = 0.85
 raw_inact_op = 0.75
 border_sync_on = True
+active_border_only = True
 if os.path.exists(look_lua_path):
     l_txt = open(look_lua_path, errors="ignore").read()
     if "border_wallpaper_sync = false" in l_txt:
         border_sync_on = False
+    if "active_border_only = false" in l_txt:
+        active_border_only = False
     if "bg_only_opacity = false" in l_txt:
         bg_only_opacity = False
     m = re.search(r"raw_active_opacity\s*=\s*([0-9.]+)", l_txt) or re.search(r"active_opacity\s*=\s*([0-9.]+)", l_txt)
@@ -169,7 +172,7 @@ inactive_tab_background {cont_hex}
 inactive_tab_foreground #b8bece
 tab_bar_background {surf_hex}
 color0 {surf_hex}
-color8 {high_hex}
+color8 {"#7c8290" if is_pure_black else rgb_to_hex(*adjust_hsl(sec, min_l=0.48, max_l=0.60))}
 color1 #ff6b6b
 color9 #ff6b6b
 color2 #69f0ae
@@ -349,30 +352,23 @@ popover > contents, menu, .menu, tooltip, dialog {{
     color: #f2f4f8 !important;
 }}
 """
-gtk4_blur_rule = ""
-if bg_only_opacity and win_act_alpha < 0.99:
-    gtk4_blur_rule = "\n/* GTK 4.24+ ext-background-effect-v1: запросить системный блюр Hyprland */\nwindow, .background {\n    backdrop-filter: blur(20px);\n}\n"
-
 for gver in ("gtk-3.0", "gtk-4.0"):
     gdir = os.path.join(home, ".config", gver)
     os.makedirs(gdir, exist_ok=True)
     with open(os.path.join(gdir, "gtk.css"), "w") as f:
-        f.write(gtk_css + (gtk4_blur_rule if gver == "gtk-4.0" else ""))
+        f.write(gtk_css)
 
 
 # 3b. Neovide (прозрачность только фона, текст 100% чёткий)
 nvim_dir = os.path.join(home, ".config/nvim")
 os.makedirs(nvim_dir, exist_ok=True)
-nv_op = max(0.02, win_act_alpha) if bg_only_opacity else 1.0
+nv_op = win_act_alpha if bg_only_opacity else 1.0
 nv_lua_path = os.path.join(nvim_dir, "hysett_neovide.lua")
 with open(nv_lua_path, "w") as nf:
     nf.write(f"""if vim.g.neovide then
-    vim.g.neovide_opacity = {nv_op:.2f}
+    vim.g.neovide_opacity = 1.0
     vim.g.neovide_normal_opacity = {nv_op:.2f}
     vim.g.neovide_window_blurred = true
-    vim.g.neovide_text_gamma = 0.0
-    vim.g.neovide_text_contrast = 0.5
-    vim.api.nvim_set_hl(0, "EndOfBuffer", {{ fg = "NONE", bg = "NONE" }})
 end
 """)
 init_lua_path = os.path.join(nvim_dir, "init.lua")
@@ -439,8 +435,12 @@ for tname in ("HySett-M3-A", "HySett-M3-B"):
 if border_sync_on:
     pri_bare = pri_hex.lstrip("#")
     inact_bare = inact_border_hex.lstrip("#")
-    act_rgba = "rgba(" + pri_bare + "ee)"
-    inact_rgba = "rgba(" + inact_bare + "cc)"
+    if active_border_only:
+        act_rgba = "rgba(" + pri_bare + ("38)" if is_pure_black else "4c)")
+        inact_rgba = "rgba(00000000)"
+    else:
+        act_rgba = "rgba(" + pri_bare + "ee)"
+        inact_rgba = "rgba(" + inact_bare + "cc)"
     lua_border = "hl.config({ general = { col = { active_border = \"" + act_rgba + "\", inactive_border = \"" + inact_rgba + "\" } } })"
     subprocess.run(["hyprctl", "eval", lua_border], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if os.path.exists(look_lua_path):
@@ -779,6 +779,10 @@ shadeSortColumn=true
 {kfile_tail}"""
 with open(kde_path, "w") as kf:
     kf.write(kde_content)
+cs_dir = os.path.join(home, ".local/share/color-schemes")
+os.makedirs(cs_dir, exist_ok=True)
+with open(os.path.join(cs_dir, "HySettM3.colors"), "w") as csf:
+    csf.write(kde_content.split("[KFileDialog Settings]")[0].strip() + "\n")
 
 # 8. Пакет темы для AyuGram (полная 927-строчная база night.tdesktop-theme + HSL-перекраска + colors.tdesktop-theme)
 def make_solid_png(r, g, b, w=64, h=64):
@@ -984,6 +988,6 @@ try:
     clients = json.loads(subprocess.check_output(["hyprctl", "clients", "-j"], stderr=subprocess.DEVNULL).decode("utf-8", errors="ignore"))
     naut_wins = [c for c in clients if "nautilus" in str(c.get("class", "")).lower() and int(c.get("workspace", {}).get("id", 0)) > 0]
     if not naut_wins:
-        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
+        subprocess.Popen("pkill -9 -x nautilus 2>/dev/null; sleep 0.08; GDK_WAYLAND_DISABLE=ext_background_effect_manager_v1 nautilus --gapplication-service >/dev/null 2>&1 &", shell=True)
 except Exception:
     pass

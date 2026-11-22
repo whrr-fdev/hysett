@@ -281,6 +281,7 @@ void WaybarManager::loadState() {
         file.close();
     }
     saveState(false);
+    QTimer::singleShot(500, this, [this]() { applyBarBlurRule(false, false); });
 }
 
 void WaybarManager::saveState(bool updatePosition) {
@@ -3878,15 +3879,6 @@ void WaybarManager::setBarBlur(qreal v) {
         m_barBlur = v;
         saveState(false);
         applyBarBlurRule(false, false);
-        if (m_barBlurEnabled && v > 0.01) {
-            int bPasses = (v <= 0.45) ? 1 : (v <= 0.80 ? 2 : 3);
-            int bSize = (v <= 0.45)
-                ? qMax(1, qRound(1.0 + (v / 0.45) * 5.0))
-                : (v <= 0.80 ? qMax(2, qRound(2.0 + ((v - 0.45) / 0.35) * 5.0))
-                             : qMax(4, qRound(4.0 + ((v - 0.80) / 0.20) * 5.0)));
-            QString cmd = QString("hl.config({ decoration = { blur = { enabled = true, size = %1, passes = %2 } } })").arg(bSize).arg(bPasses);
-            QProcess::startDetached("hyprctl", {"eval", cmd});
-        }
     }
 }
 

@@ -499,3 +499,8 @@
 - Осветлён цвет неактивной рамки окон (`#767676cc` в монохроме и `min_l=0.38` в цветном режиме).
 - Исправлен блюр проводника (Nautilus / GTK4): добавлены ветки `decoration:blur:*` в `LookManager::applyKeyword()`, правило `0.999 override` для обхода `opaque_region` GTK4 (`org.gnome.*`), восстановление `Look.applyCurrentBlur()` при закрытии шторки HySett.
 - В `WaybarManager` и `WaybarSettingsView.qml` добавлены отдельные настройки блюра панели задач (вкл/выкл, интенсивность, X-Ray).
+
+## Выполнено в Шаге 54 (Полная 927-строчная тема AyuGram, Блюр проводника GTK4 0.025 и Независимый блюр панели)
+- В `sync_m3_windows.py` переведена генерация темы AyuGram на полную официальную базу `scripts/ayugram_night_base.tdesktop-theme` (927 строк) с HSL-перекраской всех фонов/акцентов и упаковкой как `colors.tdesktop-theme` внутри zip.
+- Для проводника Nautilus (GTK4) установлена минимальная альфа фона `0.025` (чтобы Hyprland не пропускал блюр на `alpha == 0.000` как CSD-тени) и `ignore_opacity = true` в `LookManager`.
+- В `WaybarManager` и `WaybarSettingsView.qml` блок блюра панели задач перенесён вниз под ползунки прозрачности, полностью отвязан от глобального блюра окон и включается постоянно при закрытых настройках.

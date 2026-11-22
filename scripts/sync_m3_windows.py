@@ -244,10 +244,12 @@ if os.path.exists(btop_conf_path):
         pass
 
 # 3. GTK 3 / GTK 4 (прозрачный фон с 100% чётким текстом и иконками)
-surf_act_css = rgb_to_rgba_css(surf_rgb, win_act_alpha)
-surf_inact_css = rgb_to_rgba_css(surf_rgb, win_inact_alpha)
-cont_act_a = min(1.0, win_act_alpha + (0.04 if win_act_alpha > 0.01 else 0.0))
-cont_inact_a = min(1.0, win_inact_alpha + (0.03 if win_inact_alpha > 0.01 else 0.0))
+gtk_act_a = max(0.025, win_act_alpha) if bg_only_opacity else 1.0
+gtk_inact_a = max(0.025, win_inact_alpha) if bg_only_opacity else 1.0
+surf_act_css = rgb_to_rgba_css(surf_rgb, gtk_act_a)
+surf_inact_css = rgb_to_rgba_css(surf_rgb, gtk_inact_a)
+cont_act_a = min(1.0, gtk_act_a + (0.035 if win_act_alpha > 0.02 else 0.0))
+cont_inact_a = min(1.0, gtk_inact_a + (0.025 if win_inact_alpha > 0.02 else 0.0))
 cont_act_css = rgb_to_rgba_css(cont_rgb, cont_act_a)
 cont_inact_css = rgb_to_rgba_css(cont_rgb, cont_inact_a)
 pop_css = rgb_to_rgba_css(cont_rgb, max(0.88, win_act_alpha))
@@ -707,317 +709,126 @@ shadeSortColumn=true
 with open(kde_path, "w") as kf:
     kf.write(kde_content)
 
-# 8. Пакет темы для AyuGram (140+ ключей, чисто чёрный #000000 AMOLED без серых пятен + уникальное имя файла)
+# 8. Пакет темы для AyuGram (полная 927-строчная база night.tdesktop-theme + HSL-перекраска + colors.tdesktop-theme)
 def make_solid_png(r, g, b, w=64, h=64):
     raw = b"".join(b"\x00" + bytes([max(0,min(255,int(r))), max(0,min(255,int(g))), max(0,min(255,int(b)))]) * w for _ in range(h))
     def chunk(tag, data):
         return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xffffffff)
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
 
-ayu_msg_in = "#080808" if is_pure_black else ayu_cont_hex
-ayu_sep = "#111111" if is_pure_black else ayu_high_hex
+base_night_path = os.path.join(home, "hysett/scripts/ayugram_night_base.tdesktop-theme")
+base_txt = open(base_night_path, encoding="utf-8", errors="ignore").read() if os.path.exists(base_night_path) else ""
+pri_h, pri_l, pri_s = colorsys.rgb_to_hls(ayu_pri_rgb[0]/255.0, ayu_pri_rgb[1]/255.0, ayu_pri_rgb[2]/255.0)
 
-ayu_palette = f"""windowBg: {ayu_surf_hex};
+def remap_tdesktop_color(m):
+    hex_str = m.group(1)
+    alpha_part = hex_str[6:] if len(hex_str) == 8 else ""
+    r, g, b = int(hex_str[0:2], 16), int(hex_str[2:4], 16), int(hex_str[4:6], 16)
+    h, l, s = colorsys.rgb_to_hls(r/255.0, g/255.0, b/255.0)
+    is_tg_blue = (0.49 <= h <= 0.68)
+
+    if l <= 0.28 and (is_tg_blue or s < 0.20):
+        if is_pure_black:
+            if l <= 0.145:
+                nr, ng, nb = (0, 0, 0)
+            elif l <= 0.205:
+                v = int(6 + (l - 0.145) / 0.06 * 8)
+                nr, ng, nb = (v, v, v)
+            else:
+                v = int(14 + (l - 0.205) / 0.075 * 10)
+                nr, ng, nb = (v, v, v)
+        else:
+            if l <= 0.145:
+                nr, ng, nb = ayu_surf_rgb
+            elif l <= 0.205:
+                nr, ng, nb = blend(ayu_surf_rgb, ayu_cont_rgb, (l - 0.145) / 0.06)
+            else:
+                target = ayu_out_rgb if s > 0.30 else ayu_high_rgb
+                nr, ng, nb = blend(ayu_cont_rgb, target, (l - 0.205) / 0.075)
+        return rgb_to_hex(nr, ng, nb) + alpha_part
+
+    if is_tg_blue and s >= 0.26:
+        if is_pure_black:
+            if l < 0.36:
+                v = int(18 + (l / 0.36) * 20)
+                nr, ng, nb = (v, v, v)
+            else:
+                v = int(190 + min(1.0, (l - 0.36) / 0.40) * 65)
+                nr, ng, nb = (v, v, v)
+        else:
+            if l < 0.36:
+                nr, ng, nb = blend(ayu_high_rgb, ayu_pri_rgb, 0.32)
+            else:
+                nl = max(0.38, min(0.84, pri_l + (l - 0.56) * 0.45))
+                rr, gg, bb = colorsys.hls_to_rgb(pri_h, nl, max(0.32, pri_s))
+                nr, ng, nb = (rr*255.0, gg*255.0, bb*255.0)
+        return rgb_to_hex(nr, ng, nb) + alpha_part
+
+    if is_tg_blue and 0.06 <= s < 0.26 and l > 0.28:
+        if is_pure_black:
+            v = int(l * 255.0)
+            nr, ng, nb = (v, v, v)
+        else:
+            rr, gg, bb = colorsys.hls_to_rgb(pri_h, l, min(0.16, s * 0.8))
+            nr, ng, nb = (rr*255.0, gg*255.0, bb*255.0)
+        return rgb_to_hex(nr, ng, nb) + alpha_part
+
+    return "#" + hex_str
+
+remapped_base = re.sub(r"#([0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?)", remap_tdesktop_color, base_txt)
+ayu_msg_in = "#080808" if is_pure_black else ayu_cont_hex
+ayu_overrides = f"""
+// HySett Overrides
+windowBg: {ayu_surf_hex};
 windowFg: #f0f2f6;
 windowBgOver: {ayu_high_hex};
 windowBgRipple: {ayu_high_hex};
-windowFgOver: #ffffff;
-windowSubTextFg: #8a909e;
-windowSubTextFgOver: #bfc5d2;
-windowBoldFg: #ffffff;
-windowBoldFgOver: #ffffff;
 windowBgActive: {ayu_pri_hex};
 windowFgActive: {ayu_on_pri_hex};
 windowActiveTextFg: {ayu_pri_hex};
-windowShadowFg: #000000;
-windowShadowFgFallback: #000000;
-shadowFg: #00000088;
-slideFadeOutBg: #00000066;
-slideFadeOutShadowFg: #000000;
-imageBg: #000000;
-imageBgTransparent: #000000;
 activeButtonBg: {ayu_pri_hex};
 activeButtonBgOver: {ayu_pri_hex};
-activeButtonBgRipple: {ayu_high_hex};
 activeButtonFg: {ayu_on_pri_hex};
 activeButtonFgOver: {ayu_on_pri_hex};
-activeButtonSecondaryFg: {ayu_on_pri_hex};
-activeButtonSecondaryFgOver: {ayu_on_pri_hex};
-activeLineFg: {ayu_pri_hex};
-activeLineFgError: #ff6b6b;
-lightButtonBg: {ayu_cont_hex};
-lightButtonBgOver: {ayu_high_hex};
-lightButtonBgRipple: {ayu_high_hex};
-lightButtonFg: {ayu_pri_hex};
-lightButtonFgOver: {ayu_pri_hex};
-attentionButtonFg: #ff6b6b;
-attentionButtonFgOver: #ff8585;
-attentionButtonBgOver: #ff6b6b22;
-attentionButtonBgRipple: #ff6b6b33;
-outlineButtonBg: {ayu_surf_hex};
-outlineButtonBgOver: {ayu_high_hex};
-outlineButtonOutlineFg: {ayu_pri_hex};
-outlineButtonBgRipple: {ayu_high_hex};
-menuBg: {ayu_surf_hex};
-menuBgOver: {ayu_high_hex};
-menuBgRipple: {ayu_high_hex};
-menuIconFg: #9aa0ad;
-menuIconFgOver: {ayu_pri_hex};
-menuSubmenuArrowFg: #8b919e;
-menuFgDisabled: #4c515c;
-menuSeparatorFg: {ayu_sep};
-scrollBarBg: {ayu_pri_hex}44;
-scrollBarBgOver: {ayu_pri_hex}88;
-scrollBg: #00000000;
-scrollBgOver: {ayu_high_hex}55;
-smallCloseIconFg: #8b919e;
-smallCloseIconFgOver: #ffffff;
-radialFg: {ayu_pri_hex};
-radialBg: #00000099;
-placeholderFg: #6c7280;
-placeholderFgActive: #8b919e;
-inputBorderFg: {ayu_sep};
-filterInputBorderFg: {ayu_pri_hex};
-filterInputActiveBg: {ayu_high_hex};
-filterInputInactiveBg: {ayu_cont_hex};
-checkboxFg: #6c7280;
-sliderBgInactive: {ayu_sep};
-sliderBgActive: {ayu_pri_hex};
-tooltipBg: {ayu_surf_hex};
-tooltipFg: #eef0f5;
-tooltipBorderFg: {ayu_sep};
-titleShadow: #00000000;
-titleBg: {ayu_surf_hex};
-titleBgActive: {ayu_surf_hex};
-titleButtonBg: {ayu_surf_hex};
-titleButtonFg: #9aa0ad;
-titleButtonBgOver: {ayu_high_hex};
-titleButtonFgOver: #ffffff;
-titleButtonBgActive: {ayu_surf_hex};
-titleButtonFgActive: #eef0f5;
-titleButtonBgActiveOver: {ayu_high_hex};
-titleButtonFgActiveOver: #ffffff;
-titleButtonCloseBg: {ayu_surf_hex};
-titleButtonCloseFg: #9aa0ad;
-titleButtonCloseBgOver: #e81123;
-titleButtonCloseFgOver: #ffffff;
-titleButtonCloseBgActive: {ayu_surf_hex};
-titleButtonCloseFgActive: #eef0f5;
-titleButtonCloseBgActiveOver: #e81123;
-titleButtonCloseFgActiveOver: #ffffff;
-titleFg: #8b919e;
-titleFgActive: #ffffff;
-trayCounterBg: {ayu_pri_hex};
-trayCounterBgMute: #555b66;
-trayCounterFg: {ayu_on_pri_hex};
-trayCounterBgMacInvert: {ayu_pri_hex};
-trayCounterFgMacInvert: {ayu_on_pri_hex};
-layerBg: #000000aa;
-cancelIconFg: #8b919e;
-cancelIconFgOver: #ffffff;
-boxBg: {ayu_surf_hex};
-boxTextFg: #f0f2f6;
-boxTextFgGood: #69f0ae;
-boxTextFgError: #ff6b6b;
-boxTitleFg: #ffffff;
-boxSearchBg: {ayu_surf_hex};
-boxTitleAdditionalFg: #8b919e;
-boxTitleCloseFg: #8b919e;
-boxTitleCloseFgOver: #ffffff;
-membersAboutLimitFg: #8b919e;
-contactsBg: {ayu_surf_hex};
-contactsBgOver: {ayu_high_hex};
-contactsNameFg: #f0f2f6;
-contactsStatusFg: #8b919e;
-contactsStatusFgOver: #bfc5d2;
-contactsStatusFgOnline: {ayu_pri_hex};
-photoCropFadeBg: #000000bb;
-photoCropPointFg: #ffffffcc;
-callArrowInFg: #69f0ae;
-callArrowInMissedFg: #ff6b6b;
-callArrowOutFg: {ayu_pri_hex};
-introBg: {ayu_surf_hex};
-introTitleFg: #ffffff;
-introDescriptionFg: #8b919e;
-introErrorFg: #ff6b6b;
-introCoverTopBg: {ayu_surf_hex};
-introCoverBottomBg: {ayu_surf_hex};
-dialogsMenuIconFg: #9aa0ad;
-dialogsMenuIconFgOver: #ffffff;
 dialogsBg: {ayu_surf_hex};
-dialogsNameFg: #f0f2f6;
-dialogsChatIconFg: {ayu_pri_hex};
-dialogsDateFg: #6c7280;
-dialogsTextFg: #8b919e;
-dialogsTextFgService: {ayu_pri_hex};
-dialogsDraftFg: #ff6b6b;
-dialogsVerifiedIconBg: {ayu_pri_hex};
-dialogsVerifiedIconFg: {ayu_on_pri_hex};
-dialogsSendingIconFg: #8b919e;
-dialogsSentIconFg: {ayu_pri_hex};
-dialogsUnreadBg: {ayu_pri_hex};
-dialogsUnreadBgMuted: {ayu_high_hex};
-dialogsUnreadFg: {ayu_on_pri_hex};
-dialogsOnlineBadgeFg: {ayu_pri_hex};
+dialogsPinnedBg: {ayu_surf_hex};
 dialogsBgOver: {ayu_high_hex};
-dialogsNameFgOver: #ffffff;
-dialogsChatIconFgOver: {ayu_pri_hex};
-dialogsDateFgOver: #9aa0ad;
-dialogsTextFgOver: #bfc5d2;
-dialogsTextFgServiceOver: {ayu_pri_hex};
-dialogsDraftFgOver: #ff6b6b;
-dialogsVerifiedIconBgOver: {ayu_pri_hex};
-dialogsVerifiedIconFgOver: {ayu_on_pri_hex};
-dialogsSendingIconFgOver: #9aa0ad;
-dialogsSentIconFgOver: {ayu_pri_hex};
-dialogsUnreadBgOver: {ayu_pri_hex};
-dialogsUnreadBgMutedOver: {ayu_high_hex};
-dialogsUnreadFgOver: {ayu_on_pri_hex};
 dialogsBgActive: {ayu_high_hex};
 dialogsNameFgActive: {ayu_pri_hex};
-dialogsChatIconFgActive: {ayu_pri_hex};
-dialogsDateFgActive: #bfc5d2;
-dialogsTextFgActive: #f0f2f6;
-dialogsTextFgServiceActive: {ayu_pri_hex};
-dialogsDraftFgActive: #ff6b6b;
-dialogsVerifiedIconBgActive: {ayu_pri_hex};
-dialogsVerifiedIconFgActive: {ayu_on_pri_hex};
-dialogsSendingIconFgActive: #bfc5d2;
-dialogsSentIconFgActive: {ayu_pri_hex};
+dialogsUnreadBg: {ayu_pri_hex};
+dialogsUnreadFg: {ayu_on_pri_hex};
 dialogsUnreadBgActive: {ayu_pri_hex};
-dialogsUnreadBgMutedActive: {ayu_high_hex};
 dialogsUnreadFgActive: {ayu_on_pri_hex};
-dialogsRippleBg: {ayu_high_hex};
-dialogsRippleBgActive: {ayu_high_hex};
-dialogsForwardBg: {ayu_surf_hex};
-dialogsForwardFg: {ayu_pri_hex};
-searchedBarBg: {ayu_surf_hex};
-searchedBarFg: #8b919e;
-topBarBg: {ayu_surf_hex};
-emojiPanBg: {ayu_surf_hex};
-emojiPanCategories: {ayu_surf_hex};
-emojiPanHeaderFg: #8b919e;
-emojiPanHeaderBg: {ayu_surf_hex}ee;
-stickerPanDeleteBg: #000000cc;
-stickerPanDeleteFg: #ffffff;
-stickerPreviewBg: #000000cc;
-historyTextInFg: #f0f2f6;
-historyTextInFgSelected: #ffffff;
-historyTextOutFg: #f0f2f6;
-historyTextOutFgSelected: #ffffff;
-historyLinkInFg: {ayu_pri_hex};
-historyLinkInFgSelected: {ayu_pri_hex};
-historyLinkOutFg: {ayu_pri_hex};
-historyLinkOutFgSelected: {ayu_pri_hex};
-historyFileNameInFg: #f0f2f6;
-historyFileNameInFgSelected: #ffffff;
-historyFileNameOutFg: #f0f2f6;
-historyFileNameOutFgSelected: #ffffff;
-historyOutIconFg: {ayu_pri_hex};
-historyOutIconFgSelected: {ayu_pri_hex};
-historyIconFgInverted: #ffffff;
-historySendingOutIconFg: #8b919e;
-historySendingInIconFg: #8b919e;
-historySendingInvertedIconFg: #ffffffcc;
-historyUnreadBarBg: {ayu_high_hex};
-historyUnreadBarBorder: {ayu_sep};
-historyUnreadBarFg: {ayu_pri_hex};
-historyForwardChooseBg: #000000aa;
-historyForwardChooseFg: #ffffff;
-historyPeer1NameFg: {ayu_pri_hex};
-historyPeer2NameFg: {ayu_pri_hex};
-historyPeer4NameFg: {ayu_pri_hex};
-historyPeer5NameFg: {ayu_pri_hex};
-historyPeer6NameFg: {ayu_pri_hex};
-historyPeer7NameFg: {ayu_pri_hex};
-historyPeer8NameFg: {ayu_pri_hex};
-historyScrollBarBg: {ayu_pri_hex}44;
-historyScrollBarBgOver: {ayu_pri_hex}88;
-historyScrollBg: #00000000;
-historyScrollBgOver: {ayu_high_hex}44;
-msgInBg: {ayu_msg_in};
-msgInBgSelected: {ayu_high_hex};
-msgOutBg: {ayu_out_hex};
-msgOutBgSelected: {ayu_pri_hex}33;
-msgSelectOverlay: {ayu_pri_hex}22;
-msgStickerOverlay: {ayu_pri_hex}44;
-msgInServiceFg: {ayu_pri_hex};
-msgInServiceFgSelected: {ayu_pri_hex};
-msgOutServiceFg: {ayu_pri_hex};
-msgOutServiceFgSelected: {ayu_pri_hex};
-msgInShadow: #00000000;
-msgInShadowSelected: #00000000;
-msgOutShadow: #00000000;
-msgOutShadowSelected: #00000000;
-msgInDateFg: #7c8290;
-msgInDateFgSelected: #bfc5d2;
-msgOutDateFg: #9aa2b2;
-msgOutDateFgSelected: #eef0f5;
-msgServiceFg: #eef0f5;
-msgServiceBg: #000000aa;
-msgServiceBgSelected: {ayu_high_hex}cc;
-msgInReplyBarColor: {ayu_pri_hex};
-msgInReplyBarSelColor: {ayu_pri_hex};
-msgOutReplyBarColor: {ayu_pri_hex};
-msgOutReplyBarSelColor: {ayu_pri_hex};
-msgImgReplyBarColor: {ayu_pri_hex};
-msgInMonoFg: {ayu_pri_hex};
-msgOutMonoFg: {ayu_pri_hex};
-historyComposeAreaBg: {ayu_surf_hex};
-historyComposeAreaFg: #f0f2f6;
-historyComposeAreaFgService: #8b919e;
-historyComposeIconFg: #9aa0ad;
-historyComposeIconFgOver: {ayu_pri_hex};
-historySendIconFg: {ayu_pri_hex};
-historySendIconFgOver: {ayu_pri_hex};
-historyPinnedBg: {ayu_surf_hex};
-historyReplyBg: {ayu_surf_hex};
-historyReplyIconFg: {ayu_pri_hex};
-historyReplyCancelFg: #8b919e;
-historyReplyCancelFgOver: #ffffff;
-historyComposeButtonBg: {ayu_surf_hex};
-historyComposeButtonBgOver: {ayu_high_hex};
-historyComposeButtonBgRipple: {ayu_high_hex};
-historyToDownBg: {ayu_high_hex};
-historyToDownBgOver: {ayu_high_hex};
-historyToDownBgRipple: {ayu_high_hex};
-historyToDownFg: #eef0f5;
-historyToDownFgOver: #ffffff;
-historyToDownShadow: #00000066;
-dialogsPinnedBg: {ayu_surf_hex};
-dialogsPinnedBgOver: {ayu_high_hex};
-dialogsPinnedBgActive: {ayu_high_hex};
+dialogsVerifiedIconBg: {ayu_pri_hex};
+dialogsVerifiedIconFg: {ayu_on_pri_hex};
 mainMenuBg: {ayu_surf_hex};
 mainMenuCoverBg: {ayu_surf_hex};
-mainMenuCoverFg: #ffffff;
-mainMenuCloudFg: {ayu_pri_hex};
-mainMenuCloudBg: {ayu_high_hex};
 sideBarBg: {ayu_surf_hex};
 sideBarBgActive: {ayu_high_hex};
-sideBarBgRipple: {ayu_high_hex};
-sideBarTextFg: #8b919e;
-sideBarTextFgActive: {ayu_pri_hex};
-sideBarIconFg: #8b919e;
 sideBarIconFgActive: {ayu_pri_hex};
+sideBarTextFgActive: {ayu_pri_hex};
 sideBarBadgeBg: {ayu_pri_hex};
-sideBarBadgeBgMuted: {ayu_high_hex};
 sideBarBadgeFg: {ayu_on_pri_hex};
-profileStatusFgOver: {ayu_pri_hex};
-profileVerifiedCheckBg: {ayu_pri_hex};
-profileVerifiedCheckFg: {ayu_on_pri_hex};
-boxDividerBg: {ayu_surf_hex};
-boxDividerFg: {ayu_sep};
-mediaviewBg: #000000ee;
-mediaviewControlBg: #000000aa;
-mediaviewControlFg: #ffffff;
-toastBg: {ayu_high_hex}ee;
-toastFg: #ffffff;
-importantTooltipBg: {ayu_high_hex}ee;
-importantTooltipFg: #ffffff;
-groupCallBg: {ayu_surf_hex};
-callBgOpaque: {ayu_surf_hex};
+topBarBg: {ayu_surf_hex};
+titleBg: {ayu_surf_hex};
+titleBgActive: {ayu_surf_hex};
+historyComposeAreaBg: {ayu_surf_hex};
+historyPinnedBg: {ayu_surf_hex};
+historyReplyBg: {ayu_surf_hex};
+emojiPanBg: {ayu_surf_hex};
+emojiPanCategories: {ayu_surf_hex};
+emojiPanHeaderBg: {ayu_surf_hex}ee;
+boxBg: {ayu_surf_hex};
+boxSearchBg: {ayu_surf_hex};
+menuBg: {ayu_surf_hex};
+menuBgOver: {ayu_high_hex};
+msgInBg: {ayu_msg_in};
+msgOutBg: {ayu_out_hex};
+trayCounterBg: {ayu_pri_hex};
+trayCounterFg: {ayu_on_pri_hex};
 """
 
+ayu_palette = remapped_base + "\n" + ayu_overrides
 theme_hash = hashlib.md5(ayu_palette.encode("utf-8")).hexdigest()[:8]
 for old_f in glob.glob(os.path.join(home, ".cache/hysett_ayugram_*.tdesktop-theme")):
     try:
@@ -1030,7 +841,7 @@ ayu_theme_path = os.path.join(home, ".cache/hysett_ayugram.tdesktop-theme")
 png_bytes = make_solid_png(*ayu_surf_rgb)
 for out_p in (ayu_unique_path, ayu_theme_path):
     with zipfile.ZipFile(out_p, "w", zipfile.ZIP_DEFLATED) as zf:
-        zf.writestr("colors.tdesktop-palette", ayu_palette)
+        zf.writestr("colors.tdesktop-theme", ayu_palette)
         zf.writestr("background.png", png_bytes)
 
 with open(os.path.join(home, ".cache/hysett_ayugram_latest.txt"), "w") as lf:

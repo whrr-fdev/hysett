@@ -222,6 +222,17 @@ void LookManager::resetToDefaults() {
 
 void LookManager::writeLookLua() {
     QString path = QDir::homePath() + "/.config/hypr/look.lua";
+    if (m_borderSyncWithWallpaper) {
+        QFile rf(path);
+        if (rf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            QString cur = QString::fromUtf8(rf.readAll());
+            rf.close();
+            auto ma = QRegularExpression("active_border\\s*=\\s*\"([^\"]+)\"").match(cur);
+            auto mi = QRegularExpression("inactive_border\\s*=\\s*\"([^\"]+)\"").match(cur);
+            if (ma.hasMatch()) m_activeBorder = ma.captured(1);
+            if (mi.hasMatch()) m_inactiveBorder = mi.captured(1);
+        }
+    }
     QFile file(path);
     if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) return;
 
@@ -267,10 +278,11 @@ void LookManager::writeLookLua() {
     out << "            range   = " << m_shadowRange << ",\n";
     out << "        },\n";
     out << "        blur = {\n";
-    out << "            enabled  = " << (m_blurEnabled ? "true" : "false") << ",\n";
-    out << "            size     = " << m_blurSize << ",\n";
-    out << "            passes   = " << m_blurPasses << ",\n";
-    out << "            vibrancy = " << QString::number(m_blurVibrancy, 'f', 2) << ",\n";
+    out << "            enabled        = " << (m_blurEnabled ? "true" : "false") << ",\n";
+    out << "            size           = " << m_blurSize << ",\n";
+    out << "            passes         = " << m_blurPasses << ",\n";
+    out << "            vibrancy       = " << QString::number(m_blurVibrancy, 'f', 2) << ",\n";
+    out << "            ignore_opacity = true,\n";
     out << "        },\n";
     out << "    },\n";
     out << "    animations = {\n";

@@ -100,6 +100,12 @@ ScrollView {
     }
 
     Timer {
+        id: appsLateRefresh
+        interval: 460
+        repeat: false
+        onTriggered: if (appScroll.visible && Apps) Apps.refresh()
+    }
+    Timer {
         id: autoCloseModalTimer
         interval: 900
         repeat: false
@@ -170,7 +176,7 @@ ScrollView {
     onVisibleChanged: {
         if (visible) {
             _seenNewThisOpen = true
-            if (Apps) Apps.refresh()
+            Qt.callLater(() => { if (appScroll.visible && Apps && (!ApplicationWindow.window || !ApplicationWindow.window.isVortexWindowAnimActive)) appsLateRefresh.restart() })
             focusSearchInput()
         } else if (_seenNewThisOpen) {
             _seenNewThisOpen = false

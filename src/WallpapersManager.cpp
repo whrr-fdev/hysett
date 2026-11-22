@@ -248,24 +248,8 @@ void WallpapersManager::consumeNewOpen() {
         c["hasNew"] = newCats.contains(c["name"].toString());
         m_categories[i] = c;
     }
-    if (!presentKeys.isEmpty()) {
-        if (!m_knownInitialized) {
-            m_knownInitialized = true;
-            stateDirty = true;
-        }
-        for (auto it = m_knownWallpapers.begin(); it != m_knownWallpapers.end(); ) {
-            if (!presentKeys.contains(it.key())) {
-                it = m_knownWallpapers.erase(it);
-                stateDirty = true;
-            } else {
-                ++it;
-            }
-        }
-    }
-    if (stateDirty) saveKnownWallpapers();
-
-    if (m_categories != prevCats) emit categoriesChanged();
-    if (m_wallpapers != prevWalls) emit wallpapersChanged();
+    emit categoriesChanged();
+    emit wallpapersChanged();
 }
 
 void WallpapersManager::scanWallpapers() {
@@ -350,8 +334,24 @@ void WallpapersManager::scanWallpapers() {
         bool bLive = b.toMap()["category"].toString().compare("Live", Qt::CaseInsensitive) == 0;
         return aLive > bLive;
     });
-    emit categoriesChanged();
-    emit wallpapersChanged();
+    if (!presentKeys.isEmpty()) {
+        if (!m_knownInitialized) {
+            m_knownInitialized = true;
+            stateDirty = true;
+        }
+        for (auto it = m_knownWallpapers.begin(); it != m_knownWallpapers.end(); ) {
+            if (!presentKeys.contains(it.key())) {
+                it = m_knownWallpapers.erase(it);
+                stateDirty = true;
+            } else {
+                ++it;
+            }
+        }
+    }
+    if (stateDirty) saveKnownWallpapers();
+
+    if (m_categories != prevCats) emit categoriesChanged();
+    if (m_wallpapers != prevWalls) emit wallpapersChanged();
 }
 
 void WallpapersManager::applyWallpaperInternal(const QString &path, bool fromPreset) {

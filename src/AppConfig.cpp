@@ -846,8 +846,8 @@ void AppConfig::resetColors() {
     m_accentColor = QColor("#ffffff");
     m_borderGlowCustomColor = QColor("#ffffff");
     m_cursorCustomColor = QColor("#ffffff");
-    m_windowBgColor = QColor("#0a0a0c");
-    m_cardBgColor = QColor("#141419");
+    m_windowBgColor = QColor("#000000");
+    m_cardBgColor = QColor("#0a0a0a");
     m_borderGlowColorMode = 0;
     emit syncColorsWithAccentChanged();
     m_colorsDirty = true; emit accentColorChanged();
@@ -915,27 +915,31 @@ QColor AppConfig::m3Primary() const {
 QColor AppConfig::m3PrimaryContainer() const {
     float h, s, l, a;
     m_accentColor.getHslF(&h, &s, &l, &a);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.11f, 0.11f, 0.11f, 0.94f);
     float targetL = std::clamp(0.20f + float(m_m3ContrastLevel) * 0.10f, 0.14f, 0.38f);
-    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.72f, 0.0f, 1.0f), targetL, 0.94f);
+    return QColor::fromHslF(h, std::clamp(s * 0.72f, 0.0f, 1.0f), targetL, 0.94f);
 }
 
 QColor AppConfig::m3OnPrimaryContainer() const {
     float h, s, l, a;
     m_accentColor.getHslF(&h, &s, &l, &a);
-    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.90f, 0.0f, 1.0f), 0.92f, 1.0f);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.95f, 0.95f, 0.95f, 1.0f);
+    return QColor::fromHslF(h, std::clamp(s * 0.90f, 0.0f, 1.0f), 0.92f, 1.0f);
 }
 
 QColor AppConfig::m3SecondaryContainer() const {
     float h, s, l, a;
     m_m3SecondaryColor.getHslF(&h, &s, &l, &a);
     if (m_syncColorsWithAccent) m_accentColor.getHslF(&h, &s, &l, &a);
-    return QColor::fromHslF(h < 0 ? 0.6f : h, std::clamp(s * 0.45f, 0.0f, 1.0f), 0.22f, 0.90f);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.08f, 0.08f, 0.08f, 0.92f);
+    return QColor::fromHslF(h, std::clamp(s * 0.45f, 0.0f, 1.0f), 0.22f, 0.90f);
 }
 
 QColor AppConfig::m3TertiaryContainer() const {
     float h, s, l, a;
     m_m3TertiaryColor.getHslF(&h, &s, &l, &a);
-    return QColor::fromHslF(h < 0 ? 0.8f : h, std::clamp(s * 0.55f, 0.0f, 1.0f), 0.25f, 0.90f);
+    if (h < 0 || s < 0.02f) return QColor::fromRgbF(0.12f, 0.12f, 0.12f, 0.92f);
+    return QColor::fromHslF(h, std::clamp(s * 0.55f, 0.0f, 1.0f), 0.25f, 0.90f);
 }
 
 QColor AppConfig::m3Surface() const {
@@ -1186,10 +1190,10 @@ void AppConfig::resetToDefaultMonochrome() {
     m_m3SurfaceTintStrength = 0.0;
     m_m3ContrastLevel = 0.50;
     m_accentColor = QColor("#ffffff");
-    m_m3SecondaryColor = QColor("#2b2d36");
-    m_m3TertiaryColor = QColor("#383b46");
-    m_windowBgColor = QColor("#0a0a0c");
-    m_cardBgColor = QColor("#121318");
+    m_m3SecondaryColor = QColor("#222222");
+    m_m3TertiaryColor = QColor("#2e2e2e");
+    m_windowBgColor = QColor("#000000");
+    m_cardBgColor = QColor("#0a0a0a");
     m_borderGlowCustomColor = QColor("#ffffff");
     m_cursorCustomColor = QColor("#ffffff");
     m_borderGlowColorMode = 0;

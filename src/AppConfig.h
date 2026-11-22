@@ -568,17 +568,17 @@ private:
     int m_clickFlashShape = 0;
 
     bool m_syncColorsWithAccent = true;
-    QColor m_accentColor = QColor("#a8c7fa");
+    QColor m_accentColor = QColor("#ffffff");
     QColor m_borderGlowCustomColor = QColor("#ffffff");
     QColor m_cursorCustomColor = QColor("#ffffff");
-    QColor m_windowBgColor = QColor("#111318");
-    QColor m_cardBgColor = QColor("#1e2028");
+    QColor m_windowBgColor = QColor("#000000");
+    QColor m_cardBgColor = QColor("#0a0a0a");
     bool m_m3DynamicWallpaperColors = true;
-    QColor m_m3SecondaryColor = QColor("#bec6dc");
-    QColor m_m3TertiaryColor = QColor("#debcdf");
+    QColor m_m3SecondaryColor = QColor("#222222");
+    QColor m_m3TertiaryColor = QColor("#2e2e2e");
     int m_m3Preset = 0;
     int m_m3ElevationStyle = 0;
-    qreal m_m3SurfaceTintStrength = 0.22;
+    qreal m_m3SurfaceTintStrength = 0.00;
     qreal m_m3ContrastLevel = 0.50;
     int m_m3WindowRadius = 20;
     int m_m3CardRadius = 16;

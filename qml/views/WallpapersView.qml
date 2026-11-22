@@ -81,7 +81,7 @@ Item {
     onVisibleChanged: {
         if (visible) {
             _seenNewThisOpen = true
-            if (Wallpapers) Wallpapers.reloadWallpapers()
+            wallLateRefresh.restart()
         } else if (_seenNewThisOpen) {
             _seenNewThisOpen = false
             if (Wallpapers) Wallpapers.consumeNewOpen()
@@ -106,6 +106,12 @@ Item {
         function onFontSizeChanged() { Qt.callLater(wallRoot.recalcCatLayout) }
     }
 
+    Timer {
+        id: wallLateRefresh
+        interval: 460
+        repeat: false
+        onTriggered: if (wallRoot.visible && Wallpapers) Wallpapers.reloadWallpapers()
+    }
     NumberAnimation {
         id: fastWheelAnim
         target: wallListView

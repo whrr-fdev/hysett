@@ -722,15 +722,21 @@ ApplicationWindow {
             sceneRoot.forceActiveFocus()
             Qt.callLater(syncTabBlur)
             if (root.drawerMode === "settings") {
+                contentAutoRefreshTimer.interval = 580
                 contentAutoRefreshTimer.restart()
             }
         }
     }
     Timer {
         id: contentAutoRefreshTimer
-        interval: 120
+        interval: 580
         repeat: false
         onTriggered: {
+            if (openSeqAnim.running || closeSeqAnim.running) {
+                interval = 220
+                restart()
+                return
+            }
             if (Apps) Apps.refresh()
             if (Wallpapers) Wallpapers.reloadWallpapers()
         }
@@ -760,6 +766,7 @@ ApplicationWindow {
             if (Hypr) Hypr.deepCleanMemory()
             delayedRamTrimTimer.restart()
             if (root.drawerMode === "settings") {
+                contentAutoRefreshTimer.interval = 60
                 contentAutoRefreshTimer.restart()
             }
         }
@@ -1025,10 +1032,10 @@ ApplicationWindow {
                                           ? Math.max(0.0, root.wallpapersLiveOpacity)
                                           : (Config ? Config.opacity : 0.85)
             Behavior on currentOpacity { enabled: pageController.currentIndex === 14; NumberAnimation { duration: 360; easing.type: Easing.OutQuint } }
-            property color surfCol: Config ? Config.m3Surface : "#0e1015"
+            property color surfCol: Config ? Config.m3Surface : "#000000"
             property color notifBgCol: (Theme && Theme.isRounded && Config) ? surfCol : (Mako ? Mako.bgColor : surfCol)
             property real notifAlpha: root.drawerActive ? currentOpacity : (Waybar ? Waybar.barOpacity : 0.88)
-            property color outCol: Config ? Config.m3Outline : "#444854"
+            property color outCol: Config ? Config.m3Outline : "#2b2b2b"
 
             property vector2d u_resolution: Qt.vector2d(width, height)
             property vector4d u_bar_rect: Qt.vector4d(root.barLeft, root.barRectY, root.barW, root.actualBarH)
@@ -1037,7 +1044,7 @@ ApplicationWindow {
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
             property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
-            readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : '#a8c7fa')
+            readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : '#ffffff')
             property vector3d u_glow_color: Qt.vector3d(activeWaveTint.r, activeWaveTint.g, activeWaveTint.b)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
             property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88

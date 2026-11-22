@@ -12,6 +12,7 @@
 #include <QRandomGenerator>
 #include <QImageReader>
 #include <QMap>
+#include <QSet>
 
 static const char *IRIS_SHADER_CODE = R"(//!HOOK MAIN
 //!BIND HOOKED
@@ -96,6 +97,7 @@ WallpapersManager::WallpapersManager(QObject *parent) : QObject(parent) {
 
     loadDaemonSettings();
     loadPresets();
+    loadKnownWallpapers();
     scanWallpapers();
     if (m_wallpapers.isEmpty()) {
         QTimer::singleShot(3500, this, &WallpapersManager::syncGithubWallpapers);
@@ -191,9 +193,88 @@ void WallpapersManager::setRandomAnim(bool v) {
     emit animChanged();
 }
 
+void WallpapersManager::loadKnownWallpapers() {
+    m_knownWallpapers.clear();
+    m_knownInitialized = false;
+    QFile f(QDir::homePath() + "/.config/hypr/scripts/wallpapers_new_state.json");
+    if (!f.open(QIODevice::ReadOnly)) return;
+    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    m_knownInitialized = root.value("initialized").toBool(false);
+    QJsonObject items = root.value("items").toObject();
+    for (auto it = items.begin(); it != items.end(); ++it) {
+        m_knownWallpapers.insert(it.key(), it.value().toInt(0));
+    }
+}
+
+void WallpapersManager::saveKnownWallpapers() {
+    QString dirPath = QDir::homePath() + "/.config/hypr/scripts";
+    QDir().mkpath(dirPath);
+    QJsonObject items;
+    for (auto it = m_knownWallpapers.begin(); it != m_knownWallpapers.end(); ++it) {
+        items.insert(it.key(), it.value());
+    }
+    QJsonObject root;
+    root.insert("initialized", m_knownInitialized);
+    root.insert("items", items);
+    QFile f(dirPath + "/wallpapers_new_state.json");
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        f.close();
+    }
+}
+
+void WallpapersManager::consumeNewOpen() {
+    bool changed = false;
+    for (auto it = m_knownWallpapers.begin(); it != m_knownWallpapers.end(); ++it) {
+        if (it.value() > 0) {
+            it.value() = it.value() - 1;
+            changed = true;
+        }
+    }
+    if (!changed) return;
+    saveKnownWallpapers();
+    QSet<QString> newCats;
+    for (int i = 0; i < m_wallpapers.size(); ++i) {
+        QVariantMap w = m_wallpapers[i].toMap();
+        int rem = m_knownWallpapers.value(w["newKey"].toString(), 0);
+        w["isNew"] = (rem > 0);
+        w["newOpensLeft"] = rem;
+        m_wallpapers[i] = w;
+        if (rem > 0) newCats.insert(w["category"].toString());
+    }
+    for (int i = 0; i < m_categories.size(); ++i) {
+        QVariantMap c = m_categories[i].toMap();
+        c["hasNew"] = newCats.contains(c["name"].toString());
+        m_categories[i] = c;
+    }
+    if (!presentKeys.isEmpty()) {
+        if (!m_knownInitialized) {
+            m_knownInitialized = true;
+            stateDirty = true;
+        }
+        for (auto it = m_knownWallpapers.begin(); it != m_knownWallpapers.end(); ) {
+            if (!presentKeys.contains(it.key())) {
+                it = m_knownWallpapers.erase(it);
+                stateDirty = true;
+            } else {
+                ++it;
+            }
+        }
+    }
+    if (stateDirty) saveKnownWallpapers();
+
+    if (m_categories != prevCats) emit categoriesChanged();
+    if (m_wallpapers != prevWalls) emit wallpapersChanged();
+}
+
 void WallpapersManager::scanWallpapers() {
+    QVariantList prevCats = m_categories;
+    QVariantList prevWalls = m_wallpapers;
     m_categories.clear();
     m_wallpapers.clear();
+    bool stateDirty = false;
+    QSet<QString> presentKeys;
 
     QString wallRoot = QDir::homePath() + "/Pictures/Wallpapers";
     QFile ccf(QDir::homePath() + "/.config/hypr/scripts/control_center.conf");
@@ -220,11 +301,7 @@ void WallpapersManager::scanWallpapers() {
         QStringList files = sDir.entryList(imgExts, QDir::Files);
         if (files.isEmpty()) continue;
 
-        QVariantMap cat;
-        cat["name"] = catName;
-        cat["count"] = files.size();
-        m_categories.append(cat);
-
+        bool catHasNew = false;
         for (const auto &file : files) {
             if (file.contains("рукиASCII")) continue;
             QString fullPath = sDir.filePath(file);
@@ -232,13 +309,34 @@ void WallpapersManager::scanWallpapers() {
                          fullPath.endsWith(".webm", Qt::CaseInsensitive) ||
                          fullPath.endsWith(".mkv", Qt::CaseInsensitive);
 
+            QString newKey = catName + "/" + file;
+            presentKeys.insert(newKey);
+            if (!m_knownInitialized) {
+                m_knownWallpapers[newKey] = 0;
+                stateDirty = true;
+            } else if (!m_knownWallpapers.contains(newKey)) {
+                m_knownWallpapers[newKey] = 10;
+                stateDirty = true;
+            }
+            int rem = m_knownWallpapers.value(newKey, 0);
+            if (rem > 0) catHasNew = true;
+
             QVariantMap w;
             w["path"] = fullPath;
             w["name"] = file;
             w["category"] = catName;
             w["isVideo"] = isVid;
+            w["newKey"] = newKey;
+            w["isNew"] = (rem > 0);
+            w["newOpensLeft"] = rem;
             m_wallpapers.append(w);
         }
+
+        QVariantMap cat;
+        cat["name"] = catName;
+        cat["count"] = files.size();
+        cat["hasNew"] = catHasNew;
+        m_categories.append(cat);
     }
 
     

@@ -77,10 +77,29 @@ Item {
         }
     }
 
+    property bool _seenNewThisOpen: false
+    onVisibleChanged: {
+        if (visible) {
+            _seenNewThisOpen = true
+            if (Wallpapers) Wallpapers.reloadWallpapers()
+        } else if (_seenNewThisOpen) {
+            _seenNewThisOpen = false
+            if (Wallpapers) Wallpapers.consumeNewOpen()
+        }
+    }
+    Component.onDestruction: {
+        if (_seenNewThisOpen && Wallpapers) {
+            _seenNewThisOpen = false
+            Wallpapers.consumeNewOpen()
+        }
+    }
     onWidthChanged: recalcCatLayout()
     onHeightChanged: recalcCatLayout()
     onIsExpandedChanged: Qt.callLater(recalcCatLayout)
-    Component.onCompleted: Qt.callLater(recalcCatLayout)
+    Component.onCompleted: {
+        if (visible) _seenNewThisOpen = true
+        Qt.callLater(recalcCatLayout)
+    }
 
     Connections {
         target: Config
@@ -722,6 +741,27 @@ Item {
                                 }
 
                                 Rectangle {
+                                    visible: modelData.isNew === true
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.margins: 6
+                                    width: newWallTxtV.implicitWidth + 10
+                                    height: 14
+                                    radius: (Theme && Theme.isRounded) ? (Config ? Math.min(5, Config.m3ControlRadius) : 5) : 0
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    border.width: 1
+                                    border.color: Qt.rgba(0, 0, 0, 0.35)
+                                    Text {
+                                        id: newWallTxtV
+                                        anchors.centerIn: parent
+                                        text: "new"
+                                        color: Config ? Config.accentTextColor : "#000000"
+                                        font.pixelSize: 8
+                                        font.bold: true
+                                    }
+                                }
+
+                                Rectangle {
                                     visible: modelData.isVideo
                                     anchors.right: parent.right
                                     anchors.bottom: parent.bottom
@@ -888,6 +928,27 @@ Item {
                                     color: "transparent"
                                     border.color: Qt.rgba(1, 1, 1, 0.16)
                                     border.width: 1
+                                }
+
+                                Rectangle {
+                                    visible: modelData.isNew === true
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    anchors.margins: 6
+                                    width: newWallTxtH.implicitWidth + 10
+                                    height: 14
+                                    radius: (Theme && Theme.isRounded) ? (Config ? Math.min(5, Config.m3ControlRadius) : 5) : 0
+                                    color: Config ? Config.m3Primary : "#ffffff"
+                                    border.width: 1
+                                    border.color: Qt.rgba(0, 0, 0, 0.35)
+                                    Text {
+                                        id: newWallTxtH
+                                        anchors.centerIn: parent
+                                        text: "new"
+                                        color: Config ? Config.accentTextColor : "#000000"
+                                        font.pixelSize: 8
+                                        font.bold: true
+                                    }
                                 }
 
                                 Rectangle {
@@ -1084,9 +1145,11 @@ Item {
 
                     background: Item {}
 
-                    contentItem: Text {
-                        id: mCatTxt
-                        text: modelData.name
+                    contentItem: Item {
+                        Text {
+                            id: mCatTxt
+                            anchors.fill: parent
+                            text: modelData.name
                         color: morphCatBtn.isSel
                                ? (Config ? Config.accentTextColor : "#000000")
                                : (morphCatBtn.hovered ? "#ffffff" : (morphCategoriesLayer.isM3 && Config ? Config.m3OnPrimaryContainer : "#cccccc"))
@@ -1095,7 +1158,17 @@ Item {
                         elide: Text.ElideRight
                         horizontalAlignment: Text.AlignHCenter
                         verticalAlignment: Text.AlignVCenter
-                        Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                        }
+                        Rectangle {
+                            visible: modelData.hasNew === true
+                            width: 5; height: 5
+                            radius: (Theme && Theme.isRounded) ? 2.5 : 0
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 3
+                            color: morphCatBtn.isSel ? (Config ? Config.accentTextColor : "#000000") : (Config ? Config.m3Primary : "#ffffff")
+                        }
                     }
 
                     onHoveredChanged: {

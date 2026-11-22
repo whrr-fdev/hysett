@@ -3,6 +3,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 #include <QProcess>
+#include <QHash>
 
 class AppsManager : public QObject {
     Q_OBJECT
@@ -35,6 +36,7 @@ public:
 
     Q_INVOKABLE void launchApp(const QString &exec);
     Q_INVOKABLE void refresh();
+    Q_INVOKABLE void consumeNewOpen();
     Q_INVOKABLE void searchFiles(const QString &query, bool wholeSystem = false);
     Q_INVOKABLE void clearFileSearch();
     Q_INVOKABLE void openFile(const QString &path);
@@ -63,6 +65,10 @@ signals:
 
 private:
     void scanDesktopFiles();
+    void loadKnownApps();
+    void saveKnownApps();
+    QHash<QString, int> m_knownApps;
+    bool m_knownInitialized = false;
     QVariantList m_apps;
     QVariantList m_hiddenApps;
     QVariantList m_fileResults;

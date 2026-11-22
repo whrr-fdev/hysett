@@ -4,6 +4,7 @@
 #include <QVariantMap>
 #include <QQuickImageProvider>
 #include <QImage>
+#include <QHash>
 
 class WallThumbProvider : public QQuickImageProvider {
 public:
@@ -58,6 +59,7 @@ public:
     Q_INVOKABLE QVariantMap snapshotCurrentSettings();
     Q_INVOKABLE void syncGithubWallpapers();
     Q_INVOKABLE void reloadWallpapers();
+    Q_INVOKABLE void consumeNewOpen();
 
 signals:
     void daemonChanged();
@@ -70,6 +72,8 @@ signals:
 
 private:
     void scanWallpapers();
+    void loadKnownWallpapers();
+    void saveKnownWallpapers();
     void loadDaemonSettings();
     void loadPresets();
     void savePresetsToFile();
@@ -87,4 +91,6 @@ private:
     QVariantList m_categories;
     QVariantList m_wallpapers;
     QVariantList m_presets;
+    QHash<QString, int> m_knownWallpapers;
+    bool m_knownInitialized = false;
 };

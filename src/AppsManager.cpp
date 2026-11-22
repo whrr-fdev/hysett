@@ -8,6 +8,8 @@
 #include <QProcessEnvironment>
 #include <QStandardPaths>
 #include <QSet>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <algorithm>
 
 AppsManager::AppsManager(QObject *parent) : QObject(parent) {
@@ -111,6 +113,7 @@ AppsManager::AppsManager(QObject *parent) : QObject(parent) {
         emit isSearchingPackagesChanged();
     });
 
+    loadKnownApps();
     refresh();
 }
 
@@ -118,9 +121,65 @@ void AppsManager::refresh() {
     scanDesktopFiles();
 }
 
+void AppsManager::loadKnownApps() {
+    m_knownApps.clear();
+    m_knownInitialized = false;
+    QString path = QDir::homePath() + "/.config/hypr/scripts/apps_new_state.json";
+    QFile f(path);
+    if (!f.open(QIODevice::ReadOnly)) return;
+    QJsonObject root = QJsonDocument::fromJson(f.readAll()).object();
+    f.close();
+    m_knownInitialized = root.value("initialized").toBool(false);
+    QJsonObject items = root.value("items").toObject();
+    for (auto it = items.begin(); it != items.end(); ++it) {
+        m_knownApps.insert(it.key(), it.value().toInt(0));
+    }
+}
+
+void AppsManager::saveKnownApps() {
+    QString dirPath = QDir::homePath() + "/.config/hypr/scripts";
+    QDir().mkpath(dirPath);
+    QJsonObject items;
+    for (auto it = m_knownApps.begin(); it != m_knownApps.end(); ++it) {
+        items.insert(it.key(), it.value());
+    }
+    QJsonObject root;
+    root.insert("initialized", m_knownInitialized);
+    root.insert("items", items);
+    QFile f(dirPath + "/apps_new_state.json");
+    if (f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        f.write(QJsonDocument(root).toJson(QJsonDocument::Compact));
+        f.close();
+    }
+}
+
+void AppsManager::consumeNewOpen() {
+    bool changed = false;
+    for (auto it = m_knownApps.begin(); it != m_knownApps.end(); ++it) {
+        if (it.value() > 0) {
+            it.value() = it.value() - 1;
+            changed = true;
+        }
+    }
+    if (!changed) return;
+    saveKnownApps();
+    for (int i = 0; i < m_apps.size(); ++i) {
+        QVariantMap m = m_apps[i].toMap();
+        int rem = m_knownApps.value(m["desktopId"].toString(), 0);
+        m["isNew"] = (rem > 0);
+        m["newOpensLeft"] = rem;
+        m_apps[i] = m;
+    }
+    emit appsChanged();
+}
+
 void AppsManager::scanDesktopFiles() {
+    QVariantList prevApps = m_apps;
+    QVariantList prevHidden = m_hiddenApps;
     m_apps.clear();
     m_hiddenApps.clear();
+    bool stateDirty = false;
+    QSet<QString> presentIds;
 
     QString home = QDir::homePath();
     QString localAppsDir = home + "/.local/share/applications";
@@ -193,6 +252,15 @@ void AppsManager::scanDesktopFiles() {
 
             if (!noDisplay && !name.isEmpty() && !exec.isEmpty() && !seenNames.contains(name)) {
                 seenNames.insert(name);
+                presentIds.insert(entry);
+                if (!m_knownInitialized) {
+                    m_knownApps[entry] = 0;
+                    stateDirty = true;
+                } else if (!m_knownApps.contains(entry)) {
+                    m_knownApps[entry] = 10;
+                    stateDirty = true;
+                }
+                int rem = m_knownApps.value(entry, 0);
                 QVariantMap m;
                 m["name"] = name;
                 m["exec"] = exec;
@@ -202,6 +270,8 @@ void AppsManager::scanDesktopFiles() {
                 m["desktopPath"] = fullPath;
                 m["desktopId"] = entry;
                 m["isLocal"] = isLocalDir;
+                m["isNew"] = (rem > 0);
+                m["newOpensLeft"] = rem;
                 m_apps.append(m);
             }
         }
@@ -210,10 +280,28 @@ void AppsManager::scanDesktopFiles() {
     auto sortByName = [](const QVariant &a, const QVariant &b) {
         return a.toMap()["name"].toString().toLower() < b.toMap()["name"].toString().toLower();
     };
+    if (!presentIds.isEmpty()) {
+        if (!m_knownInitialized) {
+            m_knownInitialized = true;
+            stateDirty = true;
+        }
+        for (auto it = m_knownApps.begin(); it != m_knownApps.end(); ) {
+            if (!presentIds.contains(it.key()) && !seenEntries.contains(it.key())) {
+                it = m_knownApps.erase(it);
+                stateDirty = true;
+            } else {
+                ++it;
+            }
+        }
+    }
+    if (stateDirty) saveKnownApps();
+
     std::sort(m_apps.begin(), m_apps.end(), sortByName);
     std::sort(m_hiddenApps.begin(), m_hiddenApps.end(), sortByName);
 
-    emit appsChanged();
+    if (m_apps != prevApps || m_hiddenApps != prevHidden) {
+        emit appsChanged();
+    }
 }
 
 void AppsManager::launchApp(const QString &exec) {

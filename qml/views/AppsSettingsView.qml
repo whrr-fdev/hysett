@@ -166,8 +166,29 @@ ScrollView {
         }
     }
 
-    onVisibleChanged: if (visible) focusSearchInput()
-    Component.onCompleted: if (visible) focusSearchInput()
+    property bool _seenNewThisOpen: false
+    onVisibleChanged: {
+        if (visible) {
+            _seenNewThisOpen = true
+            if (Apps) Apps.refresh()
+            focusSearchInput()
+        } else if (_seenNewThisOpen) {
+            _seenNewThisOpen = false
+            if (Apps) Apps.consumeNewOpen()
+        }
+    }
+    Component.onCompleted: {
+        if (visible) {
+            _seenNewThisOpen = true
+            focusSearchInput()
+        }
+    }
+    Component.onDestruction: {
+        if (_seenNewThisOpen && Apps) {
+            _seenNewThisOpen = false
+            Apps.consumeNewOpen()
+        }
+    }
 
     ParallelAnimation {
         id: appsGridSlideAnim
@@ -1206,7 +1227,27 @@ ScrollView {
                                     }
                                     ColumnLayout {
                                         spacing: 1; Layout.fillWidth: true
-                                        Text { text: modelData.name; color: "#ffffff"; font.pixelSize: Config.fontSize; elide: Text.ElideRight; Layout.fillWidth: true }
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            spacing: 6
+                                            Text { text: modelData.name; color: "#ffffff"; font.pixelSize: Config.fontSize; elide: Text.ElideRight; Layout.fillWidth: true }
+                                            Rectangle {
+                                                visible: modelData.isNew === true
+                                                implicitWidth: newAppBadgeTxt.implicitWidth + 10
+                                                implicitHeight: 14
+                                                radius: (Theme && Theme.isRounded) ? (Config ? Math.min(6, Config.m3ControlRadius) : 6) : 0
+                                                color: Config ? Config.m3Primary : "#ffffff"
+                                                Layout.alignment: Qt.AlignVCenter
+                                                Text {
+                                                    id: newAppBadgeTxt
+                                                    anchors.centerIn: parent
+                                                    text: "new"
+                                                    color: Config ? Config.accentTextColor : "#000000"
+                                                    font.pixelSize: 8
+                                                    font.bold: true
+                                                }
+                                            }
+                                        }
                                         Text { text: modelData.comment; color: appCardBtn.hovered ? "#aaaaaa" : "#777777"; font.pixelSize: Config.fontSize - 2; elide: Text.ElideRight; Layout.fillWidth: true }
                                     }
                                 }

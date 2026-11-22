@@ -230,6 +230,9 @@ void WaybarManager::loadState() {
             else if (k == "fixed_title_size") m_fixedTitleSize = std::clamp(v.toInt(), 60, 450);
             else if (k == "center_title_on_bar") m_centerTitleOnBar = (v == "1" || v == "true");
             else if (k == "window_side_stretch") m_windowSideStretch = (v == "1" || v == "true");
+            else if (k == "bar_blur_enabled") m_barBlurEnabled = (v == "1" || v == "true");
+            else if (k == "bar_blur") m_barBlur = std::clamp(v.toDouble(), 0.0, 1.0);
+            else if (k == "bar_blur_xray") m_barBlurXray = (v == "1" || v == "true");
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
@@ -296,6 +299,9 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "fixed_title_size=" << m_fixedTitleSize << "\n";
         out << "center_title_on_bar=" << (m_centerTitleOnBar ? "1" : "0") << "\n";
         out << "window_side_stretch=" << (m_windowSideStretch ? "1" : "0") << "\n";
+        out << "bar_blur_enabled=" << (m_barBlurEnabled ? "1" : "0") << "\n";
+        out << "bar_blur=" << QString::number(m_barBlur, 'f', 2) << "\n";
+        out << "bar_blur_xray=" << (m_barBlurXray ? "1" : "0") << "\n";
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
@@ -3847,4 +3853,47 @@ void WaybarManager::saveLockScreenConfig(const QString &jsonStr) {
         f.close();
     }
     emit lockConfigChanged();
+}
+
+void WaybarManager::applyBarBlurRule(bool forceDrawerBlur, bool drawerXray) {
+    bool enableBlur = forceDrawerBlur || (m_barBlurEnabled && m_barBlur > 0.01);
+    bool useXray = forceDrawerBlur ? drawerXray : m_barBlurXray;
+    QString bStr = enableBlur ? "true" : "false";
+    QString xStr = useXray ? "true" : "false";
+    QString cmd = QString("hl.layer_rule({ name = \"waybar-blur\", match = { namespace = \"waybar\" }, blur = %1, ignore_alpha = 0, xray = %2 })").arg(bStr, xStr);
+    QProcess::startDetached("hyprctl", {"eval", cmd});
+}
+
+void WaybarManager::setBarBlurEnabled(bool v) {
+    if (m_barBlurEnabled != v) {
+        m_barBlurEnabled = v;
+        saveState(false);
+        applyBarBlurRule(false, false);
+    }
+}
+
+void WaybarManager::setBarBlur(qreal v) {
+    v = std::clamp(v, 0.0, 1.0);
+    if (!qFuzzyCompare(m_barBlur, v)) {
+        m_barBlur = v;
+        saveState(false);
+        applyBarBlurRule(false, false);
+        if (m_barBlurEnabled && v > 0.01) {
+            int bPasses = (v <= 0.45) ? 1 : (v <= 0.80 ? 2 : 3);
+            int bSize = (v <= 0.45)
+                ? qMax(1, qRound(1.0 + (v / 0.45) * 5.0))
+                : (v <= 0.80 ? qMax(2, qRound(2.0 + ((v - 0.45) / 0.35) * 5.0))
+                             : qMax(4, qRound(4.0 + ((v - 0.80) / 0.20) * 5.0)));
+            QString cmd = QString("hl.config({ decoration = { blur = { enabled = true, size = %1, passes = %2 } } })").arg(bSize).arg(bPasses);
+            QProcess::startDetached("hyprctl", {"eval", cmd});
+        }
+    }
+}
+
+void WaybarManager::setBarBlurXray(bool v) {
+    if (m_barBlurXray != v) {
+        m_barBlurXray = v;
+        saveState(false);
+        applyBarBlurRule(false, false);
+    }
 }

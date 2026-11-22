@@ -219,7 +219,7 @@ ScrollView {
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Размер блюра:")) : "Размер блюра:"
                 displayVal: Look.blurSize.toString()
-                onResetClicked: Look.blurSize = 1
+                onResetClicked: Look.blurSize = 6
                 controlItem: StyledSlider {
                     anchors.fill: parent; from: 1; to: 16; stepSize: 1; value: Look.blurSize
                     onMoved: Look.blurSize = Math.round(value)
@@ -230,7 +230,7 @@ ScrollView {
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Проходы блюра:")) : "Проходы блюра:"
                 displayVal: Look.blurPasses.toString()
-                onResetClicked: Look.blurPasses = 2
+                onResetClicked: Look.blurPasses = 3
                 controlItem: StyledSlider {
                     anchors.fill: parent; from: 1; to: 6; stepSize: 1; value: Look.blurPasses
                     onMoved: Look.blurPasses = Math.round(value)
@@ -421,7 +421,7 @@ ScrollView {
             // 18. Цвет неактивной рамки (не обрезается + кнопка Палитра с модальным окном)
             SettingRow {
                 title: Config ? (Config.language, Config.trAuto("Цвет неактивной рамки (RGBA):")) : "Цвет неактивной рамки (RGBA):"
-                onResetClicked: { Look.borderSyncWithWallpaper = false; Look.inactiveBorder = "rgba(333333ff)" }
+                onResetClicked: { Look.borderSyncWithWallpaper = false; Look.inactiveBorder = "rgba(767676cc)" }
                 controlItem: RowLayout {
                     anchors.fill: parent
                     spacing: 8

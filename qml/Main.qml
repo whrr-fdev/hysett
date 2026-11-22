@@ -716,7 +716,8 @@ ApplicationWindow {
             modalOpen = false
             trailActive = false
             root.mousePos = Qt.point(-500, -500)
-            if (Theme) Theme.applyEffectiveBlur(Theme.windowBlur)
+            if (Look) Look.applyCurrentBlur()
+            if (Waybar) Waybar.applyBarBlurRule(false, false)
         } else {
             root.requestActivate()
             sceneRoot.forceActiveFocus()
@@ -906,9 +907,14 @@ ApplicationWindow {
         if (!Theme || !Config) return
         if (root.drawerOpen && root.drawerMode === "settings" && pageController.currentIndex === 14 && Config.autoGlass) {
             var targetBlur = root.wallpapersLiveBlur
+            if (Waybar) Waybar.applyBarBlurRule(targetBlur > 0.01, Theme ? Theme.windowXray : false)
             Theme.applyEffectiveBlur(targetBlur)
-        } else {
+        } else if (root.drawerOpen) {
+            if (Waybar) Waybar.applyBarBlurRule(Theme.windowBlur > 0.01, Theme ? Theme.windowXray : false)
             Theme.applyEffectiveBlur(Theme.windowBlur)
+        } else {
+            if (Look) Look.applyCurrentBlur()
+            if (Waybar) Waybar.applyBarBlurRule(false, false)
         }
     }
 

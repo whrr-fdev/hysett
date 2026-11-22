@@ -1112,9 +1112,19 @@ void AppConfig::setM3WallpaperDarkness(qreal v) {
 
 void AppConfig::applyAyuGramTheme() {
     QProcess::execute("/usr/bin/python3", {QDir::homePath() + "/.config/hypr/scripts/sync_m3_windows.py"});
+    QString ptrPath = QDir::homePath() + "/.cache/hysett_ayugram_latest.txt";
     QString themePath = QDir::homePath() + "/.cache/hysett_ayugram.tdesktop-theme";
+    QFile pf(ptrPath);
+    if (pf.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        QString cand = QString::fromUtf8(pf.readAll()).trimmed();
+        if (!cand.isEmpty() && QFileInfo::exists(cand)) themePath = cand;
+        pf.close();
+    }
     if (QFileInfo::exists(themePath)) {
         QProcess::startDetached("/bin/bash", {"-c",
+            "hyprctl dispatch movetoworkspace e+0,class:^com\\.ayugram\\.desktop$ >/dev/null 2>&1 || true; "
+            "hyprctl dispatch focuswindow class:^com\\.ayugram\\.desktop$ >/dev/null 2>&1 || true; "
+            "sleep 0.08; "
             "env -u QT_SCALE_FACTOR TDESKTOP_USE_PORTAL=1 DESKTOP_APP_I_KNOW_ABOUT_GTK_INCOMPATIBILITY=1 "
             "DESKTOP_APP_DISABLE_GTK_INTEGRATION=1 QT_QPA_PLATFORMTHEME=kde AyuGram \"" + themePath + "\" >/dev/null 2>&1 &"
         });

@@ -129,6 +129,72 @@ ScrollView {
             GlassPanel {
                 objectName: "atmoObstacle"
                 Layout.fillWidth: true
+                implicitHeight: barBlurCol.implicitHeight + 20
+                Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutQuint } }
+
+                ColumnLayout {
+                    id: barBlurCol
+                    anchors.fill: parent
+                    anchors.margins: 10
+                    spacing: 10
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Text { text: "Блюр панели задач:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        StyledSwitch {
+                            checked: Waybar ? Waybar.barBlurEnabled : true
+                            onToggled: if (Waybar) Waybar.barBlurEnabled = checked
+                        }
+                        Text {
+                            text: (Waybar && Waybar.barBlurEnabled) ? "Включён отдельно для слоя панели" : "Выключен (только для панели)"
+                            color: (Waybar && Waybar.barBlurEnabled) ? (Config ? Config.m3Primary : "#ffffff") : "#888888"
+                            font.pixelSize: Config.fontSize - 1
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    RowLayout {
+                        visible: Waybar ? Waybar.barBlurEnabled : true
+                        Layout.fillWidth: true
+                        spacing: 8
+                        Text { text: "Интенсивность блюра панели:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        StyledSlider {
+                            id: barBlurSlider
+                            Layout.fillWidth: true
+                            from: 0.0; to: 1.0; stepSize: 0.02
+                            Binding on value {
+                                when: !barBlurSlider.pressed
+                                value: Waybar ? Waybar.barBlur : 0.50
+                            }
+                            onMoved: if (Waybar) Waybar.barBlur = value
+                        }
+                        Text {
+                            readonly property real curB: barBlurSlider.pressed ? barBlurSlider.value : (Waybar ? Waybar.barBlur : 0.50)
+                            text: curB <= 0.01 ? "Выкл" : Math.round(curB * 100) + "%"
+                            color: "#ffffff"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 46; horizontalAlignment: Text.AlignRight
+                        }
+                        StyledButton { text: "↺"; implicitWidth: 22; onClicked: if (Waybar) Waybar.barBlur = 0.50 }
+                    }
+
+                    RowLayout {
+                        visible: Waybar ? Waybar.barBlurEnabled : true
+                        Layout.fillWidth: true
+                        Text { text: "Видимость сквозь панель:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        Item { Layout.fillWidth: true }
+                        SegmentedButton {
+                            options: ["Видно окна", "Сразу обои (X-Ray)"]
+                            selectedIndex: (Waybar && Waybar.barBlurXray) ? 1 : 0
+                            onSelected: (idx) => { if (Waybar) Waybar.barBlurXray = (idx === 1) }
+                        }
+                    }
+                }
+            }
+
+            GlassPanel {
+                objectName: "atmoObstacle"
+                Layout.fillWidth: true
                 implicitHeight: pillStyleRow.implicitHeight + 16
                 RowLayout {
                     id: pillStyleRow

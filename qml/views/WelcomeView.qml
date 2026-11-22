@@ -200,7 +200,7 @@ Item {
             spacing: 6
             Text {
                 text: "󰇧"
-                color: welcomeRoot.isM3 && Config ? Config.m3Primary : "#69f0ae"
+                color: Config ? Config.m3Primary : "#ffffff"
                 font.pixelSize: 13
                 anchors.verticalCenter: parent.verticalCenter
             }

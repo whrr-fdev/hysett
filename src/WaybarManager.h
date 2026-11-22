@@ -35,6 +35,9 @@ class WaybarManager : public QObject {
     Q_PROPERTY(int groupSpacing READ groupSpacing NOTIFY stateChanged)
     Q_PROPERTY(qreal barOpacity READ barOpacity NOTIFY stateChanged)
     Q_PROPERTY(qreal pillOpacity READ pillOpacity NOTIFY stateChanged)
+    Q_PROPERTY(bool barBlurEnabled READ barBlurEnabled WRITE setBarBlurEnabled NOTIFY stateChanged)
+    Q_PROPERTY(qreal barBlur READ barBlur WRITE setBarBlur NOTIFY stateChanged)
+    Q_PROPERTY(bool barBlurXray READ barBlurXray WRITE setBarBlurXray NOTIFY stateChanged)
 
     Q_PROPERTY(QVariantList workspaces READ workspaces NOTIFY workspacesChanged)
     Q_PROPERTY(int activeWorkspace READ activeWorkspace NOTIFY workspacesChanged)
@@ -236,6 +239,13 @@ public:
     int groupSpacing() const;
     qreal barOpacity() const;
     qreal pillOpacity() const;
+    bool barBlurEnabled() const { return m_barBlurEnabled; }
+    void setBarBlurEnabled(bool v);
+    qreal barBlur() const { return m_barBlur; }
+    void setBarBlur(qreal v);
+    bool barBlurXray() const { return m_barBlurXray; }
+    void setBarBlurXray(bool v);
+    Q_INVOKABLE void applyBarBlurRule(bool forceDrawerBlur = false, bool drawerXray = false);
 
     QVariantList workspaces() const { return m_workspaces; }
     int activeWorkspace() const { return m_activeWorkspace; }
@@ -552,6 +562,9 @@ private:
     int m_fixedTitleSize = 100;
     bool m_centerTitleOnBar = true;
     bool m_windowSideStretch = true;
+    bool m_barBlurEnabled = true;
+    qreal m_barBlur = 0.45;
+    bool m_barBlurXray = false;
     QVariantList m_specs;
     QVariantList m_defaults;
 

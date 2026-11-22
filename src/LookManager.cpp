@@ -109,7 +109,33 @@ void LookManager::applyKeyword(const QString &key, const QString &val) {
         sendHyprLuaEval(QString("hl.config({ decoration = { active_opacity = %1 } })").arg(val));
     } else if (key == "decoration:inactive_opacity") {
         sendHyprLuaEval(QString("hl.config({ decoration = { inactive_opacity = %1 } })").arg(val));
+    } else if (key == "decoration:dim_inactive") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { dim_inactive = %1 } })").arg(val));
+    } else if (key == "decoration:dim_strength") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { dim_strength = %1 } })").arg(val));
+    } else if (key == "decoration:blur:enabled") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { blur = { enabled = %1 } } })").arg(val));
+    } else if (key == "decoration:blur:size") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { blur = { size = %1 } } })").arg(val));
+    } else if (key == "decoration:blur:passes") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { blur = { passes = %1 } } })").arg(val));
+    } else if (key == "decoration:blur:vibrancy") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { blur = { vibrancy = %1 } } })").arg(val));
+    } else if (key == "decoration:shadow:enabled") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { shadow = { enabled = %1 } } })").arg(val));
+    } else if (key == "decoration:shadow:range") {
+        sendHyprLuaEval(QString("hl.config({ decoration = { shadow = { range = %1 } } })").arg(val));
+    } else if (key == "animations:enabled") {
+        sendHyprLuaEval(QString("hl.config({ animations = { enabled = %1 } })").arg(val));
     }
+}
+
+void LookManager::applyCurrentBlur() {
+    sendHyprLuaEval(QString("hl.config({ decoration = { blur = { enabled = %1, size = %2, passes = %3, vibrancy = %4 } } })")
+                        .arg(m_blurEnabled ? "true" : "false")
+                        .arg(m_blurSize)
+                        .arg(m_blurPasses)
+                        .arg(QString::number(m_blurVibrancy, 'f', 2)));
 }
 
 void LookManager::scheduleSaveAndApply() {
@@ -181,8 +207,8 @@ void LookManager::resetToDefaults() {
     setDimStrength(0.75);
     setDimAround(0.40);
     setBlurEnabled(true);
-    setBlurSize(1);
-    setBlurPasses(2);
+    setBlurSize(6);
+    setBlurPasses(3);
     setBlurVibrancy(0.50);
     setShadowEnabled(true);
     setShadowRange(4);
@@ -191,7 +217,7 @@ void LookManager::resetToDefaults() {
     setBorderSize(1);
     setAnimsEnabled(true);
     setActiveBorder("rgba(ccccccff)");
-    setInactiveBorder("rgba(333333ff)");
+    setInactiveBorder("rgba(767676cc)");
 }
 
 void LookManager::writeLookLua() {
@@ -257,11 +283,11 @@ void LookManager::writeLookLua() {
     out << "    border_size = " << (m_noBorderSingleWindow ? 0 : m_borderSize) << ",\n";
     out << "})\n";
     QString bgOpRule = m_bgOnlyOpacity
-        ? QString("1.0 override 1.0 override")
+        ? QString("0.999 override 0.999 override")
         : QString("%1 override %2 override").arg(effAct, 0, 'f', 2).arg(effInact, 0, 'f', 2);
     out << "hl.window_rule({\n";
     out << "    name    = \"hysett-bg-only-opacity\",\n";
-    out << "    match   = { class = \"^(kitty|waybar-btop|org\\\\.gnome\\\\.Nautilus|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
+    out << "    match   = { class = \"^(kitty|waybar-btop|org\\\\.gnome\\\\..*|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
     out << "    opacity = \"" << bgOpRule << "\",\n";
     out << "})\n";
     file.flush();

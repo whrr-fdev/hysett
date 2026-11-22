@@ -96,6 +96,7 @@ public:
 
     Q_INVOKABLE void undo();
     Q_INVOKABLE void resetToDefaults();
+    Q_INVOKABLE void applyCurrentBlur();
 
 signals:
     void lookChanged();
@@ -115,8 +116,8 @@ private:
     qreal m_dimStrength = 0.75;
     qreal m_dimAround = 0.40;
     bool m_blurEnabled = true;
-    int m_blurSize = 1;
-    int m_blurPasses = 2;
+    int m_blurSize = 6;
+    int m_blurPasses = 3;
     qreal m_blurVibrancy = 0.50;
     bool m_shadowEnabled = true;
     int m_shadowRange = 4;
@@ -127,7 +128,7 @@ private:
     bool m_noBorderSingleWindow = true;
     bool m_borderSyncWithWallpaper = true;
     QString m_activeBorder = "rgba(ccccccff)";
-    QString m_inactiveBorder = "rgba(333333ff)";
+    QString m_inactiveBorder = "rgba(767676cc)";
 
     struct Snapshot {
         qreal activeOpacity, inactiveOpacity;

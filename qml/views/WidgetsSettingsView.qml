@@ -35,7 +35,11 @@ RowLayout {
         onColorSelected: (newCol) => {
             var hex = newCol.toString()
             if (widgetsRoot.colorTarget === 0) Widgets.sysTextColor = hex
-            else Widgets.sysGraphColor = hex
+            else if (widgetsRoot.colorTarget === 1) Widgets.sysGraphColor = hex
+            else if (widgetsRoot.colorTarget === 2 && Config) {
+                Config.screenDrawUseThemeColor = false
+                Config.screenDrawColor = newCol
+            }
         }
     }
 
@@ -97,7 +101,7 @@ RowLayout {
         Layout.preferredWidth: 195
         color: Qt.rgba(0.04, 0.04, 0.04, Config ? Config.sidebarOpacity : 0.35)
 
-        property Item activeCardObj: subTab === 0 ? wCard0 : (subTab === 1 ? wCard1 : (subTab === 2 ? wCard2 : wCard3))
+        property Item activeCardObj: subTab === 0 ? wCard0 : (subTab === 1 ? wCard1 : (subTab === 2 ? wCard2 : (subTab === 3 ? wCard3 : wCard4)))
         property Item hoveredCardObj: null
         property Item lastHoveredCardObj: null
 
@@ -231,6 +235,27 @@ RowLayout {
                 }
             }
 
+            Item {
+                id: wCard4
+                SubCascadeAttach { stepIdx: 5 }
+                objectName: "skipAtmoChildren"
+                Layout.fillWidth: true; implicitHeight: 30
+                MouseArea {
+                    id: wMouse4; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                    onContainsMouseChanged: {
+                        if (containsMouse) { subSidebar.lastHoveredCardObj = wCard4; subSidebar.hoveredCardObj = wCard4 }
+                        else if (subSidebar.hoveredCardObj === wCard4) subSidebar.hoveredCardObj = null
+                    }
+                    onClicked: subTab = 4
+                }
+                RowLayout {
+                    anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 9
+                    Item { Layout.preferredWidth: 18; Layout.preferredHeight: 18; Text { anchors.centerIn: parent; text: "󰏫"; color: subTab === 4 ? (Config ? Config.accentTextColor : "#000000") : (wMouse4.containsMouse ? "#ffffff" : "#888888"); font.pixelSize: 13 } }
+                    Text { text: Config ? (Config.language, Config.trAuto("Рисование")) : "Рисование"; color: subTab === 4 ? (Config ? Config.accentTextColor : "#000000") : (wMouse4.containsMouse ? "#ffffff" : "#cccccc"); font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                    StyledSwitch { z: 10; inverted: subTab === 4; checked: Config ? Config.screenDrawEnabled : true; onToggled: if (Config) Config.screenDrawEnabled = checked }
+                }
+            }
+
             Item { Layout.fillHeight: true }
 
             Rectangle {
@@ -239,7 +264,7 @@ RowLayout {
             }
 
             RowLayout {
-                SubCascadeAttach { stepIdx: 5 }
+                SubCascadeAttach { stepIdx: 6 }
                 Layout.fillWidth: true
                 Layout.margins: 6
                 spacing: 8
@@ -573,6 +598,365 @@ RowLayout {
                                             color: Qt.rgba(1, 1, 1, 0.03); border.color: Qt.rgba(1, 1, 1, 0.08); border.width: 1
                                         }
                                     }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Вкладка 4: Рисование поверх экрана (Screen Draw)
+        ScrollView {
+            id: scrDraw; contentWidth: availableWidth; clip: true
+            Item {
+                width: scrDraw.availableWidth; implicitHeight: colDrawMain.implicitHeight + 44
+                ColumnLayout {
+                    id: colDrawMain
+                    width: Math.min(parent.width - 48, 860)
+                    anchors.horizontalCenter: parent.horizontalCenter; anchors.top: parent.top; anchors.topMargin: 20; spacing: 12
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Text {
+                            text: Config ? (Config.language, Config.trAuto("Рисование поверх экрана")) : "Рисование поверх экрана"
+                            color: "#ffffff"; font.pixelSize: Config.fontSize + 3; font.bold: true
+                            Layout.fillWidth: true
+                        }
+                        Rectangle {
+                            height: 26
+                            radius: (Theme && Theme.isRounded) ? 13 : 0
+                            width: drawRecLbl.implicitWidth + 18
+                            color: (Waybar && Waybar.recording) ? Qt.rgba(1, 0.25, 0.25, 0.22) : Qt.rgba(1, 1, 1, 0.06)
+                            border.width: 1
+                            border.color: (Waybar && Waybar.recording) ? Qt.rgba(1, 0.35, 0.35, 0.65) : Qt.rgba(1, 1, 1, 0.16)
+                            Text {
+                                id: drawRecLbl
+                                anchors.centerIn: parent
+                                text: (Waybar && Waybar.recording) ? "● Идёт запись" : "ALT + ~ (Ё)"
+                                color: (Waybar && Waybar.recording) ? "#ff6b6b" : "#cccccc"
+                                font.pixelSize: Config.fontSize - 1
+                                font.bold: true
+                            }
+                        }
+                        StyledButton {
+                            text: "󰏫  Тест на экране"
+                            onClicked: if (ScreenDraw) ScreenDraw.requestTest()
+                        }
+                    }
+
+                    // Карточка кисти, цвета и свечения по краям
+                    GlassPanel {
+                        objectName: "atmoObstacle"
+                        Layout.fillWidth: true; implicitHeight: colDrawBrush.implicitHeight + 22
+                        ColumnLayout {
+                            id: colDrawBrush; anchors.fill: parent; anchors.margins: 13; spacing: 11
+
+                            Text {
+                                text: Config ? (Config.language, Config.trAuto("Кисть, цвет и свечение по краям")) : "Кисть, цвет и свечение по краям"
+                                color: Config.accentColor; font.pixelSize: Config.fontSize + 1; font.bold: true
+                            }
+
+                            // Живое превью линии
+                            Rectangle {
+                                Layout.fillWidth: true
+                                height: 82
+                                radius: (Theme && Theme.isRounded) ? 10 : 0
+                                color: Qt.rgba(0.05, 0.05, 0.07, 0.92)
+                                border.width: 1
+                                border.color: Qt.rgba(1, 1, 1, 0.10)
+                                clip: true
+
+                                Canvas {
+                                    id: drawPreviewCanvas
+                                    anchors.fill: parent
+                                    antialiasing: true
+
+                                    Connections {
+                                        target: Config
+                                        function onScreenDrawChanged() { drawPreviewCanvas.requestPaint() }
+                                        function onAccentColorChanged() { drawPreviewCanvas.requestPaint() }
+                                    }
+                                    Component.onCompleted: requestPaint()
+
+                                    function parseCol(hexStr) {
+                                        var s = String(hexStr || "#ff3b5c").trim()
+                                        if (s.charAt(0) === "#") s = s.slice(1)
+                                        if (s.length === 8) s = s.slice(2)
+                                        if (s.length !== 6) return { r: 255, g: 59, b: 92 }
+                                        return { r: parseInt(s.slice(0,2), 16), g: parseInt(s.slice(2,4), 16), b: parseInt(s.slice(4,6), 16) }
+                                    }
+
+                                    function traceDemo(ctx) {
+                                        ctx.beginPath()
+                                        var h = height * 0.52
+                                        var left = 26
+                                        var right = width - 110
+                                        var span = Math.max(80, right - left)
+                                        ctx.moveTo(left, h + 10)
+                                        ctx.bezierCurveTo(left + span * 0.25, h - 26, left + span * 0.45, h + 28, left + span * 0.72, h - 14)
+                                        ctx.quadraticCurveTo(left + span * 0.88, h - 30, right, h + 6)
+                                        // Мини-стрелка справа
+                                        var ax0 = width - 86, ay0 = h + 14
+                                        var ax1 = width - 26, ay1 = h - 14
+                                        ctx.moveTo(ax0, ay0)
+                                        ctx.lineTo(ax1, ay1)
+                                        var ang = Math.atan2(ay1 - ay0, ax1 - ax0)
+                                        var hl = 13
+                                        ctx.moveTo(ax1, ay1)
+                                        ctx.lineTo(ax1 - hl * Math.cos(ang - 0.5), ay1 - hl * Math.sin(ang - 0.5))
+                                        ctx.moveTo(ax1, ay1)
+                                        ctx.lineTo(ax1 - hl * Math.cos(ang + 0.5), ay1 - hl * Math.sin(ang + 0.5))
+                                    }
+
+                                    onPaint: {
+                                        var ctx = getContext("2d")
+                                        ctx.clearRect(0, 0, width, height)
+                                        // Лёгкая сетка фона
+                                        ctx.strokeStyle = "rgba(255,255,255,0.04)"
+                                        ctx.lineWidth = 1
+                                        for (var gx = 20; gx < width; gx += 24) {
+                                            ctx.beginPath(); ctx.moveTo(gx, 0); ctx.lineTo(gx, height); ctx.stroke()
+                                        }
+                                        for (var gy = 18; gy < height; gy += 24) {
+                                            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(width, gy); ctx.stroke()
+                                        }
+
+                                        var colHex = (Config && Config.screenDrawUseThemeColor)
+                                                     ? Config.m3Primary.toString()
+                                                     : (Config ? Config.screenDrawColor.toString() : "#ff3b5c")
+                                        var rgb = parseCol(colHex)
+                                        var r = rgb.r, g = rgb.g, b = rgb.b
+                                        var w = Config ? Config.screenDrawLineWidth : 5.0
+                                        var st = Config ? Config.screenDrawBrushStyle : 1
+                                        var gs = Config ? Config.screenDrawGlowStrength : 0.9
+                                        var gm = Math.min(1.4, gs)
+
+                                        ctx.lineCap = "round"
+                                        ctx.lineJoin = "round"
+
+                                        if (st === 0) {
+                                            traceDemo(ctx)
+                                            ctx.lineWidth = w
+                                            ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + ",0.96)"
+                                            ctx.stroke()
+                                        } else if (st === 1) {
+                                            if (gs > 0.01) {
+                                                traceDemo(ctx); ctx.lineWidth = w + 20 * gs; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + (0.08 * gm).toFixed(3) + ")"; ctx.stroke()
+                                                traceDemo(ctx); ctx.lineWidth = w + 11 * gs; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + (0.18 * gm).toFixed(3) + ")"; ctx.stroke()
+                                                traceDemo(ctx); ctx.lineWidth = w + 5 * gs; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + (0.42 * gm).toFixed(3) + ")"; ctx.stroke()
+                                            }
+                                            var er = Math.min(255, Math.round(r * 0.28 + 255 * 0.72))
+                                            var eg = Math.min(255, Math.round(g * 0.28 + 255 * 0.72))
+                                            var eb = Math.min(255, Math.round(b * 0.28 + 255 * 0.72))
+                                            traceDemo(ctx); ctx.lineWidth = w + 1.8; ctx.strokeStyle = "rgba(" + er + "," + eg + "," + eb + ",0.95)"; ctx.stroke()
+                                            traceDemo(ctx); ctx.lineWidth = Math.max(1.2, w * 0.58); ctx.strokeStyle = "rgba(" + Math.round(r * 0.56) + "," + Math.round(g * 0.56) + "," + Math.round(b * 0.56) + ",0.94)"; ctx.stroke()
+                                        } else {
+                                            if (gs > 0.01) {
+                                                traceDemo(ctx); ctx.lineWidth = w + 24 * gs; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + (0.10 * gm).toFixed(3) + ")"; ctx.stroke()
+                                                traceDemo(ctx); ctx.lineWidth = w + 13 * gs; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + (0.24 * gm).toFixed(3) + ")"; ctx.stroke()
+                                                traceDemo(ctx); ctx.lineWidth = w + 5.5 * gs; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + "," + (0.52 * gm).toFixed(3) + ")"; ctx.stroke()
+                                            }
+                                            traceDemo(ctx); ctx.lineWidth = w; ctx.strokeStyle = "rgba(" + r + "," + g + "," + b + ",0.96)"; ctx.stroke()
+                                            var lr = Math.min(255, Math.round(r * 0.18 + 255 * 0.82))
+                                            var lg = Math.min(255, Math.round(g * 0.18 + 255 * 0.82))
+                                            var lb = Math.min(255, Math.round(b * 0.18 + 255 * 0.82))
+                                            traceDemo(ctx); ctx.lineWidth = Math.max(1.2, w * 0.42); ctx.strokeStyle = "rgba(" + lr + "," + lg + "," + lb + ",0.98)"; ctx.stroke()
+                                        }
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Стиль линии:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 185 }
+                                SegmentedButton {
+                                    Layout.fillWidth: true
+                                    options: ["Обычная", "Светящиеся края", "Неоновый лазер"]
+                                    selectedIndex: Config ? Config.screenDrawBrushStyle : 1
+                                    onSelected: (idx) => { if (Config) Config.screenDrawBrushStyle = idx }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true; spacing: 8
+                                Text { text: "Цвет кисти:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 177 }
+                                Repeater {
+                                    model: ["#ff3b5c", "#00e5ff", "#39ff14", "#ffea00", "#c060ff", "#ff7a00", "#4d88ff", "#ffffff"]
+                                    Rectangle {
+                                        width: 24; height: 24
+                                        radius: (Theme && Theme.isRounded) ? 12 : 0
+                                        color: modelData
+                                        property bool isSel: Config && !Config.screenDrawUseThemeColor && Config.screenDrawColor.toString().toLowerCase() === modelData.toLowerCase()
+                                        border.width: isSel ? 2.5 : 1
+                                        border.color: isSel ? "#ffffff" : Qt.rgba(1, 1, 1, 0.28)
+                                        scale: isSel ? 1.12 : (swMouse.containsMouse ? 1.07 : 1.0)
+                                        Behavior on scale { NumberAnimation { duration: 110; easing.type: Easing.OutCubic } }
+                                        MouseArea {
+                                            id: swMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: {
+                                                if (Config) {
+                                                    Config.screenDrawUseThemeColor = false
+                                                    Config.screenDrawColor = modelData
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                Item { Layout.fillWidth: true }
+                                StyledButton {
+                                    text: "󰏘  " + (Config ? Config.screenDrawColor.toString().toUpperCase() : "#FF3B5C")
+                                    onClicked: {
+                                        widgetsRoot.colorTarget = 2
+                                        sysColorModal.openPicker("Цвет кисти рисования", Config ? Config.screenDrawColor : "#ff3b5c")
+                                    }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Брать цвет из активной темы обоев:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                StyledSwitch {
+                                    checked: Config ? Config.screenDrawUseThemeColor : false
+                                    onToggled: if (Config) Config.screenDrawUseThemeColor = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Толщина линии: " + (Config ? Config.screenDrawLineWidth.toFixed(1) : "5.0") + " px"
+                                    color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 1.5; to: 24.0; stepSize: 0.5
+                                    value: Config ? Config.screenDrawLineWidth : 5.0
+                                    onMoved: if (Config) Config.screenDrawLineWidth = value
+                                }
+                            }
+
+                            RowLayout {
+                                visible: Config && Config.screenDrawBrushStyle !== 0
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Сила свечения по краям: " + Math.round((Config ? Config.screenDrawGlowStrength : 0.9) * 100) + "%"
+                                    color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 0.0; to: 1.5; stepSize: 0.05
+                                    value: Config ? Config.screenDrawGlowStrength : 0.9
+                                    onMoved: if (Config) Config.screenDrawGlowStrength = value
+                                }
+                            }
+                        }
+                    }
+
+                    // Карточка поведения и таймеров исчезновения
+                    GlassPanel {
+                        objectName: "atmoObstacle"
+                        Layout.fillWidth: true; implicitHeight: colDrawTiming.implicitHeight + 22
+                        ColumnLayout {
+                            id: colDrawTiming; anchors.fill: parent; anchors.margins: 13; spacing: 11
+
+                            Text {
+                                text: Config ? (Config.language, Config.trAuto("Таймеры исчезновения и бинд")) : "Таймеры исчезновения и бинд"
+                                color: Config.accentColor; font.pixelSize: Config.fontSize + 1; font.bold: true
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Активировать только во время записи экрана (Super + F10):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                StyledSwitch {
+                                    checked: Config ? Config.screenDrawOnlyRecording : true
+                                    onToggled: if (Config) Config.screenDrawOnlyRecording = checked
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Режим клавиши ALT + ~ (Ё):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 230 }
+                                SegmentedButton {
+                                    Layout.fillWidth: true
+                                    options: ["Удержание клавиши", "Нажал — вкл / выкл"]
+                                    selectedIndex: Config ? Config.screenDrawMode : 0
+                                    onSelected: (idx) => { if (Config) Config.screenDrawMode = idx }
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Держать линии после отпускания: " + (Config ? Config.screenDrawFadeDelay.toFixed(1) : "2.5") + " сек"
+                                    color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 0.0; to: 15.0; stepSize: 0.5
+                                    value: Config ? Config.screenDrawFadeDelay : 2.5
+                                    onMoved: if (Config) Config.screenDrawFadeDelay = value
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text {
+                                    text: "Плавность исчезновения: " + (Config ? Config.screenDrawFadeDuration.toFixed(1) : "0.8") + " сек"
+                                    color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 270
+                                }
+                                StyledSlider {
+                                    Layout.fillWidth: true
+                                    from: 0.1; to: 4.0; stepSize: 0.1
+                                    value: Config ? Config.screenDrawFadeDuration : 0.8
+                                    onMoved: if (Config) Config.screenDrawFadeDuration = value
+                                }
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Text { text: "Показывать кольцо кисти и подсказку внизу при рисовании:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.fillWidth: true }
+                                StyledSwitch {
+                                    checked: Config ? Config.screenDrawShowHint : true
+                                    onToggled: if (Config) Config.screenDrawShowHint = checked
+                                }
+                            }
+                        }
+                    }
+
+                    // Карточка подсказок управления
+                    GlassPanel {
+                        objectName: "atmoObstacle"
+                        Layout.fillWidth: true; implicitHeight: colDrawKeys.implicitHeight + 22
+                        ColumnLayout {
+                            id: colDrawKeys; anchors.fill: parent; anchors.margins: 13; spacing: 7
+
+                            Text { text: "⌨  Управление во время рисования"; color: "#ffffff"; font.pixelSize: Config.fontSize + 1; font.bold: true }
+
+                            Repeater {
+                                model: [
+                                    { k: "ALT + ~ (Ё)", d: "Удерживать и рисовать (работает и в EN, и в RU раскладке; клики возвращаются сразу после отпускания)" },
+                                    { k: "ЛКМ", d: "Плавная свободная линия со сглаживанием" },
+                                    { k: "Shift + ЛКМ", d: "Ровная стрелка для указания на элемент" },
+                                    { k: "Ctrl + ЛКМ", d: "Скруглённая рамка для выделения области" },
+                                    { k: "ПКМ  /  Z", d: "Отменить последний штрих" },
+                                    { k: "Колесо мыши", d: "Быстро изменить толщину кисти на лету" },
+                                    { k: "1 – 7  /  C  /  Esc", d: "Быстрая смена цвета / стереть всё / выйти" }
+                                ]
+                                RowLayout {
+                                    Layout.fillWidth: true; spacing: 10
+                                    Rectangle {
+                                        Layout.preferredWidth: 150; height: 24
+                                        radius: (Theme && Theme.isRounded) ? 6 : 0
+                                        color: Qt.rgba(1, 1, 1, 0.08)
+                                        border.width: 1; border.color: Qt.rgba(1, 1, 1, 0.16)
+                                        Text { anchors.centerIn: parent; text: modelData.k; color: "#ffffff"; font.pixelSize: Config.fontSize - 1; font.bold: true }
+                                    }
+                                    Text { text: modelData.d; color: "#cccccc"; font.pixelSize: Config.fontSize - 1; wrapMode: Text.WordWrap; Layout.fillWidth: true }
                                 }
                             }
                         }

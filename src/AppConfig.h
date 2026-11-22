@@ -37,6 +37,17 @@ class AppConfig : public QObject {
     Q_PROPERTY(bool floatingWindowMode READ floatingWindowMode WRITE setFloatingWindowMode NOTIFY floatingWindowModeChanged)
         Q_PROPERTY(bool musicPrivacyMode READ musicPrivacyMode WRITE setMusicPrivacyMode NOTIFY musicPrivacyModeChanged)
     Q_PROPERTY(bool streamerMode READ streamerMode WRITE setStreamerMode NOTIFY streamerModeChanged)
+    Q_PROPERTY(bool screenDrawEnabled READ screenDrawEnabled WRITE setScreenDrawEnabled NOTIFY screenDrawChanged)
+    Q_PROPERTY(bool screenDrawOnlyRecording READ screenDrawOnlyRecording WRITE setScreenDrawOnlyRecording NOTIFY screenDrawChanged)
+    Q_PROPERTY(int screenDrawMode READ screenDrawMode WRITE setScreenDrawMode NOTIFY screenDrawChanged)
+    Q_PROPERTY(qreal screenDrawFadeDelay READ screenDrawFadeDelay WRITE setScreenDrawFadeDelay NOTIFY screenDrawChanged)
+    Q_PROPERTY(qreal screenDrawFadeDuration READ screenDrawFadeDuration WRITE setScreenDrawFadeDuration NOTIFY screenDrawChanged)
+    Q_PROPERTY(qreal screenDrawLineWidth READ screenDrawLineWidth WRITE setScreenDrawLineWidth NOTIFY screenDrawChanged)
+    Q_PROPERTY(QColor screenDrawColor READ screenDrawColor WRITE setScreenDrawColor NOTIFY screenDrawChanged)
+    Q_PROPERTY(bool screenDrawUseThemeColor READ screenDrawUseThemeColor WRITE setScreenDrawUseThemeColor NOTIFY screenDrawChanged)
+    Q_PROPERTY(int screenDrawBrushStyle READ screenDrawBrushStyle WRITE setScreenDrawBrushStyle NOTIFY screenDrawChanged)
+    Q_PROPERTY(qreal screenDrawGlowStrength READ screenDrawGlowStrength WRITE setScreenDrawGlowStrength NOTIFY screenDrawChanged)
+    Q_PROPERTY(bool screenDrawShowHint READ screenDrawShowHint WRITE setScreenDrawShowHint NOTIFY screenDrawChanged)
     Q_PROPERTY(bool webShareRunning READ webShareRunning NOTIFY webShareChanged)
     Q_PROPERTY(QString webShareUrl READ webShareUrl NOTIFY webShareChanged)
     Q_PROPERTY(QString webShareQrPath READ webShareQrPath NOTIFY webShareChanged)
@@ -199,6 +210,28 @@ public:
     void setMusicPrivacyMode(bool v);
     bool streamerMode() const { return m_streamerMode; }
     void setStreamerMode(bool v);
+    bool screenDrawEnabled() const { return m_screenDrawEnabled; }
+    void setScreenDrawEnabled(bool v);
+    bool screenDrawOnlyRecording() const { return m_screenDrawOnlyRecording; }
+    void setScreenDrawOnlyRecording(bool v);
+    int screenDrawMode() const { return m_screenDrawMode; }
+    void setScreenDrawMode(int v);
+    qreal screenDrawFadeDelay() const { return m_screenDrawFadeDelay; }
+    void setScreenDrawFadeDelay(qreal v);
+    qreal screenDrawFadeDuration() const { return m_screenDrawFadeDuration; }
+    void setScreenDrawFadeDuration(qreal v);
+    qreal screenDrawLineWidth() const { return m_screenDrawLineWidth; }
+    void setScreenDrawLineWidth(qreal v);
+    QColor screenDrawColor() const { return m_screenDrawColor; }
+    void setScreenDrawColor(const QColor &c);
+    bool screenDrawUseThemeColor() const { return m_screenDrawUseThemeColor; }
+    void setScreenDrawUseThemeColor(bool v);
+    int screenDrawBrushStyle() const { return m_screenDrawBrushStyle; }
+    void setScreenDrawBrushStyle(int v);
+    qreal screenDrawGlowStrength() const { return m_screenDrawGlowStrength; }
+    void setScreenDrawGlowStrength(qreal v);
+    bool screenDrawShowHint() const { return m_screenDrawShowHint; }
+    void setScreenDrawShowHint(bool v);
 
     bool firstRunCompleted() const { return m_firstRunCompleted; }
     void setFirstRunCompleted(bool v);
@@ -451,6 +484,7 @@ signals:
     void floatingWindowModeChanged();
     void musicPrivacyModeChanged();
     void streamerModeChanged();
+    void screenDrawChanged();
     void webShareChanged();
     void stashedFilesChanged();
     void bootloaderChanged();
@@ -512,6 +546,17 @@ private:
     bool m_floatingWindowMode = true;
     bool m_musicPrivacyMode = false;
     bool m_streamerMode = false;
+    bool m_screenDrawEnabled = true;
+    bool m_screenDrawOnlyRecording = true;
+    int m_screenDrawMode = 0;
+    qreal m_screenDrawFadeDelay = 2.5;
+    qreal m_screenDrawFadeDuration = 0.8;
+    qreal m_screenDrawLineWidth = 5.0;
+    QColor m_screenDrawColor = QColor("#ff3b5c");
+    bool m_screenDrawUseThemeColor = false;
+    int m_screenDrawBrushStyle = 1;
+    qreal m_screenDrawGlowStrength = 0.90;
+    bool m_screenDrawShowHint = true;
     QString m_lastPhoneScreenMode = "usb";
     bool m_webShareRunning = false;
     QString m_webShareUrl;

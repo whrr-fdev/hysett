@@ -61,6 +61,8 @@ qt_add_executable(hysett
     src/IconImageProvider.h
     src/HyprIpc.cpp
     src/HyprIpc.h
+    src/ScreenDrawController.cpp
+    src/ScreenDrawController.h
 )
 
 qt6_add_shaders(hysett "hysett_shaders"
@@ -117,6 +119,7 @@ qt_add_qml_module(hysett
         qml/views/ShadersView.qml
         qml/views/AtmosphereView.qml
         qml/AtmosphereOverlay.qml
+        qml/ScreenDrawOverlay.qml
         qml/views/SearchView.qml
         qml/views/WeatherView.qml
         qml/views/SysMonView.qml

@@ -558,6 +558,17 @@ void AppConfig::load() {
             else if (key == "floating_window_mode") m_floatingWindowMode = (val == "1" || val == "true");
             else if (key == "music_privacy_mode") m_musicPrivacyMode = (val == "1" || val == "true");
             else if (key == "streamer_mode") m_streamerMode = (val == "1" || val == "true");
+            else if (key == "screen_draw_enabled") m_screenDrawEnabled = (val == "1" || val == "true");
+            else if (key == "screen_draw_only_recording") m_screenDrawOnlyRecording = (val == "1" || val == "true");
+            else if (key == "screen_draw_mode") m_screenDrawMode = std::clamp(val.toInt(), 0, 1);
+            else if (key == "screen_draw_fade_delay") m_screenDrawFadeDelay = std::clamp(val.toDouble(), 0.0, 15.0);
+            else if (key == "screen_draw_fade_duration") m_screenDrawFadeDuration = std::clamp(val.toDouble(), 0.1, 4.0);
+            else if (key == "screen_draw_line_width") m_screenDrawLineWidth = std::clamp(val.toDouble(), 1.5, 24.0);
+            else if (key == "screen_draw_color" && QColor::isValidColorName(val)) m_screenDrawColor = QColor(val);
+            else if (key == "screen_draw_use_theme_color") m_screenDrawUseThemeColor = (val == "1" || val == "true");
+            else if (key == "screen_draw_brush_style") m_screenDrawBrushStyle = std::clamp(val.toInt(), 0, 2);
+            else if (key == "screen_draw_glow_strength") m_screenDrawGlowStrength = std::clamp(val.toDouble(), 0.0, 1.5);
+            else if (key == "screen_draw_show_hint") m_screenDrawShowHint = (val == "1" || val == "true");
             else if (key == "first_run_completed") m_firstRunCompleted = (val == "1" || val == "true");
             else if (key == "auto_check_updates_on_boot") m_autoCheckUpdatesOnBoot = (val == "1" || val == "true");
             else if (key == "auto_update_notify") m_autoUpdateNotify = (val == "1" || val == "true");
@@ -650,6 +661,17 @@ void AppConfig::save() {
             extra["floating_window_mode"] = m_floatingWindowMode ? "1" : "0";
             extra["music_privacy_mode"] = m_musicPrivacyMode ? "1" : "0";
             extra["streamer_mode"] = m_streamerMode ? "1" : "0";
+            extra["screen_draw_enabled"] = m_screenDrawEnabled ? "1" : "0";
+            extra["screen_draw_only_recording"] = m_screenDrawOnlyRecording ? "1" : "0";
+            extra["screen_draw_mode"] = QString::number(m_screenDrawMode);
+            extra["screen_draw_fade_delay"] = QString::number(m_screenDrawFadeDelay, 'f', 2);
+            extra["screen_draw_fade_duration"] = QString::number(m_screenDrawFadeDuration, 'f', 2);
+            extra["screen_draw_line_width"] = QString::number(m_screenDrawLineWidth, 'f', 1);
+            extra["screen_draw_color"] = m_screenDrawColor.name(QColor::HexRgb);
+            extra["screen_draw_use_theme_color"] = m_screenDrawUseThemeColor ? "1" : "0";
+            extra["screen_draw_brush_style"] = QString::number(m_screenDrawBrushStyle);
+            extra["screen_draw_glow_strength"] = QString::number(m_screenDrawGlowStrength, 'f', 2);
+            extra["screen_draw_show_hint"] = m_screenDrawShowHint ? "1" : "0";
             extra["first_run_completed"] = m_firstRunCompleted ? "1" : "0";
             extra["auto_check_updates_on_boot"] = m_autoCheckUpdatesOnBoot ? "1" : "0";
             extra["auto_update_notify"] = m_autoUpdateNotify ? "1" : "0";
@@ -2207,3 +2229,44 @@ void AppConfig::openTestTerminal() {
     runBootScriptWithPwd(this, {QDir::homePath() + "/hysett/scripts/hysett_terminal.py", "open_terminal"}, "", [](const QByteArray &) {});
 }
 
+
+
+void AppConfig::setScreenDrawEnabled(bool v) {
+    if (m_screenDrawEnabled != v) { m_screenDrawEnabled = v; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawOnlyRecording(bool v) {
+    if (m_screenDrawOnlyRecording != v) { m_screenDrawOnlyRecording = v; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawMode(int v) {
+    int c = std::clamp(v, 0, 1);
+    if (m_screenDrawMode != c) { m_screenDrawMode = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawFadeDelay(qreal v) {
+    qreal c = std::clamp(v, 0.0, 15.0);
+    if (qAbs(m_screenDrawFadeDelay - c) > 0.001) { m_screenDrawFadeDelay = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawFadeDuration(qreal v) {
+    qreal c = std::clamp(v, 0.1, 4.0);
+    if (qAbs(m_screenDrawFadeDuration - c) > 0.001) { m_screenDrawFadeDuration = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawLineWidth(qreal v) {
+    qreal c = std::clamp(v, 1.5, 24.0);
+    if (qAbs(m_screenDrawLineWidth - c) > 0.001) { m_screenDrawLineWidth = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawColor(const QColor &c) {
+    if (c.isValid() && m_screenDrawColor != c) { m_screenDrawColor = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawUseThemeColor(bool v) {
+    if (m_screenDrawUseThemeColor != v) { m_screenDrawUseThemeColor = v; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawBrushStyle(int v) {
+    int c = std::clamp(v, 0, 2);
+    if (m_screenDrawBrushStyle != c) { m_screenDrawBrushStyle = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawGlowStrength(qreal v) {
+    qreal c = std::clamp(v, 0.0, 1.5);
+    if (qAbs(m_screenDrawGlowStrength - c) > 0.001) { m_screenDrawGlowStrength = c; emit screenDrawChanged(); save(); }
+}
+void AppConfig::setScreenDrawShowHint(bool v) {
+    if (m_screenDrawShowHint != v) { m_screenDrawShowHint = v; emit screenDrawChanged(); save(); }
+}

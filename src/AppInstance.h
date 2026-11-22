@@ -2,6 +2,7 @@
 #include <QObject>
 #include <QLocalServer>
 #include <QLocalSocket>
+#include <QString>
 
 class AppInstance : public QObject {
     Q_OBJECT
@@ -11,6 +12,7 @@ public:
 
 signals:
     void toggleRequested();
+    void drawCommandRequested(const QString &cmd);
 
 private:
     QString m_serverName;

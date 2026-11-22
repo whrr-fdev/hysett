@@ -11,7 +11,7 @@ bool AppInstance::checkSingleInstance() {
         socket.write("TOGGLE");
         socket.flush();
         socket.waitForBytesWritten(200);
-        return false; // Уже запущен другой экземпляр
+        return false;
     }
 
     QLocalServer::removeServer(m_serverName);
@@ -22,10 +22,15 @@ bool AppInstance::checkSingleInstance() {
             if (client) {
                 connect(client, &QLocalSocket::readyRead, this, [this, client]() {
                     QByteArray msg = client->readAll();
-                    if (msg.contains("TOGGLE")) {
+                    if (msg.contains("DRAW_DOWN")) emit drawCommandRequested(QStringLiteral("down"));
+                    if (msg.contains("DRAW_UP")) emit drawCommandRequested(QStringLiteral("up"));
+                    if (msg.contains("DRAW_TOGGLE")) emit drawCommandRequested(QStringLiteral("toggle"));
+                    if (msg.contains("DRAW_CLEAR")) emit drawCommandRequested(QStringLiteral("clear"));
+                    if (msg.contains("TOGGLE") && !msg.contains("DRAW_TOGGLE")) {
                         emit toggleRequested();
                     }
                 });
+                connect(client, &QLocalSocket::disconnected, client, &QObject::deleteLater);
             }
         });
     }

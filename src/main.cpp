@@ -37,9 +37,40 @@
 #ifdef HAVE_LAYERSHELLQT
 #include <LayerShellQt/Window>
 #endif
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <unistd.h>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <QQmlComponent>
 #include "IconImageProvider.h"
+#include "ScreenDrawController.h" 
 
 int main(int argc, char *argv[]) {
+    if (argc == 2) {
+        const char *drawMsg = nullptr;
+        if (std::strcmp(argv[1], "--draw-down") == 0) drawMsg = "DRAW_DOWN\n";
+        else if (std::strcmp(argv[1], "--draw-up") == 0) drawMsg = "DRAW_UP\n";
+        else if (std::strcmp(argv[1], "--draw-toggle") == 0) drawMsg = "DRAW_TOGGLE\n";
+        else if (std::strcmp(argv[1], "--draw-clear") == 0) drawMsg = "DRAW_CLEAR\n";
+        if (drawMsg) {
+            int fd = ::socket(AF_UNIX, SOCK_STREAM, 0);
+            if (fd >= 0) {
+                sockaddr_un addr{};
+                addr.sun_family = AF_UNIX;
+                const char *tmpDir = std::getenv("TMPDIR");
+                if (!tmpDir || !tmpDir[0]) tmpDir = "/tmp";
+                std::snprintf(addr.sun_path, sizeof(addr.sun_path), "%s/com.whrr.HyprSettings.socket", tmpDir);
+                if (::connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr)) == 0) {
+                    ssize_t wr = ::write(fd, drawMsg, std::strlen(drawMsg));
+                    (void)wr;
+                }
+                ::close(fd);
+            }
+            return 0;
+        }
+    }
     mallopt(M_ARENA_MAX, 2);
     mallopt(M_MMAP_THRESHOLD, 64 * 1024);
     mallopt(M_TRIM_THRESHOLD, 64 * 1024);
@@ -174,6 +205,7 @@ int main(int argc, char *argv[]) {
     static WallpapersManager wallpapersManager;
     static ShadersManager shadersManager;
     static AtmosphereManager atmosphereManager(false);
+    static ScreenDrawController screenDrawCtrl(&waybarManager);
     QObject::connect(&wallpapersManager, &WallpapersManager::activePresetChanged, &appConfig, [&]() {
         if (appConfig.m3DynamicWallpaperColors()) QTimer::singleShot(450, &appConfig, &AppConfig::extractPaletteFromWallpaper);
     });
@@ -198,6 +230,7 @@ int main(int argc, char *argv[]) {
     qmlRegisterSingletonInstance("HySett", 1, 0, "Wallpapers", &wallpapersManager);
     qmlRegisterSingletonInstance("HySett", 1, 0, "Shaders", &shadersManager);
     qmlRegisterSingletonInstance("HySett", 1, 0, "Atmosphere", &atmosphereManager);
+    qmlRegisterSingletonInstance("HySett", 1, 0, "ScreenDraw", &screenDrawCtrl);
     qmlRegisterType<AtmosphereCanvas>("HySett", 1, 0, "AtmosphereCanvas");
 
     auto ctx = engine.rootContext();
@@ -221,7 +254,9 @@ int main(int argc, char *argv[]) {
     ctx->setContextProperty("Wallpapers", &wallpapersManager);
     ctx->setContextProperty("Shaders", &shadersManager);
     ctx->setContextProperty("Atmosphere", &atmosphereManager);
+    ctx->setContextProperty("ScreenDraw", &screenDrawCtrl);
 
+    QObject::connect(&instance, &AppInstance::drawCommandRequested, &screenDrawCtrl, &ScreenDrawController::dispatchCommand);
     QObject::connect(&instance, &AppInstance::toggleRequested, [&engine]() {
         if (engine.rootObjects().isEmpty()) return;
         QObject *rootObj = engine.rootObjects().first();
@@ -313,6 +348,26 @@ int main(int argc, char *argv[]) {
     }, Qt::DirectConnection);
 
     engine.load(url);
+
+    QQmlComponent drawComp(&engine, QUrl(QStringLiteral("qrc:/qt/qml/HySett/qml/ScreenDrawOverlay.qml")));
+    QObject *drawObj = drawComp.create(engine.rootContext());
+    if (drawObj) {
+        drawObj->setParent(&app);
+        if (auto *dw = qobject_cast<QQuickWindow *>(drawObj)) {
+#ifdef HAVE_LAYERSHELLQT
+            if (auto *dls = LayerShellQt::Window::get(dw)) {
+                dls->setLayer(LayerShellQt::Window::LayerOverlay);
+                dls->setExclusiveZone(-1);
+                dls->setKeyboardInteractivity(LayerShellQt::Window::KeyboardInteractivityNone);
+                dls->setAnchors(LayerShellQt::Window::Anchors(
+                    LayerShellQt::Window::AnchorTop | LayerShellQt::Window::AnchorBottom |
+                    LayerShellQt::Window::AnchorLeft | LayerShellQt::Window::AnchorRight));
+                dls->setScope(QStringLiteral("hysett-draw"));
+            }
+#endif
+            dw->setMask(QRegion(-10, -10, 1, 1));
+        }
+    }
     malloc_trim(0);
     return app.exec();
 }

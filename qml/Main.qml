@@ -1049,11 +1049,32 @@ ApplicationWindow {
             property vector4d u_notif_rect: notifClipBox.overlapsOpenDrawer ? Qt.vector4d(0, 0, 0, 0) : Qt.vector4d(root.notifX, root.notifY, root.notifW, root.animNotifH)
             property vector4d u_bg_color: Qt.vector4d(surfCol.r, surfCol.g, surfCol.b, currentOpacity)
             property vector4d u_notif_color: Qt.vector4d(notifBgCol.r, notifBgCol.g, notifBgCol.b, notifAlpha)
-            property vector4d u_outline_color: Qt.vector4d(outCol.r, outCol.g, outCol.b, root.drawerActive ? 0.32 : 0.16)
-            readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : '#ffffff')
+            function parseHyprRgbaVec(rgbaStr) {
+                var m = String(rgbaStr || "").match(/rgba\(([0-9a-fA-F]{6})([0-9a-fA-F]{2})?\)/)
+                if (m && m[1]) {
+                    var hex = m[1]
+                    var r = parseInt(hex.substring(0, 2), 16) / 255.0
+                    var g = parseInt(hex.substring(2, 4), 16) / 255.0
+                    var b = parseInt(hex.substring(4, 6), 16) / 255.0
+                    var a = m[2] ? (parseInt(m[2], 16) / 255.0) : 0.80
+                    return Qt.vector4d(r, g, b, a)
+                }
+                return Qt.vector4d(0.46, 0.46, 0.46, 0.80)
+            }
+            readonly property bool hideBarBorderSingleWin: Waybar && (Waybar.activeWorkspaceWindowCount === 1) && (!Look || Look.noBorderSingleWindow)
+            readonly property vector4d inactiveWinBorderVec: parseHyprRgbaVec(Look ? Look.inactiveBorder : "rgba(767676cc)")
+            property vector4d u_outline_color: root.drawerActive
+                                               ? Qt.vector4d(outCol.r, outCol.g, outCol.b, 0.32)
+                                               : (hideBarBorderSingleWin ? Qt.vector4d(0, 0, 0, 0.0) : inactiveWinBorderVec)
+            readonly property color activeWaveTint: (Theme && Theme.isRounded && Config) ? Config.m3Primary : (Config ? Config.accentColor : "#ffffff")
             property vector3d u_glow_color: Qt.vector3d(activeWaveTint.r, activeWaveTint.g, activeWaveTint.b)
             property vector3d u_cursor_color: Config ? Qt.vector3d(Config.cursorCustomColor.r, Config.cursorCustomColor.g, Config.cursorCustomColor.b) : Qt.vector3d(1, 1, 1)
-            property real u_bar_alpha: Waybar ? Waybar.barOpacity : 0.88
+            readonly property real matchedBarAlpha: {
+                var blurOn = Waybar ? Waybar.barBlurEnabled : true
+                var rawA = (Waybar && Waybar.barMatchWindows && Look) ? Look.activeOpacity : (Waybar ? Waybar.barOpacity : 0.88)
+                return blurOn ? Math.max(0.025, rawA) : rawA
+            }
+            property real u_bar_alpha: matchedBarAlpha
             property real u_radius: (Theme && Theme.isRounded) ? (Config ? Math.round(Config.m3WindowRadius * 0.65) : 13.0) : 0.0
             property real u_fillet: (Theme && Theme.isRounded) ? (Config ? Config.m3WindowRadius : 20.0) : 0.0
             property real u_refraction: (root.drawerActive && Theme) ? Math.max(Theme.glassRefraction, Theme.controlsLiquidGlass ? 0.55 : 0.0) : 0.0

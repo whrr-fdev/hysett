@@ -38,6 +38,8 @@ class WaybarManager : public QObject {
     Q_PROPERTY(bool barBlurEnabled READ barBlurEnabled WRITE setBarBlurEnabled NOTIFY stateChanged)
     Q_PROPERTY(qreal barBlur READ barBlur WRITE setBarBlur NOTIFY stateChanged)
     Q_PROPERTY(bool barBlurXray READ barBlurXray WRITE setBarBlurXray NOTIFY stateChanged)
+    Q_PROPERTY(bool barMatchWindows READ barMatchWindows WRITE setBarMatchWindows NOTIFY stateChanged)
+    Q_PROPERTY(int activeWorkspaceWindowCount READ activeWorkspaceWindowCount NOTIFY workspacesChanged)
 
     Q_PROPERTY(QVariantList workspaces READ workspaces NOTIFY workspacesChanged)
     Q_PROPERTY(int activeWorkspace READ activeWorkspace NOTIFY workspacesChanged)
@@ -245,6 +247,9 @@ public:
     void setBarBlur(qreal v);
     bool barBlurXray() const { return m_barBlurXray; }
     void setBarBlurXray(bool v);
+    bool barMatchWindows() const { return m_barMatchWindows; }
+    void setBarMatchWindows(bool v);
+    int activeWorkspaceWindowCount() const { return m_activeWorkspaceWindowCount; }
     Q_INVOKABLE void applyBarBlurRule(bool forceDrawerBlur = false, bool drawerXray = false);
 
     QVariantList workspaces() const { return m_workspaces; }
@@ -565,6 +570,8 @@ private:
     bool m_barBlurEnabled = true;
     qreal m_barBlur = 0.45;
     bool m_barBlurXray = false;
+    bool m_barMatchWindows = true;
+    int m_activeWorkspaceWindowCount = 0;
     QVariantList m_specs;
     QVariantList m_defaults;
 

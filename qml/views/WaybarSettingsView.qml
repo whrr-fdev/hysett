@@ -409,6 +409,23 @@ ScrollView {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 10
+                        Text { text: "Как у окон (когда настройки закрыты):"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
+                        StyledSwitch {
+                            checked: Waybar ? Waybar.barMatchWindows : true
+                            onToggled: if (Waybar) Waybar.barMatchWindows = checked
+                        }
+                        Text {
+                            text: (Waybar && Waybar.barMatchWindows) ? "Прозрачность и блюр панели повторяют окна" : "Собственная прозрачность из ползунка выше"
+                            color: (Waybar && Waybar.barMatchWindows) ? (Config ? Config.m3Primary : "#ffffff") : "#888888"
+                            font.pixelSize: Config.fontSize - 1
+                            Layout.fillWidth: true
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
                         Text { text: "Блюр панели задач:"; color: "#cccccc"; font.pixelSize: Config.fontSize; Layout.preferredWidth: 220 }
                         StyledSwitch {
                             checked: Waybar ? Waybar.barBlurEnabled : true

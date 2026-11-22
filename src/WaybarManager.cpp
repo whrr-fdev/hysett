@@ -233,6 +233,7 @@ void WaybarManager::loadState() {
             else if (k == "bar_blur_enabled") m_barBlurEnabled = (v == "1" || v == "true");
             else if (k == "bar_blur") m_barBlur = std::clamp(v.toDouble(), 0.0, 1.0);
             else if (k == "bar_blur_xray") m_barBlurXray = (v == "1" || v == "true");
+            else if (k == "bar_match_windows") m_barMatchWindows = (v == "1" || v == "true");
             else if (k == "media_demo_mode") m_mediaDemoMode = (v == "1" || v == "true");
             else if (k == "media_hide_timeout") m_mediaHideTimeout = std::clamp(v.toInt(), 0, 600);
             else if (k == "media_waves") m_mediaWaves = (v == "1" || v == "true");
@@ -303,6 +304,7 @@ void WaybarManager::saveState(bool updatePosition) {
         out << "bar_blur_enabled=" << (m_barBlurEnabled ? "1" : "0") << "\n";
         out << "bar_blur=" << QString::number(m_barBlur, 'f', 2) << "\n";
         out << "bar_blur_xray=" << (m_barBlurXray ? "1" : "0") << "\n";
+        out << "bar_match_windows=" << (m_barMatchWindows ? "1" : "0") << "\n";
         out << "media_demo_mode=" << (m_mediaDemoMode ? "1" : "0") << "\n";
         out << "media_hide_timeout=" << m_mediaHideTimeout << "\n";
         out << "media_waves=" << (m_mediaWaves ? "1" : "0") << "\n";
@@ -455,8 +457,12 @@ void WaybarManager::pollHyprState() {
         item["id"] = it.key(); item["windows"] = it.value(); item["active"] = (it.key() == newActiveWs);
         nextList.append(item);
     }
-    if (m_activeWorkspace != newActiveWs || m_workspaces != nextList) {
-        m_activeWorkspace = newActiveWs; m_workspaces = nextList; emit workspacesChanged();
+    int newWsWinCount = wsWindows.value(newActiveWs, 0);
+    if (m_activeWorkspace != newActiveWs || m_activeWorkspaceWindowCount != newWsWinCount || m_workspaces != nextList) {
+        m_activeWorkspace = newActiveWs;
+        m_activeWorkspaceWindowCount = newWsWinCount;
+        m_workspaces = nextList;
+        emit workspacesChanged();
     }
 
     QJsonDocument winDoc = QJsonDocument::fromJson(queryHyprCtlSocket("j/activewindow").toUtf8());
@@ -3885,6 +3891,14 @@ void WaybarManager::setBarBlur(qreal v) {
 void WaybarManager::setBarBlurXray(bool v) {
     if (m_barBlurXray != v) {
         m_barBlurXray = v;
+        saveState(false);
+        applyBarBlurRule(false, false);
+    }
+}
+
+void WaybarManager::setBarMatchWindows(bool v) {
+    if (m_barMatchWindows != v) {
+        m_barMatchWindows = v;
         saveState(false);
         applyBarBlurRule(false, false);
     }

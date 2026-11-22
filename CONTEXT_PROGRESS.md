@@ -504,3 +504,9 @@
 - В `sync_m3_windows.py` переведена генерация темы AyuGram на полную официальную базу `scripts/ayugram_night_base.tdesktop-theme` (927 строк) с HSL-перекраской всех фонов/акцентов и упаковкой как `colors.tdesktop-theme` внутри zip.
 - Для проводника Nautilus (GTK4) установлена минимальная альфа фона `0.025` (чтобы Hyprland не пропускал блюр на `alpha == 0.000` как CSD-тени) и `ignore_opacity = true` в `LookManager`.
 - В `WaybarManager` и `WaybarSettingsView.qml` блок блюра панели задач перенесён вниз под ползунки прозрачности, полностью отвязан от глобального блюра окон и включается постоянно при закрытых настройках.
+
+## Выполнено в Шаге 55 (Фикс распаковки базы AyuGram, Блюр проводника size=8, Панель=Окна + Обводка, Neovide и Zed)
+- Исправлено чтение `ayugram_night_base.tdesktop-theme` в `sync_m3_windows.py`: распаковка `colors.tdesktop-theme` из ZIP через `zipfile.ZipFile`, полная перекраска всех ~900 ключей в чисто чёрный `#000000` или цвета обоев.
+- В `WaybarManager`, `Main.qml`, `merged_shell.frag` и `WaybarSettingsView.qml` добавлен режим `barMatchWindows` (прозрачность и блюр панели повторяют окна при закрытых настройках) и синхронизация обводки панели с `Look.inactiveBorder` с автоскрытием обводки при 1 окне на столе (`activeWorkspaceWindowCount == 1`).
+- Добавлена нативная прозрачность только фона (текст 100% чёткий) для `Neovide` (`~/.config/nvim/hysett_neovide.lua`) и `Zed` (`theme_overrides` в `~/.config/zed/settings.json`) + `0.999 override` в `LookManager`.
+- Исправлен сброс `decoration:blur:size = 1` в `look.lua` (установлено `size = 8, passes = 3`) для полноценного блюра проводника Nautilus.

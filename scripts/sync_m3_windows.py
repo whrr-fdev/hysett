@@ -355,6 +355,68 @@ for gver in ("gtk-3.0", "gtk-4.0"):
     with open(os.path.join(gdir, "gtk.css"), "w") as f:
         f.write(gtk_css)
 
+
+# 3b. Neovide (прозрачность только фона, текст 100% чёткий)
+nvim_dir = os.path.join(home, ".config/nvim")
+os.makedirs(nvim_dir, exist_ok=True)
+nv_op = win_act_alpha if bg_only_opacity else 1.0
+nv_lua_path = os.path.join(nvim_dir, "hysett_neovide.lua")
+with open(nv_lua_path, "w") as nf:
+    nf.write(f"""if vim.g.neovide then
+    vim.g.neovide_opacity = {nv_op:.2f}
+    vim.g.neovide_normal_opacity = {nv_op:.2f}
+    vim.g.neovide_window_blurred = true
+end
+""")
+init_lua_path = os.path.join(nvim_dir, "init.lua")
+if os.path.exists(init_lua_path):
+    init_txt = open(init_lua_path, encoding="utf-8", errors="ignore").read()
+    hook_line = "pcall(dofile, vim.fn.expand(\"~/.config/nvim/hysett_neovide.lua\"))"
+    if "hysett_neovide.lua" not in init_txt:
+        with open(init_lua_path, "a", encoding="utf-8") as inf:
+            inf.write("\n" + hook_line + "\n")
+
+# 3c. Zed (прозрачный фон с блюром и 100% чётким текстом через theme_overrides)
+zed_settings_path = os.path.join(home, ".config/zed/settings.json")
+if os.path.exists(zed_settings_path):
+    try:
+        raw_z = open(zed_settings_path, encoding="utf-8", errors="ignore").read()
+        # Убираем однострочные комментарии // и висячие запятые перед парсингом JSONC
+        clean_z = re.sub(r"(?m)^\s*//.*$", "", raw_z)
+        clean_z = re.sub(r",\s*([}\]])", r"\1", clean_z)
+        zdata = json.loads(clean_z)
+        z_a = max(0.025, win_act_alpha) if bg_only_opacity else 1.0
+        z_aa = f"{max(0, min(255, int(round(z_a * 255)))):02x}"
+        z_ca = f"{max(0, min(255, int(round(min(1.0, z_a + 0.04) * 255)))):02x}"
+        z_surf = surf_hex + z_aa
+        z_cont = cont_hex + z_ca
+        z_ov = zdata.get("theme_overrides", {})
+        if not isinstance(z_ov, dict):
+            z_ov = {}
+        z_ov["*"] = {
+            "background.appearance": "blurred" if (bg_only_opacity and win_act_alpha < 0.99) else "opaque",
+            "background": z_surf,
+            "surface.background": z_surf,
+            "elevated_surface.background": cont_hex + "ee",
+            "editor.background": "#00000000" if (bg_only_opacity and win_act_alpha < 0.99) else surf_hex,
+            "editor.gutter.background": "#00000000" if (bg_only_opacity and win_act_alpha < 0.99) else surf_hex,
+            "editor.active_line.background": high_hex + "55",
+            "panel.background": z_cont,
+            "tab_bar.background": z_cont,
+            "tab.inactive_background": z_surf,
+            "tab.active_background": high_hex + z_ca,
+            "toolbar.background": z_cont,
+            "title_bar.background": z_cont,
+            "status_bar.background": z_cont,
+            "terminal.background": "#00000000" if (bg_only_opacity and win_act_alpha < 0.99) else surf_hex,
+        }
+        zdata["theme_overrides"] = z_ov
+        with open(zed_settings_path, "w", encoding="utf-8") as zf:
+            json.dump(zdata, zf, indent=2, ensure_ascii=False)
+            zf.write("\n")
+    except Exception:
+        pass
+
 # В быстром режиме --opacity завершаем здесь (без перегенерации 1500 SVG папок)
 if opacity_only:
     sys.exit(0)
@@ -717,7 +779,16 @@ def make_solid_png(r, g, b, w=64, h=64):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)) + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
 
 base_night_path = os.path.join(home, "hysett/scripts/ayugram_night_base.tdesktop-theme")
-base_txt = open(base_night_path, encoding="utf-8", errors="ignore").read() if os.path.exists(base_night_path) else ""
+base_txt = ""
+if os.path.exists(base_night_path):
+    if zipfile.is_zipfile(base_night_path):
+        with zipfile.ZipFile(base_night_path, "r") as bzf:
+            for cand in ("colors.tdesktop-theme", "colors.tdesktop-palette"):
+                if cand in bzf.namelist():
+                    base_txt = bzf.read(cand).decode("utf-8", errors="ignore")
+                    break
+    else:
+        base_txt = open(base_night_path, encoding="utf-8", errors="ignore").read()
 pri_h, pri_l, pri_s = colorsys.rgb_to_hls(ayu_pri_rgb[0]/255.0, ayu_pri_rgb[1]/255.0, ayu_pri_rgb[2]/255.0)
 
 def remap_tdesktop_color(m):

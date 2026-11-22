@@ -180,7 +180,7 @@ float sceneSdf(vec2 p, out float outNotifBlend, out float outDrwBlend, out float
     outBarMergeProx = mergeProx;
 
     float bigOpen = clamp((u_drawer_rect.z - 520.0) / 220.0, 0.0, 1.0) * clamp(u_drawer_rect.w / 180.0, 0.0, 1.0) * mergeProx;
-    float barVis = clamp(max(u_bar_alpha * 10.0, bigOpen), 0.0, 1.0);
+    float barVis = (u_bar_rect.z > 1.0 && u_bar_rect.w > 1.0) ? clamp(max(u_bar_alpha * 40.0, max(u_outline_color.a * 4.0, bigOpen)), 0.0, 1.0) : 0.0;
     float waveStretch = (barVis > 0.01) ? computeFerroStretchForRect(p, u_bar_rect, u_music_wave.z, u_radius, true) : 0.0;
     vec2 bSize = vec2(u_bar_rect.z, u_bar_rect.w + waveStretch);
     vec2 bHalf = 0.5 * bSize;
@@ -283,13 +283,12 @@ void main() {
     float barBaseAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix * barMergeProx);
     float popupOrSettingsAlpha = mix(u_bar_alpha, u_bg_color.a, bigSettingsMix);
     float effAlpha = mix(barBaseAlpha, popupOrSettingsAlpha, drwBlend);
-    float outlineVis = clamp(effAlpha * 3.0, 0.0, 1.0);
-
     vec4 shellFill = vec4(darkBgRgb, effAlpha);
     vec4 activeFill = mix(shellFill, vec4(u_notif_color.rgb * 0.50, max(0.88, u_notif_color.a)), notifBlend);
 
-    vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, outlineMask * u_outline_color.a * outlineVis);
-    float baseAlpha = clamp(activeFill.a + outlineMask * 0.10 * outlineVis, 0.0, 0.98);
+    float borderAmt = outlineMask * u_outline_color.a;
+    vec3 baseRgb = mix(activeFill.rgb, u_outline_color.rgb, borderAmt);
+    float baseAlpha = clamp(max(activeFill.a, borderAmt), 0.0, 0.98);
 
     if (u_drawer_rect.w > 1.0 && u_drawer_rect.z > 1.0 && u_cursor_strength > 0.01 && u_mouse.x > -50.0) {
         float dm0 = length(p - u_mouse);

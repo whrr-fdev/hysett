@@ -299,7 +299,7 @@ void LookManager::writeLookLua() {
         : QString("%1 override %2 override").arg(effAct, 0, 'f', 2).arg(effInact, 0, 'f', 2);
     out << "hl.window_rule({\n";
     out << "    name    = \"hysett-bg-only-opacity\",\n";
-    out << "    match   = { class = \"^(kitty|waybar-btop|org\\\\.gnome\\\\..*|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
+    out << "    match   = { class = \"^(kitty|waybar-btop|neovide|dev\\\\.zed\\\\.Zed|.*zed.*|org\\\\.gnome\\\\..*|.*nautilus.*|org\\\\.pulseaudio\\\\.pavucontrol|blueman-manager|nm-connection-editor|xdg-desktop-portal-gtk)$\" },\n";
     out << "    opacity = \"" << bgOpRule << "\",\n";
     out << "})\n";
     file.flush();
